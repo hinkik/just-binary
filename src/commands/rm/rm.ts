@@ -1,4 +1,5 @@
 import { Command, CommandContext, ExecResult } from '../../types.js';
+import { unknownOption } from '../help.js';
 
 export const rmCommand: Command = {
   name: 'rm',
@@ -14,11 +15,14 @@ export const rmCommand: Command = {
         for (const flag of arg.slice(1)) {
           if (flag === 'r' || flag === 'R') recursive = true;
           else if (flag === 'f') force = true;
+          else return unknownOption('rm', `-${flag}`);
         }
       } else if (arg === '--recursive') {
         recursive = true;
       } else if (arg === '--force') {
         force = true;
+      } else if (arg.startsWith('--')) {
+        return unknownOption('rm', arg);
       } else {
         paths.push(arg);
       }

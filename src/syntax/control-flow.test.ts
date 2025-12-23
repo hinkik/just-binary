@@ -250,4 +250,68 @@ describe('Bash Syntax - Control Flow', () => {
       expect(result.stdout).toBe('second\n');
     });
   });
+
+  describe('! negation operator', () => {
+    it('should negate exit code of true to 1', async () => {
+      const env = new BashEnv();
+      const result = await env.exec('! true');
+      expect(result.exitCode).toBe(1);
+    });
+
+    it('should negate exit code of false to 0', async () => {
+      const env = new BashEnv();
+      const result = await env.exec('! false');
+      expect(result.exitCode).toBe(0);
+    });
+
+    it('should work with && chaining', async () => {
+      const env = new BashEnv();
+      const result = await env.exec('! false && echo success');
+      expect(result.stdout).toBe('success\n');
+      expect(result.exitCode).toBe(0);
+    });
+
+    it('should work with || chaining', async () => {
+      const env = new BashEnv();
+      const result = await env.exec('! true || echo fallback');
+      expect(result.stdout).toBe('fallback\n');
+      expect(result.exitCode).toBe(0);
+    });
+
+    it('should negate grep failure to success', async () => {
+      const env = new BashEnv({
+        files: { '/test.txt': 'hello world' },
+      });
+      const result = await env.exec('! grep missing /test.txt');
+      expect(result.exitCode).toBe(0);
+    });
+
+    it('should negate grep success to failure', async () => {
+      const env = new BashEnv({
+        files: { '/test.txt': 'hello world' },
+      });
+      const result = await env.exec('! grep hello /test.txt > /dev/null');
+      expect(result.exitCode).toBe(1);
+    });
+
+    it('should work in if condition', async () => {
+      const env = new BashEnv();
+      const result = await env.exec('if ! false; then echo yes; fi');
+      expect(result.stdout).toBe('yes\n');
+    });
+
+    it('should work with find -not equivalent', async () => {
+      const env = new BashEnv({
+        files: {
+          '/project/src/app.ts': 'code',
+          '/project/src/utils.ts': 'utils',
+          '/project/test.json': '{}',
+        },
+      });
+      // Use -not with find (since shell ! passes to find)
+      const result = await env.exec('find /project -name "*.ts" -not -name "utils*"');
+      expect(result.stdout).toContain('app.ts');
+      expect(result.stdout).not.toContain('utils.ts');
+    });
+  });
 });

@@ -1,4 +1,5 @@
 import { Command, CommandContext, ExecResult } from '../../types.js';
+import { unknownOption } from '../help.js';
 
 export const sortCommand: Command = {
   name: 'sort',
@@ -36,14 +37,17 @@ export const sortCommand: Command = {
         if (!isNaN(keyNum) && keyNum >= 1) {
           keyField = keyNum;
         }
+      } else if (arg.startsWith('--')) {
+        return unknownOption('sort', arg);
       } else if (arg.startsWith('-') && !arg.startsWith('--')) {
         // Handle combined flags like -rn
         for (const char of arg.slice(1)) {
           if (char === 'r') reverse = true;
           else if (char === 'n') numeric = true;
           else if (char === 'u') unique = true;
+          else return unknownOption('sort', `-${char}`);
         }
-      } else if (!arg.startsWith('-')) {
+      } else {
         files.push(arg);
       }
     }

@@ -19,10 +19,12 @@
   "license": "ISC",
   "devDependencies": {
     "@types/node": "^25.0.3",
+    "@types/sprintf-js": "^1.1.4",
     "typescript": "^5.9.3",
     "vitest": "^4.0.16"
   },
   "dependencies": {
-    "minimatch": "^10.1.1"
+    "minimatch": "^10.1.1",
+    "sprintf-js": "^1.1.3"
   }
 }

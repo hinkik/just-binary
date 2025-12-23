@@ -315,4 +315,176 @@ describe('find command', () => {
       expect(result.exitCode).toBe(0);
     });
   });
+
+  describe('-iname (case insensitive)', () => {
+    it('should find files case insensitively', async () => {
+      const env = new BashEnv({
+        files: {
+          '/dir/README.md': '',
+          '/dir/readme.txt': '',
+          '/dir/Readme.rst': '',
+          '/dir/other.txt': '',
+        },
+      });
+      const result = await env.exec('find /dir -iname "readme*"');
+      expect(result.stdout).toContain('README.md');
+      expect(result.stdout).toContain('readme.txt');
+      expect(result.stdout).toContain('Readme.rst');
+      expect(result.stdout).not.toContain('other.txt');
+      expect(result.exitCode).toBe(0);
+    });
+
+    it('should match uppercase pattern to lowercase file', async () => {
+      const env = new BashEnv({
+        files: {
+          '/dir/config.json': '',
+        },
+      });
+      const result = await env.exec('find /dir -iname "CONFIG.JSON"');
+      expect(result.stdout).toContain('config.json');
+      expect(result.exitCode).toBe(0);
+    });
+  });
+
+  describe('-path option', () => {
+    it('should match against full path', async () => {
+      const env = createEnv();
+      const result = await env.exec('find /project -path "*/utils/*"');
+      expect(result.stdout).toContain('/project/src/utils/helpers.ts');
+      expect(result.stdout).toContain('/project/src/utils/format.ts');
+      expect(result.stdout).not.toContain('/project/src/index.ts');
+      expect(result.exitCode).toBe(0);
+    });
+
+    it('should match path pattern with extension', async () => {
+      const env = createEnv();
+      const result = await env.exec('find /project -path "*tests*"');
+      expect(result.stdout).toContain('/project/tests');
+      expect(result.stdout).toContain('/project/tests/index.test.ts');
+      expect(result.exitCode).toBe(0);
+    });
+  });
+
+  describe('-ipath option', () => {
+    it('should match path case insensitively', async () => {
+      const env = new BashEnv({
+        files: {
+          '/Project/SRC/file.ts': '',
+          '/Project/src/other.ts': '',
+        },
+      });
+      const result = await env.exec('find /Project -ipath "*src*"');
+      expect(result.stdout).toContain('SRC');
+      expect(result.stdout).toContain('src');
+      expect(result.exitCode).toBe(0);
+    });
+  });
+
+  describe('-empty option', () => {
+    it('should find empty files', async () => {
+      const env = new BashEnv({
+        files: {
+          '/dir/empty.txt': '',
+          '/dir/notempty.txt': 'content',
+        },
+      });
+      const result = await env.exec('find /dir -empty -type f');
+      expect(result.stdout).toContain('empty.txt');
+      expect(result.stdout).not.toContain('notempty.txt');
+      expect(result.exitCode).toBe(0);
+    });
+
+    it('should find empty directories', async () => {
+      const env = new BashEnv({
+        files: {
+          '/dir/emptydir/.keep': '', // Create then we'll remove the file conceptually
+          '/dir/notempty/file.txt': 'content',
+        },
+      });
+      // The emptydir has a file so it's not empty, notempty has a file
+      // Let's create a truly empty directory scenario
+      const env2 = new BashEnv({
+        files: {
+          '/dir/notempty/file.txt': 'content',
+        },
+      });
+      // Add empty directory manually via mkdir
+      await env2.exec('mkdir /dir/emptydir');
+      const result = await env2.exec('find /dir -empty -type d');
+      expect(result.stdout).toContain('emptydir');
+      expect(result.stdout).not.toContain('notempty');
+      expect(result.exitCode).toBe(0);
+    });
+  });
+
+  describe('-not and ! (negation)', () => {
+    it('should negate name pattern with -not', async () => {
+      const env = createEnv();
+      const result = await env.exec('find /project -type f -not -name "*.ts"');
+      expect(result.stdout).toContain('README.md');
+      expect(result.stdout).toContain('package.json');
+      expect(result.stdout).toContain('tsconfig.json');
+      expect(result.stdout).not.toContain('index.ts');
+      expect(result.exitCode).toBe(0);
+    });
+
+    it('should negate with multiple -not', async () => {
+      const env = createEnv();
+      // Exclude both .json and .md files
+      const result = await env.exec('find /project -type f -not -name "*.json" -not -name "*.md"');
+      expect(result.stdout).toContain('index.ts');
+      expect(result.stdout).toContain('helpers.ts');
+      expect(result.stdout).not.toContain('package.json');
+      expect(result.stdout).not.toContain('README.md');
+      expect(result.exitCode).toBe(0);
+    });
+
+    it('should negate type', async () => {
+      const env = createEnv();
+      const result = await env.exec('find /project -maxdepth 1 -not -type d');
+      expect(result.stdout).toContain('README.md');
+      expect(result.stdout).toContain('package.json');
+      expect(result.stdout).not.toContain('/project\n');
+      expect(result.exitCode).toBe(0);
+    });
+
+    it('should combine negation with OR', async () => {
+      const env = new BashEnv({
+        files: {
+          '/dir/a.txt': '',
+          '/dir/b.md': '',
+          '/dir/c.json': '',
+        },
+      });
+      // Find files that are NOT .txt
+      const result = await env.exec('find /dir -type f -not -name "*.txt"');
+      expect(result.stdout).toContain('b.md');
+      expect(result.stdout).toContain('c.json');
+      expect(result.stdout).not.toContain('a.txt');
+      expect(result.exitCode).toBe(0);
+    });
+  });
+
+  describe('unknown option handling', () => {
+    it('should error on unknown predicate', async () => {
+      const env = createEnv();
+      const result = await env.exec('find /project -unknown');
+      expect(result.stderr).toContain("find: unknown predicate '-unknown'");
+      expect(result.exitCode).toBe(1);
+    });
+
+    it('should error on unknown long option', async () => {
+      const env = createEnv();
+      const result = await env.exec('find /project --badoption');
+      expect(result.stderr).toContain("find: unknown predicate '--badoption'");
+      expect(result.exitCode).toBe(1);
+    });
+
+    it('should error on invalid -type argument', async () => {
+      const env = createEnv();
+      const result = await env.exec('find /project -type x');
+      expect(result.stderr).toContain('Unknown argument to -type');
+      expect(result.exitCode).toBe(1);
+    });
+  });
 });

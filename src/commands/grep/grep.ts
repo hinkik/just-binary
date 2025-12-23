@@ -1,5 +1,5 @@
 import { Command, CommandContext, ExecResult } from '../../types.js';
-import { hasHelpFlag, showHelp } from '../help.js';
+import { hasHelpFlag, showHelp, unknownOption } from '../help.js';
 
 const grepHelp = {
   name: 'grep',
@@ -109,6 +109,11 @@ export const grepCommand: Command = {
           else if (flag === 'o' || flag === '--only-matching') onlyMatching = true;
           else if (flag === 'h' || flag === '--no-filename') noFilename = true;
           else if (flag === 'q' || flag === '--quiet' || flag === '--silent') quietMode = true;
+          else if (flag.startsWith('--')) {
+            return unknownOption('grep', flag);
+          } else if (flag.length === 1) {
+            return unknownOption('grep', `-${flag}`);
+          }
         }
       } else if (pattern === null) {
         pattern = arg;

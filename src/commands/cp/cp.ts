@@ -1,4 +1,5 @@
 import { Command, CommandContext, ExecResult } from '../../types.js';
+import { unknownOption } from '../help.js';
 
 export const cpCommand: Command = {
   name: 'cp',
@@ -11,8 +12,13 @@ export const cpCommand: Command = {
     for (const arg of args) {
       if (arg === '-r' || arg === '-R' || arg === '--recursive') {
         recursive = true;
+      } else if (arg.startsWith('--')) {
+        return unknownOption('cp', arg);
       } else if (arg.startsWith('-')) {
-        // Ignore other flags
+        for (const c of arg.slice(1)) {
+          if (c !== 'r' && c !== 'R') return unknownOption('cp', `-${c}`);
+        }
+        recursive = true;
       } else {
         paths.push(arg);
       }

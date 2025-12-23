@@ -223,4 +223,165 @@ describe('awk command', () => {
       expect(result.exitCode).toBe(0);
     });
   });
+
+  describe('compound assignment operators', () => {
+    it('should handle += operator', async () => {
+      const env = new BashEnv({
+        files: { '/data.txt': '10\n20\n30\n' }
+      });
+      const result = await env.exec("awk 'BEGIN{sum=0}{sum+=$1}END{print sum}' /data.txt");
+      expect(result.stdout).toBe('60\n');
+      expect(result.exitCode).toBe(0);
+    });
+
+    it('should handle -= operator', async () => {
+      const env = new BashEnv({
+        files: { '/data.txt': '5\n3\n2\n' }
+      });
+      const result = await env.exec("awk 'BEGIN{val=100}{val-=$1}END{print val}' /data.txt");
+      expect(result.stdout).toBe('90\n');
+      expect(result.exitCode).toBe(0);
+    });
+
+    it('should handle *= operator', async () => {
+      const env = new BashEnv({
+        files: { '/data.txt': '2\n3\n4\n' }
+      });
+      const result = await env.exec("awk 'BEGIN{prod=1}{prod*=$1}END{print prod}' /data.txt");
+      expect(result.stdout).toBe('24\n');
+      expect(result.exitCode).toBe(0);
+    });
+
+    it('should handle /= operator', async () => {
+      const env = new BashEnv({
+        files: { '/data.txt': '2\n5\n' }
+      });
+      const result = await env.exec("awk 'BEGIN{val=100}{val/=$1}END{print val}' /data.txt");
+      expect(result.stdout).toBe('10\n');
+      expect(result.exitCode).toBe(0);
+    });
+
+    it('should accumulate with += across multiple lines', async () => {
+      const env = new BashEnv({
+        files: { '/sales.csv': 'product,100\nservice,250\nsubscription,50\n' }
+      });
+      const result = await env.exec("awk -F, '{total+=$2}END{print total}' /sales.csv");
+      expect(result.stdout).toBe('400\n');
+      expect(result.exitCode).toBe(0);
+    });
+  });
+
+  describe('increment/decrement operators', () => {
+    it('should handle var++ postfix increment', async () => {
+      const env = new BashEnv({
+        files: { '/data.txt': 'a\nb\nc\n' }
+      });
+      const result = await env.exec("awk 'BEGIN{n=0}{n++}END{print n}' /data.txt");
+      expect(result.stdout).toBe('3\n');
+      expect(result.exitCode).toBe(0);
+    });
+
+    it('should handle var-- postfix decrement', async () => {
+      const env = new BashEnv({
+        files: { '/data.txt': 'a\nb\n' }
+      });
+      const result = await env.exec("awk 'BEGIN{n=10}{n--}END{print n}' /data.txt");
+      expect(result.stdout).toBe('8\n');
+      expect(result.exitCode).toBe(0);
+    });
+
+    it('should handle ++var prefix increment', async () => {
+      const env = new BashEnv({
+        files: { '/data.txt': 'x\ny\n' }
+      });
+      const result = await env.exec("awk 'BEGIN{n=0}{++n}END{print n}' /data.txt");
+      expect(result.stdout).toBe('2\n');
+      expect(result.exitCode).toBe(0);
+    });
+
+    it('should handle --var prefix decrement', async () => {
+      const env = new BashEnv({
+        files: { '/data.txt': 'x\ny\ny\n' }
+      });
+      const result = await env.exec("awk 'BEGIN{n=5}{--n}END{print n}' /data.txt");
+      expect(result.stdout).toBe('2\n');
+      expect(result.exitCode).toBe(0);
+    });
+  });
+
+  describe('compound conditions (&&, ||)', () => {
+    it('should handle && (AND) condition', async () => {
+      const env = new BashEnv({
+        files: { '/data.txt': '1 10\n2 20\n3 30\n4 40\n5 50\n' }
+      });
+      const result = await env.exec("awk '$1>=2 && $1<=4{print}' /data.txt");
+      expect(result.stdout).toBe('2 20\n3 30\n4 40\n');
+      expect(result.exitCode).toBe(0);
+    });
+
+    it('should handle || (OR) condition', async () => {
+      const env = new BashEnv({
+        files: { '/data.txt': '1 a\n2 b\n3 c\n4 d\n5 e\n' }
+      });
+      const result = await env.exec("awk '$1==1 || $1==5{print}' /data.txt");
+      expect(result.stdout).toBe('1 a\n5 e\n');
+      expect(result.exitCode).toBe(0);
+    });
+
+    it('should handle NR range with &&', async () => {
+      const env = new BashEnv({
+        files: { '/data.txt': 'line1\nline2\nline3\nline4\nline5\n' }
+      });
+      const result = await env.exec("awk 'NR>=2 && NR<=4{print}' /data.txt");
+      expect(result.stdout).toBe('line2\nline3\nline4\n');
+      expect(result.exitCode).toBe(0);
+    });
+  });
+
+  describe('variable comparisons in conditions', () => {
+    it('should compare field to user variable', async () => {
+      const env = new BashEnv({
+        files: { '/data.txt': '10\n25\n15\n30\n5\n' }
+      });
+      const result = await env.exec("awk -v threshold=20 '$1>threshold{print}' /data.txt");
+      expect(result.stdout).toBe('25\n30\n');
+      expect(result.exitCode).toBe(0);
+    });
+
+    it('should track max value', async () => {
+      const env = new BashEnv({
+        files: { '/data.txt': '10\n25\n15\n30\n5\n' }
+      });
+      const result = await env.exec("awk 'BEGIN{max=0}$1>max{max=$1}END{print max}' /data.txt");
+      expect(result.stdout).toBe('30\n');
+      expect(result.exitCode).toBe(0);
+    });
+
+    it('should track min value', async () => {
+      const env = new BashEnv({
+        files: { '/data.txt': '10\n25\n15\n30\n5\n' }
+      });
+      const result = await env.exec("awk 'BEGIN{min=9999}$1<min{min=$1}END{print min}' /data.txt");
+      expect(result.stdout).toBe('5\n');
+      expect(result.exitCode).toBe(0);
+    });
+
+    it('should handle NF comparisons', async () => {
+      const env = new BashEnv({
+        files: { '/data.txt': 'one\ntwo words\nthree word line\n' }
+      });
+      const result = await env.exec("awk 'NF>1{print}' /data.txt");
+      expect(result.stdout).toBe('two words\nthree word line\n');
+      expect(result.exitCode).toBe(0);
+    });
+
+    it('should filter CSV by numeric field comparison', async () => {
+      const env = new BashEnv({
+        files: { '/prices.csv': 'apple,1.50\nbanana,0.75\norange,2.00\ngrape,3.50\n' }
+      });
+      const result = await env.exec("awk -F, '$2>=2{print $1}' /prices.csv");
+      expect(result.stdout).toBe('orange\ngrape\n');
+      expect(result.exitCode).toBe(0);
+    });
+  });
 });

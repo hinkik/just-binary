@@ -1,5 +1,5 @@
 import { Command, CommandContext, ExecResult } from '../../types.js';
-import { hasHelpFlag, showHelp } from '../help.js';
+import { hasHelpFlag, showHelp, unknownOption } from '../help.js';
 
 const treeHelp = {
   name: 'tree',
@@ -49,6 +49,20 @@ export const treeCommand: Command = {
         options.fullPath = true;
       } else if (arg === '-L' && i + 1 < args.length) {
         options.maxDepth = parseInt(args[++i], 10);
+      } else if (arg.startsWith('--')) {
+        return unknownOption('tree', arg);
+      } else if (arg.startsWith('-') && arg.length > 1) {
+        // Check combined short options
+        for (const c of arg.slice(1)) {
+          if (c === 'a') options.showHidden = true;
+          else if (c === 'd') options.directoriesOnly = true;
+          else if (c === 'f') options.fullPath = true;
+          else if (c === 'L') {
+            // -L requires argument, can't be combined
+            return unknownOption('tree', `-${c}`);
+          }
+          else return unknownOption('tree', `-${c}`);
+        }
       } else if (!arg.startsWith('-')) {
         directories.push(arg);
       }

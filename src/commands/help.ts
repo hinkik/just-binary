@@ -5,6 +5,7 @@ export interface HelpInfo {
   summary: string;
   usage: string;
   options?: string[];
+  notes?: string[];
 }
 
 export function showHelp(info: HelpInfo): ExecResult {
@@ -16,9 +17,58 @@ export function showHelp(info: HelpInfo): ExecResult {
       output += `  ${opt}\n`;
     }
   }
+  if (info.notes && info.notes.length > 0) {
+    output += '\nNotes:\n';
+    for (const note of info.notes) {
+      output += `  ${note}\n`;
+    }
+  }
   return { stdout: output, stderr: '', exitCode: 0 };
 }
 
 export function hasHelpFlag(args: string[]): boolean {
   return args.includes('--help');
+}
+
+/**
+ * Returns an error result for an unknown option
+ */
+export function unknownOption(cmdName: string, option: string): ExecResult {
+  // For single-char options, use "invalid option -- 'x'" format
+  // For long options, use "unrecognized option '--xxx'" format
+  const msg = option.startsWith('--')
+    ? `${cmdName}: unrecognized option '${option}'\n`
+    : `${cmdName}: invalid option -- '${option.replace(/^-/, '')}'\n`;
+  return { stdout: '', stderr: msg, exitCode: 1 };
+}
+
+/**
+ * Check if an argument is an unknown option given a set of valid options
+ * Returns the unknown option if found, null otherwise
+ */
+export function findUnknownOption(
+  args: string[],
+  validShortOpts: string,
+  validLongOpts: string[] = []
+): string | null {
+  for (const arg of args) {
+    if (arg === '--help') continue;
+    if (arg === '--') break;
+
+    if (arg.startsWith('--')) {
+      // Long option - check if it matches any valid long option (with or without =value)
+      const optName = arg.split('=')[0];
+      if (!validLongOpts.some(valid => optName === valid || optName === `--${valid}`)) {
+        return arg;
+      }
+    } else if (arg.startsWith('-') && arg !== '-') {
+      // Short option(s) - check each character
+      for (const c of arg.slice(1)) {
+        if (!validShortOpts.includes(c)) {
+          return `-${c}`;
+        }
+      }
+    }
+  }
+  return null;
 }

@@ -233,4 +233,91 @@ describe('sed command', () => {
       expect(result.exitCode).toBe(0);
     });
   });
+
+  describe('in-place editing (-i)', () => {
+    it('should edit file in-place with -i', async () => {
+      const env = new BashEnv({
+        files: { '/test.txt': 'hello world\n' },
+        cwd: '/',
+      });
+      const result = await env.exec("sed -i 's/hello/hi/' /test.txt");
+      expect(result.stdout).toBe('');
+      expect(result.exitCode).toBe(0);
+
+      // Verify file was modified
+      const cat = await env.exec('cat /test.txt');
+      expect(cat.stdout).toBe('hi world\n');
+    });
+
+    it('should edit file in-place with global replacement', async () => {
+      const env = new BashEnv({
+        files: { '/test.txt': 'foo foo foo\nbar foo bar\n' },
+        cwd: '/',
+      });
+      const result = await env.exec("sed -i 's/foo/baz/g' /test.txt");
+      expect(result.stdout).toBe('');
+      expect(result.exitCode).toBe(0);
+
+      const cat = await env.exec('cat /test.txt');
+      expect(cat.stdout).toBe('baz baz baz\nbar baz bar\n');
+    });
+
+    it('should delete lines in-place', async () => {
+      const env = new BashEnv({
+        files: { '/test.txt': 'line 1\nline 2\nline 3\n' },
+        cwd: '/',
+      });
+      const result = await env.exec("sed -i '2d' /test.txt");
+      expect(result.stdout).toBe('');
+      expect(result.exitCode).toBe(0);
+
+      const cat = await env.exec('cat /test.txt');
+      expect(cat.stdout).toBe('line 1\nline 3\n');
+    });
+
+    it('should delete matching lines in-place', async () => {
+      const env = new BashEnv({
+        files: { '/test.txt': 'keep this\nremove this\nkeep that\n' },
+        cwd: '/',
+      });
+      const result = await env.exec("sed -i '/remove/d' /test.txt");
+      expect(result.stdout).toBe('');
+      expect(result.exitCode).toBe(0);
+
+      const cat = await env.exec('cat /test.txt');
+      expect(cat.stdout).toBe('keep this\nkeep that\n');
+    });
+
+    it('should edit multiple files in-place', async () => {
+      const env = new BashEnv({
+        files: {
+          '/a.txt': 'hello\n',
+          '/b.txt': 'hello\n',
+        },
+        cwd: '/',
+      });
+      const result = await env.exec("sed -i 's/hello/hi/' /a.txt /b.txt");
+      expect(result.stdout).toBe('');
+      expect(result.exitCode).toBe(0);
+
+      const catA = await env.exec('cat /a.txt');
+      expect(catA.stdout).toBe('hi\n');
+
+      const catB = await env.exec('cat /b.txt');
+      expect(catB.stdout).toBe('hi\n');
+    });
+
+    it('should handle --in-place flag', async () => {
+      const env = new BashEnv({
+        files: { '/test.txt': 'old text\n' },
+        cwd: '/',
+      });
+      const result = await env.exec("sed --in-place 's/old/new/' /test.txt");
+      expect(result.stdout).toBe('');
+      expect(result.exitCode).toBe(0);
+
+      const cat = await env.exec('cat /test.txt');
+      expect(cat.stdout).toBe('new text\n');
+    });
+  });
 });

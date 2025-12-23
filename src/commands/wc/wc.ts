@@ -1,5 +1,5 @@
 import { Command, CommandContext, ExecResult } from '../../types.js';
-import { hasHelpFlag, showHelp } from '../help.js';
+import { hasHelpFlag, showHelp, unknownOption } from '../help.js';
 
 const wcHelp = {
   name: 'wc',
@@ -34,6 +34,7 @@ export const wcCommand: Command = {
           if (flag === 'l') showLines = true;
           else if (flag === 'w') showWords = true;
           else if (flag === 'c' || flag === 'm') showChars = true;
+          else return unknownOption('wc', `-${flag}`);
         }
       } else if (arg === '--lines') {
         showLines = true;
@@ -41,6 +42,8 @@ export const wcCommand: Command = {
         showWords = true;
       } else if (arg === '--bytes' || arg === '--chars') {
         showChars = true;
+      } else if (arg.startsWith('--')) {
+        return unknownOption('wc', arg);
       } else {
         files.push(arg);
       }

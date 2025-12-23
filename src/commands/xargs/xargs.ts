@@ -1,5 +1,5 @@
 import { Command, CommandContext, ExecResult } from '../../types.js';
-import { hasHelpFlag, showHelp } from '../help.js';
+import { hasHelpFlag, showHelp, unknownOption } from '../help.js';
 
 const xargsHelp = {
   name: 'xargs',
@@ -47,6 +47,21 @@ export const xargsCommand: Command = {
         commandStart = i + 1;
       } else if (arg === '-r' || arg === '--no-run-if-empty') {
         noRunIfEmpty = true;
+        commandStart = i + 1;
+      } else if (arg.startsWith('--')) {
+        return unknownOption('xargs', arg);
+      } else if (arg.startsWith('-') && arg.length > 1) {
+        // Check for unknown short options
+        let valid = true;
+        for (const c of arg.slice(1)) {
+          if (!'0trnI'.includes(c)) {
+            return unknownOption('xargs', `-${c}`);
+          }
+        }
+        // Handle combined short options
+        if (arg.includes('0')) nullSeparator = true;
+        if (arg.includes('t')) verbose = true;
+        if (arg.includes('r')) noRunIfEmpty = true;
         commandStart = i + 1;
       } else if (!arg.startsWith('-')) {
         commandStart = i;

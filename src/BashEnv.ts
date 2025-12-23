@@ -603,12 +603,22 @@ export class BashEnv {
     let accumulatedStdout = '';
     let accumulatedStderr = '';
 
+    // Track negation for current pipeline segment
+    let currentNegationCount = 0;
+
     for (let i = 0; i < pipeline.commands.length; i++) {
-      const { parsed, operator } = pipeline.commands[i];
+      const { parsed, operator, negationCount } = pipeline.commands[i];
       const nextCommand = pipeline.commands[i + 1];
       const nextOperator = nextCommand?.operator || '';
 
+      // At the start of a new pipeline segment, capture the negation count
+      if (operator !== '' || i === 0) {
+        // This is the first command of a pipeline segment
+        currentNegationCount = negationCount || 0;
+      }
+
       // Check if we should run based on previous result (for &&, ||, ;)
+      // Note: lastResult here is from the previous pipeline segment (already negated if needed)
       if (operator === '&&' && lastResult.exitCode !== 0) continue;
       if (operator === '||' && lastResult.exitCode === 0) continue;
       // For ';', always run
@@ -620,13 +630,20 @@ export class BashEnv {
 
       // Execute the command
       const commandStdin = isPipedInput && i > 0 ? stdin : initialStdin;
-      const result = await this.executeCommand(parsed.command, parsed.args, parsed.quotedArgs, parsed.redirections, commandStdin);
+      let result = await this.executeCommand(parsed.command, parsed.args, parsed.quotedArgs, parsed.redirections, commandStdin);
 
       // Handle stdout based on whether this is piped to next command
       if (isPipedOutput && i < pipeline.commands.length - 1) {
         // This command's stdout goes to next command's stdin
         stdin = result.stdout;
       } else {
+        // End of pipeline segment - apply negation if odd count
+        if (currentNegationCount % 2 === 1) {
+          result = {
+            ...result,
+            exitCode: result.exitCode === 0 ? 1 : 0,
+          };
+        }
         // Accumulate stdout for final output
         accumulatedStdout += result.stdout;
       }

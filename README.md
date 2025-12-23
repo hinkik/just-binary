@@ -31,7 +31,7 @@ await custom.exec("cat /data/file.txt");
 
 // With custom execution limits
 const limited = new BashEnv({
-  maxCallDepth: 50,        // Max recursion depth (default: 100)
+  maxCallDepth: 50, // Max recursion depth (default: 100)
   maxLoopIterations: 5000, // Max loop iterations (default: 10000)
 });
 ```
@@ -45,15 +45,19 @@ pnpm shell
 ## Supported Commands
 
 ### File Operations
+
 `cat`, `cp`, `ln`, `ls`, `mkdir`, `mv`, `readlink`, `rm`, `stat`, `touch`, `tree`
 
 ### Text Processing
+
 `awk`, `cut`, `grep`, `head`, `printf`, `sed`, `sort`, `tail`, `tr`, `uniq`, `wc`, `xargs`
 
 ### Navigation & Environment
+
 `basename`, `cd`, `dirname`, `du`, `echo`, `env`, `export`, `find`, `printenv`, `pwd`, `tee`
 
 ### Shell Utilities
+
 `alias`, `bash`, `chmod`, `clear`, `false`, `history`, `sh`, `true`, `unalias`
 
 All commands support `--help` for usage information.

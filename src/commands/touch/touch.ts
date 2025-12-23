@@ -1,4 +1,5 @@
 import { Command, CommandContext, ExecResult } from '../../types.js';
+import { unknownOption } from '../help.js';
 
 export const touchCommand: Command = {
   name: 'touch',
@@ -8,8 +9,10 @@ export const touchCommand: Command = {
 
     // Parse arguments
     for (const arg of args) {
-      if (arg.startsWith('-')) {
-        // Ignore flags for now
+      if (arg.startsWith('--')) {
+        return unknownOption('touch', arg);
+      } else if (arg.startsWith('-') && arg.length > 1) {
+        return unknownOption('touch', arg);
       } else {
         files.push(arg);
       }

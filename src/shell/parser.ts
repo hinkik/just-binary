@@ -28,6 +28,12 @@ export interface ParsedCommand {
 export interface ChainedCommand {
   parsed: ParsedCommand;
   operator: '' | '&&' | '||' | ';';
+  /**
+   * Number of ! operators before this pipeline segment.
+   * Odd count = negate, even count = no change.
+   * Only meaningful on the first command of a pipeline segment.
+   */
+  negationCount?: number;
 }
 
 export interface Pipeline {
@@ -40,6 +46,7 @@ type TokenType =
   | 'and'
   | 'or'
   | 'semicolon'
+  | 'not'
   | 'redirect-stdout'
   | 'redirect-stdout-append'
   | 'redirect-stderr'
@@ -244,6 +251,18 @@ export class ShellParser {
         continue;
       }
 
+      // Handle ! (negation operator) - only at start of command or after operator
+      if (char === '!' && (current === '' || tokens.length === 0 ||
+          ['and', 'or', 'semicolon', 'pipe'].includes(tokens[tokens.length - 1]?.type))) {
+        // Check if followed by space or end (command negation)
+        if (i + 1 >= input.length || input[i + 1] === ' ' || input[i + 1] === '\t') {
+          pushWord();
+          tokens.push({ type: 'not', value: '!' });
+          i++;
+          continue;
+        }
+      }
+
       // Handle whitespace
       if (char === ' ' || char === '\t') {
         pushWord();
@@ -406,6 +425,7 @@ export class ShellParser {
     let currentArgs: { value: string; quoted: boolean }[] = [];
     let currentRedirections: Redirection[] = [];
     let lastOperator: '' | '&&' | '||' | ';' = '';
+    let negationCount = 0; // Count of ! operators for current pipeline segment
 
     const pushCommand = () => {
       if (currentArgs.length > 0) {
@@ -418,9 +438,15 @@ export class ShellParser {
             redirections: currentRedirections,
           },
           operator: lastOperator,
+          negationCount: negationCount > 0 ? negationCount : undefined,
         });
         currentArgs = [];
         currentRedirections = [];
+        // Only reset negation after non-pipe operators (end of pipeline segment)
+        // For pipes, negation applies to the whole pipeline segment
+        if (lastOperator !== '') {
+          negationCount = 0;
+        }
       }
     };
 
@@ -457,16 +483,24 @@ export class ShellParser {
         case 'and':
           pushCommand();
           lastOperator = '&&';
+          negationCount = 0; // Reset for next pipeline segment
           break;
 
         case 'or':
           pushCommand();
           lastOperator = '||';
+          negationCount = 0; // Reset for next pipeline segment
           break;
 
         case 'semicolon':
           pushCommand();
           lastOperator = ';';
+          negationCount = 0; // Reset for next pipeline segment
+          break;
+
+        case 'not':
+          // Increment negation count - odd count means negate
+          negationCount++;
           break;
 
         case 'redirect-stdout':

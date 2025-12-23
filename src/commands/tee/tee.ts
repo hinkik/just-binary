@@ -1,5 +1,5 @@
 import { Command, CommandContext, ExecResult } from '../../types.js';
-import { hasHelpFlag, showHelp } from '../help.js';
+import { hasHelpFlag, showHelp, unknownOption } from '../help.js';
 
 const teeHelp = {
   name: 'tee',
@@ -25,6 +25,13 @@ export const teeCommand: Command = {
     for (const arg of args) {
       if (arg === '-a' || arg === '--append') {
         append = true;
+      } else if (arg.startsWith('--')) {
+        return unknownOption('tee', arg);
+      } else if (arg.startsWith('-') && arg.length > 1) {
+        for (const c of arg.slice(1)) {
+          if (c === 'a') append = true;
+          else return unknownOption('tee', `-${c}`);
+        }
       } else if (!arg.startsWith('-')) {
         files.push(arg);
       }

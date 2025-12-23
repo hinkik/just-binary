@@ -1,5 +1,5 @@
 import { Command, CommandContext, ExecResult } from '../../types.js';
-import { hasHelpFlag, showHelp } from '../help.js';
+import { hasHelpFlag, showHelp, unknownOption } from '../help.js';
 
 const duHelp = {
   name: 'du',
@@ -54,6 +54,17 @@ export const duCommand: Command = {
         options.grandTotal = true;
       } else if (arg.startsWith('--max-depth=')) {
         options.maxDepth = parseInt(arg.slice('--max-depth='.length), 10);
+      } else if (arg.startsWith('--')) {
+        return unknownOption('du', arg);
+      } else if (arg.startsWith('-') && arg.length > 1) {
+        // Check combined short options
+        for (const c of arg.slice(1)) {
+          if (c === 'a') options.allFiles = true;
+          else if (c === 'h') options.humanReadable = true;
+          else if (c === 's') options.summarize = true;
+          else if (c === 'c') options.grandTotal = true;
+          else return unknownOption('du', `-${c}`);
+        }
       } else if (!arg.startsWith('-')) {
         targets.push(arg);
       }

@@ -1,5 +1,5 @@
 import { Command, CommandContext, ExecResult } from '../../types.js';
-import { hasHelpFlag, showHelp } from '../help.js';
+import { hasHelpFlag, showHelp, unknownOption } from '../help.js';
 
 const catHelp = {
   name: 'cat',
@@ -29,8 +29,16 @@ export const catCommand: Command = {
       } else if (arg === '-') {
         // '-' means read from stdin
         files.push('-');
+      } else if (arg.startsWith('--')) {
+        return unknownOption('cat', arg);
       } else if (arg.startsWith('-')) {
-        // Ignore other flags for now
+        // Check each character in combined flags
+        for (const c of arg.slice(1)) {
+          if (c !== 'n') {
+            return unknownOption('cat', `-${c}`);
+          }
+        }
+        showLineNumbers = true;
       } else {
         files.push(arg);
       }

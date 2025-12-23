@@ -1,5 +1,5 @@
 import { Command, CommandContext, ExecResult } from '../../types.js';
-import { hasHelpFlag, showHelp } from '../help.js';
+import { hasHelpFlag, showHelp, unknownOption } from '../help.js';
 
 const headHelp = {
   name: 'head',
@@ -41,8 +41,10 @@ export const headCommand: Command = {
         lines = parseInt(arg.slice(8), 10);
       } else if (arg.match(/^-\d+$/)) {
         lines = parseInt(arg.slice(1), 10);
-      } else if (arg.startsWith('-')) {
-        // Ignore other flags
+      } else if (arg.startsWith('--')) {
+        return unknownOption('head', arg);
+      } else if (arg.startsWith('-') && arg !== '-') {
+        return unknownOption('head', arg);
       } else {
         files.push(arg);
       }

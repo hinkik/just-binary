@@ -1,4 +1,5 @@
 import { Command, CommandContext, ExecResult } from '../../types.js';
+import { unknownOption } from '../help.js';
 
 export const mvCommand: Command = {
   name: 'mv',
@@ -8,8 +9,10 @@ export const mvCommand: Command = {
 
     // Parse arguments
     for (const arg of args) {
-      if (arg.startsWith('-')) {
-        // Ignore flags
+      if (arg.startsWith('--')) {
+        return unknownOption('mv', arg);
+      } else if (arg.startsWith('-') && arg.length > 1) {
+        return unknownOption('mv', arg);
       } else {
         paths.push(arg);
       }

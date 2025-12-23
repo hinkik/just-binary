@@ -1,4 +1,5 @@
 import { Command, CommandContext, ExecResult } from '../../types.js';
+import { unknownOption } from '../help.js';
 
 export const mkdirCommand: Command = {
   name: 'mkdir',
@@ -11,8 +12,13 @@ export const mkdirCommand: Command = {
     for (const arg of args) {
       if (arg === '-p' || arg === '--parents') {
         recursive = true;
+      } else if (arg.startsWith('--')) {
+        return unknownOption('mkdir', arg);
       } else if (arg.startsWith('-')) {
-        // Ignore other flags
+        for (const c of arg.slice(1)) {
+          if (c !== 'p') return unknownOption('mkdir', `-${c}`);
+        }
+        recursive = true;
       } else {
         dirs.push(arg);
       }

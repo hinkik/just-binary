@@ -1,5 +1,5 @@
 import { Command, CommandContext, ExecResult } from '../../types.js';
-import { hasHelpFlag, showHelp } from '../help.js';
+import { hasHelpFlag, showHelp, unknownOption } from '../help.js';
 
 const awkHelp = {
   name: 'awk',
@@ -53,6 +53,15 @@ export const awkCommand: Command = {
           const varName = assignment.slice(0, eqIdx);
           const varValue = assignment.slice(eqIdx + 1);
           vars[varName] = varValue;
+        }
+        programIdx = i + 1;
+      } else if (arg.startsWith('--')) {
+        return unknownOption('awk', arg);
+      } else if (arg.startsWith('-') && arg.length > 1) {
+        // Check for unknown short options (F and v require args)
+        const optChar = arg[1];
+        if (optChar !== 'F' && optChar !== 'v') {
+          return unknownOption('awk', `-${optChar}`);
         }
         programIdx = i + 1;
       } else if (!arg.startsWith('-')) {
@@ -241,23 +250,30 @@ function matchesPattern(pattern: string | null, ctx: AwkContext): boolean {
 }
 
 function evaluateCondition(condition: string, ctx: AwkContext): boolean {
-  // Handle NR == n, NR > n, etc.
-  const nrMatch = condition.match(/NR\s*(==|!=|>|<|>=|<=)\s*(\d+)/);
+  condition = condition.trim();
+
+  // Handle && (AND) conditions
+  if (condition.includes('&&')) {
+    const parts = condition.split('&&').map(p => p.trim());
+    return parts.every(part => evaluateCondition(part, ctx));
+  }
+
+  // Handle || (OR) conditions
+  if (condition.includes('||')) {
+    const parts = condition.split('||').map(p => p.trim());
+    return parts.some(part => evaluateCondition(part, ctx));
+  }
+
+  // Handle NR comparisons: NR == n, NR > n, etc.
+  const nrMatch = condition.match(/^NR\s*(==|!=|>|<|>=|<=)\s*(\d+)$/);
   if (nrMatch) {
     const op = nrMatch[1];
     const val = parseInt(nrMatch[2], 10);
-    switch (op) {
-      case '==': return ctx.NR === val;
-      case '!=': return ctx.NR !== val;
-      case '>': return ctx.NR > val;
-      case '<': return ctx.NR < val;
-      case '>=': return ctx.NR >= val;
-      case '<=': return ctx.NR <= val;
-    }
+    return compareValues(ctx.NR, op, val);
   }
 
   // Handle $n ~ /pattern/
-  const fieldRegex = condition.match(/\$(\d+)\s*~\s*\/([^/]+)\//);
+  const fieldRegex = condition.match(/^\$(\d+)\s*~\s*\/([^/]+)\/$/);
   if (fieldRegex) {
     const fieldNum = parseInt(fieldRegex[1], 10);
     const pattern = fieldRegex[2];
@@ -266,15 +282,103 @@ function evaluateCondition(condition: string, ctx: AwkContext): boolean {
   }
 
   // Handle $n == "value"
-  const fieldEq = condition.match(/\$(\d+)\s*==\s*"([^"]*)"/);
-  if (fieldEq) {
-    const fieldNum = parseInt(fieldEq[1], 10);
-    const value = fieldEq[2];
+  const fieldStrEq = condition.match(/^\$(\d+)\s*==\s*"([^"]*)"$/);
+  if (fieldStrEq) {
+    const fieldNum = parseInt(fieldStrEq[1], 10);
+    const value = fieldStrEq[2];
     const fieldVal = fieldNum === 0 ? ctx.line : (ctx.fields[fieldNum - 1] || '');
     return fieldVal === value;
   }
 
+  // Handle generic comparisons: expr op expr (e.g., $3>max, $1==100, NF>2)
+  const compMatch = condition.match(/^(.+?)\s*(==|!=|>=|<=|>|<)\s*(.+)$/);
+  if (compMatch) {
+    const leftExpr = compMatch[1].trim();
+    const op = compMatch[2];
+    const rightExpr = compMatch[3].trim();
+
+    const leftVal = evaluateConditionExpr(leftExpr, ctx);
+    const rightVal = evaluateConditionExpr(rightExpr, ctx);
+
+    return compareValues(leftVal, op, rightVal);
+  }
+
   return true;
+}
+
+function evaluateConditionExpr(expr: string, ctx: AwkContext): number | string {
+  expr = expr.trim();
+
+  // Field reference $n
+  const fieldMatch = expr.match(/^\$(\d+)$/);
+  if (fieldMatch) {
+    const n = parseInt(fieldMatch[1], 10);
+    if (n === 0) return ctx.line;
+    const val = ctx.fields[n - 1] || '';
+    // Try to convert to number if it looks like one
+    const num = parseFloat(val);
+    return isNaN(num) ? val : num;
+  }
+
+  // Built-in variables
+  if (expr === 'NR') return ctx.NR;
+  if (expr === 'NF') return ctx.NF;
+
+  // User variables
+  if (ctx.vars[expr] !== undefined) {
+    const val = ctx.vars[expr];
+    if (typeof val === 'number') return val;
+    const num = parseFloat(String(val));
+    return isNaN(num) ? val : num;
+  }
+
+  // Number literal
+  const num = parseFloat(expr);
+  if (!isNaN(num)) return num;
+
+  // String literal with quotes
+  if (expr.startsWith('"') && expr.endsWith('"')) {
+    return expr.slice(1, -1);
+  }
+
+  // Uninitialized variable (looks like identifier) - return 0 in numeric context
+  if (/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(expr)) {
+    return 0;
+  }
+
+  return expr;
+}
+
+function compareValues(left: number | string, op: string, right: number | string): boolean {
+  // Convert to numbers for comparison if both can be numbers
+  const leftNum = typeof left === 'number' ? left : parseFloat(String(left));
+  const rightNum = typeof right === 'number' ? right : parseFloat(String(right));
+
+  const useNumeric = !isNaN(leftNum) && !isNaN(rightNum);
+
+  if (useNumeric) {
+    switch (op) {
+      case '==': return leftNum === rightNum;
+      case '!=': return leftNum !== rightNum;
+      case '>': return leftNum > rightNum;
+      case '<': return leftNum < rightNum;
+      case '>=': return leftNum >= rightNum;
+      case '<=': return leftNum <= rightNum;
+    }
+  } else {
+    // String comparison
+    const leftStr = String(left);
+    const rightStr = String(right);
+    switch (op) {
+      case '==': return leftStr === rightStr;
+      case '!=': return leftStr !== rightStr;
+      case '>': return leftStr > rightStr;
+      case '<': return leftStr < rightStr;
+      case '>=': return leftStr >= rightStr;
+      case '<=': return leftStr <= rightStr;
+    }
+  }
+  return false;
 }
 
 function executeAwkAction(action: string, ctx: AwkContext): string {
@@ -295,8 +399,57 @@ function executeAwkAction(action: string, ctx: AwkContext): string {
       const printfArgs = stmt.slice(7).trim();
       output += evaluatePrintf(printfArgs, ctx);
     }
-    // Variable assignment
-    else if (stmt.includes('=') && !stmt.includes('==')) {
+    // Handle increment/decrement: var++, var--, ++var, --var
+    else if (stmt.match(/^(\w+)\+\+$/)) {
+      const varName = stmt.slice(0, -2);
+      const current = Number(ctx.vars[varName]) || 0;
+      ctx.vars[varName] = current + 1;
+    } else if (stmt.match(/^(\w+)--$/)) {
+      const varName = stmt.slice(0, -2);
+      const current = Number(ctx.vars[varName]) || 0;
+      ctx.vars[varName] = current - 1;
+    } else if (stmt.match(/^\+\+(\w+)$/)) {
+      const varName = stmt.slice(2);
+      const current = Number(ctx.vars[varName]) || 0;
+      ctx.vars[varName] = current + 1;
+    } else if (stmt.match(/^--(\w+)$/)) {
+      const varName = stmt.slice(2);
+      const current = Number(ctx.vars[varName]) || 0;
+      ctx.vars[varName] = current - 1;
+    }
+    // Handle compound assignment: +=, -=, *=, /=
+    else if (stmt.includes('+=')) {
+      const eqIdx = stmt.indexOf('+=');
+      const varName = stmt.slice(0, eqIdx).trim();
+      const expr = stmt.slice(eqIdx + 2).trim();
+      const current = Number(ctx.vars[varName]) || 0;
+      const value = Number(evaluateExpression(expr, ctx)) || 0;
+      ctx.vars[varName] = current + value;
+    } else if (stmt.includes('-=')) {
+      const eqIdx = stmt.indexOf('-=');
+      const varName = stmt.slice(0, eqIdx).trim();
+      const expr = stmt.slice(eqIdx + 2).trim();
+      const current = Number(ctx.vars[varName]) || 0;
+      const value = Number(evaluateExpression(expr, ctx)) || 0;
+      ctx.vars[varName] = current - value;
+    } else if (stmt.includes('*=')) {
+      const eqIdx = stmt.indexOf('*=');
+      const varName = stmt.slice(0, eqIdx).trim();
+      const expr = stmt.slice(eqIdx + 2).trim();
+      const current = Number(ctx.vars[varName]) || 0;
+      const value = Number(evaluateExpression(expr, ctx)) || 0;
+      ctx.vars[varName] = current * value;
+    } else if (stmt.includes('/=')) {
+      const eqIdx = stmt.indexOf('/=');
+      const varName = stmt.slice(0, eqIdx).trim();
+      const expr = stmt.slice(eqIdx + 2).trim();
+      const current = Number(ctx.vars[varName]) || 0;
+      const value = Number(evaluateExpression(expr, ctx)) || 0;
+      ctx.vars[varName] = value !== 0 ? current / value : 0;
+    }
+    // Simple variable assignment (must check after compound assignments)
+    else if (stmt.includes('=') && !stmt.includes('==') && !stmt.includes('!=') &&
+             !stmt.includes('>=') && !stmt.includes('<=')) {
       const eqIdx = stmt.indexOf('=');
       const varName = stmt.slice(0, eqIdx).trim();
       const expr = stmt.slice(eqIdx + 1).trim();
@@ -371,20 +524,32 @@ function evaluateExpression(expr: string, ctx: AwkContext): string | number {
   if (expr === 'FS') return ctx.FS;
   if (expr === 'OFS') return ctx.OFS;
 
-  // Variable
+  // Variable (defined)
   if (ctx.vars[expr] !== undefined) {
     return ctx.vars[expr];
   }
 
-  // Arithmetic - check BEFORE concatenation to handle $1 + $2
-  // Look for operators with proper spacing
-  const arithMatch = expr.match(/^(.+?)\s+([\+\-\*\/\%])\s+(.+)$/);
-  if (arithMatch) {
-    const left = Number(evaluateExpression(arithMatch[1], ctx));
-    const right = Number(evaluateExpression(arithMatch[3], ctx));
-    switch (arithMatch[2]) {
+  // Arithmetic - check BEFORE concatenation to handle $1 + $2 and sum/count
+  // First try with spaces (to properly handle $1 + $2 vs $1+$2 concatenation)
+  const arithMatchSpaced = expr.match(/^(.+?)\s+([\+\-\*\/\%])\s+(.+)$/);
+  if (arithMatchSpaced) {
+    const left = Number(evaluateExpression(arithMatchSpaced[1], ctx));
+    const right = Number(evaluateExpression(arithMatchSpaced[3], ctx));
+    switch (arithMatchSpaced[2]) {
       case '+': return left + right;
       case '-': return left - right;
+      case '*': return left * right;
+      case '/': return right !== 0 ? left / right : 0;
+      case '%': return left % right;
+    }
+  }
+
+  // Also check for arithmetic without spaces (sum/count, a*b) but only for simple identifiers/numbers
+  const arithMatchNoSpace = expr.match(/^([a-zA-Z_]\w*|\$\d+|\d+(?:\.\d+)?)\s*([\*\/\%])\s*([a-zA-Z_]\w*|\$\d+|\d+(?:\.\d+)?)$/);
+  if (arithMatchNoSpace) {
+    const left = Number(evaluateExpression(arithMatchNoSpace[1], ctx));
+    const right = Number(evaluateExpression(arithMatchNoSpace[3], ctx));
+    switch (arithMatchNoSpace[2]) {
       case '*': return left * right;
       case '/': return right !== 0 ? left / right : 0;
       case '%': return left % right;
@@ -399,6 +564,11 @@ function evaluateExpression(expr: string, ctx: AwkContext): string | number {
   // Number
   if (/^-?\d+(\.\d+)?$/.test(expr)) {
     return parseFloat(expr);
+  }
+
+  // Uninitialized variable (looks like identifier) - return empty string
+  if (/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(expr)) {
+    return '';
   }
 
   return expr;

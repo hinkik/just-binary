@@ -1,6 +1,6 @@
 import { Command, CommandContext, ExecResult } from '../../types.js';
 import { minimatch } from 'minimatch';
-import { hasHelpFlag, showHelp } from '../help.js';
+import { hasHelpFlag, showHelp, unknownOption } from '../help.js';
 
 const lsHelp = {
   name: 'ls',
@@ -47,7 +47,10 @@ export const lsCommand: Command = {
           else if (flag === 'r') reverse = true;
           else if (flag === 'd') directoryOnly = true;
           else if (flag === 't') sortByTime = true;
-          // -1 is implicit in our implementation (one per line)
+          else if (flag === '1') { /* -1 is implicit */ }
+          else {
+            return unknownOption('ls', `-${flag}`);
+          }
         }
       } else if (arg === '--all') {
         showAll = true;
@@ -57,6 +60,10 @@ export const lsCommand: Command = {
         reverse = true;
       } else if (arg === '--directory') {
         directoryOnly = true;
+      } else if (arg === '--recursive') {
+        recursive = true;
+      } else if (arg.startsWith('--')) {
+        return unknownOption('ls', arg);
       } else {
         paths.push(arg);
       }

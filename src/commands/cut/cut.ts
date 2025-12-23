@@ -1,4 +1,5 @@
 import { Command, CommandContext, ExecResult } from '../../types.js';
+import { unknownOption } from '../help.js';
 
 interface CutRange {
   start: number;
@@ -65,7 +66,11 @@ export const cutCommand: Command = {
         charSpec = args[++i];
       } else if (arg.startsWith('-c')) {
         charSpec = arg.slice(2);
-      } else if (!arg.startsWith('-')) {
+      } else if (arg.startsWith('--')) {
+        return unknownOption('cut', arg);
+      } else if (arg.startsWith('-')) {
+        return unknownOption('cut', arg);
+      } else {
         files.push(arg);
       }
     }

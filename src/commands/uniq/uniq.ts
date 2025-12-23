@@ -1,4 +1,5 @@
 import { Command, CommandContext, ExecResult } from '../../types.js';
+import { unknownOption } from '../help.js';
 
 export const uniqCommand: Command = {
   name: 'uniq',
@@ -16,14 +17,17 @@ export const uniqCommand: Command = {
         duplicatesOnly = true;
       } else if (arg === '-u' || arg === '--unique') {
         uniqueOnly = true;
+      } else if (arg.startsWith('--')) {
+        return unknownOption('uniq', arg);
       } else if (arg.startsWith('-') && !arg.startsWith('--')) {
         // Handle combined flags like -cd
         for (const char of arg.slice(1)) {
           if (char === 'c') count = true;
           else if (char === 'd') duplicatesOnly = true;
           else if (char === 'u') uniqueOnly = true;
+          else return unknownOption('uniq', `-${char}`);
         }
-      } else if (!arg.startsWith('-')) {
+      } else {
         files.push(arg);
       }
     }

@@ -1,4 +1,5 @@
 import { Command, CommandContext, ExecResult } from '../../types.js';
+import { unknownOption } from '../help.js';
 
 function expandRange(set: string): string {
   let result = '';
@@ -52,6 +53,17 @@ export const trCommand: Command = {
         deleteMode = true;
       } else if (arg === '-s' || arg === '--squeeze-repeats') {
         squeezeMode = true;
+      } else if (arg.startsWith('--')) {
+        return unknownOption('tr', arg);
+      } else if (arg.startsWith('-') && arg.length > 1) {
+        // Check for unknown short options
+        for (const c of arg.slice(1)) {
+          if (c !== 'd' && c !== 's') {
+            return unknownOption('tr', `-${c}`);
+          }
+        }
+        if (arg.includes('d')) deleteMode = true;
+        if (arg.includes('s')) squeezeMode = true;
       } else if (!arg.startsWith('-')) {
         sets.push(arg);
       }
