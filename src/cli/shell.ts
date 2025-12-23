@@ -84,6 +84,12 @@ class VirtualShell {
     }
   }
 
+  private syncHistory(): void {
+    // Sync local history to BashEnv's BASH_HISTORY for the history command
+    const envObj = this.env.getEnv();
+    envObj.BASH_HISTORY = JSON.stringify(this.history);
+  }
+
   private getPrompt(): string {
     const cwd = this.env.getCwd();
     const home = this.env.getEnv().HOME || '/home/user';
@@ -118,22 +124,13 @@ class VirtualShell {
       process.exit(exitCode);
     }
 
-    if (trimmed === 'clear') {
-      console.clear();
-      return;
-    }
-
-    if (trimmed === 'history') {
-      this.history.forEach((cmd, i) => {
-        console.log(`  ${i + 1}  ${cmd}`);
-      });
-      return;
-    }
-
     if (trimmed === 'help') {
       this.printHelp();
       return;
     }
+
+    // Sync local history with BashEnv's history for the history command
+    this.syncHistory();
 
     // Execute command in BashEnv
     try {
@@ -161,14 +158,19 @@ All commands operate on a virtual filesystem.
 
 ${colors.bold}Built-in shell commands:${colors.reset}
   exit [code]    Exit the shell with optional exit code
-  clear          Clear the terminal screen
-  history        Show command history
   help           Show this help message
 
-${colors.bold}Available commands:${colors.reset}
-  echo, cat, ls, cd, pwd, mkdir, touch, rm, cp, mv,
-  head, tail, wc, grep, sort, uniq, find, sed, cut, tr,
-  true, false
+${colors.bold}File commands:${colors.reset}
+  ls, cat, head, tail, wc, touch, mkdir, rm, cp, mv, ln, readlink, stat, du, tree
+
+${colors.bold}Text processing:${colors.reset}
+  grep, sed, awk, sort, uniq, cut, tr, xargs
+
+${colors.bold}Navigation & environment:${colors.reset}
+  cd, pwd, echo, env, printenv, export, true, false
+
+${colors.bold}Utilities:${colors.reset}
+  find, tee, basename, dirname, chmod, clear, history, alias, unalias
 
 ${colors.bold}Supported features:${colors.reset}
   - Pipes: cmd1 | cmd2
@@ -176,12 +178,17 @@ ${colors.bold}Supported features:${colors.reset}
   - Command chaining: &&, ||, ;
   - Variables: $VAR, \${VAR}, \${VAR:-default}
   - Glob patterns: *, ?, [...]
+  - Symbolic and hard links
+  - Functions and loops (for, while, until)
+  - If/elif/else statements
 
 ${colors.bold}Example commands:${colors.reset}
   ls -la
   echo "Hello" > file.txt
   cat file.txt | grep Hello
   find . -name "*.txt"
+  ln -s target.txt link.txt
+  awk '{print $1}' file.txt
 `);
   }
 
