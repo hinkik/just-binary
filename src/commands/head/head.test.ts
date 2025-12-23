@@ -64,7 +64,7 @@ describe('head', () => {
     const env = new BashEnv();
     const result = await env.exec('head /missing.txt');
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain('cannot open');
+    expect(result.stderr).toBe('head: /missing.txt: No such file or directory\n');
   });
 
   it('should read from stdin', async () => {

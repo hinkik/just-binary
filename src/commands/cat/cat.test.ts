@@ -124,4 +124,44 @@ describe('cat', () => {
     expect(result.stdout).toBe('     1\ta\n     2\tb\n     3\tc\n');
     expect(result.stderr).toBe('');
   });
+
+  describe('stdin placeholder (-)', () => {
+    it('should read stdin when - is specified', async () => {
+      const env = new BashEnv();
+      const result = await env.exec('echo "from stdin" | cat -');
+      expect(result.stdout).toBe('from stdin\n');
+      expect(result.stderr).toBe('');
+    });
+
+    it('should combine stdin with file', async () => {
+      const env = new BashEnv({
+        files: { '/file.txt': 'from file\n' },
+        cwd: '/',
+      });
+      const result = await env.exec('echo "from stdin" | cat - /file.txt');
+      expect(result.stdout).toBe('from stdin\nfrom file\n');
+      expect(result.stderr).toBe('');
+    });
+
+    it('should combine file with stdin', async () => {
+      const env = new BashEnv({
+        files: { '/file.txt': 'from file\n' },
+        cwd: '/',
+      });
+      const result = await env.exec('echo "from stdin" | cat /file.txt -');
+      expect(result.stdout).toBe('from file\nfrom stdin\n');
+      expect(result.stderr).toBe('');
+    });
+
+    it('should handle stdin placeholder with line numbers', async () => {
+      const env = new BashEnv({
+        files: { '/file.txt': 'line1\n' },
+        cwd: '/',
+      });
+      const result = await env.exec('echo "line2" | cat -n /file.txt -');
+      // Real bash restarts line numbers for each input source
+      expect(result.stdout).toBe('     1\tline1\n     1\tline2\n');
+      expect(result.stderr).toBe('');
+    });
+  });
 });

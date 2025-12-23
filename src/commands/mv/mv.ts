@@ -61,7 +61,11 @@ export const mvCommand: Command = {
         await ctx.fs.mv(srcPath, targetPath);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        stderr += `mv: cannot move '${src}': ${message}\n`;
+        if (message.includes('ENOENT') || message.includes('no such file')) {
+          stderr += `mv: cannot stat '${src}': No such file or directory\n`;
+        } else {
+          stderr += `mv: cannot move '${src}': ${message}\n`;
+        }
         exitCode = 1;
       }
     }

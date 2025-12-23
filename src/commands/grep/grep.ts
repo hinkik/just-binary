@@ -12,6 +12,11 @@ export const grepCommand: Command = {
     let recursive = false;
     let wholeWord = false;
     let extendedRegex = false;
+    let onlyMatching = false;
+    let noFilename = false;
+    let beforeContext = 0;
+    let afterContext = 0;
+    const includePatterns: string[] = [];
     let pattern: string | null = null;
     const files: string[] = [];
 
@@ -22,6 +27,37 @@ export const grepCommand: Command = {
       if (arg.startsWith('-') && arg !== '-') {
         if (arg === '-e' && i + 1 < args.length) {
           pattern = args[++i];
+          continue;
+        }
+
+        // Handle --include=pattern (can be specified multiple times)
+        if (arg.startsWith('--include=')) {
+          includePatterns.push(arg.slice('--include='.length));
+          continue;
+        }
+
+        // Handle -A, -B, -C with numbers
+        const contextMatch = arg.match(/^-([ABC])(\d+)$/);
+        if (contextMatch) {
+          const num = parseInt(contextMatch[2], 10);
+          if (contextMatch[1] === 'A') afterContext = num;
+          else if (contextMatch[1] === 'B') beforeContext = num;
+          else if (contextMatch[1] === 'C') {
+            beforeContext = num;
+            afterContext = num;
+          }
+          continue;
+        }
+
+        // Handle -A n, -B n, -C n
+        if ((arg === '-A' || arg === '-B' || arg === '-C') && i + 1 < args.length) {
+          const num = parseInt(args[++i], 10);
+          if (arg === '-A') afterContext = num;
+          else if (arg === '-B') beforeContext = num;
+          else {
+            beforeContext = num;
+            afterContext = num;
+          }
           continue;
         }
 
@@ -36,6 +72,8 @@ export const grepCommand: Command = {
           else if (flag === 'r' || flag === 'R' || flag === '--recursive') recursive = true;
           else if (flag === 'w' || flag === '--word-regexp') wholeWord = true;
           else if (flag === 'E' || flag === '--extended-regexp') extendedRegex = true;
+          else if (flag === 'o' || flag === '--only-matching') onlyMatching = true;
+          else if (flag === 'h' || flag === '--no-filename') noFilename = true;
         }
       } else if (pattern === null) {
         pattern = arg;
@@ -71,7 +109,7 @@ export const grepCommand: Command = {
 
     // If no files and no stdin, read from stdin
     if (files.length === 0 && ctx.stdin) {
-      const result = grepContent(ctx.stdin, regex, invertMatch, showLineNumbers, countOnly, '');
+      const result = grepContent(ctx.stdin, regex, invertMatch, showLineNumbers, countOnly, '', onlyMatching, beforeContext, afterContext);
       return {
         stdout: result.output,
         stderr: '',
@@ -90,20 +128,41 @@ export const grepCommand: Command = {
     let stdout = '';
     let stderr = '';
     let anyMatch = false;
-    const showFilename = files.length > 1 || recursive;
 
-    // Collect all files to search
+    // Collect all files to search (expand globs first)
     const filesToSearch: string[] = [];
     for (const file of files) {
-      if (recursive) {
-        const expanded = await expandRecursive(file, ctx);
+      // Check if this is a glob pattern
+      if (file.includes('*') || file.includes('?') || file.includes('[')) {
+        const expanded = await expandGlobPattern(file, ctx);
+        if (recursive) {
+          for (const f of expanded) {
+            const recursiveExpanded = await expandRecursive(f, ctx, includePatterns);
+            filesToSearch.push(...recursiveExpanded);
+          }
+        } else {
+          filesToSearch.push(...expanded);
+        }
+      } else if (recursive) {
+        const expanded = await expandRecursive(file, ctx, includePatterns);
         filesToSearch.push(...expanded);
       } else {
         filesToSearch.push(file);
       }
     }
 
+    // Determine if we should show filename (after glob expansion)
+    const showFilename = (filesToSearch.length > 1 || recursive) && !noFilename;
+
     for (const file of filesToSearch) {
+      // Check include patterns for non-recursive case
+      if (includePatterns.length > 0 && !recursive) {
+        const basename = file.split('/').pop() || file;
+        if (!includePatterns.some((p) => matchGlob(basename, p))) {
+          continue;
+        }
+      }
+
       try {
         const filePath = ctx.fs.resolvePath(ctx.cwd, file);
         const stat = await ctx.fs.stat(filePath);
@@ -122,7 +181,10 @@ export const grepCommand: Command = {
           invertMatch,
           showLineNumbers,
           countOnly,
-          showFilename ? file : ''
+          showFilename ? file : '',
+          onlyMatching,
+          beforeContext,
+          afterContext
         );
 
         if (result.matched) {
@@ -149,9 +211,43 @@ export const grepCommand: Command = {
 };
 
 function escapeRegexForBasicGrep(str: string): string {
-  // Basic grep (BRE) supports: . * ^ $ [] \
-  // Only escape extended regex characters: + ? | () {}
-  return str.replace(/[+?{}()|]/g, '\\$&');
+  // Basic grep (BRE) uses different escaping than JavaScript regex
+  // In BRE: \| is alternation, \( \) are groups, \{ \} are quantifiers
+  // We need to convert BRE to JavaScript regex
+
+  let result = '';
+  let i = 0;
+
+  while (i < str.length) {
+    const char = str[i];
+
+    if (char === '\\' && i + 1 < str.length) {
+      const nextChar = str[i + 1];
+      // BRE: \| becomes | (alternation)
+      // BRE: \( \) become ( ) (grouping)
+      // BRE: \{ \} become { } (quantifiers) - but we'll treat as literal for simplicity
+      if (nextChar === '|' || nextChar === '(' || nextChar === ')') {
+        result += nextChar;
+        i += 2;
+        continue;
+      } else if (nextChar === '{' || nextChar === '}') {
+        // Keep as escaped for now (literal)
+        result += '\\' + nextChar;
+        i += 2;
+        continue;
+      }
+    }
+
+    // Escape characters that are special in JavaScript regex but not in BRE
+    if (char === '+' || char === '?' || char === '|' || char === '(' || char === ')' || char === '{' || char === '}') {
+      result += '\\' + char;
+    } else {
+      result += char;
+    }
+    i++;
+  }
+
+  return result;
 }
 
 function grepContent(
@@ -160,34 +256,30 @@ function grepContent(
   invertMatch: boolean,
   showLineNumbers: boolean,
   countOnly: boolean,
-  filename: string
+  filename: string,
+  onlyMatching: boolean = false,
+  beforeContext: number = 0,
+  afterContext: number = 0
 ): { output: string; matched: boolean } {
   let lines = content.split('\n');
   // Remove trailing empty line from split if content ended with newline
   if (lines.length > 0 && lines[lines.length - 1] === '') {
     lines = lines.slice(0, -1);
   }
-  const matchedLines: string[] = [];
+  const outputLines: string[] = [];
   let matchCount = 0;
+  const printedLines = new Set<number>();
 
+  // First pass: find all matching lines
+  const matchingLineNumbers: number[] = [];
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    // Reset regex state for global flag
     regex.lastIndex = 0;
     const matches = regex.test(line);
 
     if (matches !== invertMatch) {
+      matchingLineNumbers.push(i);
       matchCount++;
-      if (!countOnly) {
-        let outputLine = line;
-        if (showLineNumbers) {
-          outputLine = `${i + 1}:${outputLine}`;
-        }
-        if (filename) {
-          outputLine = `${filename}:${outputLine}`;
-        }
-        matchedLines.push(outputLine);
-      }
     }
   }
 
@@ -196,13 +288,78 @@ function grepContent(
     return { output: countStr + '\n', matched: matchCount > 0 };
   }
 
+  // Second pass: output with context
+  for (const lineNum of matchingLineNumbers) {
+    // Before context
+    for (let i = Math.max(0, lineNum - beforeContext); i < lineNum; i++) {
+      if (!printedLines.has(i)) {
+        printedLines.add(i);
+        let outputLine = lines[i];
+        if (showLineNumbers) {
+          outputLine = `${i + 1}-${outputLine}`;
+        }
+        if (filename) {
+          outputLine = `${filename}-${outputLine}`;
+        }
+        outputLines.push(outputLine);
+      }
+    }
+
+    // The matching line
+    if (!printedLines.has(lineNum)) {
+      printedLines.add(lineNum);
+      const line = lines[lineNum];
+
+      if (onlyMatching) {
+        // Output only the matched parts
+        regex.lastIndex = 0;
+        let match;
+        while ((match = regex.exec(line)) !== null) {
+          let outputLine = match[0];
+          if (filename) {
+            outputLine = `${filename}:${outputLine}`;
+          }
+          outputLines.push(outputLine);
+          // Avoid infinite loop for zero-length matches
+          if (match[0].length === 0) {
+            regex.lastIndex++;
+          }
+        }
+      } else {
+        let outputLine = line;
+        if (showLineNumbers) {
+          outputLine = `${lineNum + 1}:${outputLine}`;
+        }
+        if (filename) {
+          outputLine = `${filename}:${outputLine}`;
+        }
+        outputLines.push(outputLine);
+      }
+    }
+
+    // After context
+    for (let i = lineNum + 1; i <= Math.min(lines.length - 1, lineNum + afterContext); i++) {
+      if (!printedLines.has(i)) {
+        printedLines.add(i);
+        let outputLine = lines[i];
+        if (showLineNumbers) {
+          outputLine = `${i + 1}-${outputLine}`;
+        }
+        if (filename) {
+          outputLine = `${filename}-${outputLine}`;
+        }
+        outputLines.push(outputLine);
+      }
+    }
+  }
+
   return {
-    output: matchedLines.length > 0 ? matchedLines.join('\n') + '\n' : '',
+    output: outputLines.length > 0 ? outputLines.join('\n') + '\n' : '',
     matched: matchCount > 0,
   };
 }
 
-async function expandRecursive(path: string, ctx: CommandContext): Promise<string[]> {
+async function expandRecursive(path: string, ctx: CommandContext, includePatterns: string[] = []): Promise<string[]> {
   const fullPath = ctx.fs.resolvePath(ctx.cwd, path);
   const result: string[] = [];
 
@@ -210,6 +367,13 @@ async function expandRecursive(path: string, ctx: CommandContext): Promise<strin
     const stat = await ctx.fs.stat(fullPath);
 
     if (!stat.isDirectory) {
+      // Check include patterns - file must match at least one pattern (if any are specified)
+      if (includePatterns.length > 0) {
+        const basename = path.split('/').pop() || path;
+        if (!includePatterns.some((p) => matchGlob(basename, p))) {
+          return [];
+        }
+      }
       return [path];
     }
 
@@ -218,7 +382,7 @@ async function expandRecursive(path: string, ctx: CommandContext): Promise<strin
       if (entry.startsWith('.')) continue; // Skip hidden files
 
       const entryPath = path === '.' ? entry : `${path}/${entry}`;
-      const expanded = await expandRecursive(entryPath, ctx);
+      const expanded = await expandRecursive(entryPath, ctx, includePatterns);
       result.push(...expanded);
     }
   } catch {
@@ -226,4 +390,114 @@ async function expandRecursive(path: string, ctx: CommandContext): Promise<strin
   }
 
   return result;
+}
+
+function matchGlob(filename: string, pattern: string): boolean {
+  // Convert glob pattern to regex
+  // Remove surrounding quotes if present
+  let cleanPattern = pattern;
+  if ((cleanPattern.startsWith('"') && cleanPattern.endsWith('"')) ||
+      (cleanPattern.startsWith("'") && cleanPattern.endsWith("'"))) {
+    cleanPattern = cleanPattern.slice(1, -1);
+  }
+
+  const regexPattern = cleanPattern
+    .replace(/[.+^${}()|[\]\\]/g, '\\$&')  // Escape special regex chars
+    .replace(/\*/g, '.*')  // * matches anything
+    .replace(/\?/g, '.');  // ? matches single char
+
+  const regex = new RegExp(`^${regexPattern}$`);
+  return regex.test(filename);
+}
+
+async function expandGlobPattern(pattern: string, ctx: CommandContext): Promise<string[]> {
+  const result: string[] = [];
+
+  // Find the directory part and the glob part
+  const lastSlash = pattern.lastIndexOf('/');
+  let dirPath: string;
+  let globPart: string;
+
+  if (lastSlash === -1) {
+    dirPath = ctx.cwd;
+    globPart = pattern;
+  } else {
+    dirPath = pattern.slice(0, lastSlash) || '/';
+    globPart = pattern.slice(lastSlash + 1);
+  }
+
+  // Handle ** (recursive glob)
+  if (pattern.includes('**')) {
+    // Split pattern at **
+    const parts = pattern.split('**');
+    const baseDir = parts[0].replace(/\/$/, '') || '.';
+    const afterGlob = parts[1] || '';
+
+    await expandRecursiveGlob(baseDir, afterGlob, ctx, result);
+    return result;
+  }
+
+  // Resolve the directory path
+  const fullDirPath = ctx.fs.resolvePath(ctx.cwd, dirPath);
+
+  try {
+    const entries = await ctx.fs.readdir(fullDirPath);
+
+    for (const entry of entries) {
+      if (matchGlob(entry, globPart)) {
+        const fullPath = lastSlash === -1 ? entry : `${dirPath}/${entry}`;
+        result.push(fullPath);
+      }
+    }
+  } catch {
+    // Directory doesn't exist - return empty
+  }
+
+  return result.sort();
+}
+
+async function expandRecursiveGlob(
+  baseDir: string,
+  afterGlob: string,
+  ctx: CommandContext,
+  result: string[]
+): Promise<void> {
+  const fullBasePath = ctx.fs.resolvePath(ctx.cwd, baseDir);
+
+  try {
+    const stat = await ctx.fs.stat(fullBasePath);
+
+    if (!stat.isDirectory) {
+      // Check if the file matches afterGlob pattern
+      const filename = baseDir.split('/').pop() || '';
+      if (afterGlob) {
+        const pattern = afterGlob.replace(/^\//, '');
+        if (matchGlob(filename, pattern)) {
+          result.push(baseDir);
+        }
+      }
+      return;
+    }
+
+    // Check files in current directory
+    const entries = await ctx.fs.readdir(fullBasePath);
+    for (const entry of entries) {
+      const entryPath = baseDir === '.' ? entry : `${baseDir}/${entry}`;
+      const fullEntryPath = ctx.fs.resolvePath(ctx.cwd, entryPath);
+      const entryStat = await ctx.fs.stat(fullEntryPath);
+
+      if (entryStat.isDirectory) {
+        // Recurse into directory
+        await expandRecursiveGlob(entryPath, afterGlob, ctx, result);
+      } else if (afterGlob) {
+        // Check if file matches afterGlob pattern
+        const pattern = afterGlob.replace(/^\//, '');
+        if (matchGlob(entry, pattern)) {
+          result.push(entryPath);
+        }
+      }
+    }
+  } catch {
+    // Ignore errors
+  }
 }

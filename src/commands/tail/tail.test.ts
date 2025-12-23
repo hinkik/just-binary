@@ -64,7 +64,7 @@ describe('tail', () => {
     const env = new BashEnv();
     const result = await env.exec('tail /missing.txt');
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain('cannot open');
+    expect(result.stderr).toBe('tail: /missing.txt: No such file or directory\n');
   });
 
   it('should read from stdin', async () => {
@@ -105,5 +105,47 @@ describe('tail', () => {
     });
     const result = await env.exec('cat /test.txt | head -n 3 | tail -n 1');
     expect(result.stdout).toBe('line3\n');
+  });
+
+  describe('+n syntax (from line n)', () => {
+    it('should start from line n with -n +n', async () => {
+      const env = new BashEnv({
+        files: { '/test.txt': 'line1\nline2\nline3\nline4\nline5\n' },
+      });
+      const result = await env.exec('tail -n +3 /test.txt');
+      expect(result.stdout).toBe('line3\nline4\nline5\n');
+      expect(result.exitCode).toBe(0);
+    });
+
+    it('should start from line 1 with -n +1 (same as entire file)', async () => {
+      const env = new BashEnv({
+        files: { '/test.txt': 'line1\nline2\nline3\n' },
+      });
+      const result = await env.exec('tail -n +1 /test.txt');
+      expect(result.stdout).toBe('line1\nline2\nline3\n');
+    });
+
+    it('should start from line 2 with -n +2', async () => {
+      const env = new BashEnv({
+        files: { '/test.txt': 'line1\nline2\nline3\n' },
+      });
+      const result = await env.exec('tail -n +2 /test.txt');
+      expect(result.stdout).toBe('line2\nline3\n');
+    });
+
+    it('should return empty when starting beyond file length', async () => {
+      const env = new BashEnv({
+        files: { '/test.txt': 'line1\nline2\n' },
+      });
+      const result = await env.exec('tail -n +10 /test.txt');
+      expect(result.stdout).toBe('\n');
+      expect(result.exitCode).toBe(0);
+    });
+
+    it('should work with stdin', async () => {
+      const env = new BashEnv();
+      const result = await env.exec('echo -e "a\\nb\\nc\\nd\\ne" | tail -n +3');
+      expect(result.stdout).toBe('c\nd\ne\n');
+    });
   });
 });

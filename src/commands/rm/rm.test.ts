@@ -31,7 +31,7 @@ describe('rm', () => {
     const env = new BashEnv();
     const result = await env.exec('rm /missing.txt');
     expect(result.stdout).toBe('');
-    expect(result.stderr).toBe("rm: cannot remove '/missing.txt': ENOENT: no such file or directory, rm '/missing.txt'\n");
+    expect(result.stderr).toBe("rm: cannot remove '/missing.txt': No such file or directory\n");
     expect(result.exitCode).toBe(1);
   });
 

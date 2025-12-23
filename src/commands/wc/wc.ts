@@ -83,7 +83,9 @@ export const wcCommand: Command = {
 };
 
 function countStats(content: string): { lines: number; words: number; chars: number } {
-  const lines = content.split('\n').length - (content.endsWith('\n') ? 1 : 0);
+  // wc counts newline characters, not lines of text
+  // empty file = 0 lines, "hello" (no \n) = 0 lines, "hello\n" = 1 line
+  const lines = content.split('\n').length - 1;
   const words = content.split(/\s+/).filter(w => w.length > 0).length;
   const chars = content.length;
 
@@ -97,15 +99,17 @@ function formatStats(
   showChars: boolean,
   filename: string
 ): string {
-  const parts: string[] = [];
+  // Real wc uses 8-char fields for counts, no separator between them
+  // Then a single space before filename
+  let result = '';
 
-  if (showLines) parts.push(String(stats.lines).padStart(7));
-  if (showWords) parts.push(String(stats.words).padStart(7));
-  if (showChars) parts.push(String(stats.chars).padStart(7));
+  if (showLines) result += String(stats.lines).padStart(8);
+  if (showWords) result += String(stats.words).padStart(8);
+  if (showChars) result += String(stats.chars).padStart(8);
 
   if (filename) {
-    parts.push(filename);
+    result += ' ' + filename;
   }
 
-  return parts.join(' ');
+  return result;
 }

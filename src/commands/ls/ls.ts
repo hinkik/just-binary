@@ -6,8 +6,10 @@ export const lsCommand: Command = {
 
   async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
     let showAll = false;
+    let showAlmostAll = false;
     let longFormat = false;
     let recursive = false;
+    let reverse = false;
     const paths: string[] = [];
 
     // Parse arguments
@@ -15,11 +17,18 @@ export const lsCommand: Command = {
       if (arg.startsWith('-') && !arg.startsWith('--')) {
         for (const flag of arg.slice(1)) {
           if (flag === 'a') showAll = true;
+          else if (flag === 'A') showAlmostAll = true;
           else if (flag === 'l') longFormat = true;
           else if (flag === 'R') recursive = true;
+          else if (flag === 'r') reverse = true;
+          // -1 is implicit in our implementation (one per line)
         }
       } else if (arg === '--all') {
         showAll = true;
+      } else if (arg === '--almost-all') {
+        showAlmostAll = true;
+      } else if (arg === '--reverse') {
+        reverse = true;
       } else {
         paths.push(arg);
       }
@@ -43,12 +52,12 @@ export const lsCommand: Command = {
 
       // Check if it's a glob pattern
       if (path.includes('*') || path.includes('?') || path.includes('[')) {
-        const result = await listGlob(path, ctx, showAll, longFormat);
+        const result = await listGlob(path, ctx, showAll, showAlmostAll, longFormat, reverse);
         stdout += result.stdout;
         stderr += result.stderr;
         if (result.exitCode !== 0) exitCode = result.exitCode;
       } else {
-        const result = await listPath(path, ctx, showAll, longFormat, recursive, paths.length > 1);
+        const result = await listPath(path, ctx, showAll, showAlmostAll, longFormat, recursive, paths.length > 1, reverse);
         stdout += result.stdout;
         stderr += result.stderr;
         if (result.exitCode !== 0) exitCode = result.exitCode;
@@ -63,8 +72,11 @@ async function listGlob(
   pattern: string,
   ctx: CommandContext,
   showAll: boolean,
-  longFormat: boolean
+  showAlmostAll: boolean,
+  longFormat: boolean,
+  reverse: boolean = false
 ): Promise<ExecResult> {
+  const showHidden = showAll || showAlmostAll;
   const allPaths = ctx.fs.getAllPaths();
   const basePath = ctx.fs.resolvePath(ctx.cwd, '.');
 
@@ -75,6 +87,11 @@ async function listGlob(
       : p;
 
     if (minimatch(relativePath, pattern) || minimatch(p, pattern)) {
+      // Filter hidden files unless showHidden
+      const basename = relativePath.split('/').pop() || relativePath;
+      if (!showHidden && basename.startsWith('.')) {
+        continue;
+      }
       matches.push(relativePath || p);
     }
   }
@@ -82,12 +99,15 @@ async function listGlob(
   if (matches.length === 0) {
     return {
       stdout: '',
-      stderr: `ls: cannot access '${pattern}': No such file or directory\n`,
+      stderr: `ls: ${pattern}: No such file or directory\n`,
       exitCode: 2,
     };
   }
 
   matches.sort();
+  if (reverse) {
+    matches.reverse();
+  }
 
   if (longFormat) {
     const lines: string[] = [];
@@ -112,10 +132,14 @@ async function listPath(
   path: string,
   ctx: CommandContext,
   showAll: boolean,
+  showAlmostAll: boolean,
   longFormat: boolean,
   recursive: boolean,
-  showHeader: boolean
+  showHeader: boolean,
+  reverse: boolean = false,
+  isSubdir: boolean = false
 ): Promise<ExecResult> {
+  const showHidden = showAll || showAlmostAll;
   const fullPath = ctx.fs.resolvePath(ctx.cwd, path);
 
   try {
@@ -136,20 +160,44 @@ async function listPath(
     // It's a directory
     let entries = await ctx.fs.readdir(fullPath);
 
-    // Filter hidden files unless -a
-    if (!showAll) {
+    // Filter hidden files unless -a or -A
+    if (!showHidden) {
       entries = entries.filter(e => !e.startsWith('.'));
+    }
+
+    // Sort entries (already sorted by readdir, but ensure consistent order)
+    entries.sort();
+
+    // Add . and .. entries for -a flag (but not for -A)
+    if (showAll) {
+      entries = ['.', '..', ...entries];
+    }
+
+    if (reverse) {
+      entries.reverse();
     }
 
     let stdout = '';
 
-    if (showHeader || recursive) {
+    // For recursive listing:
+    // - First directory doesn't get a header (unless multiple paths)
+    // - Subdirectories get header with path
+    // - When starting from '.', subdirs use './subdir:' format
+    // - When starting from other path, subdirs use '{path}/subdir:' format
+    if (recursive && isSubdir) {
+      stdout += `${path}:\n`;
+    } else if (showHeader) {
       stdout += `${path}:\n`;
     }
 
     if (longFormat) {
       stdout += `total ${entries.length}\n`;
       for (const entry of entries) {
+        // Handle . and .. specially
+        if (entry === '.' || entry === '..') {
+          stdout += `drwxr-xr-x 1 user user    0 Jan  1 00:00 ${entry}\n`;
+          continue;
+        }
         const entryPath = fullPath === '/' ? '/' + entry : fullPath + '/' + entry;
         try {
           const entryStat = await ctx.fs.stat(entryPath);
@@ -167,13 +215,20 @@ async function listPath(
     // Handle recursive
     if (recursive) {
       for (const entry of entries) {
+        // Skip . and .. for recursive listing
+        if (entry === '.' || entry === '..') {
+          continue;
+        }
         const entryPath = fullPath === '/' ? '/' + entry : fullPath + '/' + entry;
         try {
           const entryStat = await ctx.fs.stat(entryPath);
           if (entryStat.isDirectory) {
             stdout += '\n';
-            const subPath = path === '.' ? entry : `${path}/${entry}`;
-            const result = await listPath(subPath, ctx, showAll, longFormat, recursive, true);
+            // Build subPath with proper format:
+            // - From '.', subdirs become './subdir'
+            // - From '/dir', subdirs become '/dir/subdir'
+            const subPath = path === '.' ? `./${entry}` : `${path}/${entry}`;
+            const result = await listPath(subPath, ctx, showAll, showAlmostAll, longFormat, recursive, false, reverse, true);
             stdout += result.stdout;
           }
         } catch {
@@ -186,7 +241,7 @@ async function listPath(
   } catch {
     return {
       stdout: '',
-      stderr: `ls: cannot access '${path}': No such file or directory\n`,
+      stderr: `ls: ${path}: No such file or directory\n`,
       exitCode: 2,
     };
   }

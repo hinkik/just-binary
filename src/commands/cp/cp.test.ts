@@ -123,7 +123,7 @@ describe('cp', () => {
     const env = new BashEnv();
     const result = await env.exec('cp /missing.txt /dst.txt');
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain('cannot copy');
+    expect(result.stderr).toBe("cp: cannot stat '/missing.txt': No such file or directory\n");
   });
 
   it('should error with missing destination', async () => {
@@ -132,7 +132,7 @@ describe('cp', () => {
     });
     const result = await env.exec('cp /src.txt');
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain('missing destination');
+    expect(result.stderr).toBe('cp: missing destination file operand\n');
   });
 
   it('should copy with relative paths', async () => {

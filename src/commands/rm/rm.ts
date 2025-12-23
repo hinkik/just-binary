@@ -41,11 +41,23 @@ export const rmCommand: Command = {
     for (const path of paths) {
       try {
         const fullPath = ctx.fs.resolvePath(ctx.cwd, path);
+        const stat = await ctx.fs.stat(fullPath);
+        if (stat.isDirectory && !recursive) {
+          stderr += `rm: cannot remove '${path}': Is a directory\n`;
+          exitCode = 1;
+          continue;
+        }
         await ctx.fs.rm(fullPath, { recursive, force });
       } catch (error) {
         if (!force) {
           const message = error instanceof Error ? error.message : String(error);
-          stderr += `rm: cannot remove '${path}': ${message}\n`;
+          if (message.includes('ENOENT') || message.includes('no such file')) {
+            stderr += `rm: cannot remove '${path}': No such file or directory\n`;
+          } else if (message.includes('ENOTEMPTY') || message.includes('not empty')) {
+            stderr += `rm: cannot remove '${path}': Directory not empty\n`;
+          } else {
+            stderr += `rm: cannot remove '${path}': ${message}\n`;
+          }
           exitCode = 1;
         }
       }

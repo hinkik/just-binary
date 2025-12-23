@@ -71,7 +71,11 @@ export const cpCommand: Command = {
         await ctx.fs.cp(srcPath, targetPath, { recursive });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        stderr += `cp: cannot copy '${src}': ${message}\n`;
+        if (message.includes('ENOENT') || message.includes('no such file')) {
+          stderr += `cp: cannot stat '${src}': No such file or directory\n`;
+        } else {
+          stderr += `cp: cannot copy '${src}': ${message}\n`;
+        }
         exitCode = 1;
       }
     }

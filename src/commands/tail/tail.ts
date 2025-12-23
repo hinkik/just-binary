@@ -5,13 +5,23 @@ export const tailCommand: Command = {
 
   async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
     let lines = 10;
+    let fromLine = false; // true if +n syntax (start from line n)
     const files: string[] = [];
 
     // Parse arguments
     for (let i = 0; i < args.length; i++) {
       const arg = args[i];
       if (arg === '-n' && i + 1 < args.length) {
-        lines = parseInt(args[++i], 10);
+        const nextArg = args[++i];
+        if (nextArg.startsWith('+')) {
+          fromLine = true;
+          lines = parseInt(nextArg.slice(1), 10);
+        } else {
+          lines = parseInt(nextArg, 10);
+        }
+      } else if (arg.startsWith('-n+')) {
+        fromLine = true;
+        lines = parseInt(arg.slice(3), 10);
       } else if (arg.startsWith('-n')) {
         lines = parseInt(arg.slice(2), 10);
       } else if (arg.match(/^-\d+$/)) {
@@ -38,7 +48,13 @@ export const tailCommand: Command = {
       const effective = inputLines[inputLines.length - 1] === ''
         ? inputLines.slice(0, -1)
         : inputLines;
-      const selected = effective.slice(-lines);
+      let selected: string[];
+      if (fromLine) {
+        // +n means "start from line n" (1-indexed)
+        selected = effective.slice(lines - 1);
+      } else {
+        selected = effective.slice(-lines);
+      }
       const output = selected.join('\n');
       return {
         stdout: output + '\n',
@@ -68,10 +84,16 @@ export const tailCommand: Command = {
         const effective = contentLines[contentLines.length - 1] === ''
           ? contentLines.slice(0, -1)
           : contentLines;
-        const selected = effective.slice(-lines);
+        let selected: string[];
+        if (fromLine) {
+          // +n means "start from line n" (1-indexed)
+          selected = effective.slice(lines - 1);
+        } else {
+          selected = effective.slice(-lines);
+        }
         stdout += selected.join('\n') + '\n';
       } catch {
-        stderr += `tail: cannot open '${file}' for reading: No such file or directory\n`;
+        stderr += `tail: ${file}: No such file or directory\n`;
         exitCode = 1;
       }
     }

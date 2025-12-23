@@ -35,7 +35,13 @@ export const mkdirCommand: Command = {
         await ctx.fs.mkdir(fullPath, { recursive });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        stderr += `mkdir: cannot create directory '${dir}': ${message}\n`;
+        if (message.includes('ENOENT') || message.includes('no such file')) {
+          stderr += `mkdir: cannot create directory '${dir}': No such file or directory\n`;
+        } else if (message.includes('EEXIST') || message.includes('already exists')) {
+          stderr += `mkdir: cannot create directory '${dir}': File exists\n`;
+        } else {
+          stderr += `mkdir: cannot create directory '${dir}': ${message}\n`;
+        }
         exitCode = 1;
       }
     }

@@ -47,7 +47,7 @@ describe('mkdir', () => {
     const env = new BashEnv();
     const result = await env.exec('mkdir /a/b/c');
     expect(result.stdout).toBe('');
-    expect(result.stderr).toBe("mkdir: cannot create directory '/a/b/c': ENOENT: no such file or directory, mkdir '/a/b/c'\n");
+    expect(result.stderr).toBe("mkdir: cannot create directory '/a/b/c': No such file or directory\n");
     expect(result.exitCode).toBe(1);
   });
 

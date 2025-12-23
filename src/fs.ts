@@ -140,6 +140,13 @@ export class VirtualFs implements IFileSystem {
   }
 
   async mkdir(path: string, options?: MkdirOptions): Promise<void> {
+    this.mkdirSync(path, options);
+  }
+
+  /**
+   * Synchronous version of mkdir
+   */
+  mkdirSync(path: string, options?: MkdirOptions): void {
     const normalized = this.normalizePath(path);
 
     if (this.data.has(normalized)) {
@@ -157,7 +164,7 @@ export class VirtualFs implements IFileSystem {
     const parent = this.dirname(normalized);
     if (parent !== '/' && !this.data.has(parent)) {
       if (options?.recursive) {
-        await this.mkdir(parent, { recursive: true });
+        this.mkdirSync(parent, { recursive: true });
       } else {
         throw new Error(`ENOENT: no such file or directory, mkdir '${path}'`);
       }

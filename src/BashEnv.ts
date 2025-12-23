@@ -1,5 +1,7 @@
 import { VirtualFs, IFileSystem } from './fs.js';
 import { Command, CommandContext, CommandRegistry, ExecResult } from './types.js';
+import { ShellParser, Pipeline, Redirection } from './shell/index.js';
+import { GlobExpander } from './shell/index.js';
 
 // Import commands
 import { echoCommand } from './commands/echo/echo.js';
@@ -15,6 +17,13 @@ import { headCommand } from './commands/head/head.js';
 import { tailCommand } from './commands/tail/tail.js';
 import { wcCommand } from './commands/wc/wc.js';
 import { grepCommand } from './commands/grep/grep.js';
+import { sortCommand } from './commands/sort/sort.js';
+import { uniqCommand } from './commands/uniq/uniq.js';
+import { findCommand } from './commands/find/find.js';
+import { sedCommand } from './commands/sed/sed.js';
+import { cutCommand } from './commands/cut/cut.js';
+import { trCommand } from './commands/tr/tr.js';
+import { trueCommand, falseCommand } from './commands/true/true.js';
 
 export interface BashEnvOptions {
   /**
@@ -44,12 +53,24 @@ export class BashEnv {
   private env: Record<string, string>;
   private commands: CommandRegistry = new Map();
   private previousDir: string = '/';
+  private parser: ShellParser;
 
   constructor(options: BashEnvOptions = {}) {
     // Use provided filesystem or create a new VirtualFs
-    this.fs = options.fs ?? new VirtualFs(options.files);
+    const fs = options.fs ?? new VirtualFs(options.files);
+    this.fs = fs;
     this.cwd = options.cwd || '/';
     this.env = { HOME: '/', PATH: '/bin', ...options.env };
+    this.parser = new ShellParser(this.env);
+
+    // Ensure cwd exists in the virtual filesystem
+    if (this.cwd !== '/' && fs instanceof VirtualFs) {
+      try {
+        fs.mkdirSync(this.cwd, { recursive: true });
+      } catch {
+        // Ignore errors - the directory may already exist
+      }
+    }
 
     // Register built-in commands
     this.registerCommand(echoCommand);
@@ -65,6 +86,14 @@ export class BashEnv {
     this.registerCommand(tailCommand);
     this.registerCommand(wcCommand);
     this.registerCommand(grepCommand);
+    this.registerCommand(sortCommand);
+    this.registerCommand(uniqCommand);
+    this.registerCommand(findCommand);
+    this.registerCommand(sedCommand);
+    this.registerCommand(cutCommand);
+    this.registerCommand(trCommand);
+    this.registerCommand(trueCommand);
+    this.registerCommand(falseCommand);
   }
 
   registerCommand(command: Command): void {
@@ -77,239 +106,106 @@ export class BashEnv {
       return { stdout: '', stderr: '', exitCode: 0 };
     }
 
-    // Parse and execute pipelines (cmd1 | cmd2 | cmd3)
-    const pipelines = this.splitPipelines(commandLine);
+    // Update parser with current environment
+    this.parser.setEnv(this.env);
+
+    // Parse the command line into pipelines
+    const pipelines = this.parser.parse(commandLine);
 
     let stdin = '';
     let lastResult: ExecResult = { stdout: '', stderr: '', exitCode: 0 };
 
-    for (let i = 0; i < pipelines.length; i++) {
-      const pipeline = pipelines[i].trim();
-      if (!pipeline) continue;
-
-      // Parse redirections and the actual command
-      const { command: cmd, outputFile, appendMode, stderrToStdout } = this.parseRedirections(pipeline);
-
-      // Handle command chaining (&&, ||, ;)
-      const chainedCommands = this.splitChainedCommands(cmd);
-      let chainResult: ExecResult = { stdout: '', stderr: '', exitCode: 0 };
-
-      for (const { command: chainCmd, operator } of chainedCommands) {
-        // Check if we should run based on previous result
-        if (operator === '&&' && chainResult.exitCode !== 0) continue;
-        if (operator === '||' && chainResult.exitCode === 0) continue;
-
-        const result = await this.executeSimpleCommand(chainCmd.trim(), stdin);
-        chainResult = {
-          stdout: chainResult.stdout + result.stdout,
-          stderr: chainResult.stderr + result.stderr,
-          exitCode: result.exitCode,
-        };
-      }
-
-      // Handle stderr to stdout redirection
-      if (stderrToStdout) {
-        chainResult.stdout += chainResult.stderr;
-        chainResult.stderr = '';
-      }
-
-      // Handle output redirection
-      if (outputFile) {
-        const filePath = this.resolvePath(outputFile);
-        if (appendMode) {
-          await this.fs.appendFile(filePath, chainResult.stdout);
-        } else {
-          await this.fs.writeFile(filePath, chainResult.stdout);
-        }
-        chainResult.stdout = '';
-      }
-
-      // Pass stdout to next command as stdin
-      stdin = chainResult.stdout;
-      lastResult = chainResult;
-
-      // For pipelines, accumulate stderr but pass stdout through
-      if (i < pipelines.length - 1) {
-        lastResult.stdout = '';
-      }
+    // Execute each pipeline
+    for (const pipeline of pipelines) {
+      const result = await this.executePipeline(pipeline, stdin);
+      stdin = result.stdout;
+      lastResult = result;
     }
 
-    // Final result has the output of the last command in the pipeline
-    lastResult.stdout = stdin;
     return lastResult;
   }
 
-  private splitPipelines(commandLine: string): string[] {
-    const pipelines: string[] = [];
-    let current = '';
-    let inQuote: string | null = null;
-    let i = 0;
+  private async executePipeline(pipeline: Pipeline, initialStdin: string): Promise<ExecResult> {
+    let stdin = initialStdin;
+    let lastResult: ExecResult = { stdout: '', stderr: '', exitCode: 0 };
+    let accumulatedStdout = '';
+    let accumulatedStderr = '';
 
-    while (i < commandLine.length) {
-      const char = commandLine[i];
+    for (let i = 0; i < pipeline.commands.length; i++) {
+      const { parsed, operator } = pipeline.commands[i];
+      const nextCommand = pipeline.commands[i + 1];
+      const nextOperator = nextCommand?.operator || '';
 
-      // Handle quotes
-      if ((char === '"' || char === "'") && (i === 0 || commandLine[i - 1] !== '\\')) {
-        if (inQuote === char) {
-          inQuote = null;
-        } else if (!inQuote) {
-          inQuote = char;
-        }
-        current += char;
-        i++;
-        continue;
+      // Check if we should run based on previous result (for &&, ||, ;)
+      if (operator === '&&' && lastResult.exitCode !== 0) continue;
+      if (operator === '||' && lastResult.exitCode === 0) continue;
+      // For ';', always run
+
+      // Determine if previous command was a pipe (empty operator means pipe)
+      const isPipedInput = operator === '';
+      // Determine if next command is a pipe
+      const isPipedOutput = nextOperator === '';
+
+      // Execute the command
+      const commandStdin = isPipedInput && i > 0 ? stdin : initialStdin;
+      const result = await this.executeCommand(parsed.command, parsed.args, parsed.quotedArgs, parsed.redirections, commandStdin);
+
+      // Handle stdout based on whether this is piped to next command
+      if (isPipedOutput && i < pipeline.commands.length - 1) {
+        // This command's stdout goes to next command's stdin
+        stdin = result.stdout;
+      } else {
+        // Accumulate stdout for final output
+        accumulatedStdout += result.stdout;
       }
 
-      // Handle pipe (only outside quotes, and not ||)
-      if (char === '|' && !inQuote) {
-        if (commandLine[i + 1] === '|') {
-          // This is ||, add both chars and skip
-          current += '||';
-          i += 2;
-          continue;
-        }
-        // Single pipe - split here
-        pipelines.push(current);
-        current = '';
-        i++;
-        continue;
-      }
+      // Always accumulate stderr
+      accumulatedStderr += result.stderr;
 
-      current += char;
-      i++;
+      // Update last result for operator checks
+      lastResult = result;
     }
 
-    if (current) {
-      pipelines.push(current);
-    }
-
-    return pipelines;
+    return {
+      stdout: accumulatedStdout,
+      stderr: accumulatedStderr,
+      exitCode: lastResult.exitCode,
+    };
   }
 
-  private splitChainedCommands(commandLine: string): Array<{ command: string; operator: string }> {
-    const result: Array<{ command: string; operator: string }> = [];
-    let current = '';
-    let inQuote: string | null = null;
-    let i = 0;
-    let lastOperator = '';
-
-    while (i < commandLine.length) {
-      const char = commandLine[i];
-      const nextChar = commandLine[i + 1];
-
-      // Handle quotes
-      if ((char === '"' || char === "'") && (i === 0 || commandLine[i - 1] !== '\\')) {
-        if (inQuote === char) {
-          inQuote = null;
-        } else if (!inQuote) {
-          inQuote = char;
-        }
-        current += char;
-        i++;
-        continue;
-      }
-
-      // Handle operators (only outside quotes)
-      if (!inQuote) {
-        if (char === '&' && nextChar === '&') {
-          result.push({ command: current.trim(), operator: lastOperator });
-          current = '';
-          lastOperator = '&&';
-          i += 2;
-          continue;
-        }
-        if (char === '|' && nextChar === '|') {
-          result.push({ command: current.trim(), operator: lastOperator });
-          current = '';
-          lastOperator = '||';
-          i += 2;
-          continue;
-        }
-        if (char === ';') {
-          result.push({ command: current.trim(), operator: lastOperator });
-          current = '';
-          lastOperator = ';';
-          i++;
-          continue;
-        }
-      }
-
-      current += char;
-      i++;
-    }
-
-    if (current.trim()) {
-      result.push({ command: current.trim(), operator: lastOperator });
-    }
-
-    return result;
-  }
-
-  private parseRedirections(command: string): {
-    command: string;
-    outputFile: string | null;
-    appendMode: boolean;
-    stderrToStdout: boolean;
-  } {
-    let outputFile: string | null = null;
-    let appendMode = false;
-    let stderrToStdout = false;
-    let cmd = command;
-
-    // Handle 2>&1
-    if (cmd.includes('2>&1')) {
-      stderrToStdout = true;
-      cmd = cmd.replace('2>&1', '').trim();
-    }
-
-    // Handle >> (append)
-    const appendMatch = cmd.match(/\s*>>\s*(\S+)\s*$/);
-    if (appendMatch) {
-      outputFile = appendMatch[1];
-      appendMode = true;
-      cmd = cmd.replace(/\s*>>\s*\S+\s*$/, '');
-    } else {
-      // Handle > (overwrite)
-      const overwriteMatch = cmd.match(/\s*>\s*(\S+)\s*$/);
-      if (overwriteMatch) {
-        outputFile = overwriteMatch[1];
-        cmd = cmd.replace(/\s*>\s*\S+\s*$/, '');
-      }
-    }
-
-    return { command: cmd.trim(), outputFile, appendMode, stderrToStdout };
-  }
-
-  private async executeSimpleCommand(commandLine: string, stdin: string): Promise<ExecResult> {
-    // Parse command and arguments (variable expansion happens inside parseCommand)
-    const { command, args } = this.parseCommand(commandLine);
-
+  private async executeCommand(
+    command: string,
+    args: string[],
+    quotedArgs: boolean[],
+    redirections: Redirection[],
+    stdin: string
+  ): Promise<ExecResult> {
     if (!command) {
       return { stdout: '', stderr: '', exitCode: 0 };
     }
 
-    // Handle cd specially (it modifies BashEnv state)
+    // Create glob expander for this execution
+    const globExpander = new GlobExpander(this.fs, this.cwd);
+
+    // Expand glob patterns in arguments (skip quoted args)
+    const expandedArgs = await globExpander.expandArgs(args, quotedArgs);
+
+    // Handle built-in commands that modify shell state
     if (command === 'cd') {
-      return this.handleCd(args);
+      return this.handleCd(expandedArgs);
     }
-
-    // Handle export
     if (command === 'export') {
-      return this.handleExport(args);
+      return this.handleExport(expandedArgs);
     }
-
-    // Handle unset
     if (command === 'unset') {
-      return this.handleUnset(args);
+      return this.handleUnset(expandedArgs);
     }
-
-    // Handle exit
     if (command === 'exit') {
-      const code = args[0] ? parseInt(args[0], 10) : 0;
+      const code = expandedArgs[0] ? parseInt(expandedArgs[0], 10) : 0;
       return { stdout: '', stderr: '', exitCode: isNaN(code) ? 1 : code };
     }
 
-    // Look up and execute command
+    // Look up command
     const cmd = this.commands.get(command);
     if (!cmd) {
       return {
@@ -319,6 +215,7 @@ export class BashEnv {
       };
     }
 
+    // Execute the command
     const ctx: CommandContext = {
       fs: this.fs,
       cwd: this.cwd,
@@ -326,158 +223,63 @@ export class BashEnv {
       stdin,
     };
 
+    let result: ExecResult;
     try {
-      return await cmd.execute(args, ctx);
+      result = await cmd.execute(expandedArgs, ctx);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      return {
+      result = {
         stdout: '',
         stderr: `${command}: ${message}\n`,
         exitCode: 1,
       };
     }
+
+    // Apply redirections
+    result = await this.applyRedirections(result, redirections);
+
+    return result;
   }
 
-  private expandVariables(str: string): string {
-    // Handle $VAR and ${VAR} and ${VAR:-default}
-    return str.replace(/\$\{([^}]+)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g, (_, braced, simple) => {
-      if (braced) {
-        // Handle ${VAR:-default}
-        const defaultMatch = braced.match(/^([^:]+):-(.*)$/);
-        if (defaultMatch) {
-          const [, varName, defaultValue] = defaultMatch;
-          return this.env[varName] ?? defaultValue;
-        }
-        return this.env[braced] ?? '';
-      }
-      return this.env[simple] ?? '';
-    });
-  }
+  private async applyRedirections(result: ExecResult, redirections: Redirection[]): Promise<ExecResult> {
+    let { stdout, stderr, exitCode } = result;
 
-  private parseCommand(commandLine: string): { command: string; args: string[] } {
-    const tokens: string[] = [];
-    let current = '';
-    let inQuote: string | null = null;
-    let i = 0;
-
-    while (i < commandLine.length) {
-      const char = commandLine[i];
-
-      // Handle escape sequences
-      if (char === '\\' && i + 1 < commandLine.length) {
-        const nextChar = commandLine[i + 1];
-        if (inQuote === "'") {
-          // In single quotes, backslash is literal
-          current += char;
-          i++;
-        } else if (inQuote === '"') {
-          // In double quotes, only certain escapes are special
-          if (nextChar === '"' || nextChar === '\\' || nextChar === '$' || nextChar === '`') {
-            current += nextChar;
-            i += 2;
-          } else {
-            // Keep backslash for other characters (like \n for echo -e)
-            current += char;
-            i++;
+    for (const redir of redirections) {
+      switch (redir.type) {
+        case 'stdout':
+          if (redir.target) {
+            const filePath = this.resolvePath(redir.target);
+            if (redir.append) {
+              await this.fs.appendFile(filePath, stdout);
+            } else {
+              await this.fs.writeFile(filePath, stdout);
+            }
+            stdout = '';
           }
-        } else {
-          // Outside quotes, backslash escapes next character
-          current += nextChar;
-          i += 2;
-        }
-        continue;
-      }
+          break;
 
-      // Handle variable expansion (not in single quotes)
-      if (char === '$' && inQuote !== "'") {
-        const expanded = this.parseAndExpandVariable(commandLine, i);
-        current += expanded.value;
-        i = expanded.endIndex;
-        continue;
-      }
+        case 'stderr':
+          if (redir.target === '/dev/null') {
+            stderr = '';
+          } else if (redir.target) {
+            const filePath = this.resolvePath(redir.target);
+            if (redir.append) {
+              await this.fs.appendFile(filePath, stderr);
+            } else {
+              await this.fs.writeFile(filePath, stderr);
+            }
+            stderr = '';
+          }
+          break;
 
-      // Handle quotes
-      if ((char === '"' || char === "'")) {
-        if (inQuote === char) {
-          inQuote = null;
-        } else if (!inQuote) {
-          inQuote = char;
-        } else {
-          current += char;
-        }
-        i++;
-        continue;
+        case 'stderr-to-stdout':
+          stdout += stderr;
+          stderr = '';
+          break;
       }
-
-      // Handle whitespace
-      if (!inQuote && (char === ' ' || char === '\t')) {
-        if (current) {
-          tokens.push(current);
-          current = '';
-        }
-        i++;
-        continue;
-      }
-
-      current += char;
-      i++;
     }
 
-    if (current) {
-      tokens.push(current);
-    }
-
-    const [command, ...args] = tokens;
-    return { command: command || '', args };
-  }
-
-  private parseAndExpandVariable(str: string, startIndex: number): { value: string; endIndex: number } {
-    let i = startIndex + 1; // Skip the $
-
-    if (i >= str.length) {
-      return { value: '$', endIndex: i };
-    }
-
-    // Handle ${VAR} and ${VAR:-default}
-    if (str[i] === '{') {
-      const closeIndex = str.indexOf('}', i);
-      if (closeIndex === -1) {
-        return { value: '${', endIndex: i + 1 };
-      }
-      const content = str.slice(i + 1, closeIndex);
-      // Handle ${VAR:-default}
-      const defaultMatch = content.match(/^([^:]+):-(.*)$/);
-      if (defaultMatch) {
-        const [, varName, defaultValue] = defaultMatch;
-        return {
-          value: this.env[varName] ?? defaultValue,
-          endIndex: closeIndex + 1,
-        };
-      }
-      return {
-        value: this.env[content] ?? '',
-        endIndex: closeIndex + 1,
-      };
-    }
-
-    // Handle $VAR
-    let varName = '';
-    while (i < str.length && /[A-Za-z0-9_]/.test(str[i])) {
-      if (varName === '' && /[0-9]/.test(str[i])) {
-        break; // Variable names can't start with digit
-      }
-      varName += str[i];
-      i++;
-    }
-
-    if (!varName) {
-      return { value: '$', endIndex: startIndex + 1 };
-    }
-
-    return {
-      value: this.env[varName] ?? '',
-      endIndex: i,
-    };
+    return { stdout, stderr, exitCode };
   }
 
   private async handleCd(args: string[]): Promise<ExecResult> {

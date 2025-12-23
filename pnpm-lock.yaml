@@ -10,12 +10,15 @@ dependencies:
     version: 10.1.1
 
 devDependencies:
+  '@types/node':
+    specifier: ^25.0.3
+    version: 25.0.3
   typescript:
     specifier: ^5.9.3
     version: 5.9.3
   vitest:
     specifier: ^4.0.16
-    version: 4.0.16
+    version: 4.0.16(@types/node@25.0.3)
 
 packages:
 
@@ -464,6 +467,12 @@ packages:
     resolution: {integrity: sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w==}
     dev: true
 
+  /@types/node@25.0.3:
+    resolution: {integrity: sha512-W609buLVRVmeW693xKfzHeIV6nJGGz98uCPfeXI1ELMLXVeKYZ9m15fAMSaUPBHYLGFsVRcMmSCksQOrZV9BYA==}
+    dependencies:
+      undici-types: 7.16.0
+    dev: true
+
   /@vitest/expect@4.0.16:
     resolution: {integrity: sha512-eshqULT2It7McaJkQGLkPjPjNph+uevROGuIMJdG3V+0BSR2w9u6J9Lwu+E8cK5TETlfou8GRijhafIMhXsimA==}
     dependencies:
@@ -489,7 +498,7 @@ packages:
       '@vitest/spy': 4.0.16
       estree-walker: 3.0.3
       magic-string: 0.30.21
-      vite: 7.3.0
+      vite: 7.3.0(@types/node@25.0.3)
     dev: true
 
   /@vitest/pretty-format@4.0.16:
@@ -725,7 +734,11 @@ packages:
     hasBin: true
     dev: true
 
-  /vite@7.3.0:
+  /undici-types@7.16.0:
+    resolution: {integrity: sha512-Zz+aZWSj8LE6zoxD+xrjh4VfkIG8Ya6LvYkZqtUQGJPZjYl53ypCaUwWqo7eI0x66KBGeRo+mlBEkMSeSZ38Nw==}
+    dev: true
+
+  /vite@7.3.0(@types/node@25.0.3):
     resolution: {integrity: sha512-dZwN5L1VlUBewiP6H9s2+B3e3Jg96D0vzN+Ry73sOefebhYr9f94wwkMNN/9ouoU8pV1BqA1d1zGk8928cx0rg==}
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
@@ -765,6 +778,7 @@ packages:
       yaml:
         optional: true
     dependencies:
+      '@types/node': 25.0.3
       esbuild: 0.27.2
       fdir: 6.5.0(picomatch@4.0.3)
       picomatch: 4.0.3
@@ -775,7 +789,7 @@ packages:
       fsevents: 2.3.3
     dev: true
 
-  /vitest@4.0.16:
+  /vitest@4.0.16(@types/node@25.0.3):
     resolution: {integrity: sha512-E4t7DJ9pESL6E3I8nFjPa4xGUd3PmiWDLsDztS2qXSJWfHtbQnwAWylaBvSNY48I3vr8PTqIZlyK8TE3V3CA4Q==}
     engines: {node: ^20.0.0 || ^22.0.0 || >=24.0.0}
     hasBin: true
@@ -809,6 +823,7 @@ packages:
       jsdom:
         optional: true
     dependencies:
+      '@types/node': 25.0.3
       '@vitest/expect': 4.0.16
       '@vitest/mocker': 4.0.16(vite@7.3.0)
       '@vitest/pretty-format': 4.0.16
@@ -827,7 +842,7 @@ packages:
       tinyexec: 1.0.2
       tinyglobby: 0.2.15
       tinyrainbow: 3.0.3
-      vite: 7.3.0
+      vite: 7.3.0(@types/node@25.0.3)
       why-is-node-running: 2.3.0
     transitivePeerDependencies:
       - jiti

@@ -106,7 +106,7 @@ describe('mv', () => {
     const env = new BashEnv();
     const result = await env.exec('mv /missing.txt /dst.txt');
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain('cannot move');
+    expect(result.stderr).toBe("mv: cannot stat '/missing.txt': No such file or directory\n");
   });
 
   it('should error with missing destination', async () => {
@@ -115,7 +115,7 @@ describe('mv', () => {
     });
     const result = await env.exec('mv /src.txt');
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain('missing destination');
+    expect(result.stderr).toBe('mv: missing destination file operand\n');
   });
 
   it('should move with relative paths', async () => {

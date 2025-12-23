@@ -11,6 +11,9 @@ export const catCommand: Command = {
     for (const arg of args) {
       if (arg === '-n') {
         showLineNumbers = true;
+      } else if (arg === '-') {
+        // '-' means read from stdin
+        files.push('-');
       } else if (arg.startsWith('-')) {
         // Ignore other flags for now
       } else {
@@ -33,10 +36,16 @@ export const catCommand: Command = {
 
     for (const file of files) {
       try {
-        const filePath = ctx.fs.resolvePath(ctx.cwd, file);
-        let content = await ctx.fs.readFile(filePath);
+        let content: string;
+        if (file === '-') {
+          content = ctx.stdin;
+        } else {
+          const filePath = ctx.fs.resolvePath(ctx.cwd, file);
+          content = await ctx.fs.readFile(filePath);
+        }
 
         if (showLineNumbers) {
+          // Real bash restarts line numbers for each file
           content = addLineNumbers(content);
         }
 

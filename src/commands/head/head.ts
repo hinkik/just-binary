@@ -71,7 +71,7 @@ export const headCommand: Command = {
           if (!stdout.endsWith('\n')) stdout += '\n';
         }
       } catch {
-        stderr += `head: cannot open '${file}' for reading: No such file or directory\n`;
+        stderr += `head: ${file}: No such file or directory\n`;
         exitCode = 1;
       }
     }
