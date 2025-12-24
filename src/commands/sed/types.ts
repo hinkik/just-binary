@@ -20,7 +20,13 @@ export type SedCommandType =
   | "getAppend"
   | "exchange"
   | "next"
-  | "quit";
+  | "nextAppend"
+  | "quit"
+  | "transliterate"
+  | "lineNumber"
+  | "branch"
+  | "branchOnSubst"
+  | "label";
 
 export interface SubstituteCommand {
   type: "substitute";
@@ -96,6 +102,40 @@ export interface QuitCommand {
   address?: AddressRange;
 }
 
+export interface NextAppendCommand {
+  type: "nextAppend"; // N - append next line to pattern space
+  address?: AddressRange;
+}
+
+export interface TransliterateCommand {
+  type: "transliterate"; // y/src/dst/ - transliterate characters
+  address?: AddressRange;
+  source: string;
+  dest: string;
+}
+
+export interface LineNumberCommand {
+  type: "lineNumber"; // = - print line number
+  address?: AddressRange;
+}
+
+export interface BranchCommand {
+  type: "branch"; // b [label] - branch to label (or end)
+  address?: AddressRange;
+  label?: string;
+}
+
+export interface BranchOnSubstCommand {
+  type: "branchOnSubst"; // t [label] - branch if substitution made
+  address?: AddressRange;
+  label?: string;
+}
+
+export interface LabelCommand {
+  type: "label"; // :label - define a label
+  name: string;
+}
+
 export type SedCommand =
   | SubstituteCommand
   | PrintCommand
@@ -109,7 +149,13 @@ export type SedCommand =
   | GetAppendCommand
   | ExchangeCommand
   | NextCommand
-  | QuitCommand;
+  | QuitCommand
+  | NextAppendCommand
+  | TransliterateCommand
+  | LineNumberCommand
+  | BranchCommand
+  | BranchOnSubstCommand
+  | LabelCommand;
 
 export interface SedState {
   patternSpace: string;
@@ -120,4 +166,6 @@ export interface SedState {
   printed: boolean;
   quit: boolean;
   appendBuffer: string[]; // Lines to append after current line
+  substitutionMade: boolean; // Track if substitution was made (for 't' command)
+  lineNumberOutput: string[]; // Output from '=' command
 }

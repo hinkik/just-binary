@@ -47,39 +47,63 @@ export function parseAwkProgram(program: string): ParsedProgram {
         });
       }
     } else {
-      // Pattern { action }
-      const patternAction = remaining.match(/^\/([^/]*)\/\s*\{/);
-      if (patternAction) {
+      // Pattern range { action }: /start/,/end/ { action }
+      const rangeAction = remaining.match(/^\/([^/]*)\/\s*,\s*\/([^/]*)\/\s*\{/);
+      if (rangeAction) {
         const actionStart = remaining.indexOf("{");
         const endBrace = findMatchingBrace(remaining, actionStart);
         if (endBrace !== -1) {
           result.main.push({
-            pattern: patternAction[1],
+            pattern: null,
+            range: { start: rangeAction[1], end: rangeAction[2] },
             action: remaining.slice(actionStart + 1, endBrace).trim(),
           });
         }
       } else {
-        // Pattern only (no action) - /pattern/ - default action is print
-        const patternOnly = remaining.match(/^\/([^/]*)\/$/);
-        if (patternOnly) {
-          result.main.push({ pattern: patternOnly[1], action: "print" });
-        } else if (remaining.includes("{")) {
-          // Condition { action }
-          const braceIdx = remaining.indexOf("{");
-          const endBrace = findMatchingBrace(remaining, braceIdx);
+        // Pattern { action }
+        const patternAction = remaining.match(/^\/([^/]*)\/\s*\{/);
+        if (patternAction) {
+          const actionStart = remaining.indexOf("{");
+          const endBrace = findMatchingBrace(remaining, actionStart);
           if (endBrace !== -1) {
             result.main.push({
-              pattern: remaining.slice(0, braceIdx).trim(),
-              action: remaining.slice(braceIdx + 1, endBrace).trim(),
+              pattern: patternAction[1],
+              action: remaining.slice(actionStart + 1, endBrace).trim(),
             });
           }
         } else {
-          // Condition only (no action) or just a print expression
-          if (remaining.startsWith("print") || remaining.startsWith("printf")) {
-            result.main.push({ pattern: null, action: remaining });
+          // Pattern range only (no action) - /start/,/end/ - default action is print
+          const rangeOnly = remaining.match(/^\/([^/]*)\/\s*,\s*\/([^/]*)\/$/);
+          if (rangeOnly) {
+            result.main.push({
+              pattern: null,
+              range: { start: rangeOnly[1], end: rangeOnly[2] },
+              action: "print",
+            });
           } else {
-            // It's a condition without action - default to print
-            result.main.push({ pattern: remaining, action: "print" });
+            // Pattern only (no action) - /pattern/ - default action is print
+            const patternOnly = remaining.match(/^\/([^/]*)\/$/);
+            if (patternOnly) {
+              result.main.push({ pattern: patternOnly[1], action: "print" });
+            } else if (remaining.includes("{")) {
+              // Condition { action }
+              const braceIdx = remaining.indexOf("{");
+              const endBrace = findMatchingBrace(remaining, braceIdx);
+              if (endBrace !== -1) {
+                result.main.push({
+                  pattern: remaining.slice(0, braceIdx).trim(),
+                  action: remaining.slice(braceIdx + 1, endBrace).trim(),
+                });
+              }
+            } else {
+              // Condition only (no action) or just a print expression
+              if (remaining.startsWith("print") || remaining.startsWith("printf")) {
+                result.main.push({ pattern: null, action: remaining });
+              } else {
+                // It's a condition without action - default to print
+                result.main.push({ pattern: remaining, action: "print" });
+              }
+            }
           }
         }
       }

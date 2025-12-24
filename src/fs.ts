@@ -4,9 +4,11 @@ import type {
   DirectoryEntry,
   FileContent,
   FileEntry,
+  FileInit,
   FsEntry,
   FsStat,
   IFileSystem,
+  InitialFiles,
   MkdirOptions,
   ReadFileOptions,
   RmOptions,
@@ -102,16 +104,37 @@ function getEncoding(
   return options.encoding ?? undefined;
 }
 
+/**
+ * Type guard to check if a value is a FileInit object
+ */
+function isFileInit(value: FileContent | FileInit): value is FileInit {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !(value instanceof Uint8Array) &&
+    "content" in value
+  );
+}
+
 export class VirtualFs implements IFileSystem {
   private data: Map<string, FsEntry> = new Map();
 
-  constructor(initialFiles?: Record<string, FileContent>) {
+  constructor(initialFiles?: InitialFiles) {
     // Create root directory
     this.data.set("/", { type: "directory", mode: 0o755, mtime: new Date() });
 
     if (initialFiles) {
-      for (const [path, content] of Object.entries(initialFiles)) {
-        this.writeFileSync(path, content);
+      for (const [path, value] of Object.entries(initialFiles)) {
+        if (isFileInit(value)) {
+          // Extended init with metadata
+          this.writeFileSync(path, value.content, undefined, {
+            mode: value.mode,
+            mtime: value.mtime,
+          });
+        } else {
+          // Simple content
+          this.writeFileSync(path, value);
+        }
       }
     }
   }
@@ -166,6 +189,7 @@ export class VirtualFs implements IFileSystem {
     path: string,
     content: FileContent,
     options?: WriteFileOptions | BufferEncoding,
+    metadata?: { mode?: number; mtime?: Date },
   ): void {
     const normalized = this.normalizePath(path);
     this.ensureParentDirs(normalized);
@@ -177,8 +201,8 @@ export class VirtualFs implements IFileSystem {
     this.data.set(normalized, {
       type: "file",
       content: buffer,
-      mode: 0o644,
-      mtime: new Date(),
+      mode: metadata?.mode ?? 0o644,
+      mtime: metadata?.mtime ?? new Date(),
     });
   }
 

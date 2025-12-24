@@ -217,8 +217,20 @@ export interface IFileSystem {
 }
 
 /**
+ * Extended file initialization options with optional metadata
+ */
+export interface FileInit {
+  content: FileContent;
+  mode?: number;
+  mtime?: Date;
+}
+
+/**
+ * Initial files can be simple content or extended options with metadata
+ */
+export type InitialFiles = Record<string, FileContent | FileInit>;
+
+/**
  * Factory function type for creating filesystem instances
  */
-export type FileSystemFactory = (
-  initialFiles?: Record<string, FileContent>,
-) => IFileSystem;
+export type FileSystemFactory = (initialFiles?: InitialFiles) => IFileSystem;

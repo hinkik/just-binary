@@ -104,6 +104,7 @@ export const awkCommand: Command = {
       line: "",
       vars,
       arrays: {},
+      fieldSep,
     };
 
     let stdout = "";
@@ -120,14 +121,49 @@ export const awkCommand: Command = {
       lines.pop();
     }
 
-    for (const line of lines) {
+    // Track range state for each rule with a range pattern
+    const rangeActive: boolean[] = main.map(() => false);
+
+    // Make lines available in context for getline
+    awkCtx.lines = lines;
+
+    awkCtx.lineIndex = -1; // Will be incremented to 0 at start
+
+    while (awkCtx.lineIndex < lines.length - 1) {
+      awkCtx.lineIndex++;
+      const line = lines[awkCtx.lineIndex];
       awkCtx.NR++;
       awkCtx.line = line;
       awkCtx.fields = line.split(fieldSep);
       awkCtx.NF = awkCtx.fields.length;
 
-      for (const rule of main) {
-        if (matchesPattern(rule.pattern, awkCtx)) {
+      for (let ruleIdx = 0; ruleIdx < main.length; ruleIdx++) {
+        const rule = main[ruleIdx];
+
+        // Handle range patterns
+        if (rule.range) {
+          const startRegex = new RegExp(rule.range.start);
+          const endRegex = new RegExp(rule.range.end);
+
+          if (!rangeActive[ruleIdx]) {
+            // Not in range - check if we match the start
+            if (startRegex.test(line)) {
+              rangeActive[ruleIdx] = true;
+              stdout += executeAwkAction(rule.action, awkCtx);
+              // Check if end also matches (single line range)
+              if (endRegex.test(line)) {
+                rangeActive[ruleIdx] = false;
+              }
+            }
+          } else {
+            // In range - execute action
+            stdout += executeAwkAction(rule.action, awkCtx);
+            // Check if we match the end
+            if (endRegex.test(line)) {
+              rangeActive[ruleIdx] = false;
+            }
+          }
+        } else if (matchesPattern(rule.pattern, awkCtx)) {
           stdout += executeAwkAction(rule.action, awkCtx);
         }
       }

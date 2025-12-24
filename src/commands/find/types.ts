@@ -14,6 +14,11 @@ export type Expression =
       unit: SizeUnit;
       comparison: "exact" | "more" | "less";
     }
+  | {
+      type: "perm";
+      mode: number;
+      matchType: "exact" | "all" | "any"; // exact, -mode (all), /mode (any)
+    }
   | { type: "not"; expr: Expression }
   | { type: "and"; left: Expression; right: Expression }
   | { type: "or"; left: Expression; right: Expression };
@@ -39,6 +44,7 @@ export const PREDICATES_WITH_ARGS = new Set([
   "-mtime",
   "-newer",
   "-size",
+  "-perm",
 ]);
 
 // Evaluation context for file matching
@@ -50,6 +56,7 @@ export interface EvalContext {
   isEmpty: boolean;
   mtime: number; // modification time as timestamp
   size: number; // file size in bytes
+  mode: number; // file permission mode
   newerRefTimes: Map<string, number>; // reference file mtimes for -newer
 }
 

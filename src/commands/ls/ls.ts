@@ -2,6 +2,21 @@ import { minimatch } from "minimatch";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
+// Format size in human-readable format (e.g., 1.5K, 234M, 2G)
+function formatHumanSize(bytes: number): string {
+  if (bytes < 1024) return String(bytes);
+  if (bytes < 1024 * 1024) {
+    const k = bytes / 1024;
+    return k < 10 ? `${k.toFixed(1)}K` : `${Math.round(k)}K`;
+  }
+  if (bytes < 1024 * 1024 * 1024) {
+    const m = bytes / (1024 * 1024);
+    return m < 10 ? `${m.toFixed(1)}M` : `${Math.round(m)}M`;
+  }
+  const g = bytes / (1024 * 1024 * 1024);
+  return g < 10 ? `${g.toFixed(1)}G` : `${Math.round(g)}G`;
+}
+
 // Format date for ls -l output (e.g., "Jan  1 00:00" or "Jan  1  2024")
 function formatDate(date: Date): string {
   const months = [
@@ -41,6 +56,7 @@ const lsHelp = {
     "-a, --all            do not ignore entries starting with .",
     "-A, --almost-all     do not list . and ..",
     "-d, --directory      list directories themselves, not their contents",
+    "-h, --human-readable with -l, print sizes like 1K 234M 2G etc.",
     "-l                   use a long listing format",
     "-r, --reverse        reverse order while sorting",
     "-R, --recursive      list subdirectories recursively",
@@ -61,6 +77,7 @@ export const lsCommand: Command = {
     let showAll = false;
     let showAlmostAll = false;
     let longFormat = false;
+    let humanReadable = false;
     let recursive = false;
     let reverse = false;
     let _directoryOnly = false;
@@ -74,6 +91,7 @@ export const lsCommand: Command = {
           if (flag === "a") showAll = true;
           else if (flag === "A") showAlmostAll = true;
           else if (flag === "l") longFormat = true;
+          else if (flag === "h") humanReadable = true;
           else if (flag === "R") recursive = true;
           else if (flag === "r") reverse = true;
           else if (flag === "d") _directoryOnly = true;
@@ -94,6 +112,8 @@ export const lsCommand: Command = {
         _directoryOnly = true;
       } else if (arg === "--recursive") {
         recursive = true;
+      } else if (arg === "--human-readable") {
+        humanReadable = true;
       } else if (arg.startsWith("--")) {
         return unknownOption("ls", arg);
       } else {
@@ -126,6 +146,7 @@ export const lsCommand: Command = {
           showAlmostAll,
           longFormat,
           reverse,
+          humanReadable,
         );
         stdout += result.stdout;
         stderr += result.stderr;
@@ -140,6 +161,7 @@ export const lsCommand: Command = {
           recursive,
           paths.length > 1,
           reverse,
+          humanReadable,
         );
         stdout += result.stdout;
         stderr += result.stderr;
@@ -158,6 +180,7 @@ async function listGlob(
   showAlmostAll: boolean,
   longFormat: boolean,
   reverse: boolean = false,
+  humanReadable: boolean = false,
 ): Promise<ExecResult> {
   const showHidden = showAll || showAlmostAll;
   const allPaths = ctx.fs.getAllPaths();
@@ -201,10 +224,13 @@ async function listGlob(
         const mode = stat.isDirectory ? "drwxr-xr-x" : "-rw-r--r--";
         const type = stat.isDirectory ? "/" : "";
         const size = stat.size ?? 0;
+        const sizeStr = humanReadable
+          ? formatHumanSize(size).padStart(5)
+          : String(size).padStart(5);
         const mtime = stat.mtime ?? new Date(0);
         const dateStr = formatDate(mtime);
         lines.push(
-          `${mode} 1 user user ${String(size).padStart(5)} ${dateStr} ${match}${type}`,
+          `${mode} 1 user user ${sizeStr} ${dateStr} ${match}${type}`,
         );
       } catch {
         lines.push(`-rw-r--r-- 1 user user     0 Jan  1 00:00 ${match}`);
@@ -225,6 +251,7 @@ async function listPath(
   recursive: boolean,
   showHeader: boolean,
   reverse: boolean = false,
+  humanReadable: boolean = false,
   _isSubdir: boolean = false,
 ): Promise<ExecResult> {
   const showHidden = showAll || showAlmostAll;
@@ -291,9 +318,12 @@ async function listPath(
           const mode = entryStat.isDirectory ? "drwxr-xr-x" : "-rw-r--r--";
           const suffix = entryStat.isDirectory ? "/" : "";
           const size = entryStat.size ?? 0;
+          const sizeStr = humanReadable
+            ? formatHumanSize(size).padStart(5)
+            : String(size).padStart(5);
           const mtime = entryStat.mtime ?? new Date(0);
           const dateStr = formatDate(mtime);
-          stdout += `${mode} 1 user user ${String(size).padStart(5)} ${dateStr} ${entry}${suffix}\n`;
+          stdout += `${mode} 1 user user ${sizeStr} ${dateStr} ${entry}${suffix}\n`;
         } catch {
           stdout += `-rw-r--r-- 1 user user     0 Jan  1 00:00 ${entry}\n`;
         }
@@ -328,6 +358,7 @@ async function listPath(
               recursive,
               false,
               reverse,
+              humanReadable,
               true,
             );
             stdout += result.stdout;

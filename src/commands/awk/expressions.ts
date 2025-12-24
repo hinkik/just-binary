@@ -60,6 +60,21 @@ export function evaluateExpression(
         return Math.log(Number(evaluateExpression(args[0] || "0", ctx)));
       case "exp":
         return Math.exp(Number(evaluateExpression(args[0] || "0", ctx)));
+      case "atan2": {
+        const y = Number(evaluateExpression(args[0] || "0", ctx));
+        const x = Number(evaluateExpression(args[1] || "0", ctx));
+        return Math.atan2(y, x);
+      }
+      case "rand":
+        return ctx.random ? ctx.random() : Math.random();
+      case "srand": {
+        // In real awk, srand() seeds the random number generator
+        // We'll just return a value and the random will work with Math.random()
+        const seed = args.length > 0 ? Number(evaluateExpression(args[0], ctx)) : Date.now();
+        // Store seed for reference (doesn't actually change behavior)
+        ctx.vars["_srand_seed"] = seed;
+        return seed;
+      }
     }
   }
 

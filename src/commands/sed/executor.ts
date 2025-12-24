@@ -2,9 +2,12 @@
 
 import type {
   AddressRange,
+  BranchCommand,
+  BranchOnSubstCommand,
   SedAddress,
   SedCommand,
   SedState,
+  TransliterateCommand,
 } from "./types.js";
 
 export function createInitialState(totalLines: number): SedState {
@@ -17,6 +20,8 @@ export function createInitialState(totalLines: number): SedState {
     printed: false,
     quit: false,
     appendBuffer: [],
+    substitutionMade: false,
+    lineNumberOutput: [],
   };
 }
 
@@ -139,6 +144,11 @@ export function processReplacement(
 export function executeCommand(cmd: SedCommand, state: SedState): void {
   const { lineNumber, totalLines, patternSpace } = state;
 
+  // Labels don't have addresses and are handled separately
+  if (cmd.type === "label") {
+    return;
+  }
+
   // Check if command applies to current line
   if (!isInRange(cmd.address, lineNumber, totalLines, patternSpace)) {
     return;
@@ -152,7 +162,7 @@ export function executeCommand(cmd: SedCommand, state: SedState): void {
 
       try {
         const regex = new RegExp(cmd.pattern, flags);
-        const hadMatch = regex.test(state.patternSpace);
+        const original = state.patternSpace;
 
         state.patternSpace = state.patternSpace.replace(
           regex,
@@ -163,8 +173,12 @@ export function executeCommand(cmd: SedCommand, state: SedState): void {
           },
         );
 
-        if (hadMatch && cmd.printOnMatch) {
-          state.printed = true;
+        const hadMatch = original !== state.patternSpace;
+        if (hadMatch) {
+          state.substitutionMade = true;
+          if (cmd.printOnMatch) {
+            state.printed = true;
+          }
         }
       } catch {
         // Invalid regex, skip
@@ -238,12 +252,132 @@ export function executeCommand(cmd: SedCommand, state: SedState): void {
     case "quit":
       state.quit = true;
       break;
+
+    case "transliterate":
+      // y/source/dest/ - Transliterate characters
+      state.patternSpace = executeTransliterate(
+        state.patternSpace,
+        cmd as TransliterateCommand,
+      );
+      break;
+
+    case "lineNumber":
+      // = - Print line number
+      state.lineNumberOutput.push(String(state.lineNumber));
+      break;
+
+    case "branch":
+      // b [label] - Will be handled in executeCommands
+      break;
+
+    case "branchOnSubst":
+      // t [label] - Will be handled in executeCommands
+      break;
   }
 }
 
-export function executeCommands(commands: SedCommand[], state: SedState): void {
-  for (const cmd of commands) {
-    if (state.deleted || state.quit) break;
-    executeCommand(cmd, state);
+function executeTransliterate(
+  input: string,
+  cmd: TransliterateCommand,
+): string {
+  let result = "";
+  for (const char of input) {
+    const idx = cmd.source.indexOf(char);
+    if (idx !== -1) {
+      result += cmd.dest[idx];
+    } else {
+      result += char;
+    }
   }
+  return result;
+}
+
+export interface ExecuteContext {
+  lines: string[];
+  currentLineIndex: number;
+}
+
+export function executeCommands(
+  commands: SedCommand[],
+  state: SedState,
+  ctx?: ExecuteContext,
+): number {
+  // Build label index for branching
+  const labelIndex = new Map<string, number>();
+  for (let i = 0; i < commands.length; i++) {
+    const cmd = commands[i];
+    if (cmd.type === "label") {
+      labelIndex.set(cmd.name, i);
+    }
+  }
+
+  let linesConsumed = 0;
+  let i = 0;
+  while (i < commands.length) {
+    if (state.deleted || state.quit) break;
+
+    const cmd = commands[i];
+
+    // Handle N command specially - it needs to append next line inline
+    if (cmd.type === "nextAppend") {
+      if (
+        isInRange(cmd.address, state.lineNumber, state.totalLines, state.patternSpace)
+      ) {
+        if (ctx && ctx.currentLineIndex + linesConsumed + 1 < ctx.lines.length) {
+          linesConsumed++;
+          const nextLine = ctx.lines[ctx.currentLineIndex + linesConsumed];
+          state.patternSpace += `\n${nextLine}`;
+          state.lineNumber = ctx.currentLineIndex + linesConsumed + 1;
+        }
+        // If no next line available, N command just continues
+      }
+      i++;
+      continue;
+    }
+
+    // Handle branching commands specially
+    if (cmd.type === "branch") {
+      const branchCmd = cmd as BranchCommand;
+      // Check if address matches
+      if (isInRange(branchCmd.address, state.lineNumber, state.totalLines, state.patternSpace)) {
+        if (branchCmd.label) {
+          const target = labelIndex.get(branchCmd.label);
+          if (target !== undefined) {
+            i = target;
+            continue;
+          }
+        }
+        // Branch without label means jump to end
+        break;
+      }
+      i++;
+      continue;
+    }
+
+    if (cmd.type === "branchOnSubst") {
+      const branchCmd = cmd as BranchOnSubstCommand;
+      // Check if address matches
+      if (isInRange(branchCmd.address, state.lineNumber, state.totalLines, state.patternSpace)) {
+        if (state.substitutionMade) {
+          state.substitutionMade = false; // Reset flag
+          if (branchCmd.label) {
+            const target = labelIndex.get(branchCmd.label);
+            if (target !== undefined) {
+              i = target;
+              continue;
+            }
+          }
+          // Branch without label means jump to end
+          break;
+        }
+      }
+      i++;
+      continue;
+    }
+
+    executeCommand(cmd, state);
+    i++;
+  }
+
+  return linesConsumed;
 }

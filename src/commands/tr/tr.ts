@@ -6,9 +6,10 @@ const trHelp = {
   summary: "translate or delete characters",
   usage: "tr [OPTION]... SET1 [SET2]",
   options: [
-    "-d, --delete         delete characters in SET1",
+    "-c, -C, --complement   use the complement of SET1",
+    "-d, --delete           delete characters in SET1",
     "-s, --squeeze-repeats  squeeze repeated characters",
-    "    --help           display this help and exit",
+    "    --help             display this help and exit",
   ],
   description: `SET syntax:
   a-z         character range
@@ -109,13 +110,16 @@ export const trCommand: Command = {
       return showHelp(trHelp);
     }
 
+    let complementMode = false;
     let deleteMode = false;
     let squeezeMode = false;
     const sets: string[] = [];
 
     // Parse arguments
     for (const arg of args) {
-      if (arg === "-d" || arg === "--delete") {
+      if (arg === "-c" || arg === "-C" || arg === "--complement") {
+        complementMode = true;
+      } else if (arg === "-d" || arg === "--delete") {
         deleteMode = true;
       } else if (arg === "-s" || arg === "--squeeze-repeats") {
         squeezeMode = true;
@@ -124,13 +128,15 @@ export const trCommand: Command = {
       } else if (arg.startsWith("-") && arg.length > 1) {
         // Check for unknown short options
         for (const c of arg.slice(1)) {
-          if (c !== "d" && c !== "s") {
+          if (c !== "d" && c !== "s" && c !== "c" && c !== "C") {
             return unknownOption("tr", `-${c}`);
           }
         }
+        if (arg.includes("c") || arg.includes("C")) complementMode = true;
         if (arg.includes("d")) deleteMode = true;
         if (arg.includes("s")) squeezeMode = true;
-      } else if (!arg.startsWith("-")) {
+      } else {
+        // Treat as a set operand (including bare "-" which is valid)
         sets.push(arg);
       }
     }
@@ -151,16 +157,22 @@ export const trCommand: Command = {
       };
     }
 
-    const set1 = expandRange(sets[0]);
+    const set1Raw = expandRange(sets[0]);
     const set2 = sets.length > 1 ? expandRange(sets[1]) : "";
     const content = ctx.stdin;
+
+    // Helper to check if character is in set1 (considering complement mode)
+    const isInSet1 = (char: string): boolean => {
+      const inSet = set1Raw.includes(char);
+      return complementMode ? !inSet : inSet;
+    };
 
     let output = "";
 
     if (deleteMode) {
-      // Delete characters in set1
+      // Delete characters in set1 (or complement of set1)
       for (const char of content) {
-        if (!set1.includes(char)) {
+        if (!isInSet1(char)) {
           output += char;
         }
       }
@@ -168,7 +180,7 @@ export const trCommand: Command = {
       // Squeeze consecutive characters in set1
       let prev = "";
       for (const char of content) {
-        if (set1.includes(char) && char === prev) {
+        if (isInSet1(char) && char === prev) {
           continue; // Skip repeated character
         }
         output += char;
@@ -176,15 +188,29 @@ export const trCommand: Command = {
       }
     } else {
       // Translate characters from set1 to set2
-      const translationMap = new Map<string, string>();
-      for (let i = 0; i < set1.length; i++) {
-        // If set2 is shorter, use the last character of set2
-        const targetChar = i < set2.length ? set2[i] : set2[set2.length - 1];
-        translationMap.set(set1[i], targetChar);
-      }
+      if (complementMode) {
+        // In complement mode, all characters NOT in set1 are translated
+        // They're all mapped to a single character (last char of set2)
+        const targetChar = set2.length > 0 ? set2[set2.length - 1] : "";
+        for (const char of content) {
+          if (!set1Raw.includes(char)) {
+            output += targetChar;
+          } else {
+            output += char;
+          }
+        }
+      } else {
+        // Normal translation mode
+        const translationMap = new Map<string, string>();
+        for (let i = 0; i < set1Raw.length; i++) {
+          // If set2 is shorter, use the last character of set2
+          const targetChar = i < set2.length ? set2[i] : set2[set2.length - 1];
+          translationMap.set(set1Raw[i], targetChar);
+        }
 
-      for (const char of content) {
-        output += translationMap.get(char) ?? char;
+        for (const char of content) {
+          output += translationMap.get(char) ?? char;
+        }
       }
 
       // If squeeze mode is also enabled, squeeze set2 characters

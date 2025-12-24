@@ -1,6 +1,6 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
-import { createInitialState, executeCommands } from "./executor.js";
+import { createInitialState, executeCommands, ExecuteContext } from "./executor.js";
 import { parseMultipleScripts } from "./parser.js";
 import type { SedCommand, SedState } from "./types.js";
 
@@ -11,6 +11,7 @@ const sedHelp = {
   options: [
     "-n, --quiet, --silent  suppress automatic printing of pattern space",
     "-e script              add the script to commands to be executed",
+    "-f script-file         read script from file",
     "-i, --in-place         edit files in place",
     "-E, -r, --regexp-extended  use extended regular expressions",
     "    --help             display this help and exit",
@@ -28,6 +29,12 @@ const sedHelp = {
   G                             append hold space to pattern space
   x                             exchange pattern and hold spaces
   n                             read next line into pattern space
+  N                             append next line to pattern space
+  y/source/dest/                transliterate characters
+  =                             print line number
+  b [label]                     branch to label
+  t [label]                     branch on substitution
+  :label                        define label
   q                             quit
 
 Addresses:
@@ -52,6 +59,7 @@ function processContent(
 
   // Persistent hold space across all lines
   let holdSpace = "";
+  let substitutionMade = false;
 
   for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
     const state: SedState = {
@@ -60,12 +68,26 @@ function processContent(
       holdSpace: holdSpace,
       lineNumber: lineIndex + 1,
       totalLines,
+      substitutionMade,
     };
 
-    executeCommands(commands, state);
+    // Create execution context for N command
+    const ctx: ExecuteContext = {
+      lines,
+      currentLineIndex: lineIndex,
+    };
 
-    // Preserve hold space for next line
+    const linesConsumed = executeCommands(commands, state, ctx);
+    lineIndex += linesConsumed;
+
+    // Preserve state for next line
     holdSpace = state.holdSpace;
+    substitutionMade = state.substitutionMade;
+
+    // Output line numbers from = command
+    for (const ln of state.lineNumberOutput) {
+      output += `${ln}\n`;
+    }
 
     // Handle insert commands (marked with __INSERT__ prefix)
     const inserts: string[] = [];
@@ -116,6 +138,7 @@ export const sedCommand: Command = {
     }
 
     const scripts: string[] = [];
+    const scriptFiles: string[] = [];
     let silent = false;
     let inPlace = false;
     let _extendedRegex = false;
@@ -136,11 +159,15 @@ export const sedCommand: Command = {
         if (i + 1 < args.length) {
           scripts.push(args[++i]);
         }
+      } else if (arg === "-f") {
+        if (i + 1 < args.length) {
+          scriptFiles.push(args[++i]);
+        }
       } else if (arg.startsWith("--")) {
         return unknownOption("sed", arg);
       } else if (arg.startsWith("-") && arg.length > 1) {
         for (const c of arg.slice(1)) {
-          if (c !== "n" && c !== "e" && c !== "i" && c !== "E" && c !== "r") {
+          if (c !== "n" && c !== "e" && c !== "f" && c !== "i" && c !== "E" && c !== "r") {
             return unknownOption("sed", `-${c}`);
           }
         }
@@ -152,10 +179,36 @@ export const sedCommand: Command = {
             scripts.push(args[++i]);
           }
         }
-      } else if (!arg.startsWith("-") && scripts.length === 0) {
+        if (arg.includes("f") && !arg.includes("e")) {
+          if (i + 1 < args.length) {
+            scriptFiles.push(args[++i]);
+          }
+        }
+      } else if (!arg.startsWith("-") && scripts.length === 0 && scriptFiles.length === 0) {
         scripts.push(arg);
       } else if (!arg.startsWith("-")) {
         files.push(arg);
+      }
+    }
+
+    // Read scripts from -f files
+    for (const scriptFile of scriptFiles) {
+      const scriptPath = ctx.fs.resolvePath(ctx.cwd, scriptFile);
+      try {
+        const scriptContent = await ctx.fs.readFile(scriptPath);
+        // Split by newlines and add each line as a separate script
+        for (const line of scriptContent.split("\n")) {
+          const trimmed = line.trim();
+          if (trimmed && !trimmed.startsWith("#")) {
+            scripts.push(trimmed);
+          }
+        }
+      } catch {
+        return {
+          stdout: "",
+          stderr: `sed: couldn't open file ${scriptFile}: No such file or directory\n`,
+          exitCode: 1,
+        };
       }
     }
 

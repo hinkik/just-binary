@@ -18,6 +18,9 @@ const findHelp = {
     "-mtime N         file's data was modified N*24 hours ago",
     "-newer FILE      file was modified more recently than FILE",
     "-size N[ckMGb]   file uses N units of space (c=bytes, k=KB, M=MB, G=GB, b=512B blocks)",
+    "-perm MODE       file's permission bits are exactly MODE (octal)",
+    "-perm -MODE      all permission bits MODE are set",
+    "-perm /MODE      any permission bits MODE are set",
     "-maxdepth LEVELS descend at most LEVELS directories",
     "-mindepth LEVELS do not apply tests at levels less than LEVELS",
     "-not, !          negate the following expression",
@@ -44,6 +47,7 @@ const PREDICATES_WITH_ARGS_SET = new Set([
   "-mtime",
   "-newer",
   "-size",
+  "-perm",
 ]);
 
 export const findCommand: Command = {
@@ -178,6 +182,7 @@ export const findCommand: Command = {
           isEmpty,
           mtime: stat.mtime?.getTime() ?? Date.now(),
           size: stat.size ?? 0,
+          mode: stat.mode ?? 0o644,
           newerRefTimes,
         };
         matches = evaluateExpression(expr, evalCtx);

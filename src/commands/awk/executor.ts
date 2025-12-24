@@ -92,6 +92,11 @@ function executeStatement(stmt: string, ctx: AwkContext): string {
     return ""; // In full implementation, this would throw to exit
   }
 
+  // Handle getline
+  if (stmt === "getline" || stmt.startsWith("getline ")) {
+    return handleGetline(stmt, ctx);
+  }
+
   // Handle delete array[key]
   const deleteMatch = stmt.match(/^delete\s+(\w+)\[(.+)\]$/);
   if (deleteMatch) {
@@ -548,6 +553,44 @@ function evaluatePrintf(args: string, ctx: AwkContext): string {
   }
 
   return result;
+}
+
+function handleGetline(stmt: string, ctx: AwkContext): string {
+  // Check if lines are available
+  if (!ctx.lines || ctx.lineIndex === undefined) {
+    return "";
+  }
+
+  // Parse getline forms:
+  // getline - read next line into $0
+  // getline var - read next line into variable var
+
+  const nextLineIndex = ctx.lineIndex + 1;
+  if (nextLineIndex >= ctx.lines.length) {
+    // No more lines
+    return "";
+  }
+
+  const nextLine = ctx.lines[nextLineIndex];
+
+  if (stmt === "getline") {
+    // Read into $0
+    ctx.line = nextLine;
+    ctx.fields = ctx.fieldSep ? nextLine.split(ctx.fieldSep) : nextLine.split(/\s+/);
+    ctx.NF = ctx.fields.length;
+    ctx.NR++;
+    ctx.lineIndex = nextLineIndex;
+  } else {
+    // getline var - read into variable
+    const varName = stmt.slice(8).trim();
+    if (varName && !varName.startsWith("<")) {
+      ctx.vars[varName] = nextLine;
+      ctx.NR++;
+      ctx.lineIndex = nextLineIndex;
+    }
+  }
+
+  return "";
 }
 
 export function matchesPattern(

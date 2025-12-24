@@ -90,6 +90,26 @@ export function parseExpressions(
           expr: { type: "size", value, unit, comparison },
         });
       }
+    } else if (arg === "-perm" && i + 1 < args.length) {
+      const permArg = args[++i];
+      // Parse permission mode: octal, -mode (all bits), /mode (any bit)
+      let matchType: "exact" | "all" | "any" = "exact";
+      let modeStr = permArg;
+      if (permArg.startsWith("-")) {
+        matchType = "all";
+        modeStr = permArg.slice(1);
+      } else if (permArg.startsWith("/")) {
+        matchType = "any";
+        modeStr = permArg.slice(1);
+      }
+      // Parse as octal
+      const mode = parseInt(modeStr, 8);
+      if (!Number.isNaN(mode)) {
+        tokens.push({
+          type: "expr",
+          expr: { type: "perm", mode, matchType },
+        });
+      }
     } else if (arg === "-not" || arg === "!") {
       tokens.push({ type: "not" });
     } else if (arg === "-o" || arg === "-or") {

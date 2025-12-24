@@ -1,6 +1,6 @@
 import { createLazyCommands } from "./commands/registry.js";
 import { type IFileSystem, VirtualFs } from "./fs.js";
-import type { FileContent } from "./fs-interface.js";
+import type { InitialFiles } from "./fs-interface.js";
 import {
   GlobExpander,
   type Pipeline,
@@ -22,9 +22,15 @@ const DEFAULT_MAX_LOOP_ITERATIONS = 10000;
 export interface BashEnvOptions {
   /**
    * Initial files to populate the virtual filesystem.
+   * Can be simple content strings/Uint8Arrays, or FileInit objects with metadata.
    * Only used when fs is not provided.
+   * @example
+   * // Simple content
+   * files: { "/file.txt": "content" }
+   * // With metadata
+   * files: { "/file.txt": { content: "data", mode: 0o755, mtime: new Date("2024-01-01") } }
    */
-  files?: Record<string, FileContent>;
+  files?: InitialFiles;
   /**
    * Environment variables
    */

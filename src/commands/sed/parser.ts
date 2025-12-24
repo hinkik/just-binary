@@ -149,8 +149,42 @@ export function parseSedScript(script: string): ParseResult {
     case "n":
       return { command: { type: "next", address: range } };
 
+    case "N":
+      return { command: { type: "nextAppend", address: range } };
+
     case "q":
       return { command: { type: "quit", address: range } };
+
+    case "=":
+      return { command: { type: "lineNumber", address: range } };
+
+    case "y":
+      // Transliterate command: y/source/dest/
+      return parseTransliterate(cmd, range);
+
+    case "b":
+      // Branch command: b [label]
+      {
+        const label = cmd.slice(1).trim();
+        return { command: { type: "branch", address: range, label: label || undefined } };
+      }
+
+    case "t":
+      // Branch on substitution: t [label]
+      {
+        const label = cmd.slice(1).trim();
+        return { command: { type: "branchOnSubst", address: range, label: label || undefined } };
+      }
+
+    case ":":
+      // Label definition: :name
+      {
+        const name = cmd.slice(1).trim();
+        if (!name) {
+          return { command: null, error: "missing label name" };
+        }
+        return { command: { type: "label", name } };
+      }
 
     case "a":
       // Append command: a\ or a text
@@ -187,6 +221,74 @@ export function parseSedScript(script: string): ParseResult {
   }
 
   return { command: null, error: `invalid command: ${script}` };
+}
+
+function parseTransliterate(cmd: string, range?: AddressRange): ParseResult {
+  // y/source/dest/
+  if (!cmd.startsWith("y") || cmd.length < 4) {
+    return { command: null, error: "invalid transliteration" };
+  }
+
+  const delimiter = cmd[1];
+  let i = 2;
+  let source = "";
+  let dest = "";
+
+  // Parse source characters
+  while (i < cmd.length && cmd[i] !== delimiter) {
+    if (cmd[i] === "\\" && i + 1 < cmd.length) {
+      // Handle escape sequences
+      const next = cmd[i + 1];
+      if (next === "n") {
+        source += "\n";
+      } else if (next === "t") {
+        source += "\t";
+      } else {
+        source += next;
+      }
+      i += 2;
+    } else {
+      source += cmd[i];
+      i++;
+    }
+  }
+
+  if (i >= cmd.length) {
+    return { command: null, error: "unterminated transliteration source" };
+  }
+
+  i++; // Skip delimiter
+
+  // Parse destination characters
+  while (i < cmd.length && cmd[i] !== delimiter) {
+    if (cmd[i] === "\\" && i + 1 < cmd.length) {
+      const next = cmd[i + 1];
+      if (next === "n") {
+        dest += "\n";
+      } else if (next === "t") {
+        dest += "\t";
+      } else {
+        dest += next;
+      }
+      i += 2;
+    } else {
+      dest += cmd[i];
+      i++;
+    }
+  }
+
+  if (source.length !== dest.length) {
+    return { command: null, error: "transliteration sets must have same length" };
+  }
+
+  return {
+    command: {
+      type: "transliterate",
+      address: range,
+      source,
+      dest,
+    },
+  };
 }
 
 function parseSubstitute(cmd: string, range?: AddressRange): ParseResult {

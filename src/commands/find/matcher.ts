@@ -94,6 +94,22 @@ export function evaluateExpression(
       }
       return ctx.size === targetBytes;
     }
+    case "perm": {
+      // Permission mode matching
+      // exact: file mode must match exactly
+      // all (-mode): all specified bits must be set
+      // any (/mode): at least one specified bit must be set
+      const fileMode = ctx.mode & 0o777; // Only permission bits
+      const targetMode = expr.mode & 0o777;
+      if (expr.matchType === "exact") {
+        return fileMode === targetMode;
+      } else if (expr.matchType === "all") {
+        return (fileMode & targetMode) === targetMode;
+      } else {
+        // any
+        return (fileMode & targetMode) !== 0;
+      }
+    }
     case "not":
       return !evaluateExpression(expr.expr, ctx);
     case "and":
