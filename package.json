@@ -3,16 +3,16 @@
   "version": "1.0.0",
   "description": "A simulated bash environment with virtual filesystem",
   "type": "module",
-  "main": "dist/index.js",
+  "main": "dist/bundle/index.js",
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/bundle/index.js"
     },
     "./ai": {
       "types": "./dist/ai/index.d.ts",
-      "import": "./dist/ai/index.js"
+      "import": "./dist/bundle/ai/index.js"
     }
   },
   "peerDependencies": {
@@ -28,16 +28,36 @@
     }
   },
   "files": [
-    "dist",
+    "dist/bundle/",
+    "dist/bin/",
+    "dist/*.d.ts",
+    "dist/ai/*.d.ts",
+    "dist/ast/*.d.ts",
+    "dist/commands/**/*.d.ts",
+    "dist/expander/*.d.ts",
+    "dist/interpreter/**/*.d.ts",
+    "dist/network/**/*.d.ts",
+    "dist/overlay-fs/*.d.ts",
+    "dist/parser/*.d.ts",
+    "dist/sandbox/*.d.ts",
+    "dist/utils/*.d.ts",
     "README.md"
   ],
   "bin": {
     "bash-env": "./dist/bin/bash-env.js",
-    "bash-env-shell": "./dist/cli/shell.js"
+    "bash-env-shell": "./dist/bin/shell/shell.js"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
-    "build": "tsc && pnpm build:cli",
+    "build": "tsc && pnpm build:lib && pnpm build:ai && pnpm build:cli && pnpm build:shell && pnpm build:clean",
+    "build:clean": "find dist -name '*.test.js' -delete && find dist -name '*.test.d.ts' -delete",
+    "build:lib": "esbuild dist/index.js --bundle --splitting --platform=node --format=esm --minify --outdir=dist/bundle --chunk-names=chunks/[name]-[hash] --external:diff --external:minimatch --external:sprintf-js --external:turndown",
+    "build:ai": "esbuild dist/ai/index.js --bundle --platform=node --format=esm --minify --outfile=dist/bundle/ai/index.js --external:ai --external:zod --external:diff --external:minimatch --external:sprintf-js --external:turndown",
     "build:cli": "esbuild dist/cli/bash-env.js --bundle --splitting --platform=node --format=esm --minify --outdir=dist/bin --entry-names=[name] --chunk-names=chunks/[name]-[hash] --banner:js='#!/usr/bin/env node'",
+    "build:shell": "esbuild dist/cli/shell.js --bundle --splitting --platform=node --format=esm --minify --outdir=dist/bin/shell --entry-names=[name] --chunk-names=chunks/[name]-[hash] --banner:js='#!/usr/bin/env node'",
+    "prepublishOnly": "pnpm validate",
     "validate": "pnpm build && pnpm typecheck && pnpm lint && pnpm knip && pnpm test:run && pnpm test:dist",
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
