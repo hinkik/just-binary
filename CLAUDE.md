@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-bash-env is a TypeScript implementation of a bash interpreter with an in-memory virtual filesystem. Designed for AI agents needing a secure, sandboxed bash environment. No WASM dependencies allowed.
+just-bash is a TypeScript implementation of a bash interpreter with an in-memory virtual filesystem. Designed for AI agents needing a secure, sandboxed bash environment. No WASM dependencies allowed.
 
 ## Commands
 
@@ -13,6 +13,7 @@ bash-env is a TypeScript implementation of a bash interpreter with an in-memory 
 pnpm build                 # Build TypeScript (required before using dist/)
 pnpm typecheck             # Type check
 pnpm lint:fix              # Fix lint errors (biome)
+pnpm knip                  # Check for unused exports/dependencies
 
 # Testing
 pnpm test:run              # Run ALL tests (including spec tests)
@@ -34,30 +35,30 @@ pnpm shell                 # Full network access
 pnpm shell --no-network    # No network
 
 # Sandboxed CLI (read-only by default)
-node ./dist/cli/bash-env.js -c 'ls -la' --root .
-node ./dist/cli/bash-env.js -c 'cat package.json' --root .
-node ./dist/cli/bash-env.js -c 'grep -r "TODO" src/' --root .
+node ./dist/cli/just-bash.js -c 'ls -la' --root .
+node ./dist/cli/just-bash.js -c 'cat package.json' --root .
+node ./dist/cli/just-bash.js -c 'grep -r "TODO" src/' --root .
 ```
 
-### Sandboxed Shell Execution with `bash-env`
+### Sandboxed Shell Execution with `just-bash`
 
-The `bash-env` CLI provides a secure, sandboxed bash environment using OverlayFS:
+The `just-bash` CLI provides a secure, sandboxed bash environment using OverlayFS:
 
 ```bash
 # Execute inline script (read-only by default)
-node ./dist/cli/bash-env.js -c 'ls -la && cat README.md | head -5' --root .
+node ./dist/cli/just-bash.js -c 'ls -la && cat README.md | head -5' --root .
 
 # Execute with JSON output
-node ./dist/cli/bash-env.js -c 'echo hello' --root . --json
+node ./dist/cli/just-bash.js -c 'echo hello' --root . --json
 
 # Allow writes (writes stay in memory, don't affect real filesystem)
-node ./dist/cli/bash-env.js -c 'echo test > /tmp/file.txt && cat /tmp/file.txt' --root . --allow-write
+node ./dist/cli/just-bash.js -c 'echo test > /tmp/file.txt && cat /tmp/file.txt' --root . --allow-write
 
 # Execute script file
-node ./dist/cli/bash-env.js script.sh --root .
+node ./dist/cli/just-bash.js script.sh --root .
 
 # Exit on first error
-node ./dist/cli/bash-env.js -e -c 'false; echo "not reached"' --root .
+node ./dist/cli/just-bash.js -e -c 'false; echo "not reached"' --root .
 ```
 
 Options:
@@ -121,6 +122,21 @@ Input Script → Parser (src/parser/) → AST (src/ast/) → Interpreter (src/in
 
 **Filesystem** (`src/fs.ts`, `src/overlay-fs/`): In-memory VFS with optional overlay on real filesystem
 
+**AWK** (`src/commands/awk/`): AWK text processing implementation
+
+- `parser.ts` - Parses AWK programs (BEGIN/END blocks, rules, user-defined functions)
+- `executor.ts` - Executes parsed AWK programs line by line
+- `expressions.ts` - Expression evaluation (arithmetic, string functions, comparisons)
+- Supports: field splitting, pattern matching, printf, gsub/sub/split, user-defined functions
+- Limitations: User-defined functions support single return expressions only (no multi-statement bodies or if/else)
+
+**SED** (`src/commands/sed/`): Stream editor implementation
+
+- `parser.ts` - Parses sed commands and addresses
+- `executor.ts` - Executes sed commands with pattern/hold space
+- Supports: s, d, p, q, n, a, i, c, y, =, addresses, ranges, extended regex (-E/-r)
+- Has execution limits to prevent runaway compute
+
 ### Adding Commands
 
 Commands go in `src/commands/<name>/` with:
@@ -133,7 +149,7 @@ Commands go in `src/commands/<name>/` with:
 ### Testing Strategy
 
 - **Unit tests**: Fast, isolated tests for specific functionality
-- **Comparison tests**: Run same script in bash-env and real bash, compare output
+- **Comparison tests**: Run same script in just-bash and real bash, compare output
 - **Spec tests** (`src/spec-tests/`): Bash specification conformance (may have known failures)
 
 Prefer comparison tests when uncertain about bash behavior. Keep test files under 300 lines.
@@ -142,7 +158,7 @@ Prefer comparison tests when uncertain about bash behavior. Keep test files unde
 
 - Read AGENTS.md
 - Use `pnpm dev:exec` instead of ad-hoc test scripts (avoids approval prompts)
-- Always verify with `pnpm typecheck && pnpm test:run` before finishing
+- Always verify with `pnpm typecheck && pnpm lint:fix && pnpm knip && pnpm test:run` before finishing
 - Assert full stdout/stderr in tests, not partial matches
 - Implementation must match real bash behavior, not convenience
 - Dependencies using WASM are not allowed

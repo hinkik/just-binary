@@ -8,8 +8,8 @@
 
 import * as path from "node:path";
 import { streamText, stepCountIs } from "ai";
-import { createBashTool } from "../../src/ai/index.js";
-import { OverlayFs } from "../../src/overlay-fs/index.js";
+import { createBashTool } from "just-bash/ai";
+import { OverlayFs } from "just-bash";
 
 export interface AgentRunner {
   chat(
