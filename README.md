@@ -31,7 +31,7 @@ Supports optional network access via `curl` with secure-by-default URL filtering
 ## Security model
 
 - The shell only has access to the provided file system.
-- Execution is protected against infinite loops or recursion through. However, Bash is not fully robust against DOS from input. If you need to be robust against this, use process isolation at the OS level.
+- Execution is protected against infinite loops or recursion. However, Bash is not fully robust against DOS from input. If you need to be robust against this, use process isolation at the OS level.
 - Binaries or even WASM are inherently unsupported (Use [Vercel Sandbox](https://vercel.com/docs/vercel-sandbox) or a similar product if a full VM is needed).
 - There is no network access by default.
 - Network access can be enabled, but requests are checked against URL prefix allow-lists and HTTP-method allow-lists. See [network access](#network-access) for details
