@@ -40,8 +40,18 @@ export function buildRegex(
       // Convert (?P<name>...) to JavaScript's (?<name>...) syntax
       regexPattern = pattern.replace(/\(\?P<([^>]+)>/g, "(?<$1>");
 
-      // Handle \K (Perl regex reset match start) - only in perl mode
+      // Handle Perl-specific features only in perl mode
       if (options.mode === "perl") {
+        // Handle \Q...\E (quote metacharacters)
+        regexPattern = handleQuoteMetachars(regexPattern);
+
+        // Handle \x{NNNN} Unicode code points -> \u{NNNN}
+        regexPattern = handleUnicodeCodePoints(regexPattern);
+
+        // Handle inline modifiers (?i:...), (?i), etc.
+        regexPattern = handleInlineModifiers(regexPattern);
+
+        // Handle \K (Perl regex reset match start)
         const kResult = handlePerlKReset(regexPattern);
         regexPattern = kResult.pattern;
         kResetGroup = kResult.kResetGroup;
@@ -69,12 +79,306 @@ export function buildRegex(
   // - i: case insensitive
   // - m: multiline (^ and $ match at line boundaries)
   // - s: dotall (. matches newlines)
+  // - u: unicode (needed for \u{NNNN} syntax)
+  const needsUnicode = /\\u\{[0-9A-Fa-f]+\}/.test(regexPattern);
   const flags =
     "g" +
     (options.ignoreCase ? "i" : "") +
     (options.multiline ? "m" : "") +
-    (options.multilineDotall ? "s" : "");
+    (options.multilineDotall ? "s" : "") +
+    (needsUnicode ? "u" : "");
   return { regex: new RegExp(regexPattern, flags), kResetGroup };
+}
+
+/**
+ * Handle \Q...\E (quote metacharacters).
+ * Everything between \Q and \E is treated as literal text.
+ * If \E is missing, quotes until end of pattern.
+ */
+function handleQuoteMetachars(pattern: string): string {
+  let result = "";
+  let i = 0;
+
+  while (i < pattern.length) {
+    // Check for \Q
+    if (
+      pattern[i] === "\\" &&
+      i + 1 < pattern.length &&
+      pattern[i + 1] === "Q"
+    ) {
+      // Skip \Q
+      i += 2;
+
+      // Find matching \E or end of string
+      let quoted = "";
+      while (i < pattern.length) {
+        if (
+          pattern[i] === "\\" &&
+          i + 1 < pattern.length &&
+          pattern[i + 1] === "E"
+        ) {
+          // Found \E, skip it
+          i += 2;
+          break;
+        }
+        quoted += pattern[i];
+        i++;
+      }
+
+      // Escape all regex metacharacters in the quoted section
+      result += quoted.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    } else {
+      result += pattern[i];
+      i++;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Handle \x{NNNN} Unicode code points.
+ * Converts Perl's \x{NNNN} to JavaScript's \u{NNNN}.
+ */
+function handleUnicodeCodePoints(pattern: string): string {
+  // Convert \x{NNNN} to \u{NNNN}
+  // The pattern matches \x{ followed by hex digits and }
+  return pattern.replace(/\\x\{([0-9A-Fa-f]+)\}/g, "\\u{$1}");
+}
+
+/**
+ * Handle inline modifiers like (?i:...), (?i), (?-i), etc.
+ *
+ * Supported modifiers:
+ * - i: case insensitive
+ * - m: multiline (^ and $ match at line boundaries) - already default in our impl
+ * - s: single-line mode (. matches newlines)
+ * - x: extended mode (ignore whitespace) - not fully supported
+ *
+ * Forms:
+ * - (?i) - Turn on modifier for rest of pattern (simplified: applies to whole pattern)
+ * - (?-i) - Turn off modifier (simplified: removes from rest)
+ * - (?i:pattern) - Apply modifier only to this group
+ */
+function handleInlineModifiers(pattern: string): string {
+  let result = "";
+  let i = 0;
+
+  while (i < pattern.length) {
+    // Look for (?
+    if (
+      pattern[i] === "(" &&
+      i + 1 < pattern.length &&
+      pattern[i + 1] === "?"
+    ) {
+      // Check if this is a modifier group
+      const modifierMatch = pattern
+        .slice(i)
+        .match(/^\(\?([imsx]*)(-[imsx]*)?(:|$|\))/);
+
+      if (modifierMatch) {
+        const enableMods = modifierMatch[1] || "";
+        const disableMods = modifierMatch[2] || "";
+        const delimiter = modifierMatch[3];
+
+        if (delimiter === ":") {
+          // (?i:pattern) form - apply modifiers to group content
+          const groupStart = i + modifierMatch[0].length - 1; // position of :
+          const groupEnd = findMatchingParen(pattern, i);
+
+          if (groupEnd !== -1) {
+            const groupContent = pattern.slice(groupStart + 1, groupEnd);
+            const transformed = applyInlineModifiers(
+              groupContent,
+              enableMods,
+              disableMods,
+            );
+            result += `(?:${transformed})`;
+            i = groupEnd + 1;
+            continue;
+          }
+        } else if (delimiter === ")" || delimiter === "") {
+          // (?i) form - modifier only, no content
+          // For simplicity, we just remove these as they're hard to emulate precisely
+          // The caller should use -i flag for case insensitivity
+          i += modifierMatch[0].length;
+          continue;
+        }
+      }
+    }
+
+    result += pattern[i];
+    i++;
+  }
+
+  return result;
+}
+
+/**
+ * Find the matching closing parenthesis for an opening one at position start.
+ */
+function findMatchingParen(pattern: string, start: number): number {
+  let depth = 0;
+  let i = start;
+
+  while (i < pattern.length) {
+    if (pattern[i] === "\\") {
+      // Skip escaped character
+      i += 2;
+      continue;
+    }
+
+    if (pattern[i] === "[") {
+      // Skip character class
+      i++;
+      while (i < pattern.length && pattern[i] !== "]") {
+        if (pattern[i] === "\\") i++;
+        i++;
+      }
+      i++;
+      continue;
+    }
+
+    if (pattern[i] === "(") {
+      depth++;
+    } else if (pattern[i] === ")") {
+      depth--;
+      if (depth === 0) {
+        return i;
+      }
+    }
+    i++;
+  }
+
+  return -1;
+}
+
+/**
+ * Apply inline modifiers to a pattern segment.
+ * For (?i:pattern), we convert letters to character classes [Aa].
+ */
+function applyInlineModifiers(
+  pattern: string,
+  enableMods: string,
+  _disableMods: string,
+): string {
+  let result = pattern;
+
+  // Handle case-insensitive modifier
+  if (enableMods.includes("i")) {
+    result = makeCaseInsensitive(result);
+  }
+
+  // Note: 's' modifier (dotall) would need special handling
+  // For now, we rely on the global flag if needed
+
+  return result;
+}
+
+/**
+ * Convert a pattern to be case-insensitive by replacing letters with character classes.
+ * e.g., "abc" -> "[Aa][Bb][Cc]"
+ * Character classes like [cd] become [cdCD]
+ */
+function makeCaseInsensitive(pattern: string): string {
+  let result = "";
+  let i = 0;
+
+  while (i < pattern.length) {
+    const char = pattern[i];
+
+    if (char === "\\") {
+      // Keep escape sequences as-is
+      if (i + 1 < pattern.length) {
+        result += char + pattern[i + 1];
+        i += 2;
+      } else {
+        result += char;
+        i++;
+      }
+      continue;
+    }
+
+    if (char === "[") {
+      // Make character class case-insensitive
+      result += char;
+      i++;
+
+      // Check for negation
+      if (i < pattern.length && pattern[i] === "^") {
+        result += pattern[i];
+        i++;
+      }
+
+      // Collect all characters and make them case-insensitive
+      const classChars: string[] = [];
+      while (i < pattern.length && pattern[i] !== "]") {
+        if (pattern[i] === "\\") {
+          // Keep escape sequences as-is
+          classChars.push(pattern[i]);
+          i++;
+          if (i < pattern.length) {
+            classChars.push(pattern[i]);
+            i++;
+          }
+        } else if (
+          pattern[i] === "-" &&
+          classChars.length > 0 &&
+          i + 1 < pattern.length &&
+          pattern[i + 1] !== "]"
+        ) {
+          // Range like a-z - keep as-is but also add uppercase range
+          const rangeStart = classChars[classChars.length - 1];
+          const rangeEnd = pattern[i + 1];
+          classChars.push("-");
+          classChars.push(rangeEnd);
+
+          // Add uppercase equivalents if both are letters
+          if (/[a-z]/.test(rangeStart) && /[a-z]/.test(rangeEnd)) {
+            classChars.push(rangeStart.toUpperCase());
+            classChars.push("-");
+            classChars.push(rangeEnd.toUpperCase());
+          } else if (/[A-Z]/.test(rangeStart) && /[A-Z]/.test(rangeEnd)) {
+            classChars.push(rangeStart.toLowerCase());
+            classChars.push("-");
+            classChars.push(rangeEnd.toLowerCase());
+          }
+          i += 2;
+        } else {
+          const c = pattern[i];
+          classChars.push(c);
+          // Add case variant for letters
+          if (/[a-zA-Z]/.test(c)) {
+            const variant =
+              c === c.toLowerCase() ? c.toUpperCase() : c.toLowerCase();
+            if (!classChars.includes(variant)) {
+              classChars.push(variant);
+            }
+          }
+          i++;
+        }
+      }
+
+      result += classChars.join("");
+      if (i < pattern.length) {
+        result += pattern[i]; // ]
+        i++;
+      }
+      continue;
+    }
+
+    // Convert letters to case-insensitive character class
+    if (/[a-zA-Z]/.test(char)) {
+      const lower = char.toLowerCase();
+      const upper = char.toUpperCase();
+      result += `[${upper}${lower}]`;
+    } else {
+      result += char;
+    }
+    i++;
+  }
+
+  return result;
 }
 
 /**
