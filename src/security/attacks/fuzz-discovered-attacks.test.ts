@@ -421,4 +421,83 @@ describe("Fuzz-discovered attack vectors", () => {
       assertExecResultSafe(result);
     });
   });
+
+  describe("Fuzz-discovered timeout regressions", () => {
+    // These scripts were discovered by fuzzing and initially caused timeouts.
+    // They serve as regression tests to ensure they complete in reasonable time.
+
+    it("C-style for loop with ternary in increment", async () => {
+      // Originally took 37819ms to timeout
+      const env = new Bash({
+        executionLimits: { maxLoopIterations: 100, maxCommandCount: 100 },
+      });
+      const script = `for ((++HvL80q71kdn; -428 == Kw_PCw; RN3 ? 937 : 2#101)); do yuHtpyKKdV4=\${toString[5]} set; done
+for gTcon in 'i2cZ1' 'V6' '8A9It2Dg0sZW' \${!constructor}; do declare -A vs; vs[constructor]='aM1VdRfPp' | JXVMw[constructor]=N &; done
+! (jq 9X3NB {0..17}) || VVZk4lQ61al[propertyIsEnumerable]=$lkBt | niZap6rwgB=".o\${!__lookupGetter__}" cat`;
+      const result = await env.exec(script);
+      assertExecResultSafe(result);
+    });
+
+    it("nested if statements with pipes", async () => {
+      // Originally took 71517ms to timeout
+      const env = new Bash({
+        executionLimits: { maxLoopIterations: 100, maxCommandCount: 100 },
+      });
+      const script = `I0EfEH[toLocaleString]=cmKwOvR | if ! if if local Ip=dWiFTnFFZ2ME; then Sw=0btQ cat; fi | lxpUU=1MQwQQ3Vkw0m rg; then constructor=46 || prototype=h7zvB4LR8S0H; fi; then if { propertyIsEnumerable='L3'; }; then if [[ -e B ]]; then rAUcdqj7s[e4UYv0GjAu]=kzc; fi; fi || ((Taxz5y)); fi 2>&1 || true`;
+      const result = await env.exec(script);
+      assertExecResultSafe(result);
+    });
+
+    it("declare -n with prototype names and indirect expansion", async () => {
+      // Originally took 1691ms to timeout
+      const env = new Bash({
+        executionLimits: { maxLoopIterations: 100, maxCommandCount: 100 },
+      });
+      const script = `! declare -n E9=hasOwnProperty && M.pMl \${constructor:-Exo6z855_L}
+rg vHlanutW || export __defineGetter__=\${!__proto__}`;
+      const result = await env.exec(script);
+      assertExecResultSafe(result);
+    });
+
+    it("should handle binary literal in arithmetic ternary", async () => {
+      // Component of the first timeout script
+      const env = new Bash();
+      const result = await env.exec("echo $((RN3 ? 937 : 2#101))");
+      assertExecResultSafe(result);
+      // 2#101 is binary 101 = 5 decimal
+      expect(result.stdout.trim()).toBe("5");
+    });
+
+    it("should handle deeply nested if as condition", async () => {
+      // Component of the second timeout script
+      const env = new Bash();
+      const result = await env.exec(
+        "if if if true; then echo a; fi; then echo b; fi; then echo c; fi",
+      );
+      assertExecResultSafe(result);
+      expect(result.stdout.trim()).toBe("a\nb\nc");
+    });
+
+    it("should handle indirect expansion of prototype name", async () => {
+      // Component of the third timeout script
+      // ${!__proto__} is indirect expansion - returns variable name matching prefix
+      // Exit code 1 is expected when the variable is unset
+      const env = new Bash();
+      const result = await env.exec("echo ${!__proto__}");
+      assertExecResultSafe(result);
+      // Just verify it completes and doesn't expose native code
+    });
+
+    it("while loop with for loop as condition and background jobs", async () => {
+      // Originally took 11908ms to timeout
+      const env = new Bash({
+        executionLimits: { maxLoopIterations: 100, maxCommandCount: 100 },
+      });
+      const script = `while for ((HyO3HFaL4; -929 == NpRe0oLrk; ++Glp)); do ! false < /dev/null &; done | T0ut0imRm=WBc drte4sOL; do h() { ! local 6tqqC w4 && local isPrototypeOf=\${valueOf:-0JuHjVG0gz49}; } | if prototype=\${q7jNtu8lZ[constructor]}; then declare -A cd; cd[__proto__]=\${!propertyIsEnumerable@}; fi; done | declare -n TUn0Xvw=prototype
+! ufsXx7KR48[prototype]=A0r4wHb && local BTi='hZ1YRkhWdO'
+((!rg))`;
+      const result = await env.exec(script);
+      assertExecResultSafe(result);
+    });
+  });
 });
