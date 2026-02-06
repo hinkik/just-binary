@@ -154,6 +154,7 @@ function withVar(
     currentPath: ctx.currentPath,
     funcs: ctx.funcs,
     labels: ctx.labels,
+    coverage: ctx.coverage,
   };
 }
 
