@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import { Worker } from "node:worker_threads";
 import { mapToRecord } from "../../helpers/env.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { decode, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 import { FsBridgeHandler } from "./fs-bridge-handler.js";
 import { createSharedBuffer } from "./protocol.js";
@@ -85,8 +86,8 @@ function parseArgs(args: string[]): ParsedArgs | ExecResult {
     if (arg === "-c") {
       if (i + 1 >= args.length) {
         return {
-          stdout: "",
-          stderr: "python3: option requires an argument -- 'c'\n",
+          stdout: EMPTY,
+          stderr: encode("python3: option requires an argument -- 'c'\n"),
           exitCode: 2,
         };
       }
@@ -98,8 +99,8 @@ function parseArgs(args: string[]): ParsedArgs | ExecResult {
     if (arg === "-m") {
       if (i + 1 >= args.length) {
         return {
-          stdout: "",
-          stderr: "python3: option requires an argument -- 'm'\n",
+          stdout: EMPTY,
+          stderr: encode("python3: option requires an argument -- 'm'\n"),
           exitCode: 2,
         };
       }
@@ -115,8 +116,8 @@ function parseArgs(args: string[]): ParsedArgs | ExecResult {
 
     if (arg.startsWith("-") && arg !== "-") {
       return {
-        stdout: "",
-        stderr: `python3: unrecognized option '${arg}'\n`,
+        stdout: EMPTY,
+        stderr: encode(`python3: unrecognized option '${arg}'\n`),
         exitCode: 2,
       };
     }
@@ -280,13 +281,17 @@ async function executePython(
 
   if (!workerResult.success && workerResult.error) {
     return {
-      stdout: bridgeOutput.stdout,
-      stderr: `${bridgeOutput.stderr}python3: ${workerResult.error}\n`,
+      stdout: encode(bridgeOutput.stdout),
+      stderr: encode(`${bridgeOutput.stderr}python3: ${workerResult.error}\n`),
       exitCode: bridgeOutput.exitCode || 1,
     };
   }
 
-  return bridgeOutput;
+  return {
+    stdout: encode(bridgeOutput.stdout),
+    stderr: encode(bridgeOutput.stderr),
+    exitCode: bridgeOutput.exitCode,
+  };
 }
 
 export const python3Command: Command = {
@@ -302,8 +307,8 @@ export const python3Command: Command = {
 
     if (parsed.showVersion) {
       return {
-        stdout: "Python 3.12.1 (Pyodide)\n",
-        stderr: "",
+        stdout: encode("Python 3.12.1 (Pyodide)\n"),
+        stderr: EMPTY,
         exitCode: 0,
       };
     }
@@ -322,8 +327,10 @@ export const python3Command: Command = {
 
       if (!(await ctx.fs.exists(filePath))) {
         return {
-          stdout: "",
-          stderr: `python3: can't open file '${parsed.scriptFile}': [Errno 2] No such file or directory\n`,
+          stdout: EMPTY,
+          stderr: encode(
+            `python3: can't open file '${parsed.scriptFile}': [Errno 2] No such file or directory\n`,
+          ),
           exitCode: 2,
         };
       }
@@ -333,19 +340,22 @@ export const python3Command: Command = {
         scriptPath = parsed.scriptFile;
       } catch (e) {
         return {
-          stdout: "",
-          stderr: `python3: can't open file '${parsed.scriptFile}': ${(e as Error).message}\n`,
+          stdout: EMPTY,
+          stderr: encode(
+            `python3: can't open file '${parsed.scriptFile}': ${(e as Error).message}\n`,
+          ),
           exitCode: 2,
         };
       }
-    } else if (ctx.stdin.trim()) {
-      pythonCode = ctx.stdin;
+    } else if (decode(ctx.stdin).trim()) {
+      pythonCode = decode(ctx.stdin);
       scriptPath = "<stdin>";
     } else {
       return {
-        stdout: "",
-        stderr:
+        stdout: EMPTY,
+        stderr: encode(
           "python3: no input provided (use -c CODE, -m MODULE, or provide a script file)\n",
+        ),
         exitCode: 2,
       };
     }

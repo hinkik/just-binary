@@ -34,6 +34,7 @@ import type {
   FeatureCoverageWriter,
   TraceCallback,
 } from "../types.js";
+import { concat, EMPTY, encode } from "../utils/bytes.js";
 import { expandAlias as expandAliasHelper } from "./alias-expansion.js";
 import { evaluateArithmetic } from "./arithmetic.js";
 import {
@@ -74,7 +75,6 @@ import { executeFunctionDef } from "./functions.js";
 import {
   failure,
   OK,
-  result,
   testResult,
   throwExecutionLimit,
 } from "./helpers/result.js";
@@ -106,7 +106,11 @@ export interface InterpreterOptions {
   limits: Required<ExecutionLimits>;
   exec: (
     script: string,
-    options?: { env?: Record<string, string>; cwd?: string },
+    options?: {
+      env?: Record<string, string>;
+      cwd?: string;
+      stdin?: Uint8Array;
+    },
   ) => Promise<ExecResult>;
   /** Optional secure fetch function for network-enabled commands */
   fetch?: SecureFetch;
@@ -179,15 +183,15 @@ export class Interpreter {
   }
 
   async executeScript(node: ScriptNode): Promise<ExecResult> {
-    let stdout = "";
-    let stderr = "";
+    let stdout: Uint8Array = EMPTY;
+    let stderr: Uint8Array = EMPTY;
     let exitCode = 0;
 
     for (const statement of node.statements) {
       try {
         const result = await this.executeStatement(statement);
-        stdout += result.stdout;
-        stderr += result.stderr;
+        stdout = concat(stdout, result.stdout);
+        stderr = concat(stderr, result.stderr);
         exitCode = result.exitCode;
         this.ctx.state.lastExitCode = exitCode;
         this.ctx.state.env.set("?", String(exitCode));
@@ -201,8 +205,8 @@ export class Interpreter {
         // PosixFatalError terminates the script in POSIX mode
         // POSIX 2.8.1: special builtins cause shell to exit on error
         if (error instanceof PosixFatalError) {
-          stdout += error.stdout;
-          stderr += error.stderr;
+          stdout = concat(stdout, error.stdout);
+          stderr = concat(stderr, error.stderr);
           exitCode = error.exitCode;
           this.ctx.state.lastExitCode = exitCode;
           this.ctx.state.env.set("?", String(exitCode));
@@ -218,8 +222,8 @@ export class Interpreter {
           throw error;
         }
         if (error instanceof ErrexitError) {
-          stdout += error.stdout;
-          stderr += error.stderr;
+          stdout = concat(stdout, error.stdout);
+          stderr = concat(stderr, error.stderr);
           exitCode = error.exitCode;
           this.ctx.state.lastExitCode = exitCode;
           this.ctx.state.env.set("?", String(exitCode));
@@ -231,8 +235,8 @@ export class Interpreter {
           };
         }
         if (error instanceof NounsetError) {
-          stdout += error.stdout;
-          stderr += error.stderr;
+          stdout = concat(stdout, error.stdout);
+          stderr = concat(stderr, error.stderr);
           exitCode = 1;
           this.ctx.state.lastExitCode = exitCode;
           this.ctx.state.env.set("?", String(exitCode));
@@ -244,8 +248,8 @@ export class Interpreter {
           };
         }
         if (error instanceof BadSubstitutionError) {
-          stdout += error.stdout;
-          stderr += error.stderr;
+          stdout = concat(stdout, error.stdout);
+          stderr = concat(stderr, error.stderr);
           exitCode = 1;
           this.ctx.state.lastExitCode = exitCode;
           this.ctx.state.env.set("?", String(exitCode));
@@ -259,8 +263,8 @@ export class Interpreter {
         // ArithmeticError in expansion (e.g., echo $((42x))) - the command fails
         // but the script continues execution. This matches bash behavior.
         if (error instanceof ArithmeticError) {
-          stdout += error.stdout;
-          stderr += error.stderr;
+          stdout = concat(stdout, error.stdout);
+          stderr = concat(stderr, error.stderr);
           exitCode = 1;
           this.ctx.state.lastExitCode = exitCode;
           this.ctx.state.env.set("?", String(exitCode));
@@ -270,8 +274,8 @@ export class Interpreter {
         // BraceExpansionError for invalid ranges (e.g., {z..A} mixed case) - the command fails
         // but the script continues execution. This matches bash behavior.
         if (error instanceof BraceExpansionError) {
-          stdout += error.stdout;
-          stderr += error.stderr;
+          stdout = concat(stdout, error.stdout);
+          stderr = concat(stderr, error.stderr);
           exitCode = 1;
           this.ctx.state.lastExitCode = exitCode;
           this.ctx.state.env.set("?", String(exitCode));
@@ -286,8 +290,8 @@ export class Interpreter {
             throw error;
           }
           // Outside loops (level exceeded loop depth), silently continue with next statement
-          stdout += error.stdout;
-          stderr += error.stderr;
+          stdout = concat(stdout, error.stdout);
+          stderr = concat(stderr, error.stderr);
           continue;
         }
         // Handle return - prepend accumulated output before propagating
@@ -313,7 +317,7 @@ export class Interpreter {
   private async executeUserScript(
     scriptPath: string,
     args: string[],
-    stdin = "",
+    stdin: Uint8Array = EMPTY,
   ): Promise<ExecResult> {
     return executeUserScriptHelper(this.ctx, scriptPath, args, stdin, (ast) =>
       this.executeScript(ast),
@@ -346,8 +350,8 @@ export class Interpreter {
     // It will be set by inner compound command executions if needed
     this.ctx.state.errexitSafe = false;
 
-    let stdout = "";
-    let stderr = "";
+    let stdout: Uint8Array = EMPTY;
+    let stderr: Uint8Array = EMPTY;
 
     // verbose mode (set -v): print unevaluated source before execution
     // Don't print verbose output inside command substitutions (suppressVerbose flag)
@@ -356,7 +360,7 @@ export class Interpreter {
       !this.ctx.state.suppressVerbose &&
       node.sourceText
     ) {
-      stderr += `${node.sourceText}\n`;
+      stderr = concat(stderr, encode(`${node.sourceText}\n`));
     }
     let exitCode = 0;
     let lastExecutedIndex = -1;
@@ -370,8 +374,8 @@ export class Interpreter {
       if (operator === "||" && exitCode === 0) continue;
 
       const result = await this.executePipeline(pipeline);
-      stdout += result.stdout;
-      stderr += result.stderr;
+      stdout = concat(stdout, result.stdout);
+      stderr = concat(stderr, result.stderr);
       exitCode = result.exitCode;
       lastExecutedIndex = i;
       lastPipelineNegated = pipeline.negated;
@@ -407,7 +411,7 @@ export class Interpreter {
       throw new ErrexitError(exitCode, stdout, stderr);
     }
 
-    return result(stdout, stderr, exitCode);
+    return { stdout, stderr, exitCode };
   }
 
   private async executePipeline(node: PipelineNode): Promise<ExecResult> {
@@ -418,7 +422,7 @@ export class Interpreter {
 
   private async executeCommand(
     node: CommandNode,
-    stdin: string,
+    stdin: Uint8Array,
   ): Promise<ExecResult> {
     this.ctx.coverage?.hit(`bash:cmd:${node.type}`);
     switch (node.type) {
@@ -453,14 +457,14 @@ export class Interpreter {
 
   private async executeSimpleCommand(
     node: SimpleCommandNode,
-    stdin: string,
+    stdin: Uint8Array,
   ): Promise<ExecResult> {
     try {
       return await this.executeSimpleCommandInner(node, stdin);
     } catch (error) {
       if (error instanceof GlobError) {
         // GlobError from failglob should return exit code 1 with error message
-        return failure(error.stderr);
+        return { stdout: EMPTY, stderr: error.stderr, exitCode: 1 };
       }
       // ArithmeticError in expansion (e.g., echo $((42x))) should terminate the script
       // Let the error propagate - it will be caught by the top-level error handler
@@ -470,7 +474,7 @@ export class Interpreter {
 
   private async executeSimpleCommandInner(
     node: SimpleCommandNode,
-    stdin: string,
+    stdin: Uint8Array,
   ): Promise<ExecResult> {
     // Update currentLine for $LINENO
     if (node.line !== undefined) {
@@ -527,7 +531,11 @@ export class Interpreter {
           return redirectError;
         }
         // Apply redirections to empty result (for append, read redirects, etc.)
-        const baseResult = result("", xtraceAssignmentOutput, 0);
+        const baseResult = {
+          stdout: EMPTY,
+          stderr: encode(xtraceAssignmentOutput),
+          exitCode: 0,
+        };
         return applyRedirections(this.ctx, baseResult, node.redirections);
       }
 
@@ -539,7 +547,11 @@ export class Interpreter {
       const stderrOutput =
         (this.ctx.state.expansionStderr || "") + xtraceAssignmentOutput;
       this.ctx.state.expansionStderr = "";
-      return result("", stderrOutput, this.ctx.state.lastExitCode);
+      return {
+        stdout: EMPTY,
+        stderr: encode(stderrOutput),
+        exitCode: this.ctx.state.lastExitCode,
+      };
     }
 
     // Mark prefix assignment variables as temporarily exported for this command
@@ -607,13 +619,15 @@ export class Interpreter {
           }
           this.ctx.state.fileDescriptors.set(fd, content);
         } else {
-          stdin = content;
+          stdin = encode(content);
         }
         continue;
       }
 
       if (redir.operator === "<<<" && redir.target.type === "Word") {
-        stdin = `${await expandWord(this.ctx, redir.target as WordNode)}\n`;
+        stdin = encode(
+          `${await expandWord(this.ctx, redir.target as WordNode)}\n`,
+        );
         continue;
       }
 
@@ -621,7 +635,7 @@ export class Interpreter {
         try {
           const target = await expandWord(this.ctx, redir.target as WordNode);
           const filePath = this.ctx.fs.resolvePath(this.ctx.state.cwd, target);
-          stdin = await this.ctx.fs.readFile(filePath);
+          stdin = (await this.ctx.fs.readFileBuffer(filePath)) as Uint8Array;
         } catch {
           const target = await expandWord(this.ctx, redir.target as WordNode);
           for (const [name, value] of tempAssignments) {
@@ -645,7 +659,7 @@ export class Interpreter {
               const parsed = parseRwFdContent(fdContent);
               if (parsed) {
                 // Return content starting from current position
-                stdin = parsed.content.slice(parsed.position);
+                stdin = encode(parsed.content.slice(parsed.position));
                 stdinSourceFd = sourceFd;
               }
             } else if (
@@ -655,7 +669,7 @@ export class Interpreter {
               // These are output-only, can't read from them
             } else {
               // Plain content (from exec N< file or here-docs)
-              stdin = fdContent;
+              stdin = encode(fdContent);
             }
           }
         }
@@ -765,7 +779,11 @@ export class Interpreter {
         }
         // No args - treat as no-op (status 0)
         // Preserve lastExitCode for command subs like $(exit 42)
-        return result("", "", this.ctx.state.lastExitCode);
+        return {
+          stdout: EMPTY,
+          stderr: EMPTY,
+          exitCode: this.ctx.state.lastExitCode,
+        };
       }
       // Literal empty command name - command not found
       return failure("bash: : command not found\n", 127);
@@ -985,7 +1003,7 @@ export class Interpreter {
     if (stderrPrefix) {
       cmdResult = {
         ...cmdResult,
-        stderr: stderrPrefix + cmdResult.stderr,
+        stderr: concat(encode(stderrPrefix), cmdResult.stderr),
       };
     }
 
@@ -1060,7 +1078,10 @@ export class Interpreter {
     if (this.ctx.state.expansionStderr) {
       cmdResult = {
         ...cmdResult,
-        stderr: this.ctx.state.expansionStderr + cmdResult.stderr,
+        stderr: concat(
+          encode(this.ctx.state.expansionStderr),
+          cmdResult.stderr,
+        ),
       };
       this.ctx.state.expansionStderr = "";
     }
@@ -1072,7 +1093,7 @@ export class Interpreter {
     commandName: string,
     args: string[],
     quotedArgs: boolean[],
-    stdin: string,
+    stdin: Uint8Array,
     skipFunctions = false,
     useDefaultPath = false,
     stdinSourceFd = -1,
@@ -1124,14 +1145,17 @@ export class Interpreter {
 
   private async executeSubshell(
     node: SubshellNode,
-    stdin = "",
+    stdin: Uint8Array = EMPTY,
   ): Promise<ExecResult> {
     return executeSubshellHelper(this.ctx, node, stdin, (stmt) =>
       this.executeStatement(stmt),
     );
   }
 
-  private async executeGroup(node: GroupNode, stdin = ""): Promise<ExecResult> {
+  private async executeGroup(
+    node: GroupNode,
+    stdin: Uint8Array = EMPTY,
+  ): Promise<ExecResult> {
     return executeGroupHelper(this.ctx, node, stdin, (stmt) =>
       this.executeStatement(stmt),
     );
@@ -1167,7 +1191,10 @@ export class Interpreter {
       if (this.ctx.state.expansionStderr) {
         bodyResult = {
           ...bodyResult,
-          stderr: this.ctx.state.expansionStderr + bodyResult.stderr,
+          stderr: concat(
+            encode(this.ctx.state.expansionStderr),
+            bodyResult.stderr,
+          ),
         };
         this.ctx.state.expansionStderr = "";
       }
@@ -1208,7 +1235,10 @@ export class Interpreter {
       if (this.ctx.state.expansionStderr) {
         bodyResult = {
           ...bodyResult,
-          stderr: this.ctx.state.expansionStderr + bodyResult.stderr,
+          stderr: concat(
+            encode(this.ctx.state.expansionStderr),
+            bodyResult.stderr,
+          ),
         };
         this.ctx.state.expansionStderr = "";
       }

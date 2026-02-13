@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { toText } from "../test-utils.js";
 import {
   cleanupTestDir,
   compareOutputs,
@@ -420,7 +421,7 @@ describe("Input Redirection (<) - Real Bash Comparison", () => {
   describe("stdin redirection error handling", () => {
     it("should error on missing input file", async () => {
       const env = await setupFiles(testDir, {});
-      const result = await env.exec("cat < nonexistent.txt");
+      const result = toText(await env.exec("cat < nonexistent.txt"));
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("No such file");
     });

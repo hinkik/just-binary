@@ -1,5 +1,6 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
+import { decode, EMPTY, encode } from "../../utils/bytes.js";
 import { readAndConcat } from "../../utils/file-reader.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
@@ -40,7 +41,7 @@ export const uniqCommand: Command = {
     // Read from files or stdin
     const readResult = await readAndConcat(ctx, files, { cmdName: "uniq" });
     if (!readResult.ok) return readResult.error;
-    const content = readResult.content;
+    const content = decode(readResult.content);
 
     // Split into lines
     const lines = content.split("\n");
@@ -51,7 +52,7 @@ export const uniqCommand: Command = {
     }
 
     if (lines.length === 0) {
-      return { stdout: "", stderr: "", exitCode: 0 };
+      return { stdout: EMPTY, stderr: EMPTY, exitCode: 0 };
     }
 
     // Process adjacent duplicates
@@ -96,7 +97,7 @@ export const uniqCommand: Command = {
       }
     }
 
-    return { stdout: output, stderr: "", exitCode: 0 };
+    return { stdout: encode(output), stderr: EMPTY, exitCode: 0 };
   },
 };
 

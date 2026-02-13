@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { toText } from "../../test-utils.js";
 
 describe("find predicates", () => {
   describe("-mtime (modification time)", () => {
@@ -14,7 +15,7 @@ describe("find predicates", () => {
           },
         },
       });
-      const result = await env.exec("find /dir -type f -mtime 0");
+      const result = toText(await env.exec("find /dir -type f -mtime 0"));
       expect(result.stdout).toBe("/dir/today.txt\n");
       expect(result.stderr).toBe("");
       expect(result.exitCode).toBe(0);
@@ -31,7 +32,7 @@ describe("find predicates", () => {
           },
         },
       });
-      const result = await env.exec("find /dir -type f -mtime +7");
+      const result = toText(await env.exec("find /dir -type f -mtime +7"));
       expect(result.stdout).toBe("/dir/old.txt\n");
       expect(result.stderr).toBe("");
       expect(result.exitCode).toBe(0);
@@ -48,7 +49,7 @@ describe("find predicates", () => {
           },
         },
       });
-      const result = await env.exec("find /dir -type f -mtime -7");
+      const result = toText(await env.exec("find /dir -type f -mtime -7"));
       expect(result.stdout).toBe("/dir/recent.txt\n");
       expect(result.stderr).toBe("");
       expect(result.exitCode).toBe(0);
@@ -63,7 +64,7 @@ describe("find predicates", () => {
           "/dir/today.txt": { content: "today", mtime: now },
         },
       });
-      const result = await env.exec("find /dir -type f -mtime 2");
+      const result = toText(await env.exec("find /dir -type f -mtime 2"));
       expect(result.stdout).toBe("/dir/two-days.txt\n");
       expect(result.stderr).toBe("");
       expect(result.exitCode).toBe(0);
@@ -84,7 +85,9 @@ describe("find predicates", () => {
           },
         },
       });
-      const result = await env.exec("find /dir -type f -newer /ref.txt");
+      const result = toText(
+        await env.exec("find /dir -type f -newer /ref.txt"),
+      );
       expect(result.stdout).toBe("/dir/newer.txt\n");
       expect(result.stderr).toBe("");
       expect(result.exitCode).toBe(0);
@@ -96,8 +99,8 @@ describe("find predicates", () => {
           "/dir/file.txt": "content",
         },
       });
-      const result = await env.exec(
-        "find /dir -type f -newer /nonexistent.txt",
+      const result = toText(
+        await env.exec("find /dir -type f -newer /nonexistent.txt"),
       );
       expect(result.stdout).toBe("");
       expect(result.exitCode).toBe(0);
@@ -112,7 +115,7 @@ describe("find predicates", () => {
           "/dir/small.txt": "tiny",
         },
       });
-      const result = await env.exec("find /dir -type f -size +100c");
+      const result = toText(await env.exec("find /dir -type f -size +100c"));
       expect(result.stdout).toBe("/dir/large.txt\n");
       expect(result.stderr).toBe("");
       expect(result.exitCode).toBe(0);
@@ -125,7 +128,7 @@ describe("find predicates", () => {
           "/dir/small.txt": "tiny",
         },
       });
-      const result = await env.exec("find /dir -type f -size -100c");
+      const result = toText(await env.exec("find /dir -type f -size -100c"));
       expect(result.stdout).toBe("/dir/small.txt\n");
       expect(result.stderr).toBe("");
       expect(result.exitCode).toBe(0);
@@ -138,7 +141,7 @@ describe("find predicates", () => {
           "/dir/other.txt": "1234",
         },
       });
-      const result = await env.exec("find /dir -type f -size 5c");
+      const result = toText(await env.exec("find /dir -type f -size 5c"));
       expect(result.stdout).toBe("/dir/exact.txt\n");
       expect(result.stderr).toBe("");
       expect(result.exitCode).toBe(0);
@@ -151,7 +154,7 @@ describe("find predicates", () => {
           "/dir/small.txt": "tiny",
         },
       });
-      const result = await env.exec("find /dir -type f -size +1k");
+      const result = toText(await env.exec("find /dir -type f -size +1k"));
       expect(result.stdout).toBe("/dir/large.txt\n");
       expect(result.stderr).toBe("");
       expect(result.exitCode).toBe(0);
@@ -163,7 +166,7 @@ describe("find predicates", () => {
           "/dir/small.txt": "tiny",
         },
       });
-      const result = await env.exec("find /dir -type f -size -1M");
+      const result = toText(await env.exec("find /dir -type f -size -1M"));
       expect(result.stdout).toBe("/dir/small.txt\n");
       expect(result.stderr).toBe("");
       expect(result.exitCode).toBe(0);
@@ -178,7 +181,7 @@ describe("find predicates", () => {
           "/dir/normal.txt": { content: "text", mode: 0o644 },
         },
       });
-      const result = await env.exec("find /dir -type f -perm 755");
+      const result = toText(await env.exec("find /dir -type f -perm 755"));
       expect(result.stdout).toBe("/dir/exec.sh\n");
       expect(result.stderr).toBe("");
       expect(result.exitCode).toBe(0);
@@ -192,7 +195,7 @@ describe("find predicates", () => {
         },
       });
       // Files where at least user execute bit is set
-      const result = await env.exec("find /dir -type f -perm -100");
+      const result = toText(await env.exec("find /dir -type f -perm -100"));
       expect(result.stdout).toBe("/dir/exec.sh\n");
       expect(result.stderr).toBe("");
       expect(result.exitCode).toBe(0);
@@ -207,7 +210,7 @@ describe("find predicates", () => {
         },
       });
       // Files where any execute bit is set
-      const result = await env.exec("find /dir -type f -perm /111");
+      const result = toText(await env.exec("find /dir -type f -perm /111"));
       expect(result.stdout).toBe("/dir/exec.sh\n/dir/group-exec.txt\n");
       expect(result.stderr).toBe("");
       expect(result.exitCode).toBe(0);

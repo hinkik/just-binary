@@ -1,5 +1,6 @@
 import type { Bash } from "../Bash.js";
 import type { ExecResult } from "../types.js";
+import { decode } from "../utils/bytes.js";
 
 export interface OutputMessage {
   type: "stdout" | "stderr";
@@ -53,11 +54,19 @@ export class Command {
     const result = await this.resultPromise;
 
     // For Bash, we don't have true streaming, so emit all at once
-    if (result.stdout) {
-      yield { type: "stdout", data: result.stdout, timestamp: new Date() };
+    if (result.stdout.length > 0) {
+      yield {
+        type: "stdout",
+        data: decode(result.stdout),
+        timestamp: new Date(),
+      };
     }
-    if (result.stderr) {
-      yield { type: "stderr", data: result.stderr, timestamp: new Date() };
+    if (result.stderr.length > 0) {
+      yield {
+        type: "stderr",
+        data: decode(result.stderr),
+        timestamp: new Date(),
+      };
     }
   }
 
@@ -68,17 +77,17 @@ export class Command {
 
   async output(): Promise<string> {
     const result = await this.resultPromise;
-    return result.stdout + result.stderr;
+    return decode(result.stdout) + decode(result.stderr);
   }
 
   async stdout(): Promise<string> {
     const result = await this.resultPromise;
-    return result.stdout;
+    return decode(result.stdout);
   }
 
   async stderr(): Promise<string> {
     const result = await this.resultPromise;
-    return result.stderr;
+    return decode(result.stderr);
   }
 
   async kill(): Promise<void> {

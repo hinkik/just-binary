@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { toText } from "../../test-utils.js";
 
 describe("grep --exclude and --exclude-dir", () => {
   describe("--exclude", () => {
@@ -11,7 +12,9 @@ describe("grep --exclude and --exclude-dir", () => {
           "/dir/other.txt": "hello world",
         },
       });
-      const result = await env.exec('grep -r --exclude="*.log" hello /dir');
+      const result = toText(
+        await env.exec('grep -r --exclude="*.log" hello /dir'),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("file.txt");
       expect(result.stdout).toContain("other.txt");
@@ -26,8 +29,10 @@ describe("grep --exclude and --exclude-dir", () => {
           "/dir/file.bak": "hello",
         },
       });
-      const result = await env.exec(
-        'grep -r --exclude="*.log" --exclude="*.bak" hello /dir',
+      const result = toText(
+        await env.exec(
+          'grep -r --exclude="*.log" --exclude="*.bak" hello /dir',
+        ),
       );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("/dir/file.txt:hello\n");
@@ -41,7 +46,9 @@ describe("grep --exclude and --exclude-dir", () => {
         },
         cwd: "/",
       });
-      const result = await env.exec('grep --exclude="*.log" hello a.txt b.log');
+      const result = toText(
+        await env.exec('grep --exclude="*.log" hello a.txt b.log'),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("a.txt:hello\n");
     });
@@ -56,8 +63,8 @@ describe("grep --exclude and --exclude-dir", () => {
           "/project/build/out.js": "hello",
         },
       });
-      const result = await env.exec(
-        "grep -r --exclude-dir=node_modules hello /project",
+      const result = toText(
+        await env.exec("grep -r --exclude-dir=node_modules hello /project"),
       );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("src/main.js");
@@ -74,8 +81,10 @@ describe("grep --exclude and --exclude-dir", () => {
           "/project/.git/objects/abc": "hello",
         },
       });
-      const result = await env.exec(
-        "grep -r --exclude-dir=node_modules --exclude-dir=build hello /project",
+      const result = toText(
+        await env.exec(
+          "grep -r --exclude-dir=node_modules --exclude-dir=build hello /project",
+        ),
       );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("src/main.js");
@@ -91,8 +100,10 @@ describe("grep --exclude and --exclude-dir", () => {
           "/project/node_modules/pkg/index.js": "hello",
         },
       });
-      const result = await env.exec(
-        'grep -r --exclude-dir=node_modules --exclude="*.spec.js" hello /project',
+      const result = toText(
+        await env.exec(
+          'grep -r --exclude-dir=node_modules --exclude="*.spec.js" hello /project',
+        ),
       );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("/project/src/main.js:hello\n");
@@ -109,8 +120,10 @@ describe("grep -L (files without match)", () => {
         "/dir/also-no-match.txt": "nothing here",
       },
     });
-    const result = await env.exec(
-      "grep -L hello /dir/has-match.txt /dir/no-match.txt /dir/also-no-match.txt",
+    const result = toText(
+      await env.exec(
+        "grep -L hello /dir/has-match.txt /dir/no-match.txt /dir/also-no-match.txt",
+      ),
     );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("/dir/no-match.txt\n/dir/also-no-match.txt\n");
@@ -123,7 +136,9 @@ describe("grep -L (files without match)", () => {
         "/file2.txt": "goodbye",
       },
     });
-    const result = await env.exec("grep -L hello /file1.txt /file2.txt");
+    const result = toText(
+      await env.exec("grep -L hello /file1.txt /file2.txt"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("/file2.txt\n");
   });
@@ -135,7 +150,9 @@ describe("grep -L (files without match)", () => {
         "/file2.txt": "hello",
       },
     });
-    const result = await env.exec("grep -L hello /file1.txt /file2.txt");
+    const result = toText(
+      await env.exec("grep -L hello /file1.txt /file2.txt"),
+    );
     expect(result.exitCode).toBe(1);
     expect(result.stdout).toBe("");
   });
@@ -149,7 +166,7 @@ describe("grep -L (files without match)", () => {
         "/dir/sub/no-hello2.txt": "goodbye",
       },
     });
-    const result = await env.exec("grep -rL hello /dir");
+    const result = toText(await env.exec("grep -rL hello /dir"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("no-hello.txt");
     expect(result.stdout).toContain("no-hello2.txt");
@@ -164,8 +181,8 @@ describe("grep -L (files without match)", () => {
         "/b.txt": "goodbye",
       },
     });
-    const result = await env.exec(
-      "grep --files-without-match hello /a.txt /b.txt",
+    const result = toText(
+      await env.exec("grep --files-without-match hello /a.txt /b.txt"),
     );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("/b.txt\n");

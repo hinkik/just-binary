@@ -1,4 +1,5 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { EMPTY, encode } from "../../utils/bytes.js";
 
 export const pwdCommand: Command = {
   name: "pwd",
@@ -32,8 +33,8 @@ export const pwdCommand: Command = {
     }
 
     return {
-      stdout: `${pwd}\n`,
-      stderr: "",
+      stdout: encode(`${pwd}\n`),
+      stderr: EMPTY,
       exitCode: 0,
     };
   },

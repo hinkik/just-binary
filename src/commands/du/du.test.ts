@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { toText } from "../../test-utils.js";
 
 describe("du command", () => {
   describe("basic usage", () => {
@@ -9,7 +10,7 @@ describe("du command", () => {
           "/mydir/file.txt": "hello",
         },
       });
-      const result = await env.exec("du /mydir");
+      const result = toText(await env.exec("du /mydir"));
       expect(result.stdout).toContain("/mydir");
       expect(result.exitCode).toBe(0);
     });
@@ -20,14 +21,14 @@ describe("du command", () => {
           "/test.txt": "hello world",
         },
       });
-      const result = await env.exec("du /test.txt");
+      const result = toText(await env.exec("du /test.txt"));
       expect(result.stdout).toContain("/test.txt");
       expect(result.exitCode).toBe(0);
     });
 
     it("should error on missing file", async () => {
       const env = new Bash();
-      const result = await env.exec("du /nonexistent");
+      const result = toText(await env.exec("du /nonexistent"));
       expect(result.stderr).toContain("No such file or directory");
       expect(result.exitCode).toBe(1);
     });
@@ -41,7 +42,7 @@ describe("du command", () => {
           "/dir/file2.txt": "bbbbb",
         },
       });
-      const result = await env.exec("du -a /dir");
+      const result = toText(await env.exec("du -a /dir"));
       expect(result.stdout).toContain("file1.txt");
       expect(result.stdout).toContain("file2.txt");
       expect(result.stdout).toContain("/dir");
@@ -55,7 +56,7 @@ describe("du command", () => {
           "/dir/sub/file.txt": "content",
         },
       });
-      const result = await env.exec("du -s /dir");
+      const result = toText(await env.exec("du -s /dir"));
       expect(result.stdout).toContain("/dir");
       // Should not contain subdirectory lines
       const lines = result.stdout.trim().split("\n");
@@ -70,7 +71,7 @@ describe("du command", () => {
           "/big/file.txt": "x".repeat(2048),
         },
       });
-      const result = await env.exec("du -h /big");
+      const result = toText(await env.exec("du -h /big"));
       // Should show K for kilobytes
       expect(result.stdout).toMatch(/\d+(\.\d)?K|\d+/);
     });
@@ -84,7 +85,7 @@ describe("du command", () => {
           "/dir2/file.txt": "bbb",
         },
       });
-      const result = await env.exec("du -c /dir1 /dir2");
+      const result = toText(await env.exec("du -c /dir1 /dir2"));
       expect(result.stdout).toContain("total");
     });
   });
@@ -96,7 +97,7 @@ describe("du command", () => {
           "/dir/sub/file.txt": "content",
         },
       });
-      const result = await env.exec("du --max-depth=0 /dir");
+      const result = toText(await env.exec("du --max-depth=0 /dir"));
       const lines = result.stdout.trim().split("\n");
       expect(lines.length).toBe(1);
       expect(result.stdout).toContain("/dir");
@@ -106,7 +107,7 @@ describe("du command", () => {
   describe("help option", () => {
     it("should show help with --help", async () => {
       const env = new Bash();
-      const result = await env.exec("du --help");
+      const result = toText(await env.exec("du --help"));
       expect(result.stdout).toContain("du");
       expect(result.stdout).toContain("-s");
       expect(result.stdout).toContain("-h");

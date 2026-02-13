@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { toText } from "../../test-utils.js";
 
 describe("gzip with binary data", () => {
   describe("binary file compression", () => {
@@ -15,11 +16,11 @@ describe("gzip with binary data", () => {
       await env.exec("gunzip /binary.bin.gz");
 
       const result = await env.exec("cat /binary.bin");
-      expect(result.stdout.charCodeAt(0)).toBe(0x80);
-      expect(result.stdout.charCodeAt(1)).toBe(0x90);
-      expect(result.stdout.charCodeAt(2)).toBe(0xa0);
-      expect(result.stdout.charCodeAt(3)).toBe(0xb0);
-      expect(result.stdout.charCodeAt(4)).toBe(0xff);
+      expect(result.stdout[0]).toBe(0x80);
+      expect(result.stdout[1]).toBe(0x90);
+      expect(result.stdout[2]).toBe(0xa0);
+      expect(result.stdout[3]).toBe(0xb0);
+      expect(result.stdout[4]).toBe(0xff);
     });
 
     it("should compress and decompress file with null bytes", async () => {
@@ -33,7 +34,7 @@ describe("gzip with binary data", () => {
       await env.exec("rm /nulls.bin");
       await env.exec("gunzip /nulls.bin.gz");
 
-      const result = await env.exec("cat /nulls.bin");
+      const result = toText(await env.exec("cat /nulls.bin"));
       expect(result.stdout).toBe("A\0B\0C");
     });
 
@@ -53,7 +54,7 @@ describe("gzip with binary data", () => {
       const result = await env.exec("cat /allbytes.bin");
       expect(result.stdout.length).toBe(256);
       for (let i = 0; i < 256; i++) {
-        expect(result.stdout.charCodeAt(i)).toBe(i);
+        expect(result.stdout[i]).toBe(i);
       }
     });
   });
@@ -68,7 +69,7 @@ describe("gzip with binary data", () => {
 
       // Compress via stdin, save to file, then decompress
       await env.exec("cat /data.txt | gzip -c > /compressed.gz");
-      const result = await env.exec("gunzip -c /compressed.gz");
+      const result = toText(await env.exec("gunzip -c /compressed.gz"));
 
       expect(result.stdout).toBe("test data for compression");
     });
@@ -81,7 +82,7 @@ describe("gzip with binary data", () => {
       });
 
       await env.exec("gzip -k /data.txt");
-      const result = await env.exec("cat /data.txt.gz | gunzip");
+      const result = toText(await env.exec("cat /data.txt.gz | gunzip"));
 
       expect(result.stdout).toBe("original content");
     });
@@ -96,10 +97,10 @@ describe("gzip with binary data", () => {
       await env.exec("gzip -c /binary.bin > /binary.bin.gz");
       const result = await env.exec("cat /binary.bin.gz | gunzip -c");
 
-      expect(result.stdout.charCodeAt(0)).toBe(0x80);
-      expect(result.stdout.charCodeAt(1)).toBe(0xff);
-      expect(result.stdout.charCodeAt(2)).toBe(0x90);
-      expect(result.stdout.charCodeAt(3)).toBe(0xab);
+      expect(result.stdout[0]).toBe(0x80);
+      expect(result.stdout[1]).toBe(0xff);
+      expect(result.stdout[2]).toBe(0x90);
+      expect(result.stdout[3]).toBe(0xab);
     });
 
     it("should handle zcat with piped input", async () => {
@@ -110,7 +111,7 @@ describe("gzip with binary data", () => {
       });
 
       await env.exec("gzip -k /data.txt");
-      const result = await env.exec("cat /data.txt.gz | zcat");
+      const result = toText(await env.exec("cat /data.txt.gz | zcat"));
 
       expect(result.stdout).toBe("zcat test content");
     });
@@ -128,11 +129,11 @@ describe("gzip with binary data", () => {
       await env.exec("gzip -c /unicode.txt > /unicode.txt.gz");
       const result = await env.exec("gunzip -c /unicode.txt.gz");
 
-      // Output is binary string (latin1), convert to compare with original UTF-8 bytes
+      // Compare raw bytes against the original UTF-8 encoding
       const originalBytes = new TextEncoder().encode(original);
       expect(result.stdout.length).toBe(originalBytes.length);
       for (let i = 0; i < originalBytes.length; i++) {
-        expect(result.stdout.charCodeAt(i)).toBe(originalBytes[i]);
+        expect(result.stdout[i]).toBe(originalBytes[i]);
       }
     });
 
@@ -147,11 +148,11 @@ describe("gzip with binary data", () => {
       await env.exec("cat /unicode.txt | gzip -c > /compressed.gz");
       const result = await env.exec("gunzip -c /compressed.gz");
 
-      // Output is binary string (latin1), convert to compare with original UTF-8 bytes
+      // Compare raw bytes against the original UTF-8 encoding
       const originalBytes = new TextEncoder().encode(original);
       expect(result.stdout.length).toBe(originalBytes.length);
       for (let i = 0; i < originalBytes.length; i++) {
-        expect(result.stdout.charCodeAt(i)).toBe(originalBytes[i]);
+        expect(result.stdout[i]).toBe(originalBytes[i]);
       }
     });
 
@@ -166,11 +167,11 @@ describe("gzip with binary data", () => {
       await env.exec("gzip -c /emoji.txt > /emoji.txt.gz");
       const result = await env.exec("gunzip -c /emoji.txt.gz");
 
-      // Output is binary string (latin1), convert to compare with original UTF-8 bytes
+      // Compare raw bytes against the original UTF-8 encoding
       const originalBytes = new TextEncoder().encode(original);
       expect(result.stdout.length).toBe(originalBytes.length);
       for (let i = 0; i < originalBytes.length; i++) {
-        expect(result.stdout.charCodeAt(i)).toBe(originalBytes[i]);
+        expect(result.stdout[i]).toBe(originalBytes[i]);
       }
     });
   });

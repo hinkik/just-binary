@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { toText } from "../../test-utils.js";
 
 describe("cat with binary files", () => {
   it("should output binary content unchanged", async () => {
@@ -9,7 +10,7 @@ describe("cat with binary files", () => {
       },
     });
 
-    const result = await env.exec("cat /binary.bin");
+    const result = toText(await env.exec("cat /binary.bin"));
     expect(result.stdout).toBe("Hello");
     expect(result.exitCode).toBe(0);
   });
@@ -21,7 +22,7 @@ describe("cat with binary files", () => {
       },
     });
 
-    const result = await env.exec("cat /binary.bin");
+    const result = toText(await env.exec("cat /binary.bin"));
     expect(result.stdout).toBe("A\0B\0C");
     expect(result.exitCode).toBe(0);
   });
@@ -34,7 +35,7 @@ describe("cat with binary files", () => {
       },
     });
 
-    const result = await env.exec("cat /a.bin /b.bin");
+    const result = toText(await env.exec("cat /a.bin /b.bin"));
     expect(result.stdout).toBe("ABCD");
     expect(result.exitCode).toBe(0);
   });
@@ -46,7 +47,7 @@ describe("cat with binary files", () => {
       },
     });
 
-    const result = await env.exec("cat -n /binary.bin");
+    const result = toText(await env.exec("cat -n /binary.bin"));
     expect(result.stdout).toBe("     1\tA\n     2\tB\n");
     expect(result.exitCode).toBe(0);
   });

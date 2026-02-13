@@ -4,6 +4,7 @@
  */
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { decode, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
 export type HashAlgorithm = "md5" | "sha1" | "sha256";
@@ -168,8 +169,8 @@ export function createChecksumCommand(
       // Helper to read file as binary
       const readBinary = async (file: string): Promise<Uint8Array | null> => {
         if (file === "-") {
-          // Convert binary string directly to bytes without UTF-8 re-encoding
-          return Uint8Array.from(ctx.stdin, (c) => c.charCodeAt(0));
+          // ctx.stdin is already Uint8Array
+          return ctx.stdin;
         }
         try {
           return await ctx.fs.readFileBuffer(ctx.fs.resolvePath(ctx.cwd, file));
@@ -186,14 +187,14 @@ export function createChecksumCommand(
           // For check mode, we read the checksum file as text
           const content =
             file === "-"
-              ? ctx.stdin
+              ? decode(ctx.stdin)
               : await ctx.fs
                   .readFile(ctx.fs.resolvePath(ctx.cwd, file))
                   .catch(() => null);
           if (content === null)
             return {
-              stdout: "",
-              stderr: `${name}: ${file}: No such file or directory\n`,
+              stdout: EMPTY,
+              stderr: encode(`${name}: ${file}: No such file or directory\n`),
               exitCode: 1,
             };
 
@@ -218,7 +219,11 @@ export function createChecksumCommand(
 
         if (failed > 0)
           output += `${name}: WARNING: ${failed} computed checksum${failed > 1 ? "s" : ""} did NOT match\n`;
-        return { stdout: output, stderr: "", exitCode: failed > 0 ? 1 : 0 };
+        return {
+          stdout: encode(output),
+          stderr: EMPTY,
+          exitCode: failed > 0 ? 1 : 0,
+        };
       }
 
       let output = "";
@@ -234,7 +239,7 @@ export function createChecksumCommand(
         output += `${await computeHash(algorithm, content)}  ${file}\n`;
       }
 
-      return { stdout: output, stderr: "", exitCode };
+      return { stdout: encode(output), stderr: EMPTY, exitCode };
     },
   };
 }

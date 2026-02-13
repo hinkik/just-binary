@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { toText } from "../../test-utils.js";
 
 describe("find -perm", () => {
   describe("exact mode matching", () => {
@@ -11,7 +12,7 @@ describe("find -perm", () => {
           "/test/file3.txt": { content: "c", mode: 0o644 },
         },
       });
-      const result = await env.exec("find /test -type f -perm 644");
+      const result = toText(await env.exec("find /test -type f -perm 644"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("/test/file1.txt\n/test/file3.txt\n");
       expect(result.stderr).toBe("");
@@ -24,7 +25,7 @@ describe("find -perm", () => {
           "/test/data.txt": { content: "data", mode: 0o644 },
         },
       });
-      const result = await env.exec("find /test -type f -perm 755");
+      const result = toText(await env.exec("find /test -type f -perm 755"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout.trim()).toBe("/test/script.sh");
     });
@@ -40,7 +41,7 @@ describe("find -perm", () => {
         },
       });
       // -100 means user execute must be set (0o100 = 64)
-      const result = await env.exec("find /test -type f -perm -100");
+      const result = toText(await env.exec("find /test -type f -perm -100"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("/test/exec.sh\n/test/other.sh\n");
       expect(result.stderr).toBe("");
@@ -54,7 +55,7 @@ describe("find -perm", () => {
         },
       });
       // -040 means group read must be set
-      const result = await env.exec("find /test -type f -perm -040");
+      const result = toText(await env.exec("find /test -type f -perm -040"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout.trim()).toBe("/test/readable.txt");
     });
@@ -71,7 +72,7 @@ describe("find -perm", () => {
         },
       });
       // /111 means any execute bit (user, group, or other)
-      const result = await env.exec("find /test -type f -perm /111");
+      const result = toText(await env.exec("find /test -type f -perm /111"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe(`/test/group_exec.sh
 /test/other_exec.sh

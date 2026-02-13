@@ -3,6 +3,7 @@
  */
 
 import type { ExecResult } from "../../types.js";
+import { EMPTY, encode } from "../../utils/bytes.js";
 import { unknownOption } from "../help.js";
 import { createDefaultOptions, type RgOptions } from "./rg-options.js";
 
@@ -48,8 +49,8 @@ function parseFilesize(value: string): number {
 function validateFilesize(value: string): ExecResult | null {
   if (!/^\d+[KMG]?$/i.test(value)) {
     return {
-      stdout: "",
-      stderr: `rg: invalid --max-filesize value: ${value}\n`,
+      stdout: EMPTY,
+      stderr: encode(`rg: invalid --max-filesize value: ${value}\n`),
       exitCode: 1,
     };
   }
@@ -722,9 +723,10 @@ export function parseArgs(args: string[]): ParseArgsResult {
           return {
             success: false,
             error: {
-              stdout: "",
-              stderr:
+              stdout: EMPTY,
+              stderr: encode(
                 "rg: PCRE2 is not supported. Use standard regex syntax instead.\n",
+              ),
               exitCode: 1,
             },
           };

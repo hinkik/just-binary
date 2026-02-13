@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { toText } from "../../test-utils.js";
 
 /**
  * Tests for curl prototype pollution defense.
@@ -25,8 +26,8 @@ describe("curl prototype pollution defense", () => {
         const env = new Bash();
         // This tests that curl parses headers without polluting prototypes
         // The actual fetch would fail due to network restrictions in tests
-        const result = await env.exec(
-          `curl -H "${keyword}: test-value" http://example.com`,
+        const result = toText(
+          await env.exec(`curl -H "${keyword}: test-value" http://example.com`),
         );
         // We expect this to fail due to network, but it should not pollute prototype
         expect(result.exitCode).not.toBe(0); // Network error expected

@@ -11,8 +11,9 @@
  */
 
 import type { ExecResult } from "../../types.js";
+import { EMPTY, encode } from "../../utils/bytes.js";
 import { markExported, unmarkExported } from "../helpers/readonly.js";
-import { OK, result, success } from "../helpers/result.js";
+import { OK, result, successText } from "../helpers/result.js";
 import { expandTildesInValue } from "../helpers/tilde.js";
 import type { InterpreterContext } from "../types.js";
 
@@ -49,7 +50,7 @@ export function handleExport(
         stdout += `declare -x ${name}="${escapedValue}"\n`;
       }
     }
-    return success(stdout);
+    return successText(stdout);
   }
 
   // Handle un-export: remove export attribute but keep variable value
@@ -124,5 +125,5 @@ export function handleExport(
     markExported(ctx, name);
   }
 
-  return result("", stderr, exitCode);
+  return result(EMPTY, encode(stderr), exitCode);
 }

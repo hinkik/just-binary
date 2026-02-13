@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { toText } from "../../test-utils.js";
 
 describe("grep with binary files", () => {
   it("should find pattern in binary file", async () => {
@@ -18,7 +19,7 @@ describe("grep with binary files", () => {
       },
     });
 
-    const result = await env.exec("grep foo /binary.bin");
+    const result = toText(await env.exec("grep foo /binary.bin"));
     expect(result.stdout).toBe("foo\n");
     expect(result.exitCode).toBe(0);
   });
@@ -43,7 +44,7 @@ describe("grep with binary files", () => {
       },
     });
 
-    const result = await env.exec("grep test /binary.bin");
+    const result = toText(await env.exec("grep test /binary.bin"));
     expect(result.stdout).toContain("test");
     expect(result.exitCode).toBe(0);
   });

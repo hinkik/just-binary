@@ -17,6 +17,7 @@
 import type { ArithmeticCommandNode } from "../../ast/types.js";
 import { parse } from "../../parser/parser.js";
 import type { ExecResult } from "../../types.js";
+import { EMPTY } from "../../utils/bytes.js";
 import { evaluateArithmetic } from "../arithmetic.js";
 import { failure, result } from "../helpers/result.js";
 import type { InterpreterContext } from "../types.js";
@@ -98,5 +99,5 @@ export async function handleLet(
   }
 
   // Return 0 if last expression is non-zero, 1 if zero
-  return result("", "", lastResult === 0 ? 1 : 0);
+  return result(EMPTY, EMPTY, lastResult === 0 ? 1 : 0);
 }

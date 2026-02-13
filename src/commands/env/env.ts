@@ -1,4 +1,5 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
 const envHelp = {
@@ -83,8 +84,8 @@ export const envCommand: Command = {
         lines.push(`${key}=${value}`);
       }
       return {
-        stdout: lines.join("\n") + (lines.length > 0 ? "\n" : ""),
-        stderr: "",
+        stdout: encode(lines.join("\n") + (lines.length > 0 ? "\n" : "")),
+        stderr: EMPTY,
         exitCode: 0,
       };
     }
@@ -92,8 +93,10 @@ export const envCommand: Command = {
     // Execute command with modified environment
     if (!ctx.exec) {
       return {
-        stdout: "",
-        stderr: "env: command execution not supported in this context\n",
+        stdout: EMPTY,
+        stderr: encode(
+          "env: command execution not supported in this context\n",
+        ),
         exitCode: 1,
       };
     }
@@ -152,8 +155,8 @@ export const printenvCommand: Command = {
         lines.push(`${key}=${value}`);
       }
       return {
-        stdout: lines.join("\n") + (lines.length > 0 ? "\n" : ""),
-        stderr: "",
+        stdout: encode(lines.join("\n") + (lines.length > 0 ? "\n" : "")),
+        stderr: EMPTY,
         exitCode: 0,
       };
     }
@@ -171,8 +174,8 @@ export const printenvCommand: Command = {
     }
 
     return {
-      stdout: lines.join("\n") + (lines.length > 0 ? "\n" : ""),
-      stderr: "",
+      stdout: encode(lines.join("\n") + (lines.length > 0 ? "\n" : "")),
+      stderr: EMPTY,
       exitCode,
     };
   },

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { toText } from "../../test-utils.js";
 
 describe("stat command", () => {
   describe("basic usage", () => {
@@ -9,7 +10,7 @@ describe("stat command", () => {
           "/test.txt": "hello world",
         },
       });
-      const result = await env.exec("stat /test.txt");
+      const result = toText(await env.exec("stat /test.txt"));
       expect(result.stdout).toContain("File: /test.txt");
       expect(result.stdout).toContain("Size: 11");
       expect(result.exitCode).toBe(0);
@@ -21,7 +22,7 @@ describe("stat command", () => {
           "/mydir/file.txt": "content",
         },
       });
-      const result = await env.exec("stat /mydir");
+      const result = toText(await env.exec("stat /mydir"));
       expect(result.stdout).toContain("File: /mydir");
       expect(result.stdout).toContain("drwx");
       expect(result.exitCode).toBe(0);
@@ -29,14 +30,14 @@ describe("stat command", () => {
 
     it("should error on missing file", async () => {
       const env = new Bash();
-      const result = await env.exec("stat /nonexistent");
+      const result = toText(await env.exec("stat /nonexistent"));
       expect(result.stderr).toContain("No such file or directory");
       expect(result.exitCode).toBe(1);
     });
 
     it("should error without operand", async () => {
       const env = new Bash();
-      const result = await env.exec("stat");
+      const result = toText(await env.exec("stat"));
       expect(result.stderr).toContain("missing operand");
       expect(result.exitCode).toBe(1);
     });
@@ -47,7 +48,7 @@ describe("stat command", () => {
       const env = new Bash({
         files: { "/test.txt": "hello" },
       });
-      const result = await env.exec('stat -c "%n" /test.txt');
+      const result = toText(await env.exec('stat -c "%n" /test.txt'));
       expect(result.stdout.trim()).toBe("/test.txt");
     });
 
@@ -55,7 +56,7 @@ describe("stat command", () => {
       const env = new Bash({
         files: { "/test.txt": "hello" },
       });
-      const result = await env.exec('stat -c "%s" /test.txt');
+      const result = toText(await env.exec('stat -c "%s" /test.txt'));
       expect(result.stdout.trim()).toBe("5");
     });
 
@@ -63,10 +64,10 @@ describe("stat command", () => {
       const env = new Bash({
         files: { "/mydir/file.txt": "content" },
       });
-      const fileResult = await env.exec('stat -c "%F" /mydir/file.txt');
+      const fileResult = toText(await env.exec('stat -c "%F" /mydir/file.txt'));
       expect(fileResult.stdout.trim()).toBe("regular file");
 
-      const dirResult = await env.exec('stat -c "%F" /mydir');
+      const dirResult = toText(await env.exec('stat -c "%F" /mydir'));
       expect(dirResult.stdout.trim()).toBe("directory");
     });
 
@@ -74,7 +75,7 @@ describe("stat command", () => {
       const env = new Bash({
         files: { "/test.txt": "hello world" },
       });
-      const result = await env.exec('stat -c "%n: %s bytes" /test.txt');
+      const result = toText(await env.exec('stat -c "%n: %s bytes" /test.txt'));
       expect(result.stdout.trim()).toBe("/test.txt: 11 bytes");
     });
   });
@@ -87,7 +88,7 @@ describe("stat command", () => {
           "/b.txt": "bbbbb",
         },
       });
-      const result = await env.exec("stat /a.txt /b.txt");
+      const result = toText(await env.exec("stat /a.txt /b.txt"));
       expect(result.stdout).toContain("File: /a.txt");
       expect(result.stdout).toContain("File: /b.txt");
     });
@@ -96,7 +97,7 @@ describe("stat command", () => {
       const env = new Bash({
         files: { "/exists.txt": "yes" },
       });
-      const result = await env.exec("stat /exists.txt /missing.txt");
+      const result = toText(await env.exec("stat /exists.txt /missing.txt"));
       expect(result.stdout).toContain("File: /exists.txt");
       expect(result.stderr).toContain("missing.txt");
       expect(result.exitCode).toBe(1);
@@ -106,7 +107,7 @@ describe("stat command", () => {
   describe("help option", () => {
     it("should show help with --help", async () => {
       const env = new Bash();
-      const result = await env.exec("stat --help");
+      const result = toText(await env.exec("stat --help"));
       expect(result.stdout).toContain("stat");
       expect(result.stdout).toContain("-c");
       expect(result.exitCode).toBe(0);

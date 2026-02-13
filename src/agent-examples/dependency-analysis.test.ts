@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../Bash.js";
+import { toText } from "../test-utils.js";
 
 /**
  * Advanced Agent Scenario: Dependency Analysis
@@ -168,8 +169,8 @@ export interface Post {
 
   it("should find all import statements in the codebase", async () => {
     const env = createEnv();
-    const result = await env.exec(
-      'grep -rh "^import" /project/src | sort | uniq',
+    const result = toText(
+      await env.exec('grep -rh "^import" /project/src | sort | uniq'),
     );
     expect(result.stdout).toBe(`import { App } from './app';
 import { Config } from '../config';
@@ -190,8 +191,8 @@ import { UserController } from './controllers/user';
 
   it("should find all export statements", async () => {
     const env = createEnv();
-    const result = await env.exec(
-      'grep -rh "^export" /project/src | sort | uniq',
+    const result = toText(
+      await env.exec('grep -rh "^export" /project/src | sort | uniq'),
     );
     expect(result.stdout).toBe(`export class App {
 export class Database {
@@ -216,8 +217,10 @@ export type UserRole = 'admin' | 'user' | 'guest';
 
   it("should find which modules import logger", async () => {
     const env = createEnv();
-    const result = await env.exec(
-      'grep -rl "import.*logger" /project/src --include="*.ts" | sort',
+    const result = toText(
+      await env.exec(
+        'grep -rl "import.*logger" /project/src --include="*.ts" | sort',
+      ),
     );
     expect(result.stdout).toBe(`/project/src/app.ts
 /project/src/controllers/post.ts
@@ -231,8 +234,10 @@ export type UserRole = 'admin' | 'user' | 'guest';
 
   it("should find which modules import Database", async () => {
     const env = createEnv();
-    const result = await env.exec(
-      'grep -rl "import.*Database" /project/src --include="*.ts" | sort',
+    const result = toText(
+      await env.exec(
+        'grep -rl "import.*Database" /project/src --include="*.ts" | sort',
+      ),
     );
     expect(result.stdout).toBe(`/project/src/app.ts
 /project/src/controllers/post.ts
@@ -246,15 +251,17 @@ export type UserRole = 'admin' | 'user' | 'guest';
     const env = createEnv();
 
     // Find FeatureFlags export
-    const featureFlagsExport = await env.exec(
-      'grep "FeatureFlags" /project/src/config.ts',
+    const featureFlagsExport = toText(
+      await env.exec('grep "FeatureFlags" /project/src/config.ts'),
     );
     expect(featureFlagsExport.stdout).toBe(`export const FeatureFlags = {
 `);
 
     // Check if FeatureFlags is imported anywhere
-    const featureFlagsImport = await env.exec(
-      'grep -r "FeatureFlags" /project/src --include="*.ts" | grep -v config.ts || echo "Not imported"',
+    const featureFlagsImport = toText(
+      await env.exec(
+        'grep -r "FeatureFlags" /project/src --include="*.ts" | grep -v config.ts || echo "Not imported"',
+      ),
     );
     expect(featureFlagsImport.stdout).toBe("Not imported\n");
   });
@@ -263,8 +270,10 @@ export type UserRole = 'admin' | 'user' | 'guest';
     const env = createEnv();
 
     // debounce is exported but never imported
-    const debounceImport = await env.exec(
-      'grep -r "debounce" /project/src --include="*.ts" | grep -v helpers.ts || echo "Not used"',
+    const debounceImport = toText(
+      await env.exec(
+        'grep -r "debounce" /project/src --include="*.ts" | grep -v helpers.ts || echo "Not used"',
+      ),
     );
     expect(debounceImport.stdout).toBe("Not used\n");
   });
@@ -273,13 +282,17 @@ export type UserRole = 'admin' | 'user' | 'guest';
     const env = createEnv();
 
     // index.ts imports
-    const indexImports = await env.exec('grep "^import" /project/src/index.ts');
+    const indexImports = toText(
+      await env.exec('grep "^import" /project/src/index.ts'),
+    );
     expect(indexImports.stdout).toBe(`import { App } from './app';
 import { logger } from './utils/logger';
 `);
 
     // app.ts imports
-    const appImports = await env.exec('grep "^import" /project/src/app.ts');
+    const appImports = toText(
+      await env.exec('grep "^import" /project/src/app.ts'),
+    );
     expect(appImports.stdout).toBe(`import { Router } from './router';
 import { Database } from './db';
 import { logger } from './utils/logger';
@@ -292,16 +305,18 @@ import { Config } from './config';
     const env = createEnv();
 
     // config.ts is imported by logger.ts (using case-insensitive match to find both lines)
-    const loggerImportsConfig = await env.exec(
-      'grep -i "config" /project/src/utils/logger.ts',
+    const loggerImportsConfig = toText(
+      await env.exec('grep -i "config" /project/src/utils/logger.ts'),
     );
     expect(loggerImportsConfig.stdout).toBe(`import { Config } from '../config';
   debug: (msg: string) => Config.logLevel === 'debug' && console.log(\`[DEBUG] \${msg}\`),
 `);
 
     // Check if config.ts imports logger (would be circular)
-    const configImportsLogger = await env.exec(
-      'grep "logger" /project/src/config.ts || echo "No circular dependency"',
+    const configImportsLogger = toText(
+      await env.exec(
+        'grep "logger" /project/src/config.ts || echo "No circular dependency"',
+      ),
     );
     expect(configImportsLogger.stdout).toBe("No circular dependency\n");
   });
@@ -309,8 +324,10 @@ import { Config } from './config';
   it("should count imports per module to find highly coupled modules", async () => {
     const env = createEnv();
     // Use grep -c recursive with --include to count imports per file
-    const result = await env.exec(
-      'grep -rc "^import" /project/src --include="*.ts" | sort -t: -k2 -rn | head -5',
+    const result = toText(
+      await env.exec(
+        'grep -rc "^import" /project/src --include="*.ts" | sort -t: -k2 -rn | head -5',
+      ),
     );
     expect(result.stdout).toBe(`/project/src/router.ts:4
 /project/src/app.ts:4
@@ -323,8 +340,10 @@ import { Config } from './config';
 
   it("should find all model type definitions", async () => {
     const env = createEnv();
-    const result = await env.exec(
-      'grep -rn "^export interface\\|^export type" /project/src/models',
+    const result = toText(
+      await env.exec(
+        'grep -rn "^export interface\\|^export type" /project/src/models',
+      ),
     );
     expect(
       result.stdout,
@@ -339,16 +358,16 @@ import { Config } from './config';
     const env = createEnv();
 
     // Count how many files import from utils
-    const result = await env.exec(
-      'grep -rl "from.*utils" /project/src | wc -l',
+    const result = toText(
+      await env.exec('grep -rl "from.*utils" /project/src | wc -l'),
     );
     expect(result.stdout.trim()).toBe("6");
   });
 
   it("should find controllers and their database dependencies", async () => {
     const env = createEnv();
-    const result = await env.exec(
-      'grep -l "Database" /project/src/controllers/*.ts',
+    const result = toText(
+      await env.exec('grep -l "Database" /project/src/controllers/*.ts'),
     );
     expect(result.stdout).toBe(`/project/src/controllers/post.ts
 /project/src/controllers/user.ts

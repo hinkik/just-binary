@@ -8,6 +8,7 @@
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
+import { decode, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const columnHelp = {
@@ -168,20 +169,20 @@ export const column: Command = {
     // Read input
     let content: string;
     if (files.length === 0) {
-      content = ctx.stdin ?? "";
+      content = decode(ctx.stdin);
     } else {
       const parts: string[] = [];
       for (const file of files) {
         if (file === "-") {
-          parts.push(ctx.stdin ?? "");
+          parts.push(decode(ctx.stdin));
         } else {
           const filePath = ctx.fs.resolvePath(ctx.cwd, file);
           const fileContent = await ctx.fs.readFile(filePath);
           if (fileContent === null) {
             return {
               exitCode: 1,
-              stdout: "",
-              stderr: `column: ${file}: No such file or directory\n`,
+              stdout: EMPTY,
+              stderr: encode(`column: ${file}: No such file or directory\n`),
             };
           }
           parts.push(fileContent);
@@ -194,8 +195,8 @@ export const column: Command = {
     if (content === "" || content.trim() === "") {
       return {
         exitCode: 0,
-        stdout: "",
-        stderr: "",
+        stdout: EMPTY,
+        stderr: EMPTY,
       };
     }
 
@@ -235,8 +236,8 @@ export const column: Command = {
 
     return {
       exitCode: 0,
-      stdout: output,
-      stderr: "",
+      stdout: encode(output),
+      stderr: EMPTY,
     };
   },
 };

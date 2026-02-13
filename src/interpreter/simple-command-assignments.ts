@@ -11,6 +11,7 @@ import type { SimpleCommandNode, WordNode } from "../ast/types.js";
 import { parseArithmeticExpression } from "../parser/arithmetic-parser.js";
 import { Parser } from "../parser/parser.js";
 import type { ExecResult } from "../types.js";
+import { EMPTY, encode } from "../utils/bytes.js";
 import { evaluateArithmetic } from "./arithmetic.js";
 import {
   applyCaseTransform,
@@ -34,7 +35,7 @@ import {
   resolveNamerefForAssignment,
 } from "./helpers/nameref.js";
 import { checkReadonlyError, isReadonly } from "./helpers/readonly.js";
-import { result } from "./helpers/result.js";
+import { failure } from "./helpers/result.js";
 import { expandTildesInValue } from "./helpers/tilde.js";
 import { traceAssignment } from "./helpers/xtrace.js";
 import type { InterpreterContext } from "./types.js";
@@ -102,7 +103,7 @@ export async function processAssignments(
         continueToNext: false,
         xtraceOutput,
         tempAssignments,
-        error: result("", `bash: ${name}: bad array subscript\n`, 1),
+        error: failure(`bash: ${name}: bad array subscript\n`),
       };
     }
 
@@ -184,11 +185,7 @@ async function processArrayAssignment(
     return {
       continueToNext: false,
       xtraceOutput: "",
-      error: result(
-        "",
-        `bash: ${name}: cannot assign list to array member\n`,
-        1,
-      ),
+      error: failure(`bash: ${name}: cannot assign list to array member\n`),
     };
   }
 
@@ -196,18 +193,14 @@ async function processArrayAssignment(
   if (isNameref(ctx, name)) {
     const target = getNamerefTarget(ctx, name);
     if (target === undefined || target === "") {
-      throw new ExitError(1, "", "");
+      throw new ExitError(1, EMPTY, EMPTY);
     }
     const resolved = resolveNameref(ctx, name);
     if (resolved && /^[a-zA-Z_][a-zA-Z0-9_]*\[@\]$/.test(resolved)) {
       return {
         continueToNext: false,
         xtraceOutput: "",
-        error: result(
-          "",
-          `bash: ${name}: cannot assign list to array member\n`,
-          1,
-        ),
+        error: failure(`bash: ${name}: cannot assign list to array member\n`),
       };
     }
   }
@@ -540,11 +533,7 @@ async function processSubscriptAssignment(
         return {
           continueToNext: false,
           xtraceOutput: "",
-          error: result(
-            "",
-            `bash: \`${resolved}': not a valid identifier\n`,
-            1,
-          ),
+          error: failure(`bash: \`${resolved}': not a valid identifier\n`),
         };
       }
       resolvedArrayName = resolved;
@@ -667,9 +656,9 @@ async function computeIndexedArrayIndex(
         const lineNum = ctx.state.currentLine;
         const errorMsg = `bash: line ${lineNum}: ${subscriptExpr}: ${e.message}\n`;
         if (e.fatal) {
-          throw new ExitError(1, "", errorMsg);
+          throw new ExitError(1, EMPTY, encode(errorMsg));
         }
-        return { index: 0, error: result("", errorMsg, 1) };
+        return { index: 0, error: failure(errorMsg) };
       }
       const varValue = ctx.state.env.get(subscriptExpr);
       index = varValue ? Number.parseInt(varValue, 10) : 0;
@@ -684,10 +673,8 @@ async function computeIndexedArrayIndex(
       const lineNum = ctx.state.currentLine;
       return {
         index: 0,
-        error: result(
-          "",
+        error: failure(
           `bash: line ${lineNum}: ${arrayName}[${subscriptExpr}]: bad array subscript\n`,
-          1,
         ),
       };
     }
@@ -699,10 +686,8 @@ async function computeIndexedArrayIndex(
       const lineNum = ctx.state.currentLine;
       return {
         index: 0,
-        error: result(
-          "",
+        error: failure(
           `bash: line ${lineNum}: ${arrayName}[${subscriptExpr}]: bad array subscript\n`,
-          1,
         ),
       };
     }
@@ -735,7 +720,7 @@ async function processScalarAssignment(
       return {
         continueToNext: false,
         xtraceOutput: "",
-        error: result("", `bash: ${name}: circular name reference\n`, 1),
+        error: failure(`bash: ${name}: circular name reference\n`),
       };
     }
     if (resolved === null) {

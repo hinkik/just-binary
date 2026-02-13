@@ -17,6 +17,7 @@ import { fileURLToPath } from "node:url";
 import { Worker } from "node:worker_threads";
 import initSqlJs from "sql.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { decode, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 import {
   type FormatOptions,
@@ -140,8 +141,8 @@ function parseArgs(args: string[]):
     else if (arg === "-separator") {
       if (i + 1 >= args.length) {
         return {
-          stdout: "",
-          stderr: "sqlite3: Error: missing argument to -separator\n",
+          stdout: EMPTY,
+          stderr: encode("sqlite3: Error: missing argument to -separator\n"),
           exitCode: 1,
         };
       }
@@ -149,8 +150,8 @@ function parseArgs(args: string[]):
     } else if (arg === "-newline") {
       if (i + 1 >= args.length) {
         return {
-          stdout: "",
-          stderr: "sqlite3: Error: missing argument to -newline\n",
+          stdout: EMPTY,
+          stderr: encode("sqlite3: Error: missing argument to -newline\n"),
           exitCode: 1,
         };
       }
@@ -158,8 +159,8 @@ function parseArgs(args: string[]):
     } else if (arg === "-nullvalue") {
       if (i + 1 >= args.length) {
         return {
-          stdout: "",
-          stderr: "sqlite3: Error: missing argument to -nullvalue\n",
+          stdout: EMPTY,
+          stderr: encode("sqlite3: Error: missing argument to -nullvalue\n"),
           exitCode: 1,
         };
       }
@@ -167,8 +168,8 @@ function parseArgs(args: string[]):
     } else if (arg === "-cmd") {
       if (i + 1 >= args.length) {
         return {
-          stdout: "",
-          stderr: "sqlite3: Error: missing argument to -cmd\n",
+          stdout: EMPTY,
+          stderr: encode("sqlite3: Error: missing argument to -cmd\n"),
           exitCode: 1,
         };
       }
@@ -177,8 +178,10 @@ function parseArgs(args: string[]):
       // Real sqlite3 treats --xyz as -xyz and says "unknown option: -xyz"
       const optName = arg.startsWith("--") ? arg.slice(1) : arg;
       return {
-        stdout: "",
-        stderr: `sqlite3: Error: unknown option: ${optName}\nUse -help for a list of options.\n`,
+        stdout: EMPTY,
+        stderr: encode(
+          `sqlite3: Error: unknown option: ${optName}\nUse -help for a list of options.\n`,
+        ),
         exitCode: 1,
       };
     } else if (database === null) {
@@ -308,29 +311,29 @@ export const sqlite3Command: Command = {
     if (showVersion) {
       const version = await getSqliteVersion();
       return {
-        stdout: `${version}\n`,
-        stderr: "",
+        stdout: encode(`${version}\n`),
+        stderr: EMPTY,
         exitCode: 0,
       };
     }
 
     if (!database) {
       return {
-        stdout: "",
-        stderr: "sqlite3: missing database argument\n",
+        stdout: EMPTY,
+        stderr: encode("sqlite3: missing database argument\n"),
         exitCode: 1,
       };
     }
 
     // Get SQL from argument or stdin, prepend -cmd if provided
-    let sql = sqlArg || ctx.stdin.trim();
+    let sql = sqlArg || decode(ctx.stdin).trim();
     if (options.cmd) {
       sql = options.cmd + (sql ? `; ${sql}` : "");
     }
     if (!sql) {
       return {
-        stdout: "",
-        stderr: "sqlite3: no SQL provided\n",
+        stdout: EMPTY,
+        stderr: encode("sqlite3: no SQL provided\n"),
         exitCode: 1,
       };
     }
@@ -349,8 +352,10 @@ export const sqlite3Command: Command = {
       }
     } catch (e) {
       return {
-        stdout: "",
-        stderr: `sqlite3: unable to open database "${database}": ${(e as Error).message}\n`,
+        stdout: EMPTY,
+        stderr: encode(
+          `sqlite3: unable to open database "${database}": ${(e as Error).message}\n`,
+        ),
         exitCode: 1,
       };
     }
@@ -374,16 +379,16 @@ export const sqlite3Command: Command = {
       result = await executeInWorker(workerInput, timeoutMs);
     } catch (e) {
       return {
-        stdout: "",
-        stderr: `sqlite3: worker error: ${(e as Error).message}\n`,
+        stdout: EMPTY,
+        stderr: encode(`sqlite3: worker error: ${(e as Error).message}\n`),
         exitCode: 1,
       };
     }
 
     if (!result.success) {
       return {
-        stdout: "",
-        stderr: `sqlite3: ${result.error}\n`,
+        stdout: EMPTY,
+        stderr: encode(`sqlite3: ${result.error}\n`),
         exitCode: 1,
       };
     }
@@ -410,8 +415,8 @@ export const sqlite3Command: Command = {
       if (stmtResult.type === "error") {
         if (options.bail) {
           return {
-            stdout,
-            stderr: `Error: ${stmtResult.error}\n`,
+            stdout: encode(stdout),
+            stderr: encode(`Error: ${stmtResult.error}\n`),
             exitCode: 1,
           };
         }
@@ -440,14 +445,20 @@ export const sqlite3Command: Command = {
         await ctx.fs.writeFile(dbPath, result.dbBuffer);
       } catch (e) {
         return {
-          stdout,
-          stderr: `sqlite3: failed to write database: ${(e as Error).message}\n`,
+          stdout: encode(stdout),
+          stderr: encode(
+            `sqlite3: failed to write database: ${(e as Error).message}\n`,
+          ),
           exitCode: 1,
         };
       }
     }
 
-    return { stdout, stderr: "", exitCode: hadError && options.bail ? 1 : 0 };
+    return {
+      stdout: encode(stdout),
+      stderr: EMPTY,
+      exitCode: hadError && options.bail ? 1 : 0,
+    };
   },
 };
 

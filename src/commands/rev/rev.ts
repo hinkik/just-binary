@@ -9,6 +9,7 @@
  */
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { decode, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
 const revHelp = {
@@ -68,14 +69,14 @@ export const rev: Command = {
 
     if (files.length === 0) {
       // Read from stdin
-      const input = ctx.stdin ?? "";
+      const input = decode(ctx.stdin);
       output = processContent(input);
     } else {
       // Process each file
       for (const file of files) {
         if (file === "-") {
           // Dash means read from stdin
-          const input = ctx.stdin ?? "";
+          const input = decode(ctx.stdin);
           output += processContent(input);
         } else {
           const filePath = ctx.fs.resolvePath(ctx.cwd, file);
@@ -83,8 +84,8 @@ export const rev: Command = {
           if (content === null) {
             return {
               exitCode: 1,
-              stdout: output,
-              stderr: `rev: ${file}: No such file or directory\n`,
+              stdout: encode(output),
+              stderr: encode(`rev: ${file}: No such file or directory\n`),
             };
           }
           output += processContent(content);
@@ -94,8 +95,8 @@ export const rev: Command = {
 
     return {
       exitCode: 0,
-      stdout: output,
-      stderr: "",
+      stdout: encode(output),
+      stderr: EMPTY,
     };
   },
 };

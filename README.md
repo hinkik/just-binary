@@ -78,15 +78,15 @@ await env.exec("echo $TEMP", { env: { TEMP: "value" }, cwd: "/tmp" });
 Extend just-bash with your own TypeScript commands using `defineCommand`:
 
 ```typescript
-import { Bash, defineCommand } from "just-bash";
+import { Bash, defineCommand, encode, decode, EMPTY } from "just-bash";
 
 const hello = defineCommand("hello", async (args, ctx) => {
   const name = args[0] || "world";
-  return { stdout: `Hello, ${name}!\n`, stderr: "", exitCode: 0 };
+  return { stdout: encode(`Hello, ${name}!\n`), stderr: EMPTY, exitCode: 0 };
 });
 
 const upper = defineCommand("upper", async (args, ctx) => {
-  return { stdout: ctx.stdin.toUpperCase(), stderr: "", exitCode: 0 };
+  return { stdout: encode(decode(ctx.stdin).toUpperCase()), stderr: EMPTY, exitCode: 0 };
 });
 
 const bash = new Bash({ customCommands: [hello, upper] });

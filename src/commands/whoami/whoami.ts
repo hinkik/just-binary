@@ -7,13 +7,14 @@
  */
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { EMPTY, encode } from "../../utils/bytes.js";
 
 async function whoamiExecute(
   _args: string[],
   _ctx: CommandContext,
 ): Promise<ExecResult> {
   // In sandboxed environment, always return "user"
-  return { stdout: "user\n", stderr: "", exitCode: 0 };
+  return { stdout: encode("user\n"), stderr: EMPTY, exitCode: 0 };
 }
 
 export const whoami: Command = {

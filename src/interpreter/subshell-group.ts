@@ -15,6 +15,7 @@ import type {
 import { Parser } from "../parser/parser.js";
 import type { ParseException } from "../parser/types.js";
 import type { ExecResult } from "../types.js";
+import { concat, EMPTY, encode, isEmpty } from "../utils/bytes.js";
 import {
   BreakError,
   ContinueError,
@@ -47,7 +48,7 @@ export type ExecuteStatementFn = (stmt: StatementNode) => Promise<ExecResult>;
 export async function executeSubshell(
   ctx: InterpreterContext,
   node: SubshellNode,
-  stdin: string,
+  stdin: Uint8Array,
   executeStatement: ExecuteStatementFn,
 ): Promise<ExecResult> {
   // Pre-open output redirects to truncate files BEFORE executing body
@@ -111,12 +112,12 @@ export async function executeSubshell(
 
   // Save any existing groupStdin and set new one from pipeline
   const savedGroupStdin = ctx.state.groupStdin;
-  if (stdin) {
+  if (!isEmpty(stdin)) {
     ctx.state.groupStdin = stdin;
   }
 
-  let stdout = "";
-  let stderr = "";
+  let stdout: Uint8Array = EMPTY;
+  let stderr: Uint8Array = EMPTY;
   let exitCode = 0;
 
   const restore = (): void => {
@@ -138,8 +139,8 @@ export async function executeSubshell(
   try {
     for (const stmt of node.body) {
       const res = await executeStatement(stmt);
-      stdout += res.stdout;
-      stderr += res.stderr;
+      stdout = concat(stdout, res.stdout);
+      stderr = concat(stderr, res.stderr);
       exitCode = res.exitCode;
     }
   } catch (error) {
@@ -151,8 +152,8 @@ export async function executeSubshell(
     // SubshellExitError means break/continue was called when parent had loop context
     // This exits the subshell cleanly with exit code 0
     if (error instanceof SubshellExitError) {
-      stdout += error.stdout;
-      stderr += error.stderr;
+      stdout = concat(stdout, error.stdout);
+      stderr = concat(stderr, error.stderr);
       // Apply output redirections before returning
       const bodyResult = result(stdout, stderr, 0);
       return applyRedirections(ctx, bodyResult, node.redirections);
@@ -160,8 +161,8 @@ export async function executeSubshell(
     // BreakError/ContinueError should NOT propagate out of subshell
     // They only affect loops within the subshell
     if (error instanceof BreakError || error instanceof ContinueError) {
-      stdout += error.stdout;
-      stderr += error.stderr;
+      stdout = concat(stdout, error.stdout);
+      stderr = concat(stderr, error.stderr);
       // Apply output redirections before returning
       const bodyResult = result(stdout, stderr, 0);
       return applyRedirections(ctx, bodyResult, node.redirections);
@@ -169,8 +170,8 @@ export async function executeSubshell(
     // ExitError in subshell should NOT propagate - just return the exit code
     // (subshells are like separate processes)
     if (error instanceof ExitError) {
-      stdout += error.stdout;
-      stderr += error.stderr;
+      stdout = concat(stdout, error.stdout);
+      stderr = concat(stderr, error.stderr);
       // Apply output redirections before returning
       const bodyResult = result(stdout, stderr, error.exitCode);
       return applyRedirections(ctx, bodyResult, node.redirections);
@@ -178,8 +179,8 @@ export async function executeSubshell(
     // ReturnError in subshell (e.g., f() ( return 42; )) should also just exit
     // with the given code, since subshells are like separate processes
     if (error instanceof ReturnError) {
-      stdout += error.stdout;
-      stderr += error.stderr;
+      stdout = concat(stdout, error.stdout);
+      stderr = concat(stderr, error.stderr);
       // Apply output redirections before returning
       const bodyResult = result(stdout, stderr, error.exitCode);
       return applyRedirections(ctx, bodyResult, node.redirections);
@@ -187,8 +188,8 @@ export async function executeSubshell(
     if (error instanceof ErrexitError) {
       // Apply output redirections before propagating
       const bodyResult = result(
-        stdout + error.stdout,
-        stderr + error.stderr,
+        concat(stdout, error.stdout),
+        concat(stderr, error.stderr),
         error.exitCode,
       );
       return applyRedirections(ctx, bodyResult, node.redirections);
@@ -196,7 +197,7 @@ export async function executeSubshell(
     // Apply output redirections before returning
     const bodyResult = result(
       stdout,
-      `${stderr}${getErrorMessage(error)}\n`,
+      concat(stderr, encode(`${getErrorMessage(error)}\n`)),
       1,
     );
     return applyRedirections(ctx, bodyResult, node.redirections);
@@ -216,11 +217,11 @@ export async function executeSubshell(
 export async function executeGroup(
   ctx: InterpreterContext,
   node: GroupNode,
-  stdin: string,
+  stdin: Uint8Array,
   executeStatement: ExecuteStatementFn,
 ): Promise<ExecResult> {
-  let stdout = "";
-  let stderr = "";
+  let stdout: Uint8Array = EMPTY;
+  let stderr: Uint8Array = EMPTY;
   let exitCode = 0;
 
   // Process FD variable redirections ({varname}>file syntax)
@@ -233,7 +234,7 @@ export async function executeGroup(
   }
 
   // Process heredoc and input redirections to get stdin content
-  let effectiveStdin = stdin;
+  let effectiveStdin: Uint8Array = stdin;
   for (const redir of node.redirections) {
     if (
       (redir.operator === "<<" || redir.operator === "<<-") &&
@@ -255,33 +256,35 @@ export async function executeGroup(
         }
         ctx.state.fileDescriptors.set(fd, content);
       } else {
-        effectiveStdin = content;
+        effectiveStdin = encode(content);
       }
     } else if (redir.operator === "<<<" && redir.target.type === "Word") {
-      effectiveStdin = `${await expandWord(ctx, redir.target as WordNode)}\n`;
+      effectiveStdin = encode(
+        `${await expandWord(ctx, redir.target as WordNode)}\n`,
+      );
     } else if (redir.operator === "<" && redir.target.type === "Word") {
       try {
         const target = await expandWord(ctx, redir.target as WordNode);
         const filePath = ctx.fs.resolvePath(ctx.state.cwd, target);
-        effectiveStdin = await ctx.fs.readFile(filePath);
+        effectiveStdin = encode(await ctx.fs.readFile(filePath));
       } catch {
         const target = await expandWord(ctx, redir.target as WordNode);
-        return result("", `bash: ${target}: No such file or directory\n`, 1);
+        return failure(`bash: ${target}: No such file or directory\n`);
       }
     }
   }
 
   // Save any existing groupStdin and set new one from pipeline
   const savedGroupStdin = ctx.state.groupStdin;
-  if (effectiveStdin) {
+  if (!isEmpty(effectiveStdin)) {
     ctx.state.groupStdin = effectiveStdin;
   }
 
   try {
     for (const stmt of node.body) {
       const res = await executeStatement(stmt);
-      stdout += res.stdout;
-      stderr += res.stderr;
+      stdout = concat(stdout, res.stdout);
+      stderr = concat(stderr, res.stderr);
       exitCode = res.exitCode;
     }
   } catch (error) {
@@ -299,7 +302,11 @@ export async function executeGroup(
       error.prependOutput(stdout, stderr);
       throw error;
     }
-    return result(stdout, `${stderr}${getErrorMessage(error)}\n`, 1);
+    return result(
+      stdout,
+      concat(stderr, encode(`${getErrorMessage(error)}\n`)),
+      1,
+    );
   }
 
   // Restore groupStdin
@@ -324,7 +331,7 @@ export async function executeUserScript(
   ctx: InterpreterContext,
   scriptPath: string,
   args: string[],
-  stdin: string,
+  stdin: Uint8Array,
   executeScript: ExecuteScriptFn,
 ): Promise<ExecResult> {
   // Read the script content
@@ -359,7 +366,7 @@ export async function executeUserScript(
   ctx.state.parentHasLoopContext = savedLoopDepth > 0;
   ctx.state.loopDepth = 0;
   ctx.state.bashPid = ctx.state.nextVirtualPid++;
-  if (stdin) {
+  if (!isEmpty(stdin)) {
     ctx.state.groupStdin = stdin;
   }
   ctx.state.currentSource = scriptPath;

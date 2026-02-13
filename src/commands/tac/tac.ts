@@ -7,6 +7,7 @@
  */
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { decode, EMPTY, encode } from "../../utils/bytes.js";
 
 async function tacExecute(
   args: string[],
@@ -27,28 +28,28 @@ async function tacExecute(
       }
       const reversed = lines.reverse();
       return {
-        stdout: reversed.length > 0 ? `${reversed.join("\n")}\n` : "",
-        stderr: "",
+        stdout: encode(reversed.length > 0 ? `${reversed.join("\n")}\n` : ""),
+        stderr: EMPTY,
         exitCode: 0,
       };
     } catch {
       return {
-        stdout: "",
-        stderr: `tac: ${args[0]}: No such file or directory\n`,
+        stdout: EMPTY,
+        stderr: encode(`tac: ${args[0]}: No such file or directory\n`),
         exitCode: 1,
       };
     }
   }
 
   // Read from stdin
-  const lines = ctx.stdin.split("\n");
+  const lines = decode(ctx.stdin).split("\n");
   if (lines[lines.length - 1] === "") {
     lines.pop();
   }
   const reversed = lines.reverse();
   return {
-    stdout: reversed.length > 0 ? `${reversed.join("\n")}\n` : "",
-    stderr: "",
+    stdout: encode(reversed.length > 0 ? `${reversed.join("\n")}\n` : ""),
+    stderr: EMPTY,
     exitCode: 0,
   };
 }

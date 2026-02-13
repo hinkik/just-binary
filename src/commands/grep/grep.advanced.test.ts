@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { toText } from "../../test-utils.js";
 
 describe("grep advanced", () => {
   // Piping tests
@@ -8,7 +9,9 @@ describe("grep advanced", () => {
       const env = new Bash({
         files: { "/test.txt": "line1\nline2\nline3\nline4\nline5\n" },
       });
-      const result = await env.exec("cat /test.txt | grep line | head -n 2");
+      const result = toText(
+        await env.exec("cat /test.txt | grep line | head -n 2"),
+      );
       expect(result.stdout).toBe("line1\nline2\n");
     });
 
@@ -20,7 +23,7 @@ describe("grep advanced", () => {
           "/dir/other.js": "",
         },
       });
-      const result = await env.exec("ls /dir | grep txt");
+      const result = toText(await env.exec("ls /dir | grep txt"));
       expect(result.stdout).toBe("file.txt\n");
     });
 
@@ -30,7 +33,9 @@ describe("grep advanced", () => {
           "/test.txt": "apple pie\nbanana bread\napple tart\norange juice\n",
         },
       });
-      const result = await env.exec("cat /test.txt | grep apple | grep pie");
+      const result = toText(
+        await env.exec("cat /test.txt | grep apple | grep pie"),
+      );
       expect(result.stdout).toBe("apple pie\n");
     });
 
@@ -40,7 +45,7 @@ describe("grep advanced", () => {
           "/test.txt": "error: one\ninfo: two\nerror: three\nwarn: four\n",
         },
       });
-      const result = await env.exec("grep error /test.txt | wc -l");
+      const result = toText(await env.exec("grep error /test.txt | wc -l"));
       expect(result.stdout.trim()).toBe("2");
     });
   });
@@ -51,7 +56,7 @@ describe("grep advanced", () => {
       const env = new Bash({
         files: { "/test.txt": "hello world hello\nfoo bar\n" },
       });
-      const result = await env.exec("grep -o hello /test.txt");
+      const result = toText(await env.exec("grep -o hello /test.txt"));
       expect(result.stdout).toBe("hello\nhello\n");
       expect(result.exitCode).toBe(0);
     });
@@ -60,7 +65,9 @@ describe("grep advanced", () => {
       const env = new Bash({
         files: { "/test.txt": "cat dog cat\n" },
       });
-      const result = await env.exec("grep --only-matching cat /test.txt");
+      const result = toText(
+        await env.exec("grep --only-matching cat /test.txt"),
+      );
       expect(result.stdout).toBe("cat\ncat\n");
       expect(result.exitCode).toBe(0);
     });
@@ -72,7 +79,7 @@ describe("grep advanced", () => {
           "/b.txt": "test two\n",
         },
       });
-      const result = await env.exec("grep -o test /a.txt /b.txt");
+      const result = toText(await env.exec("grep -o test /a.txt /b.txt"));
       expect(result.stdout).toBe("/a.txt:test\n/a.txt:test\n/b.txt:test\n");
       expect(result.exitCode).toBe(0);
     });
@@ -81,7 +88,7 @@ describe("grep advanced", () => {
       const env = new Bash({
         files: { "/test.txt": "price: 100 and 200 dollars\n" },
       });
-      const result = await env.exec('grep -Eo "[0-9]+" /test.txt');
+      const result = toText(await env.exec('grep -Eo "[0-9]+" /test.txt'));
       expect(result.stdout).toBe("100\n200\n");
       expect(result.exitCode).toBe(0);
     });
@@ -93,7 +100,7 @@ describe("grep advanced", () => {
           "/b.txt": "foo baz\n",
         },
       });
-      const result = await env.exec("grep -oh foo /a.txt /b.txt");
+      const result = toText(await env.exec("grep -oh foo /a.txt /b.txt"));
       expect(result.stdout).toBe("foo\nfoo\nfoo\n");
       expect(result.exitCode).toBe(0);
     });
@@ -110,35 +117,35 @@ describe("grep advanced", () => {
 
     it("should show lines after match with -A", async () => {
       const env = contextEnv();
-      const result = await env.exec("grep -A2 match /test.txt");
+      const result = toText(await env.exec("grep -A2 match /test.txt"));
       expect(result.stdout).toBe("match\nline4\nline5\n");
       expect(result.exitCode).toBe(0);
     });
 
     it("should show lines before match with -B", async () => {
       const env = contextEnv();
-      const result = await env.exec("grep -B2 match /test.txt");
+      const result = toText(await env.exec("grep -B2 match /test.txt"));
       expect(result.stdout).toBe("line1\nline2\nmatch\n");
       expect(result.exitCode).toBe(0);
     });
 
     it("should show lines before and after with -C", async () => {
       const env = contextEnv();
-      const result = await env.exec("grep -C1 match /test.txt");
+      const result = toText(await env.exec("grep -C1 match /test.txt"));
       expect(result.stdout).toBe("line2\nmatch\nline4\n");
       expect(result.exitCode).toBe(0);
     });
 
     it("should work with -A N syntax (space)", async () => {
       const env = contextEnv();
-      const result = await env.exec("grep -A 1 match /test.txt");
+      const result = toText(await env.exec("grep -A 1 match /test.txt"));
       expect(result.stdout).toBe("match\nline4\n");
       expect(result.exitCode).toBe(0);
     });
 
     it("should show context with line numbers", async () => {
       const env = contextEnv();
-      const result = await env.exec("grep -n -B1 -A1 match /test.txt");
+      const result = toText(await env.exec("grep -n -B1 -A1 match /test.txt"));
       expect(result.stdout).toBe("2-line2\n3:match\n4-line4\n");
       expect(result.exitCode).toBe(0);
     });
@@ -149,7 +156,7 @@ describe("grep advanced", () => {
           "/test.txt": "a\nmatch1\nb\nc\nmatch2\nd\n",
         },
       });
-      const result = await env.exec("grep -A1 match /test.txt");
+      const result = toText(await env.exec("grep -A1 match /test.txt"));
       // Separator between non-contiguous groups (GNU grep behavior)
       expect(result.stdout).toBe("match1\nb\n--\nmatch2\nd\n");
       expect(result.exitCode).toBe(0);
@@ -161,7 +168,7 @@ describe("grep advanced", () => {
           "/test.txt": "a\nmatch1\nb\nmatch2\nc\n",
         },
       });
-      const result = await env.exec("grep -C1 match /test.txt");
+      const result = toText(await env.exec("grep -C1 match /test.txt"));
       expect(result.stdout).toBe("a\nmatch1\nb\nmatch2\nc\n");
       expect(result.exitCode).toBe(0);
     });
@@ -172,7 +179,7 @@ describe("grep advanced", () => {
       const env = new Bash({
         files: { "/test.txt": "line1\nline2\nline3\nline4\nline5\n" },
       });
-      const result = await env.exec("grep -m 2 line /test.txt");
+      const result = toText(await env.exec("grep -m 2 line /test.txt"));
       expect(result.stdout).toBe("line1\nline2\n");
       expect(result.exitCode).toBe(0);
     });
@@ -181,7 +188,9 @@ describe("grep advanced", () => {
       const env = new Bash({
         files: { "/test.txt": "a\nb\nc\nd\n" },
       });
-      const result = await env.exec("grep --max-count=1 '[a-z]' /test.txt");
+      const result = toText(
+        await env.exec("grep --max-count=1 '[a-z]' /test.txt"),
+      );
       expect(result.stdout).toBe("a\n");
       expect(result.exitCode).toBe(0);
     });
@@ -190,7 +199,7 @@ describe("grep advanced", () => {
       const env = new Bash({
         files: { "/test.txt": "match1\nmatch2\nmatch3\n" },
       });
-      const result = await env.exec("grep -m3 match /test.txt");
+      const result = toText(await env.exec("grep -m3 match /test.txt"));
       expect(result.stdout).toBe("match1\nmatch2\nmatch3\n");
       expect(result.exitCode).toBe(0);
     });
@@ -199,7 +208,7 @@ describe("grep advanced", () => {
       const env = new Bash({
         files: { "/test.txt": "a\nmatch1\nb\nmatch2\nc\nmatch3\nd\n" },
       });
-      const result = await env.exec("grep -m 1 -A1 match /test.txt");
+      const result = toText(await env.exec("grep -m 1 -A1 match /test.txt"));
       expect(result.stdout).toBe("match1\nb\n");
       expect(result.exitCode).toBe(0);
     });
@@ -208,7 +217,7 @@ describe("grep advanced", () => {
       const env = new Bash({
         files: { "/test.txt": "a\nb\nc\nd\ne\n" },
       });
-      const result = await env.exec("grep -n -m 2 '[a-e]' /test.txt");
+      const result = toText(await env.exec("grep -n -m 2 '[a-e]' /test.txt"));
       expect(result.stdout).toBe("1:a\n2:b\n");
       expect(result.exitCode).toBe(0);
     });
@@ -219,7 +228,7 @@ describe("grep advanced", () => {
       const env = new Bash({
         files: { "/test.txt": "foo\nfoobar\nfoo\n" },
       });
-      const result = await env.exec("grep -x foo /test.txt");
+      const result = toText(await env.exec("grep -x foo /test.txt"));
       expect(result.stdout).toBe("foo\nfoo\n");
       expect(result.exitCode).toBe(0);
     });
@@ -228,7 +237,9 @@ describe("grep advanced", () => {
       const env = new Bash({
         files: { "/test.txt": "test\ntesting\ntest\n" },
       });
-      const result = await env.exec("grep --line-regexp test /test.txt");
+      const result = toText(
+        await env.exec("grep --line-regexp test /test.txt"),
+      );
       expect(result.stdout).toBe("test\ntest\n");
       expect(result.exitCode).toBe(0);
     });
@@ -237,7 +248,7 @@ describe("grep advanced", () => {
       const env = new Bash({
         files: { "/test.txt": "abc\nabcd\nabc\n" },
       });
-      const result = await env.exec('grep -Ex "a.c" /test.txt');
+      const result = toText(await env.exec('grep -Ex "a.c" /test.txt'));
       expect(result.stdout).toBe("abc\nabc\n");
       expect(result.exitCode).toBe(0);
     });
@@ -246,7 +257,7 @@ describe("grep advanced", () => {
       const env = new Bash({
         files: { "/test.txt": "Hello\nHELLO World\nhello\n" },
       });
-      const result = await env.exec("grep -ix hello /test.txt");
+      const result = toText(await env.exec("grep -ix hello /test.txt"));
       expect(result.stdout).toBe("Hello\nhello\n");
       expect(result.exitCode).toBe(0);
     });
@@ -260,7 +271,7 @@ describe("grep advanced", () => {
           "/b.txt": "match\n",
         },
       });
-      const result = await env.exec("grep -h match /a.txt /b.txt");
+      const result = toText(await env.exec("grep -h match /a.txt /b.txt"));
       expect(result.stdout).toBe("match\nmatch\n");
       expect(result.exitCode).toBe(0);
     });
@@ -272,7 +283,9 @@ describe("grep advanced", () => {
           "/b.txt": "test\n",
         },
       });
-      const result = await env.exec("grep --no-filename test /a.txt /b.txt");
+      const result = toText(
+        await env.exec("grep --no-filename test /a.txt /b.txt"),
+      );
       expect(result.stdout).toBe("test\ntest\n");
       expect(result.exitCode).toBe(0);
     });
@@ -284,7 +297,7 @@ describe("grep advanced", () => {
           "/b.txt": "match\n",
         },
       });
-      const result = await env.exec("grep -hn match /a.txt /b.txt");
+      const result = toText(await env.exec("grep -hn match /a.txt /b.txt"));
       expect(result.stdout).toBe("2:match\n1:match\n");
       expect(result.exitCode).toBe(0);
     });
@@ -296,7 +309,7 @@ describe("grep advanced", () => {
           "/dir/b.txt": "content\n",
         },
       });
-      const result = await env.exec("grep -rh content /dir");
+      const result = toText(await env.exec("grep -rh content /dir"));
       expect(result.stdout).toBe("content\ncontent\n");
       expect(result.exitCode).toBe(0);
     });
@@ -311,7 +324,9 @@ describe("grep advanced", () => {
           "/dir/c.ts": "test\n",
         },
       });
-      const result = await env.exec('grep -r --include="*.ts" test /dir');
+      const result = toText(
+        await env.exec('grep -r --include="*.ts" test /dir'),
+      );
       expect(result.stdout).toBe("/dir/a.ts:test\n/dir/c.ts:test\n");
       expect(result.exitCode).toBe(0);
     });
@@ -325,7 +340,9 @@ describe("grep advanced", () => {
         },
       });
       // Only searching .ts files
-      const result = await env.exec('grep -r --include="*.ts" test /dir');
+      const result = toText(
+        await env.exec('grep -r --include="*.ts" test /dir'),
+      );
       expect(result.stdout).toBe("/dir/a.ts:test\n");
       expect(result.exitCode).toBe(0);
     });
@@ -338,7 +355,9 @@ describe("grep advanced", () => {
           "/dir/sub/c.js": "match\n",
         },
       });
-      const result = await env.exec('grep -r --include="*.ts" match /dir');
+      const result = toText(
+        await env.exec('grep -r --include="*.ts" match /dir'),
+      );
       expect(result.stdout).toBe("/dir/a.ts:match\n/dir/sub/b.ts:match\n");
       expect(result.exitCode).toBe(0);
     });
@@ -355,7 +374,7 @@ describe("grep advanced", () => {
         },
         cwd: "/dir",
       });
-      const result = await env.exec("grep foo *.ts");
+      const result = toText(await env.exec("grep foo *.ts"));
       expect(result.stdout).toBe("a.ts:foo\n");
       expect(result.exitCode).toBe(0);
     });
@@ -368,7 +387,7 @@ describe("grep advanced", () => {
           "/src/c.js": "test\n",
         },
       });
-      const result = await env.exec("grep test /src/*.ts");
+      const result = toText(await env.exec("grep test /src/*.ts"));
       expect(result.stdout).toBe("/src/a.ts:test\n/src/b.ts:test\n");
       expect(result.exitCode).toBe(0);
     });
@@ -379,7 +398,7 @@ describe("grep advanced", () => {
           "/dir/file.js": "content\n",
         },
       });
-      const result = await env.exec("grep test /dir/*.ts");
+      const result = toText(await env.exec("grep test /dir/*.ts"));
       expect(result.stdout).toBe("");
       expect(result.exitCode).toBe(1);
     });
@@ -391,7 +410,7 @@ describe("grep advanced", () => {
       const env = new Bash({
         files: { "/test.txt": "cat\ndog\nbird\n" },
       });
-      const result = await env.exec('grep "cat\\|dog" /test.txt');
+      const result = toText(await env.exec('grep "cat\\|dog" /test.txt'));
       expect(result.stdout).toBe("cat\ndog\n");
       expect(result.exitCode).toBe(0);
     });
@@ -400,7 +419,9 @@ describe("grep advanced", () => {
       const env = new Bash({
         files: { "/test.txt": "red\ngreen\nblue\nyellow\n" },
       });
-      const result = await env.exec('grep "red\\|green\\|blue" /test.txt');
+      const result = toText(
+        await env.exec('grep "red\\|green\\|blue" /test.txt'),
+      );
       expect(result.stdout).toBe("red\ngreen\nblue\n");
       expect(result.exitCode).toBe(0);
     });
@@ -409,7 +430,9 @@ describe("grep advanced", () => {
       const env = new Bash({
         files: { "/test.txt": "PASSWORD\npassword\nsecret\n" },
       });
-      const result = await env.exec('grep -i "PASSWORD\\|secret" /test.txt');
+      const result = toText(
+        await env.exec('grep -i "PASSWORD\\|secret" /test.txt'),
+      );
       expect(result.stdout).toBe("PASSWORD\npassword\nsecret\n");
       expect(result.exitCode).toBe(0);
     });
@@ -424,7 +447,7 @@ describe("grep advanced", () => {
             'function hello() {\n  return "hello";\n}\nfunction world() {\n  return "world";\n}\n',
         },
       });
-      const result = await env.exec('grep "function" /code.js');
+      const result = toText(await env.exec('grep "function" /code.js'));
       expect(result.stdout).toBe("function hello() {\nfunction world() {\n");
     });
 
@@ -435,7 +458,7 @@ describe("grep advanced", () => {
             "[INFO] Starting app\n[ERROR] Connection failed\n[INFO] Retrying\n[ERROR] Timeout\n[INFO] Success\n",
         },
       });
-      const result = await env.exec("grep ERROR /app.log");
+      const result = toText(await env.exec("grep ERROR /app.log"));
       expect(result.stdout).toBe(
         "[ERROR] Connection failed\n[ERROR] Timeout\n",
       );
@@ -448,7 +471,7 @@ describe("grep advanced", () => {
           "/src/b.js": "// Regular comment\n// TODO: implement\n",
         },
       });
-      const result = await env.exec("grep -r TODO /src");
+      const result = toText(await env.exec("grep -r TODO /src"));
       expect(result.stdout).toContain("TODO");
     });
 
@@ -459,7 +482,7 @@ describe("grep advanced", () => {
             '{\n  "port": 3000,\n  "host": "localhost",\n  "debug": true\n}\n',
         },
       });
-      const result = await env.exec('grep "port" /config.json');
+      const result = toText(await env.exec('grep "port" /config.json'));
       expect(result.stdout).toBe('  "port": 3000,\n');
     });
 
@@ -470,7 +493,7 @@ describe("grep advanced", () => {
             "import { foo } from './foo';\nimport { bar } from './bar';\nconst x = 1;\n",
         },
       });
-      const result = await env.exec('grep "^import" /index.ts');
+      const result = toText(await env.exec('grep "^import" /index.ts'));
       expect(result.stdout).toBe(
         "import { foo } from './foo';\nimport { bar } from './bar';\n",
       );
@@ -483,8 +506,10 @@ describe("grep advanced", () => {
             "localhost 127.0.0.1\nserver 192.168.1.100\ngateway 10.0.0.1\n",
         },
       });
-      const result = await env.exec(
-        'grep -E "[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+" /hosts.txt',
+      const result = toText(
+        await env.exec(
+          'grep -E "[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+" /hosts.txt',
+        ),
       );
       expect(result.stdout).toBe(
         "localhost 127.0.0.1\nserver 192.168.1.100\ngateway 10.0.0.1\n",
@@ -498,7 +523,7 @@ describe("grep advanced", () => {
             "class User {\n  name: string;\n}\nclass Admin extends User {\n}\n",
         },
       });
-      const result = await env.exec('grep "^class" /code.ts');
+      const result = toText(await env.exec('grep "^class" /code.ts'));
       expect(result.stdout).toBe("class User {\nclass Admin extends User {\n");
     });
   });

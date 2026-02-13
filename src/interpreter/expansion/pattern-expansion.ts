@@ -7,6 +7,7 @@
 
 import type { ScriptNode } from "../../ast/types.js";
 import { Parser } from "../../parser/parser.js";
+import { decode, isEmpty } from "../../utils/bytes.js";
 import { ExecutionLimitError, ExitError } from "../errors.js";
 import type { InterpreterContext } from "../types.js";
 import { escapeGlobChars } from "./glob-escape.js";
@@ -131,12 +132,12 @@ async function executeCommandSubstitutionFromString(
     ctx.state.suppressVerbose = savedSuppressVerbose;
     ctx.state.lastExitCode = exitCode;
     ctx.state.env.set("?", String(exitCode));
-    if (result.stderr) {
+    if (!isEmpty(result.stderr)) {
       ctx.state.expansionStderr =
-        (ctx.state.expansionStderr || "") + result.stderr;
+        (ctx.state.expansionStderr || "") + decode(result.stderr);
     }
     ctx.state.bashPid = savedBashPid;
-    return result.stdout.replace(/\n+$/, "");
+    return decode(result.stdout).replace(/\n+$/, "");
   } catch (error) {
     ctx.state.env = savedEnv;
     ctx.state.cwd = savedCwd;
@@ -148,7 +149,7 @@ async function executeCommandSubstitutionFromString(
     if (error instanceof ExitError) {
       ctx.state.lastExitCode = error.exitCode;
       ctx.state.env.set("?", String(error.exitCode));
-      return error.stdout?.replace(/\n+$/, "") ?? "";
+      return error.stdout ? decode(error.stdout).replace(/\n+$/, "") : "";
     }
     return "";
   }

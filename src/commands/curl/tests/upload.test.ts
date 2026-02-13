@@ -12,6 +12,7 @@ import {
   vi,
 } from "vitest";
 import { Bash } from "../../../Bash.js";
+import { toText } from "../../../test-utils.js";
 
 const originalFetch = global.fetch;
 let lastRequest: { url: string; options: RequestInit } | null = null;
@@ -109,8 +110,10 @@ describe("curl upload", () => {
           allowedMethods: ["PUT"],
         },
       });
-      const result = await env.exec(
-        "curl -T /nonexistent.txt https://api.example.com/upload",
+      const result = toText(
+        await env.exec(
+          "curl -T /nonexistent.txt https://api.example.com/upload",
+        ),
       );
 
       expect(result.exitCode).not.toBe(0);

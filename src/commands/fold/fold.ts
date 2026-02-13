@@ -8,6 +8,7 @@
  */
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { decode, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
 const foldHelp = {
@@ -155,8 +156,10 @@ export const fold: Command = {
         if (Number.isNaN(width) || width < 1) {
           return {
             exitCode: 1,
-            stdout: "",
-            stderr: `fold: invalid number of columns: '${args[i + 1]}'\n`,
+            stdout: EMPTY,
+            stderr: encode(
+              `fold: invalid number of columns: '${args[i + 1]}'\n`,
+            ),
           };
         }
         options.width = width;
@@ -166,8 +169,10 @@ export const fold: Command = {
         if (Number.isNaN(width) || width < 1) {
           return {
             exitCode: 1,
-            stdout: "",
-            stderr: `fold: invalid number of columns: '${arg.slice(2)}'\n`,
+            stdout: EMPTY,
+            stderr: encode(
+              `fold: invalid number of columns: '${arg.slice(2)}'\n`,
+            ),
           };
         }
         options.width = width;
@@ -191,8 +196,8 @@ export const fold: Command = {
         if (Number.isNaN(width) || width < 1) {
           return {
             exitCode: 1,
-            stdout: "",
-            stderr: `fold: invalid number of columns: '${widthPart}'\n`,
+            stdout: EMPTY,
+            stderr: encode(`fold: invalid number of columns: '${widthPart}'\n`),
           };
         }
         options.width = width;
@@ -205,8 +210,10 @@ export const fold: Command = {
         if (Number.isNaN(width) || width < 1) {
           return {
             exitCode: 1,
-            stdout: "",
-            stderr: `fold: invalid number of columns: '${args[i + 1]}'\n`,
+            stdout: EMPTY,
+            stderr: encode(
+              `fold: invalid number of columns: '${args[i + 1]}'\n`,
+            ),
           };
         }
         options.width = width;
@@ -242,7 +249,7 @@ export const fold: Command = {
 
     if (files.length === 0) {
       // Read from stdin
-      const input = ctx.stdin ?? "";
+      const input = decode(ctx.stdin);
       output = processContent(input, options);
     } else {
       // Process each file
@@ -252,8 +259,8 @@ export const fold: Command = {
         if (content === null) {
           return {
             exitCode: 1,
-            stdout: output,
-            stderr: `fold: ${file}: No such file or directory\n`,
+            stdout: encode(output),
+            stderr: encode(`fold: ${file}: No such file or directory\n`),
           };
         }
         output += processContent(content, options);
@@ -262,8 +269,8 @@ export const fold: Command = {
 
     return {
       exitCode: 0,
-      stdout: output,
-      stderr: "",
+      stdout: encode(output),
+      stderr: EMPTY,
     };
   },
 };

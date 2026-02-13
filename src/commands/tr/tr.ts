@@ -1,5 +1,6 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
+import { decode, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const trHelp = {
@@ -138,23 +139,23 @@ export const trCommand: Command = {
 
     if (sets.length < 1) {
       return {
-        stdout: "",
-        stderr: "tr: missing operand\n",
+        stdout: EMPTY,
+        stderr: encode("tr: missing operand\n"),
         exitCode: 1,
       };
     }
 
     if (!deleteMode && !squeezeMode && sets.length < 2) {
       return {
-        stdout: "",
-        stderr: "tr: missing operand after SET1\n",
+        stdout: EMPTY,
+        stderr: encode("tr: missing operand after SET1\n"),
         exitCode: 1,
       };
     }
 
     const set1Raw = expandRange(sets[0]);
     const set2 = sets.length > 1 ? expandRange(sets[1]) : "";
-    const content = ctx.stdin;
+    const content = decode(ctx.stdin);
 
     // Helper to check if character is in set1 (considering complement mode)
     const isInSet1 = (char: string): boolean => {
@@ -223,7 +224,7 @@ export const trCommand: Command = {
       }
     }
 
-    return { stdout: output, stderr: "", exitCode: 0 };
+    return { stdout: encode(output), stderr: EMPTY, exitCode: 0 };
   },
 };
 

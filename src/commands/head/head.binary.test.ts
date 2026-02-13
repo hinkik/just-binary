@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { toText } from "../../test-utils.js";
 
 describe("head with binary files", () => {
   it("should read first n lines from binary file", async () => {
@@ -19,7 +20,7 @@ describe("head with binary files", () => {
       },
     });
 
-    const result = await env.exec("head -n 2 /binary.bin");
+    const result = toText(await env.exec("head -n 2 /binary.bin"));
     expect(result.stdout).toBe("L1\nL2\n");
     expect(result.exitCode).toBe(0);
   });
@@ -31,7 +32,7 @@ describe("head with binary files", () => {
       },
     });
 
-    const result = await env.exec("head -c 3 /binary.bin");
+    const result = toText(await env.exec("head -c 3 /binary.bin"));
     expect(result.stdout).toBe("ABC");
     expect(result.exitCode).toBe(0);
   });

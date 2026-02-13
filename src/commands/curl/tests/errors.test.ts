@@ -12,6 +12,7 @@ import {
   vi,
 } from "vitest";
 import { Bash } from "../../../Bash.js";
+import { toText } from "../../../test-utils.js";
 
 const originalFetch = global.fetch;
 let mockFetch: ReturnType<typeof vi.fn>;
@@ -35,7 +36,7 @@ describe("curl error handling", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://example.com"] },
       });
-      const result = await env.exec("curl");
+      const result = toText(await env.exec("curl"));
       expect(result.stderr).toContain("no URL specified");
       expect(result.exitCode).toBe(2);
     });
@@ -44,7 +45,7 @@ describe("curl error handling", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://example.com"] },
       });
-      const result = await env.exec("curl -s -S");
+      const result = toText(await env.exec("curl -s -S"));
       expect(result.stderr).toContain("no URL specified");
       expect(result.exitCode).toBe(2);
     });
@@ -55,7 +56,7 @@ describe("curl error handling", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://allowed.com"] },
       });
-      const result = await env.exec("curl https://forbidden.com/test");
+      const result = toText(await env.exec("curl https://forbidden.com/test"));
       expect(result.stderr).toContain("Network access denied");
       expect(result.exitCode).toBe(7); // CURLE_COULDNT_CONNECT
     });
@@ -64,7 +65,9 @@ describe("curl error handling", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://allowed.com"] },
       });
-      const result = await env.exec("curl -s https://forbidden.com/test");
+      const result = toText(
+        await env.exec("curl -s https://forbidden.com/test"),
+      );
       expect(result.stderr).toBe("");
       expect(result.exitCode).toBe(7); // CURLE_COULDNT_CONNECT
     });
@@ -73,7 +76,9 @@ describe("curl error handling", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://allowed.com"] },
       });
-      const result = await env.exec("curl -sS https://forbidden.com/test");
+      const result = toText(
+        await env.exec("curl -sS https://forbidden.com/test"),
+      );
       expect(result.stderr).toContain("Network access denied");
       expect(result.exitCode).toBe(7); // CURLE_COULDNT_CONNECT
     });
@@ -87,7 +92,9 @@ describe("curl error handling", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://api.example.com"] },
       });
-      const result = await env.exec("curl https://api.example.com/missing");
+      const result = toText(
+        await env.exec("curl https://api.example.com/missing"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("Not Found");
     });
@@ -99,7 +106,9 @@ describe("curl error handling", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://api.example.com"] },
       });
-      const result = await env.exec("curl -f https://api.example.com/missing");
+      const result = toText(
+        await env.exec("curl -f https://api.example.com/missing"),
+      );
       expect(result.exitCode).toBe(22);
     });
 
@@ -113,8 +122,8 @@ describe("curl error handling", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://api.example.com"] },
       });
-      const result = await env.exec(
-        "curl --fail https://api.example.com/error",
+      const result = toText(
+        await env.exec("curl --fail https://api.example.com/error"),
       );
       expect(result.exitCode).toBe(22);
     });
@@ -126,7 +135,9 @@ describe("curl error handling", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://api.example.com"] },
       });
-      const result = await env.exec("curl -f https://api.example.com/ok");
+      const result = toText(
+        await env.exec("curl -f https://api.example.com/ok"),
+      );
       expect(result.exitCode).toBe(0);
     });
 
@@ -137,7 +148,9 @@ describe("curl error handling", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://api.example.com"] },
       });
-      const result = await env.exec("curl -f https://api.example.com/redirect");
+      const result = toText(
+        await env.exec("curl -f https://api.example.com/redirect"),
+      );
       expect(result.exitCode).toBe(0);
     });
   });
@@ -147,7 +160,9 @@ describe("curl error handling", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://api.example.com"] },
       });
-      const result = await env.exec("curl -z https://api.example.com/test");
+      const result = toText(
+        await env.exec("curl -z https://api.example.com/test"),
+      );
       expect(result.stderr).toContain("invalid option");
       expect(result.exitCode).toBe(1);
     });
@@ -156,8 +171,8 @@ describe("curl error handling", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://api.example.com"] },
       });
-      const result = await env.exec(
-        "curl --unknown-option https://api.example.com/test",
+      const result = toText(
+        await env.exec("curl --unknown-option https://api.example.com/test"),
       );
       expect(result.stderr).toContain("unrecognized option");
       expect(result.exitCode).toBe(1);
@@ -170,7 +185,9 @@ describe("curl error handling", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://api.example.com"] },
       });
-      const result = await env.exec("curl https://api.example.com/test");
+      const result = toText(
+        await env.exec("curl https://api.example.com/test"),
+      );
       expect(result.stderr).toContain("Network error");
       expect(result.exitCode).toBe(1); // Generic error for fetch rejection
     });
@@ -180,7 +197,9 @@ describe("curl error handling", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://api.example.com"] },
       });
-      const result = await env.exec("curl -s https://api.example.com/test");
+      const result = toText(
+        await env.exec("curl -s https://api.example.com/test"),
+      );
       expect(result.stderr).toBe("");
       expect(result.exitCode).toBe(1); // Generic error for fetch rejection
     });
@@ -190,7 +209,9 @@ describe("curl error handling", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://api.example.com"] },
       });
-      const result = await env.exec("curl -sS https://api.example.com/test");
+      const result = toText(
+        await env.exec("curl -sS https://api.example.com/test"),
+      );
       expect(result.stderr).toContain("Connection refused");
       expect(result.exitCode).toBe(1); // Generic error for fetch rejection
     });
@@ -203,8 +224,10 @@ describe("curl error handling", () => {
         network: { allowedUrlPrefixes: ["https://api.example.com"] },
       });
       // Attempting to write to a deeply nested non-existent directory
-      const result = await env.exec(
-        "curl -o /nonexistent/deep/path/file.txt https://api.example.com/test",
+      const result = toText(
+        await env.exec(
+          "curl -o /nonexistent/deep/path/file.txt https://api.example.com/test",
+        ),
       );
       // Should either succeed (creating dirs) or fail gracefully
       // Implementation-dependent
@@ -219,8 +242,10 @@ describe("curl error handling", () => {
           allowedMethods: ["PUT"],
         },
       });
-      const result = await env.exec(
-        "curl -T /nonexistent/file.txt https://api.example.com/upload",
+      const result = toText(
+        await env.exec(
+          "curl -T /nonexistent/file.txt https://api.example.com/upload",
+        ),
       );
       // Should fail when file doesn't exist
       expect(result.exitCode).not.toBe(0);
@@ -236,8 +261,8 @@ describe("curl error handling", () => {
           // POST not in allowed methods
         },
       });
-      const result = await env.exec(
-        'curl -X POST -d "test" https://api.example.com/test',
+      const result = toText(
+        await env.exec('curl -X POST -d "test" https://api.example.com/test'),
       );
       expect(result.stderr).toContain("not allowed");
       expect(result.exitCode).not.toBe(0);
@@ -252,7 +277,9 @@ describe("curl error handling", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://api.example.com"] },
       });
-      const result = await env.exec("curl -f -s https://api.example.com/404");
+      const result = toText(
+        await env.exec("curl -f -s https://api.example.com/404"),
+      );
       // -f causes non-zero exit, -s suppresses output
       expect(result.exitCode).toBe(22);
       expect(result.stdout).toBe("");
@@ -265,7 +292,9 @@ describe("curl error handling", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://api.example.com"] },
       });
-      const result = await env.exec("curl -f -sS https://api.example.com/404");
+      const result = toText(
+        await env.exec("curl -f -sS https://api.example.com/404"),
+      );
       // -f causes non-zero exit, -sS shows error
       expect(result.exitCode).toBe(22);
     });

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { toText } from "../../test-utils.js";
 
 describe("find patterns", () => {
   const createEnv = () =>
@@ -26,7 +27,7 @@ describe("find patterns", () => {
           "/dir/other.txt": "",
         },
       });
-      const result = await env.exec('find /dir -iname "readme*"');
+      const result = toText(await env.exec('find /dir -iname "readme*"'));
       expect(result.stdout).toBe(`/dir/README.md
 /dir/Readme.rst
 /dir/readme.txt
@@ -41,7 +42,7 @@ describe("find patterns", () => {
           "/dir/config.json": "",
         },
       });
-      const result = await env.exec('find /dir -iname "CONFIG.JSON"');
+      const result = toText(await env.exec('find /dir -iname "CONFIG.JSON"'));
       expect(result.stdout).toBe("/dir/config.json\n");
       expect(result.stderr).toBe("");
       expect(result.exitCode).toBe(0);
@@ -51,7 +52,7 @@ describe("find patterns", () => {
   describe("-path option", () => {
     it("should match against full path", async () => {
       const env = createEnv();
-      const result = await env.exec('find /project -path "*/utils/*"');
+      const result = toText(await env.exec('find /project -path "*/utils/*"'));
       expect(result.stdout).toBe(`/project/src/utils/format.ts
 /project/src/utils/helpers.ts
 `);
@@ -61,7 +62,7 @@ describe("find patterns", () => {
 
     it("should match path pattern with extension", async () => {
       const env = createEnv();
-      const result = await env.exec('find /project -path "*tests*"');
+      const result = toText(await env.exec('find /project -path "*tests*"'));
       expect(result.stdout).toBe(`/project/tests
 /project/tests/index.test.ts
 `);
@@ -78,7 +79,7 @@ describe("find patterns", () => {
           "/Project/src/other.ts": "",
         },
       });
-      const result = await env.exec('find /Project -ipath "*src*"');
+      const result = toText(await env.exec('find /Project -ipath "*src*"'));
       expect(result.stdout).toBe(`/Project/SRC
 /Project/SRC/file.ts
 /Project/src
@@ -98,7 +99,7 @@ describe("find patterns", () => {
           "/dir/sub/other.txt": "",
         },
       });
-      const result = await env.exec('find /dir -regex ".*\\.txt"');
+      const result = toText(await env.exec('find /dir -regex ".*\\.txt"'));
       expect(result.stdout).toBe("/dir/file.txt\n/dir/sub/other.txt\n");
       expect(result.exitCode).toBe(0);
     });
@@ -110,7 +111,7 @@ describe("find patterns", () => {
           "/dir/test/file.ts": "",
         },
       });
-      const result = await env.exec('find /dir -regex ".*/src/.*"');
+      const result = toText(await env.exec('find /dir -regex ".*/src/.*"'));
       expect(result.stdout).toBe("/dir/src/file.ts\n");
       expect(result.exitCode).toBe(0);
     });
@@ -123,7 +124,7 @@ describe("find patterns", () => {
           "/dir/other.js": "",
         },
       });
-      const result = await env.exec('find /dir -iregex ".*\\.txt"');
+      const result = toText(await env.exec('find /dir -iregex ".*\\.txt"'));
       expect(result.stdout).toBe("/dir/FILE.TXT\n/dir/file.txt\n");
       expect(result.exitCode).toBe(0);
     });
@@ -137,7 +138,9 @@ describe("find patterns", () => {
           "/dir/other.ts": "",
         },
       });
-      const result = await env.exec('find /dir -regex ".*/test[0-9]\\.ts"');
+      const result = toText(
+        await env.exec('find /dir -regex ".*/test[0-9]\\.ts"'),
+      );
       expect(result.stdout).toBe("/dir/test1.ts\n/dir/test2.ts\n");
       expect(result.exitCode).toBe(0);
     });
@@ -151,7 +154,7 @@ describe("find patterns", () => {
           "/dir/notempty.txt": "content",
         },
       });
-      const result = await env.exec("find /dir -empty -type f");
+      const result = toText(await env.exec("find /dir -empty -type f"));
       expect(result.stdout).toBe("/dir/empty.txt\n");
       expect(result.stderr).toBe("");
       expect(result.exitCode).toBe(0);
@@ -164,7 +167,7 @@ describe("find patterns", () => {
         },
       });
       await env.exec("mkdir /dir/emptydir");
-      const result = await env.exec("find /dir -empty -type d");
+      const result = toText(await env.exec("find /dir -empty -type d"));
       expect(result.stdout).toBe("/dir/emptydir\n");
       expect(result.stderr).toBe("");
       expect(result.exitCode).toBe(0);
@@ -180,8 +183,8 @@ describe("find patterns", () => {
           "/dir/include/file.txt": "",
         },
       });
-      const result = await env.exec(
-        "find /dir -name skip -prune -o -type f -print",
+      const result = toText(
+        await env.exec("find /dir -name skip -prune -o -type f -print"),
       );
       expect(result.stdout).toBe("/dir/include/file.txt\n");
       expect(result.exitCode).toBe(0);
@@ -195,8 +198,10 @@ describe("find patterns", () => {
           "/dir/src/main.ts": "",
         },
       });
-      const result = await env.exec(
-        'find /dir \\( -name node_modules -o -name ".git" \\) -prune -o -type f -print',
+      const result = toText(
+        await env.exec(
+          'find /dir \\( -name node_modules -o -name ".git" \\) -prune -o -type f -print',
+        ),
       );
       expect(result.stdout).toBe("/dir/src/main.ts\n");
       expect(result.exitCode).toBe(0);
@@ -210,8 +215,10 @@ describe("find patterns", () => {
           "/project/README.md": "",
         },
       });
-      const result = await env.exec(
-        "find /project -type d -name dist -prune -o -type f -print",
+      const result = toText(
+        await env.exec(
+          "find /project -type d -name dist -prune -o -type f -print",
+        ),
       );
       expect(result.stdout).toBe("/project/README.md\n/project/src/index.ts\n");
       expect(result.exitCode).toBe(0);
@@ -224,7 +231,7 @@ describe("find patterns", () => {
           "/dir/keep/file.txt": "",
         },
       });
-      const result = await env.exec("find /dir -name skip -prune");
+      const result = toText(await env.exec("find /dir -name skip -prune"));
       expect(result.stdout).toBe("/dir/skip\n");
       expect(result.exitCode).toBe(0);
     });
@@ -241,8 +248,8 @@ describe("find patterns", () => {
           "/repos/project2/other/4.json": "{}",
         },
       });
-      const result = await env.exec(
-        'find /repos -path "*/pulls/*.json" -type f',
+      const result = toText(
+        await env.exec('find /repos -path "*/pulls/*.json" -type f'),
       );
       expect(result.stdout).toBe(
         "/repos/project1/pulls/1.json\n/repos/project1/pulls/2.json\n/repos/project2/pulls/3.json\n",
@@ -258,7 +265,9 @@ describe("find patterns", () => {
           "/a/lib/util.ts": "",
         },
       });
-      const result = await env.exec('find /a -path "*/src/lib/*" -type f');
+      const result = toText(
+        await env.exec('find /a -path "*/src/lib/*" -type f'),
+      );
       expect(result.stdout).toBe("/a/src/lib/util.ts\n");
       expect(result.exitCode).toBe(0);
     });
@@ -271,7 +280,9 @@ describe("find patterns", () => {
           "/data/pulls/readme.md": "",
         },
       });
-      const result = await env.exec('find /data -path "*/pulls/*.json"');
+      const result = toText(
+        await env.exec('find /data -path "*/pulls/*.json"'),
+      );
       expect(result.stdout).toBe("/data/pulls/1.json\n");
       expect(result.exitCode).toBe(0);
     });
@@ -285,7 +296,7 @@ describe("find patterns", () => {
         },
         cwd: "/project",
       });
-      const result = await env.exec('find . -path "./src/*" -type f');
+      const result = toText(await env.exec('find . -path "./src/*" -type f'));
       expect(result.stdout).toBe("./src/index.ts\n./src/utils.ts\n");
       expect(result.exitCode).toBe(0);
     });

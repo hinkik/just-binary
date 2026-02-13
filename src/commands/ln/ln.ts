@@ -1,4 +1,5 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const lnHelp = {
@@ -54,8 +55,8 @@ export const lnCommand: Command = {
         break;
       } else {
         return {
-          stdout: "",
-          stderr: `ln: invalid option -- '${arg.slice(1)}'\n`,
+          stdout: EMPTY,
+          stderr: encode(`ln: invalid option -- '${arg.slice(1)}'\n`),
           exitCode: 1,
         };
       }
@@ -64,7 +65,11 @@ export const lnCommand: Command = {
     const remaining = args.slice(argIdx);
 
     if (remaining.length < 2) {
-      return { stdout: "", stderr: "ln: missing file operand\n", exitCode: 1 };
+      return {
+        stdout: EMPTY,
+        stderr: encode("ln: missing file operand\n"),
+        exitCode: 1,
+      };
     }
 
     const target = remaining[0];
@@ -78,15 +83,19 @@ export const lnCommand: Command = {
           await ctx.fs.rm(linkPath, { force: true });
         } catch {
           return {
-            stdout: "",
-            stderr: `ln: cannot remove '${linkName}': Permission denied\n`,
+            stdout: EMPTY,
+            stderr: encode(
+              `ln: cannot remove '${linkName}': Permission denied\n`,
+            ),
             exitCode: 1,
           };
         }
       } else {
         return {
-          stdout: "",
-          stderr: `ln: failed to create ${symbolic ? "symbolic " : ""}link '${linkName}': File exists\n`,
+          stdout: EMPTY,
+          stderr: encode(
+            `ln: failed to create ${symbolic ? "symbolic " : ""}link '${linkName}': File exists\n`,
+          ),
           exitCode: 1,
         };
       }
@@ -103,8 +112,10 @@ export const lnCommand: Command = {
         // Check that target exists
         if (!(await ctx.fs.exists(targetPath))) {
           return {
-            stdout: "",
-            stderr: `ln: failed to access '${target}': No such file or directory\n`,
+            stdout: EMPTY,
+            stderr: encode(
+              `ln: failed to access '${target}': No such file or directory\n`,
+            ),
             exitCode: 1,
           };
         }
@@ -114,19 +125,25 @@ export const lnCommand: Command = {
       const err = e as Error;
       if (err.message.includes("EPERM")) {
         return {
-          stdout: "",
-          stderr: `ln: '${target}': hard link not allowed for directory\n`,
+          stdout: EMPTY,
+          stderr: encode(
+            `ln: '${target}': hard link not allowed for directory\n`,
+          ),
           exitCode: 1,
         };
       }
-      return { stdout: "", stderr: `ln: ${err.message}\n`, exitCode: 1 };
+      return {
+        stdout: EMPTY,
+        stderr: encode(`ln: ${err.message}\n`),
+        exitCode: 1,
+      };
     }
 
     let stdout = "";
     if (verbose) {
       stdout = `'${linkName}' -> '${target}'\n`;
     }
-    return { stdout, stderr: "", exitCode: 0 };
+    return { stdout: encode(stdout), stderr: EMPTY, exitCode: 0 };
   },
 };
 

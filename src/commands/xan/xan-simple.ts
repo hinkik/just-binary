@@ -4,6 +4,7 @@
 
 import { createUserRegex, type RegexLike } from "../../regex/index.js";
 import type { CommandContext, ExecResult } from "../../types.js";
+import { decode, EMPTY, encode } from "../../utils/bytes.js";
 import { readFiles } from "../../utils/file-reader.js";
 import { type EvaluateOptions, evaluate } from "../query-engine/index.js";
 import {
@@ -34,7 +35,7 @@ export async function cmdBehead(
 
   // Output data rows only (no header)
   if (data.length === 0) {
-    return { stdout: "", stderr: "", exitCode: 0 };
+    return { stdout: EMPTY, stderr: EMPTY, exitCode: 0 };
   }
 
   const rows = data.map((row) => headers.map((h) => row[h]));
@@ -42,7 +43,7 @@ export async function cmdBehead(
     rows.map((row) => row.map((v) => formatValue(v)).join(",")).join("\n") +
     "\n";
 
-  return { stdout: output, stderr: "", exitCode: 0 };
+  return { stdout: encode(output), stderr: EMPTY, exitCode: 0 };
 }
 
 function formatValue(v: unknown): string {
@@ -84,8 +85,8 @@ export async function cmdSample(
 
   if (num === null) {
     return {
-      stdout: "",
-      stderr: "xan sample: usage: xan sample <sample-size> [FILE]\n",
+      stdout: EMPTY,
+      stderr: encode("xan sample: usage: xan sample <sample-size> [FILE]\n"),
       exitCode: 1,
     };
   }
@@ -94,7 +95,11 @@ export async function cmdSample(
   if (error) return error;
 
   if (data.length <= num) {
-    return { stdout: formatCsv(headers, data), stderr: "", exitCode: 0 };
+    return {
+      stdout: encode(formatCsv(headers, data)),
+      stderr: EMPTY,
+      exitCode: 0,
+    };
   }
 
   // Simple seeded random (LCG)
@@ -116,7 +121,11 @@ export async function cmdSample(
     .sort((a, b) => a - b)
     .map((i) => data[i]);
 
-  return { stdout: formatCsv(headers, sampled), stderr: "", exitCode: 0 };
+  return {
+    stdout: encode(formatCsv(headers, sampled)),
+    stderr: EMPTY,
+    exitCode: 0,
+  };
 }
 
 /**
@@ -142,8 +151,8 @@ export async function cmdCat(
 
   if (fileArgs.length === 0) {
     return {
-      stdout: "",
-      stderr: "xan cat: no files specified\n",
+      stdout: EMPTY,
+      stderr: encode("xan cat: no files specified\n"),
       exitCode: 1,
     };
   }
@@ -154,7 +163,11 @@ export async function cmdCat(
     stopOnError: true,
   });
   if (result.exitCode !== 0) {
-    return { stdout: "", stderr: result.stderr, exitCode: result.exitCode };
+    return {
+      stdout: EMPTY,
+      stderr: encode(result.stderr),
+      exitCode: result.exitCode,
+    };
   }
 
   // Parse CSVs and collect headers
@@ -162,7 +175,7 @@ export async function cmdCat(
   let allHeaders: string[] = [];
 
   for (const { content } of result.files) {
-    const { headers, data } = parseCsv(content);
+    const { headers, data } = parseCsv(decode(content));
     allFiles.push({ headers, data });
 
     // Collect all unique headers
@@ -179,8 +192,8 @@ export async function cmdCat(
     for (let i = 1; i < allFiles.length; i++) {
       if (JSON.stringify(allFiles[i].headers) !== firstHeaders) {
         return {
-          stdout: "",
-          stderr: "xan cat: headers do not match (use -p to pad)\n",
+          stdout: EMPTY,
+          stderr: encode("xan cat: headers do not match (use -p to pad)\n"),
           exitCode: 1,
         };
       }
@@ -200,7 +213,11 @@ export async function cmdCat(
     }
   }
 
-  return { stdout: formatCsv(allHeaders, allData), stderr: "", exitCode: 0 };
+  return {
+    stdout: encode(formatCsv(allHeaders, allData)),
+    stderr: EMPTY,
+    exitCode: 0,
+  };
 }
 
 /**
@@ -241,8 +258,8 @@ export async function cmdSearch(
 
   if (!pattern) {
     return {
-      stdout: "",
-      stderr: "xan search: no pattern specified\n",
+      stdout: EMPTY,
+      stderr: encode("xan search: no pattern specified\n"),
       exitCode: 1,
     };
   }
@@ -257,8 +274,8 @@ export async function cmdSearch(
     regex = createUserRegex(pattern, ignoreCase ? "i" : "");
   } catch {
     return {
-      stdout: "",
-      stderr: `xan search: invalid regex pattern '${pattern}'\n`,
+      stdout: EMPTY,
+      stderr: encode(`xan search: invalid regex pattern '${pattern}'\n`),
       exitCode: 1,
     };
   }
@@ -271,7 +288,11 @@ export async function cmdSearch(
     return invert ? !matches : matches;
   });
 
-  return { stdout: formatCsv(headers, filtered), stderr: "", exitCode: 0 };
+  return {
+    stdout: encode(formatCsv(headers, filtered)),
+    stderr: EMPTY,
+    exitCode: 0,
+  };
 }
 
 /**
@@ -298,8 +319,8 @@ export async function cmdFlatmap(
 
   if (!expr) {
     return {
-      stdout: "",
-      stderr: "xan flatmap: no expression specified\n",
+      stdout: EMPTY,
+      stderr: encode("xan flatmap: no expression specified\n"),
       exitCode: 1,
     };
   }
@@ -355,7 +376,11 @@ export async function cmdFlatmap(
     }
   }
 
-  return { stdout: formatCsv(newHeaders, newData), stderr: "", exitCode: 0 };
+  return {
+    stdout: encode(formatCsv(newHeaders, newData)),
+    stderr: EMPTY,
+    exitCode: 0,
+  };
 }
 
 /**

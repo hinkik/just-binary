@@ -11,6 +11,7 @@ import { expect, vi } from "vitest";
 import type { BashOptions } from "../../Bash.js";
 import { Bash } from "../../Bash.js";
 import { Sandbox } from "../../sandbox/index.js";
+import { decode } from "../../utils/bytes.js";
 
 // Unique markers in mock responses to verify we're not hitting real network
 const MOCK_MARKER: string = "MOCK_RESPONSE_12345";
@@ -125,7 +126,14 @@ export interface EnvAdapter {
 export function createBashEnvAdapter(options: BashOptions): EnvAdapter {
   const env = new Bash(options);
   return {
-    exec: (cmd) => env.exec(cmd),
+    exec: async (cmd) => {
+      const result = await env.exec(cmd);
+      return {
+        exitCode: result.exitCode,
+        stdout: decode(result.stdout),
+        stderr: decode(result.stderr),
+      };
+    },
     readFile: (path) => env.readFile(path),
   };
 }

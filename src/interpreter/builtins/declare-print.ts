@@ -5,6 +5,7 @@
  */
 
 import type { ExecResult } from "../../types.js";
+import { encode } from "../../utils/bytes.js";
 import { getArrayIndices, getAssocArrayKeys } from "../helpers/array.js";
 import { isNameref } from "../helpers/nameref.js";
 import {
@@ -12,7 +13,7 @@ import {
   quoteDeclareValue,
   quoteValue,
 } from "../helpers/quoting.js";
-import { result, success } from "../helpers/result.js";
+import { result, successText } from "../helpers/result.js";
 import type { InterpreterContext } from "../types.js";
 
 /**
@@ -150,7 +151,7 @@ export function printSpecificVariables(
     }
   }
 
-  return result(stdout, stderr, anyNotFound ? 1 : 0);
+  return result(encode(stdout), encode(stderr), anyNotFound ? 1 : 0);
 }
 
 export interface PrintAllFilters {
@@ -290,7 +291,7 @@ export function printAllVariables(
     }
   }
 
-  return success(stdout);
+  return successText(stdout);
 }
 
 /**
@@ -320,7 +321,7 @@ export function listAssociativeArrays(ctx: InterpreterContext): ExecResult {
     }
   }
 
-  return success(stdout);
+  return successText(stdout);
 }
 
 /**
@@ -375,7 +376,7 @@ export function listIndexedArrays(ctx: InterpreterContext): ExecResult {
     }
   }
 
-  return success(stdout);
+  return successText(stdout);
 }
 
 /**
@@ -432,5 +433,5 @@ export function listAllVariables(ctx: InterpreterContext): ExecResult {
     }
   }
 
-  return success(stdout);
+  return successText(stdout);
 }

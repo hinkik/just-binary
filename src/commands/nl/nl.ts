@@ -8,6 +8,7 @@
  */
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { decode, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
 const nlHelp = {
@@ -152,8 +153,8 @@ export const nl: Command = {
         if (style !== "a" && style !== "t" && style !== "n") {
           return {
             exitCode: 1,
-            stdout: "",
-            stderr: `nl: invalid body numbering style: '${style}'\n`,
+            stdout: EMPTY,
+            stderr: encode(`nl: invalid body numbering style: '${style}'\n`),
           };
         }
         options.bodyStyle = style;
@@ -163,8 +164,8 @@ export const nl: Command = {
         if (style !== "a" && style !== "t" && style !== "n") {
           return {
             exitCode: 1,
-            stdout: "",
-            stderr: `nl: invalid body numbering style: '${style}'\n`,
+            stdout: EMPTY,
+            stderr: encode(`nl: invalid body numbering style: '${style}'\n`),
           };
         }
         options.bodyStyle = style;
@@ -174,8 +175,8 @@ export const nl: Command = {
         if (format !== "ln" && format !== "rn" && format !== "rz") {
           return {
             exitCode: 1,
-            stdout: "",
-            stderr: `nl: invalid line numbering format: '${format}'\n`,
+            stdout: EMPTY,
+            stderr: encode(`nl: invalid line numbering format: '${format}'\n`),
           };
         }
         options.numberFormat = format;
@@ -185,8 +186,8 @@ export const nl: Command = {
         if (format !== "ln" && format !== "rn" && format !== "rz") {
           return {
             exitCode: 1,
-            stdout: "",
-            stderr: `nl: invalid line numbering format: '${format}'\n`,
+            stdout: EMPTY,
+            stderr: encode(`nl: invalid line numbering format: '${format}'\n`),
           };
         }
         options.numberFormat = format;
@@ -196,8 +197,10 @@ export const nl: Command = {
         if (Number.isNaN(width) || width < 1) {
           return {
             exitCode: 1,
-            stdout: "",
-            stderr: `nl: invalid line number field width: '${args[i + 1]}'\n`,
+            stdout: EMPTY,
+            stderr: encode(
+              `nl: invalid line number field width: '${args[i + 1]}'\n`,
+            ),
           };
         }
         options.width = width;
@@ -207,8 +210,10 @@ export const nl: Command = {
         if (Number.isNaN(width) || width < 1) {
           return {
             exitCode: 1,
-            stdout: "",
-            stderr: `nl: invalid line number field width: '${arg.slice(2)}'\n`,
+            stdout: EMPTY,
+            stderr: encode(
+              `nl: invalid line number field width: '${arg.slice(2)}'\n`,
+            ),
           };
         }
         options.width = width;
@@ -224,8 +229,10 @@ export const nl: Command = {
         if (Number.isNaN(start)) {
           return {
             exitCode: 1,
-            stdout: "",
-            stderr: `nl: invalid starting line number: '${args[i + 1]}'\n`,
+            stdout: EMPTY,
+            stderr: encode(
+              `nl: invalid starting line number: '${args[i + 1]}'\n`,
+            ),
           };
         }
         options.startNumber = start;
@@ -235,8 +242,10 @@ export const nl: Command = {
         if (Number.isNaN(start)) {
           return {
             exitCode: 1,
-            stdout: "",
-            stderr: `nl: invalid starting line number: '${arg.slice(2)}'\n`,
+            stdout: EMPTY,
+            stderr: encode(
+              `nl: invalid starting line number: '${arg.slice(2)}'\n`,
+            ),
           };
         }
         options.startNumber = start;
@@ -246,8 +255,10 @@ export const nl: Command = {
         if (Number.isNaN(incr)) {
           return {
             exitCode: 1,
-            stdout: "",
-            stderr: `nl: invalid line number increment: '${args[i + 1]}'\n`,
+            stdout: EMPTY,
+            stderr: encode(
+              `nl: invalid line number increment: '${args[i + 1]}'\n`,
+            ),
           };
         }
         options.increment = incr;
@@ -257,8 +268,10 @@ export const nl: Command = {
         if (Number.isNaN(incr)) {
           return {
             exitCode: 1,
-            stdout: "",
-            stderr: `nl: invalid line number increment: '${arg.slice(2)}'\n`,
+            stdout: EMPTY,
+            stderr: encode(
+              `nl: invalid line number increment: '${arg.slice(2)}'\n`,
+            ),
           };
         }
         options.increment = incr;
@@ -279,7 +292,7 @@ export const nl: Command = {
 
     if (files.length === 0) {
       // Read from stdin
-      const input = ctx.stdin ?? "";
+      const input = decode(ctx.stdin);
       const result = processContent(input, options, lineNumber);
       output = result.output;
     } else {
@@ -290,8 +303,8 @@ export const nl: Command = {
         if (content === null) {
           return {
             exitCode: 1,
-            stdout: output,
-            stderr: `nl: ${file}: No such file or directory\n`,
+            stdout: encode(output),
+            stderr: encode(`nl: ${file}: No such file or directory\n`),
           };
         }
         const result = processContent(content, options, lineNumber);
@@ -302,8 +315,8 @@ export const nl: Command = {
 
     return {
       exitCode: 0,
-      stdout: output,
-      stderr: "",
+      stdout: encode(output),
+      stderr: EMPTY,
     };
   },
 };

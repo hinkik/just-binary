@@ -17,6 +17,7 @@
 import { parseArithmeticExpression } from "../../parser/arithmetic-parser.js";
 import { Parser } from "../../parser/parser.js";
 import type { ExecResult } from "../../types.js";
+import { EMPTY, encode } from "../../utils/bytes.js";
 import { evaluateArithmetic } from "../arithmetic.js";
 import { clearArray, getArrayIndices } from "../helpers/array.js";
 import {
@@ -34,7 +35,7 @@ import {
   markReadonly,
   unmarkExported,
 } from "../helpers/readonly.js";
-import { OK, result, success } from "../helpers/result.js";
+import { OK, result, successText } from "../helpers/result.js";
 import { expandTildesInValue } from "../helpers/tilde.js";
 import type { InterpreterContext } from "../types.js";
 import {
@@ -246,7 +247,11 @@ export async function handleDeclare(
           // +f/+F for function listing - we just ignore
         } else {
           // Unknown flag - bash returns exit code 2 for invalid options
-          return result("", `bash: typeset: +${flag}: invalid option\n`, 2);
+          return result(
+            EMPTY,
+            encode(`bash: typeset: +${flag}: invalid option\n`),
+            2,
+          );
         }
       }
     } else if (arg === "-i") {
@@ -278,7 +283,11 @@ export async function handleDeclare(
         else if (flag === "g") declareGlobal = true;
         else {
           // Unknown flag - bash returns exit code 2 for invalid options
-          return result("", `bash: typeset: -${flag}: invalid option\n`, 2);
+          return result(
+            EMPTY,
+            encode(`bash: typeset: -${flag}: invalid option\n`),
+            2,
+          );
         }
       }
     } else {
@@ -341,7 +350,7 @@ export async function handleDeclare(
       for (const name of funcNames) {
         stdout += `declare -f ${name}\n`;
       }
-      return success(stdout);
+      return successText(stdout);
     }
     // With args, check if functions exist and output their names
     let allExist = true;
@@ -353,7 +362,7 @@ export async function handleDeclare(
         allExist = false;
       }
     }
-    return result(stdout, "", allExist ? 0 : 1);
+    return result(encode(stdout), EMPTY, allExist ? 0 : 1);
   }
 
   // Handle declare -f (function definitions)
@@ -367,7 +376,7 @@ export async function handleDeclare(
         // Just print the function name declaration
         stdout += `${name} ()\n{\n    # function body\n}\n`;
       }
-      return success(stdout);
+      return successText(stdout);
     }
     // Check if all specified functions exist (exit code is the main use case)
     let allExist = true;
@@ -376,7 +385,7 @@ export async function handleDeclare(
         allExist = false;
       }
     }
-    return result("", "", allExist ? 0 : 1);
+    return result(EMPTY, EMPTY, allExist ? 0 : 1);
   }
 
   // Print mode with specific variable names: declare -p varname
@@ -954,7 +963,7 @@ export async function handleDeclare(
     }
   }
 
-  return result("", stderr, exitCode);
+  return result(EMPTY, encode(stderr), exitCode);
 }
 
 /**
@@ -1001,7 +1010,7 @@ export async function handleReadonly(
         stdout += `declare -r ${name}="${escapedValue}"\n`;
       }
     }
-    return success(stdout);
+    return successText(stdout);
   }
 
   for (const arg of processedArgs) {

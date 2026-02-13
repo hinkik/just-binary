@@ -3,6 +3,7 @@
  */
 
 import type { ExecResult } from "../../types.js";
+import { decode, EMPTY, encode } from "../../utils/bytes.js";
 import { clearArray } from "../helpers/array.js";
 import {
   getIfs,
@@ -55,9 +56,10 @@ function encodeRwFdContent(
 export function handleRead(
   ctx: InterpreterContext,
   args: string[],
-  stdin: string,
+  stdinBytes: Uint8Array,
   stdinSourceFd = -1,
 ): ExecResult {
+  const stdin = decode(stdinBytes);
   // Parse options
   let raw = false;
   let delimiter = "\n";
@@ -208,11 +210,11 @@ export function handleRead(
       const parseResult = parseOption(arg, i);
       if (parseResult.nextArgIndex === -1) {
         // Invalid argument (e.g., unknown option) - return exit code 2
-        return { stdout: "", stderr: "", exitCode: 2 };
+        return { stdout: EMPTY, stderr: EMPTY, exitCode: 2 };
       }
       if (parseResult.nextArgIndex === -2) {
         // Invalid argument value (e.g., -u with negative number) - return exit code 1
-        return { stdout: "", stderr: "", exitCode: 1 };
+        return { stdout: EMPTY, stderr: EMPTY, exitCode: 1 };
       }
       i = parseResult.nextArgIndex;
     } else if (arg === "--") {
@@ -230,7 +232,7 @@ export function handleRead(
 
   // Return error if -n had invalid argument
   if (invalidNArg) {
-    return result("", "", 1);
+    return result(EMPTY, EMPTY, 1);
   }
 
   // Default variable is REPLY
@@ -255,12 +257,12 @@ export function handleRead(
         ctx.state.env.set("REPLY", "");
       }
     }
-    return result("", "", 0); // Always succeed - stdin is valid
+    return result(EMPTY, EMPTY, 0); // Always succeed - stdin is valid
   }
 
   // Handle negative timeout - bash returns exit code 1
   if (timeout < 0 && timeout !== -1) {
-    return result("", "", 1);
+    return result(EMPTY, EMPTY, 1);
   }
 
   // Use stdin from parameter, or fall back to groupStdin (for piped groups/while loops)
@@ -275,7 +277,7 @@ export function handleRead(
       effectiveStdin = "";
     }
   } else if (!effectiveStdin && ctx.state.groupStdin !== undefined) {
-    effectiveStdin = ctx.state.groupStdin;
+    effectiveStdin = decode(ctx.state.groupStdin);
   }
 
   // Handle -d '' (empty delimiter) - reads until NUL byte
@@ -309,7 +311,7 @@ export function handleRead(
         }
       }
     } else if (ctx.state.groupStdin !== undefined && !stdin) {
-      ctx.state.groupStdin = effectiveStdin.substring(bytesConsumed);
+      ctx.state.groupStdin = encode(effectiveStdin.substring(bytesConsumed));
     }
   };
 
@@ -330,7 +332,7 @@ export function handleRead(
     for (let j = 1; j < varNames.length; j++) {
       ctx.state.env.set(varNames[j], "");
     }
-    return result("", "", foundDelimiter ? 0 : 1);
+    return result(EMPTY, EMPTY, foundDelimiter ? 0 : 1);
   } else if (nchars >= 0) {
     // -n: Read at most N characters (or until delimiter/EOF), then apply IFS splitting
     // In non-raw mode, backslash escapes are processed: \X counts as 1 char (the X)
@@ -440,7 +442,7 @@ export function handleRead(
         if (arrayName) {
           clearArray(ctx, arrayName);
         }
-        return result("", "", 1);
+        return result(EMPTY, EMPTY, 1);
       }
     }
 
@@ -463,7 +465,7 @@ export function handleRead(
   // This preserves leading/trailing whitespace
   if (varNames.length === 1 && varNames[0] === "REPLY") {
     ctx.state.env.set("REPLY", processBackslashEscapes(line));
-    return result("", "", foundDelimiter ? 0 : 1);
+    return result(EMPTY, EMPTY, foundDelimiter ? 0 : 1);
   }
 
   // Split by IFS (default is space, tab, newline)
@@ -478,8 +480,8 @@ export function handleRead(
     const maxArrayElements = ctx.limits?.maxArrayElements ?? 100000;
     if (words.length > maxArrayElements) {
       return result(
-        "",
-        `read: array element limit exceeded (${maxArrayElements})\n`,
+        EMPTY,
+        encode(`read: array element limit exceeded (${maxArrayElements})\n`),
         1,
       );
     }
@@ -489,7 +491,7 @@ export function handleRead(
     for (let j = 0; j < words.length; j++) {
       ctx.state.env.set(`${arrayName}_${j}`, processBackslashEscapes(words[j]));
     }
-    return result("", "", foundDelimiter ? 0 : 1);
+    return result(EMPTY, EMPTY, foundDelimiter ? 0 : 1);
   }
 
   // Use the advanced IFS splitting for read with proper whitespace/non-whitespace handling
@@ -518,5 +520,5 @@ export function handleRead(
     }
   }
 
-  return result("", "", foundDelimiter ? 0 : 1);
+  return result(EMPTY, EMPTY, foundDelimiter ? 0 : 1);
 }

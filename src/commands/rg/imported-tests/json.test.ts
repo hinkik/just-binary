@@ -1,3 +1,4 @@
+import { toText } from "../../../test-utils.js";
 /**
  * JSON output tests imported from ripgrep
  *
@@ -41,7 +42,9 @@ describe("rg json: basic", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = await bash.exec("rg --json 'Sherlock Holmes' sherlock");
+    const result = toText(
+      await bash.exec("rg --json 'Sherlock Holmes' sherlock"),
+    );
     expect(result.exitCode).toBe(0);
 
     const msgs = parseJsonLines(result.stdout);
@@ -86,8 +89,8 @@ describe("rg json: basic", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = await bash.exec(
-      "rg --json 'Sherlock Holmes' -r 'John Watson' sherlock",
+    const result = toText(
+      await bash.exec("rg --json 'Sherlock Holmes' -r 'John Watson' sherlock"),
     );
     expect(result.exitCode).toBe(0);
 
@@ -107,8 +110,8 @@ describe("rg json: basic", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = await bash.exec(
-      "rg --json --quiet 'Sherlock Holmes' sherlock",
+    const result = toText(
+      await bash.exec("rg --json --quiet 'Sherlock Holmes' sherlock"),
     );
     expect(result.exitCode).toBe(0);
     // ripgrep behavior: --quiet --json outputs only the summary
@@ -128,7 +131,7 @@ describe("rg json: multiple matches", () => {
         "/home/user/test.txt": "foo bar foo baz foo\n",
       },
     });
-    const result = await bash.exec("rg --json foo test.txt");
+    const result = toText(await bash.exec("rg --json foo test.txt"));
     expect(result.exitCode).toBe(0);
 
     const msgs = parseJsonLines(result.stdout);
@@ -162,7 +165,7 @@ describe("rg json: multiple matches", () => {
         "/home/user/b.txt": "hello\n",
       },
     });
-    const result = await bash.exec("rg --json hello");
+    const result = toText(await bash.exec("rg --json hello"));
     expect(result.exitCode).toBe(0);
 
     const msgs = parseJsonLines(result.stdout);
@@ -193,7 +196,7 @@ describe("rg json: edge cases", () => {
         "/home/user/test.txt": "hello world\n",
       },
     });
-    const result = await bash.exec("rg --json notfound");
+    const result = toText(await bash.exec("rg --json notfound"));
     expect(result.exitCode).toBe(1);
 
     // Always outputs summary with stats
@@ -211,7 +214,7 @@ describe("rg json: edge cases", () => {
         "/home/user/empty.txt": "",
       },
     });
-    const result = await bash.exec("rg --json foo empty.txt");
+    const result = toText(await bash.exec("rg --json foo empty.txt"));
     expect(result.exitCode).toBe(1);
 
     const msgs = parseJsonLines(result.stdout);

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { toText } from "../../test-utils.js";
 
 describe("ls", () => {
   it("should list directory contents", async () => {
@@ -9,7 +10,7 @@ describe("ls", () => {
         "/dir/b.txt": "",
       },
     });
-    const result = await env.exec("ls /dir");
+    const result = toText(await env.exec("ls /dir"));
     expect(result.stdout).toBe("a.txt\nb.txt\n");
     expect(result.stderr).toBe("");
     expect(result.exitCode).toBe(0);
@@ -20,7 +21,7 @@ describe("ls", () => {
       files: { "/file.txt": "" },
       cwd: "/",
     });
-    const result = await env.exec("ls");
+    const result = toText(await env.exec("ls"));
     // /bin, /usr, /dev, /proc always exist for PATH-based command resolution and system compatibility
     expect(result.stdout).toBe("bin\ndev\nfile.txt\nproc\nusr\n");
     expect(result.stderr).toBe("");
@@ -33,7 +34,7 @@ describe("ls", () => {
         "/dir/visible.txt": "",
       },
     });
-    const result = await env.exec("ls /dir");
+    const result = toText(await env.exec("ls /dir"));
     expect(result.stdout).toBe("visible.txt\n");
     expect(result.stderr).toBe("");
   });
@@ -45,7 +46,7 @@ describe("ls", () => {
         "/dir/visible.txt": "",
       },
     });
-    const result = await env.exec("ls -a /dir");
+    const result = toText(await env.exec("ls -a /dir"));
     expect(result.stdout).toBe(".\n..\n.hidden\nvisible.txt\n");
     expect(result.stderr).toBe("");
   });
@@ -54,7 +55,7 @@ describe("ls", () => {
     const env = new Bash({
       files: { "/dir/.secret": "" },
     });
-    const result = await env.exec("ls --all /dir");
+    const result = toText(await env.exec("ls --all /dir"));
     expect(result.stdout).toBe(".\n..\n.secret\n");
     expect(result.stderr).toBe("");
   });
@@ -63,7 +64,7 @@ describe("ls", () => {
     const env = new Bash({
       files: { "/dir/test.txt": "" },
     });
-    const result = await env.exec("ls -l /dir");
+    const result = toText(await env.exec("ls -l /dir"));
     expect(result.stdout).toMatch(
       /^total 1\n-rw-r--r-- 1 user user\s+0 \w{3}\s+\d+\s+[\d:]+\s+test\.txt\n$/,
     );
@@ -74,7 +75,7 @@ describe("ls", () => {
     const env = new Bash({
       files: { "/dir/subdir/file.txt": "" },
     });
-    const result = await env.exec("ls -l /dir");
+    const result = toText(await env.exec("ls -l /dir"));
     expect(result.stdout).toMatch(
       /^total 1\ndrwxr-xr-x 1 user user\s+0 \w{3}\s+\d+\s+[\d:]+\s+subdir\/\n$/,
     );
@@ -88,7 +89,7 @@ describe("ls", () => {
         "/dir/visible": "",
       },
     });
-    const result = await env.exec("ls -la /dir");
+    const result = toText(await env.exec("ls -la /dir"));
     // Check structure: 4 entries (., .., .hidden, visible)
     const lines = result.stdout.split("\n").filter((l) => l);
     expect(lines[0]).toBe("total 4");
@@ -106,7 +107,7 @@ describe("ls", () => {
         "/dir2/b.txt": "",
       },
     });
-    const result = await env.exec("ls /dir1 /dir2");
+    const result = toText(await env.exec("ls /dir1 /dir2"));
     expect(result.stdout).toBe("/dir1:\na.txt\n\n/dir2:\nb.txt\n");
     expect(result.stderr).toBe("");
   });
@@ -118,7 +119,7 @@ describe("ls", () => {
         "/dir/root.txt": "",
       },
     });
-    const result = await env.exec("ls -R /dir");
+    const result = toText(await env.exec("ls -R /dir"));
     // Linux ls -R includes header for all directories including the starting one
     expect(result.stdout).toBe(
       "/dir:\nroot.txt\nsubdir\n\n/dir/subdir:\nfile.txt\n",
@@ -128,7 +129,7 @@ describe("ls", () => {
 
   it("should error on missing directory", async () => {
     const env = new Bash();
-    const result = await env.exec("ls /nonexistent");
+    const result = toText(await env.exec("ls /nonexistent"));
     expect(result.stdout).toBe("");
     expect(result.stderr).toBe("ls: /nonexistent: No such file or directory\n");
     expect(result.exitCode).toBe(2);
@@ -138,7 +139,7 @@ describe("ls", () => {
     const env = new Bash({
       files: { "/file.txt": "content" },
     });
-    const result = await env.exec("ls /file.txt");
+    const result = toText(await env.exec("ls /file.txt"));
     expect(result.stdout).toBe("/file.txt\n");
     expect(result.stderr).toBe("");
   });
@@ -151,7 +152,7 @@ describe("ls", () => {
         "/dir/c.md": "",
       },
     });
-    const result = await env.exec("ls /dir | grep txt");
+    const result = toText(await env.exec("ls /dir | grep txt"));
     expect(result.stdout).toBe("a.txt\nb.txt\n");
     expect(result.stderr).toBe("");
   });
@@ -164,7 +165,7 @@ describe("ls", () => {
         "/dir/mango.txt": "",
       },
     });
-    const result = await env.exec("ls /dir");
+    const result = toText(await env.exec("ls /dir"));
     expect(result.stdout).toBe("apple.txt\nmango.txt\nzebra.txt\n");
     expect(result.stderr).toBe("");
   });
@@ -174,7 +175,7 @@ describe("ls", () => {
       files: { "/empty/.keep": "" },
     });
     await env.exec("rm /empty/.keep");
-    const result = await env.exec("ls /empty");
+    const result = toText(await env.exec("ls /empty"));
     expect(result.stdout).toBe("");
     expect(result.stderr).toBe("");
     expect(result.exitCode).toBe(0);
@@ -188,7 +189,7 @@ describe("ls", () => {
           "/dir/visible.txt": "",
         },
       });
-      const result = await env.exec("ls -A /dir");
+      const result = toText(await env.exec("ls -A /dir"));
       expect(result.stdout).toBe(".hidden\nvisible.txt\n");
       expect(result.stderr).toBe("");
     });
@@ -200,8 +201,8 @@ describe("ls", () => {
           "/dir/data.txt": "",
         },
       });
-      const resultA = await env.exec("ls -A /dir");
-      const resulta = await env.exec("ls -a /dir");
+      const resultA = toText(await env.exec("ls -A /dir"));
+      const resulta = toText(await env.exec("ls -a /dir"));
       // -A should NOT include . and ..
       expect(resultA.stdout).toBe(".config\ndata.txt\n");
       // -a should include . and ..
@@ -218,7 +219,7 @@ describe("ls", () => {
           "/dir/ccc.txt": "",
         },
       });
-      const result = await env.exec("ls -r /dir");
+      const result = toText(await env.exec("ls -r /dir"));
       expect(result.stdout).toBe("ccc.txt\nbbb.txt\naaa.txt\n");
       expect(result.stderr).toBe("");
     });
@@ -231,7 +232,7 @@ describe("ls", () => {
           "/dir/z.txt": "",
         },
       });
-      const result = await env.exec("ls -1r /dir");
+      const result = toText(await env.exec("ls -1r /dir"));
       expect(result.stdout).toBe("z.txt\ny.txt\nx.txt\n");
       expect(result.stderr).toBe("");
     });
@@ -243,7 +244,7 @@ describe("ls", () => {
           "/dir/visible": "",
         },
       });
-      const result = await env.exec("ls -ar /dir");
+      const result = toText(await env.exec("ls -ar /dir"));
       // With -a, entries are [., .., .hidden, visible], reversed = [visible, .hidden, .., .]
       expect(result.stdout).toBe("visible\n.hidden\n..\n.\n");
       expect(result.stderr).toBe("");

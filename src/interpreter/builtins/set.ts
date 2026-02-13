@@ -6,10 +6,11 @@
  */
 
 import type { ExecResult } from "../../types.js";
+import { EMPTY, encode } from "../../utils/bytes.js";
 import { PosixFatalError } from "../errors.js";
 import { getArrayIndices, getAssocArrayKeys } from "../helpers/array.js";
 import { quoteArrayValue, quoteValue } from "../helpers/quoting.js";
-import { failure, OK, success } from "../helpers/result.js";
+import { failure, OK, successText } from "../helpers/result.js";
 import { updateShellopts } from "../helpers/shellopts.js";
 import type { InterpreterContext, ShellOptions } from "../types.js";
 
@@ -244,7 +245,7 @@ function getAssocArrayNames(ctx: InterpreterContext): Set<string> {
 
 export function handleSet(ctx: InterpreterContext, args: string[]): ExecResult {
   if (args.includes("--help")) {
-    return success(SET_USAGE);
+    return successText(SET_USAGE);
   }
 
   // With no arguments, print all shell variables
@@ -343,7 +344,7 @@ export function handleSet(ctx: InterpreterContext, args: string[]): ExecResult {
       return nameA < nameB ? -1 : nameA > nameB ? 1 : 0;
     });
 
-    return success(lines.length > 0 ? `${lines.join("\n")}\n` : "");
+    return successText(lines.length > 0 ? `${lines.join("\n")}\n` : "");
   }
 
   let i = 0;
@@ -357,7 +358,7 @@ export function handleSet(ctx: InterpreterContext, args: string[]): ExecResult {
         const errorMsg = `bash: set: ${optName}: invalid option name\n${SET_USAGE}`;
         // In POSIX mode, invalid option is fatal
         if (ctx.state.options.posix) {
-          throw new PosixFatalError(1, "", errorMsg);
+          throw new PosixFatalError(1, EMPTY, encode(errorMsg));
         }
         return failure(errorMsg);
       }
@@ -375,7 +376,7 @@ export function handleSet(ctx: InterpreterContext, args: string[]): ExecResult {
         (opt) => `${opt.padEnd(16)}off`,
       );
       const allOptions = [...implementedOutput, ...noopOutput].sort();
-      return success(`${allOptions.join("\n")}\n`);
+      return successText(`${allOptions.join("\n")}\n`);
     }
 
     // Handle +o alone (print commands to recreate settings)
@@ -385,7 +386,7 @@ export function handleSet(ctx: InterpreterContext, args: string[]): ExecResult {
       );
       const noopOutput = NOOP_DISPLAY_OPTIONS.map((opt) => `set +o ${opt}`);
       const allOptions = [...implementedOutput, ...noopOutput].sort();
-      return success(`${allOptions.join("\n")}\n`);
+      return successText(`${allOptions.join("\n")}\n`);
     }
 
     // Handle combined short flags like -eu or +eu
@@ -401,7 +402,7 @@ export function handleSet(ctx: InterpreterContext, args: string[]): ExecResult {
           const errorMsg = `bash: set: ${arg[0]}${flag}: invalid option\n${SET_USAGE}`;
           // In POSIX mode, invalid option is fatal
           if (ctx.state.options.posix) {
-            throw new PosixFatalError(1, "", errorMsg);
+            throw new PosixFatalError(1, EMPTY, encode(errorMsg));
           }
           return failure(errorMsg);
         }
@@ -441,7 +442,7 @@ export function handleSet(ctx: InterpreterContext, args: string[]): ExecResult {
       const errorMsg = `bash: set: ${arg}: invalid option\n${SET_USAGE}`;
       // In POSIX mode, invalid option is fatal
       if (ctx.state.options.posix) {
-        throw new PosixFatalError(1, "", errorMsg);
+        throw new PosixFatalError(1, EMPTY, encode(errorMsg));
       }
       return failure(errorMsg);
     }

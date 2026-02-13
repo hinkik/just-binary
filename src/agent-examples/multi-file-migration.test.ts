@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../Bash.js";
+import { toText } from "../test-utils.js";
 
 /**
  * Advanced Agent Scenario: Multi-File Migration
@@ -127,8 +128,8 @@ module.exports.userRoutes = router;
 
   it("should find all CommonJS require statements", async () => {
     const env = createEnv();
-    const result = await env.exec(
-      'grep -rn "require(" /project/src --include="*.js"',
+    const result = toText(
+      await env.exec('grep -rn "require(" /project/src --include="*.js"'),
     );
     expect(
       result.stdout,
@@ -151,8 +152,8 @@ module.exports.userRoutes = router;
 
   it("should find all module.exports statements", async () => {
     const env = createEnv();
-    const result = await env.exec(
-      'grep -rn "module.exports" /project/src --include="*.js"',
+    const result = toText(
+      await env.exec('grep -rn "module.exports" /project/src --include="*.js"'),
     );
     expect(
       result.stdout,
@@ -173,7 +174,9 @@ module.exports.userRoutes = router;
 
   it("should count files needing migration", async () => {
     const env = createEnv();
-    const result = await env.exec('find /project/src -name "*.js" | wc -l');
+    const result = toText(
+      await env.exec('find /project/src -name "*.js" | wc -l'),
+    );
     expect(result.stdout.trim()).toBe("8");
   });
 
@@ -181,8 +184,10 @@ module.exports.userRoutes = router;
     const env = createEnv();
 
     // External (from node_modules)
-    const external = await env.exec(
-      'grep -rh "require(" /project/src --include="*.js" | grep -v "require(\'\\.\\.\\|require(\'\\./" | sort | uniq',
+    const external = toText(
+      await env.exec(
+        'grep -rh "require(" /project/src --include="*.js" | grep -v "require(\'\\.\\.\\|require(\'\\./" | sort | uniq',
+      ),
     );
     expect(external.stdout).toBe(`const _ = require('lodash');
 const express = require('express');
@@ -203,7 +208,7 @@ const winston = require('winston');
     );
     await env.exec("mv /project/src/index.js.new /project/src/index.js");
 
-    const result = await env.exec("head -1 /project/src/index.js");
+    const result = toText(await env.exec("head -1 /project/src/index.js"));
     expect(result.stdout).toBe("import express from 'express';\n");
     expect(result.exitCode).toBe(0);
   });
@@ -216,7 +221,7 @@ const winston = require('winston');
       "mv /project/src/utils/helpers.js /project/src/utils/helpers.mjs",
     );
 
-    const result = await env.exec("ls /project/src/utils");
+    const result = toText(await env.exec("ls /project/src/utils"));
     expect(result.stdout).toBe("helpers.mjs\nlogger.js\n");
     expect(result.exitCode).toBe(0);
   });
@@ -225,8 +230,10 @@ const winston = require('winston');
     const env = createEnv();
 
     // Check current package.json
-    const before = await env.exec(
-      'grep "type" /project/package.json || echo "No type field"',
+    const before = toText(
+      await env.exec(
+        'grep "type" /project/package.json || echo "No type field"',
+      ),
     );
     expect(before.stdout).toBe("No type field\n");
 
@@ -235,7 +242,7 @@ const winston = require('winston');
       'echo \'{"name":"legacy-app","type":"module"}\' > /project/package.json',
     );
 
-    const after = await env.exec('grep "type" /project/package.json');
+    const after = toText(await env.exec('grep "type" /project/package.json'));
     expect(after.stdout).toBe('{"name":"legacy-app","type":"module"}\n');
     expect(after.exitCode).toBe(0);
   });
@@ -248,7 +255,9 @@ const winston = require('winston');
     );
     await env.exec("mv /project/tsconfig.json.new /project/tsconfig.json");
 
-    const result = await env.exec('grep "module" /project/tsconfig.json');
+    const result = toText(
+      await env.exec('grep "module" /project/tsconfig.json'),
+    );
     expect(result.stdout).toBe('    "module": "ESNext",\n');
     expect(result.exitCode).toBe(0);
   });
@@ -258,8 +267,10 @@ const winston = require('winston');
 
     // Find files that have both module.exports = AND module.exports.something (mixed patterns)
     // First find files with module.exports =
-    const result = await env.exec(
-      'grep -rl "module.exports =" /project/src --include="*.js" | sort | uniq',
+    const result = toText(
+      await env.exec(
+        'grep -rl "module.exports =" /project/src --include="*.js" | sort | uniq',
+      ),
     );
     // All JS files have module.exports =, so this returns all of them
     expect(result.stdout).toBe(`/project/src/config.js
@@ -278,14 +289,14 @@ const winston = require('winston');
     const env = createEnv();
 
     // Check if db.js imports from utils/logger.js
-    const dbImports = await env.exec(
-      'grep -l "require.*logger" /project/src/db.js',
+    const dbImports = toText(
+      await env.exec('grep -l "require.*logger" /project/src/db.js'),
     );
     expect(dbImports.stdout).toBe("/project/src/db.js\n");
 
     // Check if server.js also imports logger
-    const serverImports = await env.exec(
-      'grep -l "require.*logger" /project/src/server.js',
+    const serverImports = toText(
+      await env.exec('grep -l "require.*logger" /project/src/server.js'),
     );
     expect(serverImports.stdout).toBe("/project/src/server.js\n");
   });
@@ -295,7 +306,7 @@ const winston = require('winston');
 
     await env.exec("cp /project/src/index.js /project/src/index.js.bak");
 
-    const result = await env.exec("ls /project/src | grep index");
+    const result = toText(await env.exec("ls /project/src | grep index"));
     expect(result.stdout).toBe("index.js\nindex.js.bak\n");
     expect(result.exitCode).toBe(0);
   });
@@ -303,14 +314,18 @@ const winston = require('winston');
   it("should generate migration summary report", async () => {
     const env = createEnv();
 
-    const jsFileCount = await env.exec(
-      'find /project/src -name "*.js" | wc -l',
+    const jsFileCount = toText(
+      await env.exec('find /project/src -name "*.js" | wc -l'),
     );
-    const requireCount = await env.exec(
-      'grep -r "require(" /project/src --include="*.js" | wc -l',
+    const requireCount = toText(
+      await env.exec(
+        'grep -r "require(" /project/src --include="*.js" | wc -l',
+      ),
     );
-    const exportsCount = await env.exec(
-      'grep -r "module.exports" /project/src --include="*.js" | wc -l',
+    const exportsCount = toText(
+      await env.exec(
+        'grep -r "module.exports" /project/src --include="*.js" | wc -l',
+      ),
     );
 
     expect(jsFileCount.stdout.trim()).toBe("8");
@@ -320,8 +335,10 @@ const winston = require('winston');
 
   it("should find relative imports that need extension updates", async () => {
     const env = createEnv();
-    const result = await env.exec(
-      "grep -rh \"require('\\./\\|require('../\" /project/src | sort | uniq",
+    const result = toText(
+      await env.exec(
+        "grep -rh \"require('\\./\\|require('../\" /project/src | sort | uniq",
+      ),
     );
     expect(result.stdout).toBe(`const { createServer } = require('./server');
 const { db } = require('../db');

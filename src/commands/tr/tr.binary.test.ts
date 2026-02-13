@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { toText } from "../../test-utils.js";
 
 describe("tr with binary content", () => {
   it("should translate characters in binary content", async () => {
@@ -9,7 +10,7 @@ describe("tr with binary content", () => {
       },
     });
 
-    const result = await env.exec("cat /data.bin | tr a-z A-Z");
+    const result = toText(await env.exec("cat /data.bin | tr a-z A-Z"));
     expect(result.stdout).toBe("ABC");
     expect(result.exitCode).toBe(0);
   });

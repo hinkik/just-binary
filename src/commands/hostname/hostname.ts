@@ -7,13 +7,14 @@
  */
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { EMPTY, encode } from "../../utils/bytes.js";
 
 async function hostnameExecute(
   _args: string[],
   _ctx: CommandContext,
 ): Promise<ExecResult> {
   // In sandboxed environment, always return "localhost"
-  return { stdout: "localhost\n", stderr: "", exitCode: 0 };
+  return { stdout: encode("localhost\n"), stderr: EMPTY, exitCode: 0 };
 }
 
 export const hostname: Command = {

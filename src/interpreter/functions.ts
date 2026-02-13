@@ -13,6 +13,7 @@ import type {
   WordNode,
 } from "../ast/types.js";
 import type { ExecResult } from "../types.js";
+import { EMPTY, encode } from "../utils/bytes.js";
 import { clearLocalVarStackForScope } from "./builtins/variable-assignment.js";
 import { ExitError, ReturnError } from "./errors.js";
 import { expandWord } from "./expansion.js";
@@ -29,7 +30,7 @@ export function executeFunctionDef(
   // This is a fatal error that exits the script
   if (ctx.state.options.posix && POSIX_SPECIAL_BUILTINS.has(node.name)) {
     const stderr = `bash: line ${ctx.state.currentLine}: \`${node.name}': is a special builtin\n`;
-    throw new ExitError(2, "", stderr);
+    throw new ExitError(2, EMPTY, encode(stderr));
   }
   // Store the source file where this function is defined (for BASH_SOURCE)
   // Use currentSource from state, or the node's sourceFile, or "main" as default
@@ -48,8 +49,8 @@ export function executeFunctionDef(
 async function processInputRedirections(
   ctx: InterpreterContext,
   redirections: RedirectionNode[],
-): Promise<string> {
-  let stdin = "";
+): Promise<Uint8Array> {
+  let stdin: Uint8Array = EMPTY;
 
   for (const redir of redirections) {
     if (
@@ -68,15 +69,15 @@ async function processInputRedirections(
       // Only handle fd 0 (stdin) for now
       const fd = redir.fd ?? 0;
       if (fd === 0) {
-        stdin = content;
+        stdin = encode(content);
       }
     } else if (redir.operator === "<<<" && redir.target.type === "Word") {
-      stdin = `${await expandWord(ctx, redir.target as WordNode)}\n`;
+      stdin = encode(`${await expandWord(ctx, redir.target as WordNode)}\n`);
     } else if (redir.operator === "<" && redir.target.type === "Word") {
       const target = await expandWord(ctx, redir.target as WordNode);
       const filePath = ctx.fs.resolvePath(ctx.state.cwd, target);
       try {
-        stdin = await ctx.fs.readFile(filePath);
+        stdin = encode(await ctx.fs.readFile(filePath));
       } catch {
         // File not found - stdin remains unchanged
       }
@@ -90,7 +91,7 @@ export async function callFunction(
   ctx: InterpreterContext,
   func: FunctionDefNode,
   args: string[],
-  stdin = "",
+  stdin: Uint8Array = EMPTY,
   callLine?: number,
 ): Promise<ExecResult> {
   ctx.state.callDepth++;
@@ -202,7 +203,7 @@ export async function callFunction(
 
   if (expandError) {
     cleanup();
-    return result("", expandError, 1);
+    return result(EMPTY, encode(expandError), 1);
   }
 
   try {
@@ -212,7 +213,7 @@ export async function callFunction(
       ctx,
       func.redirections,
     );
-    const effectiveStdin = stdin || redirectionStdin;
+    const effectiveStdin = stdin.length > 0 ? stdin : redirectionStdin;
     const execResult = await ctx.executeCommand(func.body, effectiveStdin);
     cleanup();
     // Apply output redirections from the function definition using pre-expanded targets

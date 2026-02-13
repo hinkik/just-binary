@@ -7,7 +7,7 @@
  */
 
 import type { ExecResult } from "../../types.js";
-import { failure, OK, success } from "../helpers/result.js";
+import { failure, OK, successText } from "../helpers/result.js";
 import type { InterpreterContext } from "../types.js";
 
 /**
@@ -137,7 +137,7 @@ export async function handlePushd(
   const home = ctx.state.env.get("HOME") || "";
   const output = `${[resolvedDir, ...stack].map((p) => formatPath(p, home)).join(" ")}\n`;
 
-  return success(output);
+  return successText(output);
 }
 
 /**
@@ -181,7 +181,7 @@ export function handlePopd(
   const home = ctx.state.env.get("HOME") || "";
   const output = `${[newDir, ...stack].map((p) => formatPath(p, home)).join(" ")}\n`;
 
-  return success(output);
+  return successText(output);
 }
 
 /**
@@ -255,5 +255,5 @@ export function handleDirs(
       "\n";
   }
 
-  return success(output);
+  return successText(output);
 }

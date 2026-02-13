@@ -75,3 +75,4 @@ export type {
   ExecResult,
   IFileSystem,
 } from "./types.js";
+export { decode, EMPTY, encode } from "./utils/bytes.js";

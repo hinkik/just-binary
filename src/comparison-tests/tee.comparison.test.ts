@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { toText } from "../test-utils.js";
 import {
   cleanupTestDir,
   createTestDir,
@@ -23,7 +24,7 @@ describe("tee command - Real Bash Comparison", () => {
     it("should pass through stdin to stdout", async () => {
       const env = await setupFiles(testDir, {});
 
-      const envResult = await env.exec("echo hello | tee");
+      const envResult = toText(await env.exec("echo hello | tee"));
       const realResult = await runRealBash("echo hello | tee", testDir);
 
       expect(envResult.stdout).toBe(realResult.stdout);
@@ -33,7 +34,7 @@ describe("tee command - Real Bash Comparison", () => {
     it("should write to file and stdout", async () => {
       const env = await setupFiles(testDir, {});
 
-      const envResult = await env.exec("echo hello | tee output.txt");
+      const envResult = toText(await env.exec("echo hello | tee output.txt"));
       const realResult = await runRealBash(
         "echo hello | tee output.txt",
         testDir,
@@ -53,7 +54,9 @@ describe("tee command - Real Bash Comparison", () => {
     it("should write to multiple files", async () => {
       const env = await setupFiles(testDir, {});
 
-      const envResult = await env.exec("echo hello | tee file1.txt file2.txt");
+      const envResult = toText(
+        await env.exec("echo hello | tee file1.txt file2.txt"),
+      );
       const realResult = await runRealBash(
         "echo hello | tee file1.txt file2.txt",
         testDir,
@@ -104,8 +107,8 @@ describe("tee command - Real Bash Comparison", () => {
     it("should handle multiline input", async () => {
       const env = await setupFiles(testDir, {});
 
-      const envResult = await env.exec(
-        'echo -e "line1\\nline2\\nline3" | tee output.txt',
+      const envResult = toText(
+        await env.exec('echo -e "line1\\nline2\\nline3" | tee output.txt'),
       );
       const realResult = await runRealBash(
         'echo -e "line1\\nline2\\nline3" | tee output.txt',

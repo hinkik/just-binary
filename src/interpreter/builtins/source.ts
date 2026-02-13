@@ -4,6 +4,7 @@
 
 import { type ParseException, parse } from "../../parser/parser.js";
 import type { ExecResult } from "../../types.js";
+import { EMPTY, encode } from "../../utils/bytes.js";
 import { ExitError, ReturnError } from "../errors.js";
 import { failure, result } from "../helpers/result.js";
 import type { InterpreterContext } from "../types.js";
@@ -19,7 +20,11 @@ export async function handleSource(
   }
 
   if (sourceArgs.length === 0) {
-    return result("", "bash: source: filename argument required\n", 2);
+    return result(
+      EMPTY,
+      encode("bash: source: filename argument required\n"),
+      2,
+    );
   }
 
   const filename = sourceArgs[0];

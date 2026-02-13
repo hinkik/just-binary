@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { toText } from "../../test-utils.js";
 
 describe("split", () => {
   describe("basic functionality", () => {
@@ -13,7 +14,7 @@ describe("split", () => {
           "/test.txt": lines,
         },
       });
-      const result = await bash.exec("split /test.txt && ls -1 x*");
+      const result = toText(await bash.exec("split /test.txt && ls -1 x*"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("xaa");
       expect(result.stdout).toContain("xab");
@@ -26,7 +27,9 @@ describe("split", () => {
           "/test.txt": "line1\nline2\nline3\n",
         },
       });
-      const result = await bash.exec("split -l 1 /test.txt && ls -1 x*");
+      const result = toText(
+        await bash.exec("split -l 1 /test.txt && ls -1 x*"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("xaa");
       expect(result.stdout).toContain("xab");
@@ -39,8 +42,8 @@ describe("split", () => {
           "/test.txt": "line1\nline2\nline3\n",
         },
       });
-      const result = await bash.exec(
-        "split -l 1 /test.txt part_ && ls -1 part_*",
+      const result = toText(
+        await bash.exec("split -l 1 /test.txt part_ && ls -1 part_*"),
       );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("part_aa");
@@ -50,7 +53,9 @@ describe("split", () => {
 
     it("reads from stdin when no file specified", async () => {
       const bash = new Bash();
-      const result = await bash.exec("printf 'a\\nb\\nc\\n' | split -l 1");
+      const result = toText(
+        await bash.exec("printf 'a\\nb\\nc\\n' | split -l 1"),
+      );
       expect(result.exitCode).toBe(0);
       const content = await bash.readFile("xaa");
       expect(content).toBe("a\n");
@@ -58,7 +63,7 @@ describe("split", () => {
 
     it("handles empty input", async () => {
       const bash = new Bash();
-      const result = await bash.exec("printf '' | split");
+      const result = toText(await bash.exec("printf '' | split"));
       expect(result.exitCode).toBe(0);
     });
   });
@@ -70,8 +75,10 @@ describe("split", () => {
           "/test.txt": "1\n2\n3\n4\n5\n",
         },
       });
-      const result = await bash.exec(
-        "split -l 2 /test.txt && cat xaa && cat xab && cat xac",
+      const result = toText(
+        await bash.exec(
+          "split -l 2 /test.txt && cat xaa && cat xab && cat xac",
+        ),
       );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("1\n2\n");
@@ -85,21 +92,21 @@ describe("split", () => {
           "/test.txt": "1\n2\n3\n4\n",
         },
       });
-      const result = await bash.exec("split -l2 /test.txt && cat xaa");
+      const result = toText(await bash.exec("split -l2 /test.txt && cat xaa"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("1\n2\n");
     });
 
     it("errors on invalid line count", async () => {
       const bash = new Bash();
-      const result = await bash.exec("echo 'test' | split -l abc");
+      const result = toText(await bash.exec("echo 'test' | split -l abc"));
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("invalid number of lines");
     });
 
     it("errors on zero line count", async () => {
       const bash = new Bash();
-      const result = await bash.exec("echo 'test' | split -l 0");
+      const result = toText(await bash.exec("echo 'test' | split -l 0"));
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("invalid number of lines");
     });
@@ -112,8 +119,10 @@ describe("split", () => {
           "/test.txt": "abcdefghij",
         },
       });
-      const result = await bash.exec(
-        "split -b 4 /test.txt && cat xaa && echo '---' && cat xab && echo '---' && cat xac",
+      const result = toText(
+        await bash.exec(
+          "split -b 4 /test.txt && cat xaa && echo '---' && cat xab && echo '---' && cat xac",
+        ),
       );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("abcd");
@@ -127,7 +136,9 @@ describe("split", () => {
           "/test.txt": "a".repeat(2048),
         },
       });
-      const result = await bash.exec("split -b 1K /test.txt && wc -c xaa");
+      const result = toText(
+        await bash.exec("split -b 1K /test.txt && wc -c xaa"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toMatch(/1024/);
     });
@@ -139,7 +150,9 @@ describe("split", () => {
         },
       });
       // File is smaller than 1M, so it should all be in one chunk
-      const result = await bash.exec("split -b 1M /test.txt && ls x* | wc -l");
+      const result = toText(
+        await bash.exec("split -b 1M /test.txt && ls x* | wc -l"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout.trim()).toBe("1");
     });
@@ -150,14 +163,14 @@ describe("split", () => {
           "/test.txt": "abcdefghij",
         },
       });
-      const result = await bash.exec("split -b5 /test.txt && cat xaa");
+      const result = toText(await bash.exec("split -b5 /test.txt && cat xaa"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("abcde");
     });
 
     it("errors on invalid byte size", async () => {
       const bash = new Bash();
-      const result = await bash.exec("echo 'test' | split -b xyz");
+      const result = toText(await bash.exec("echo 'test' | split -b xyz"));
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("invalid number of bytes");
     });
@@ -170,8 +183,10 @@ describe("split", () => {
           "/test.txt": "abcdefghij",
         },
       });
-      const result = await bash.exec(
-        "split -n 2 /test.txt && cat xaa && echo '---' && cat xab",
+      const result = toText(
+        await bash.exec(
+          "split -n 2 /test.txt && cat xaa && echo '---' && cat xab",
+        ),
       );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("abcde");
@@ -184,7 +199,7 @@ describe("split", () => {
           "/test.txt": "abcdefg",
         },
       });
-      const result = await bash.exec("split -n 3 /test.txt uneven_");
+      const result = toText(await bash.exec("split -n 3 /test.txt uneven_"));
       expect(result.exitCode).toBe(0);
       // Check that 3 files were created
       const aa = await bash.readFile("uneven_aa");
@@ -203,14 +218,14 @@ describe("split", () => {
           "/test.txt": "abcd",
         },
       });
-      const result = await bash.exec("split -n2 /test.txt && cat xaa");
+      const result = toText(await bash.exec("split -n2 /test.txt && cat xaa"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("ab");
     });
 
     it("errors on invalid chunk count", async () => {
       const bash = new Bash();
-      const result = await bash.exec("echo 'test' | split -n abc");
+      const result = toText(await bash.exec("echo 'test' | split -n abc"));
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("invalid number of chunks");
     });
@@ -223,7 +238,9 @@ describe("split", () => {
           "/test.txt": "1\n2\n3\n",
         },
       });
-      const result = await bash.exec("split -d -l 1 /test.txt && ls -1 x*");
+      const result = toText(
+        await bash.exec("split -d -l 1 /test.txt && ls -1 x*"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("x00");
       expect(result.stdout).toContain("x01");
@@ -236,8 +253,8 @@ describe("split", () => {
           "/test.txt": "a\nb\n",
         },
       });
-      const result = await bash.exec(
-        "split --numeric-suffixes -l 1 /test.txt && ls -1 x*",
+      const result = toText(
+        await bash.exec("split --numeric-suffixes -l 1 /test.txt && ls -1 x*"),
       );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("x00");
@@ -252,7 +269,9 @@ describe("split", () => {
           "/test.txt": "1\n2\n",
         },
       });
-      const result = await bash.exec("split -a 3 -l 1 /test.txt && ls -1 x*");
+      const result = toText(
+        await bash.exec("split -a 3 -l 1 /test.txt && ls -1 x*"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("xaaa");
       expect(result.stdout).toContain("xaab");
@@ -264,8 +283,8 @@ describe("split", () => {
           "/test.txt": "1\n2\n",
         },
       });
-      const result = await bash.exec(
-        "split -a 3 -d -l 1 /test.txt && ls -1 x*",
+      const result = toText(
+        await bash.exec("split -a 3 -d -l 1 /test.txt && ls -1 x*"),
       );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("x000");
@@ -278,14 +297,16 @@ describe("split", () => {
           "/test.txt": "1\n2\n",
         },
       });
-      const result = await bash.exec("split -a4 -l 1 /test.txt && ls -1 x*");
+      const result = toText(
+        await bash.exec("split -a4 -l 1 /test.txt && ls -1 x*"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("xaaaa");
     });
 
     it("errors on invalid suffix length", async () => {
       const bash = new Bash();
-      const result = await bash.exec("echo 'test' | split -a 0");
+      const result = toText(await bash.exec("echo 'test' | split -a 0"));
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("invalid suffix length");
     });
@@ -298,8 +319,10 @@ describe("split", () => {
           "/test.txt": "1\n2\n",
         },
       });
-      const result = await bash.exec(
-        "split --additional-suffix=.txt -l 1 /test.txt && ls -1 x*.txt",
+      const result = toText(
+        await bash.exec(
+          "split --additional-suffix=.txt -l 1 /test.txt && ls -1 x*.txt",
+        ),
       );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("xaa.txt");
@@ -314,7 +337,7 @@ describe("split", () => {
           "/-test": "content\n",
         },
       });
-      const result = await bash.exec("split -l 1 -- /-test && cat xaa");
+      const result = toText(await bash.exec("split -l 1 -- /-test && cat xaa"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("content\n");
     });
@@ -325,7 +348,7 @@ describe("split", () => {
           "/test.txt": "line1\nline2",
         },
       });
-      const result = await bash.exec("split -l 1 /test.txt && cat xab");
+      const result = toText(await bash.exec("split -l 1 /test.txt && cat xab"));
       expect(result.exitCode).toBe(0);
       // Last chunk preserves original trailing newline behavior (no newline)
       expect(result.stdout).toBe("line2");
@@ -335,21 +358,21 @@ describe("split", () => {
   describe("error handling", () => {
     it("errors on unknown flag", async () => {
       const bash = new Bash();
-      const result = await bash.exec("echo 'test' | split -z");
+      const result = toText(await bash.exec("echo 'test' | split -z"));
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("invalid option");
     });
 
     it("errors on unknown long flag", async () => {
       const bash = new Bash();
-      const result = await bash.exec("echo 'test' | split --unknown");
+      const result = toText(await bash.exec("echo 'test' | split --unknown"));
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("unrecognized option");
     });
 
     it("errors on missing file", async () => {
       const bash = new Bash();
-      const result = await bash.exec("split /nonexistent");
+      const result = toText(await bash.exec("split /nonexistent"));
       expect(result.exitCode).toBe(1);
       expect(result.stderr.toLowerCase()).toContain(
         "no such file or directory",
@@ -358,7 +381,7 @@ describe("split", () => {
 
     it("shows help with --help", async () => {
       const bash = new Bash();
-      const result = await bash.exec("split --help");
+      const result = toText(await bash.exec("split --help"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("split");
       expect(result.stdout).toContain("Usage");

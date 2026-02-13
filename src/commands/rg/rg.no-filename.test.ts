@@ -5,6 +5,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { toText } from "../../test-utils.js";
 
 describe("rg -I/--no-filename basic functionality", () => {
   it("should hide filename with -I in directory search", async () => {
@@ -14,7 +15,7 @@ describe("rg -I/--no-filename basic functionality", () => {
         "/home/user/file.txt": "hello world\n",
       },
     });
-    const result = await bash.exec("rg -I hello");
+    const result = toText(await bash.exec("rg -I hello"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("1:hello world\n");
   });
@@ -26,7 +27,7 @@ describe("rg -I/--no-filename basic functionality", () => {
         "/home/user/data.txt": "test line\n",
       },
     });
-    const result = await bash.exec("rg --no-filename test");
+    const result = toText(await bash.exec("rg --no-filename test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("1:test line\n");
   });
@@ -38,7 +39,7 @@ describe("rg -I/--no-filename basic functionality", () => {
         "/home/user/file.txt": "match here\n",
       },
     });
-    const result = await bash.exec("rg -I -N match");
+    const result = toText(await bash.exec("rg -I -N match"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("match here\n");
   });
@@ -51,7 +52,7 @@ describe("rg -I/--no-filename basic functionality", () => {
       },
     });
     // Single file already hides filename, -I is redundant but should work
-    const result = await bash.exec("rg -I foo test.txt");
+    const result = toText(await bash.exec("rg -I foo test.txt"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("foo bar\n");
   });
@@ -67,7 +68,7 @@ describe("rg -I with multiple files", () => {
         "/home/user/c.txt": "found\n",
       },
     });
-    const result = await bash.exec("rg -I found");
+    const result = toText(await bash.exec("rg -I found"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("1:found\n1:found\n1:found\n");
   });
@@ -80,7 +81,7 @@ describe("rg -I with multiple files", () => {
         "/home/user/second.txt": "line three\n",
       },
     });
-    const result = await bash.exec("rg -I --sort path line");
+    const result = toText(await bash.exec("rg -I --sort path line"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("1:line one\n2:line two\n1:line three\n");
   });
@@ -93,7 +94,7 @@ describe("rg -I with multiple files", () => {
         "/home/user/lib/util.ts": "export const y = 2;\n",
       },
     });
-    const result = await bash.exec("rg -I export");
+    const result = toText(await bash.exec("rg -I export"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       "1:export const y = 2;\n1:export const x = 1;\n",
@@ -109,7 +110,7 @@ describe("rg -I with other flags", () => {
         "/home/user/file.txt": "a\na\na\n",
       },
     });
-    const result = await bash.exec("rg -I -c a");
+    const result = toText(await bash.exec("rg -I -c a"));
     expect(result.exitCode).toBe(0);
     // Count mode with -I should hide filename
     expect(result.stdout).toBe("3\n");
@@ -123,7 +124,7 @@ describe("rg -I with other flags", () => {
         "/home/user/b.txt": "x\nx\nx\n",
       },
     });
-    const result = await bash.exec("rg -I -c x");
+    const result = toText(await bash.exec("rg -I -c x"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("2\n3\n");
   });
@@ -135,7 +136,7 @@ describe("rg -I with other flags", () => {
         "/home/user/nums.txt": "abc123def456\n",
       },
     });
-    const result = await bash.exec("rg -I -o '[0-9]+'");
+    const result = toText(await bash.exec("rg -I -o '[0-9]+'"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("123\n456\n");
   });
@@ -147,7 +148,7 @@ describe("rg -I with other flags", () => {
         "/home/user/file.txt": "keep\nremove\nkeep\n",
       },
     });
-    const result = await bash.exec("rg -I -v remove");
+    const result = toText(await bash.exec("rg -I -v remove"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("1:keep\n3:keep\n");
   });
@@ -159,7 +160,7 @@ describe("rg -I with other flags", () => {
         "/home/user/file.txt": "Hello\nHELLO\nhello\n",
       },
     });
-    const result = await bash.exec("rg -I -i hello");
+    const result = toText(await bash.exec("rg -I -i hello"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("1:Hello\n2:HELLO\n3:hello\n");
   });
@@ -171,7 +172,7 @@ describe("rg -I with other flags", () => {
         "/home/user/file.txt": "foo bar\nfoobar\nbar foo baz\n",
       },
     });
-    const result = await bash.exec("rg -I -w foo");
+    const result = toText(await bash.exec("rg -I -w foo"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("1:foo bar\n3:bar foo baz\n");
   });
@@ -183,7 +184,7 @@ describe("rg -I with other flags", () => {
         "/home/user/file.txt": "test\ntest\ntest\ntest\n",
       },
     });
-    const result = await bash.exec("rg -I -m2 test");
+    const result = toText(await bash.exec("rg -I -m2 test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("1:test\n2:test\n");
   });
@@ -198,7 +199,7 @@ describe("rg -I with other flags", () => {
     });
     // -l lists files, so filename is the output - -I doesn't make sense here
     // but ripgrep still shows filenames with -l even with -I
-    const result = await bash.exec("rg -I -l match");
+    const result = toText(await bash.exec("rg -I -l match"));
     expect(result.exitCode).toBe(0);
     // -l output shows filenames regardless of -I
     expect(result.stdout).toBe("a.txt\nb.txt\n");
@@ -212,7 +213,7 @@ describe("rg -I with other flags", () => {
         "/home/user/no.txt": "other\n",
       },
     });
-    const result = await bash.exec("rg -I --files-without-match match");
+    const result = toText(await bash.exec("rg -I --files-without-match match"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("no.txt\n");
   });
@@ -226,7 +227,7 @@ describe("rg -I with context lines", () => {
         "/home/user/file.txt": "before\nmatch\nafter\nmore\n",
       },
     });
-    const result = await bash.exec("rg -I -A1 match");
+    const result = toText(await bash.exec("rg -I -A1 match"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("2:match\n3-after\n");
   });
@@ -238,7 +239,7 @@ describe("rg -I with context lines", () => {
         "/home/user/file.txt": "before\nmatch\nafter\n",
       },
     });
-    const result = await bash.exec("rg -I -B1 match");
+    const result = toText(await bash.exec("rg -I -B1 match"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("1-before\n2:match\n");
   });
@@ -250,7 +251,7 @@ describe("rg -I with context lines", () => {
         "/home/user/file.txt": "a\nb\nmatch\nc\nd\n",
       },
     });
-    const result = await bash.exec("rg -I -C1 match");
+    const result = toText(await bash.exec("rg -I -C1 match"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("2-b\n3:match\n4-c\n");
   });
@@ -263,7 +264,7 @@ describe("rg -I with context lines", () => {
         "/home/user/b.txt": "ctx\nmatch\nctx\n",
       },
     });
-    const result = await bash.exec("rg -I -C1 --sort path match");
+    const result = toText(await bash.exec("rg -I -C1 --sort path match"));
     expect(result.exitCode).toBe(0);
     // No separator between files when -I is used since there's no filename prefix
     expect(result.stdout).toBe(
@@ -281,7 +282,7 @@ describe("rg -I with file filters", () => {
         "/home/user/code.py": "x = 1\n",
       },
     });
-    const result = await bash.exec("rg -I -t js const");
+    const result = toText(await bash.exec("rg -I -t js const"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("1:const x = 1;\n");
   });
@@ -294,7 +295,7 @@ describe("rg -I with file filters", () => {
         "/home/user/test.txt": "error here too\n",
       },
     });
-    const result = await bash.exec("rg -I -g '*.log' error");
+    const result = toText(await bash.exec("rg -I -g '*.log' error"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("1:error occurred\n");
   });
@@ -308,7 +309,7 @@ describe("rg -I edge cases", () => {
         "/home/user/file.txt": "no match here\n",
       },
     });
-    const result = await bash.exec("rg -I notfound");
+    const result = toText(await bash.exec("rg -I notfound"));
     expect(result.exitCode).toBe(1);
     expect(result.stdout).toBe("");
   });
@@ -320,7 +321,7 @@ describe("rg -I edge cases", () => {
         "/home/user/file.txt": "path/to/file:line:content\n",
       },
     });
-    const result = await bash.exec("rg -I path");
+    const result = toText(await bash.exec("rg -I path"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("1:path/to/file:line:content\n");
   });
@@ -332,7 +333,7 @@ describe("rg -I edge cases", () => {
         "/home/user/.hidden": "secret\n",
       },
     });
-    const result = await bash.exec("rg -I --hidden secret");
+    const result = toText(await bash.exec("rg -I --hidden secret"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("1:secret\n");
   });
@@ -345,7 +346,7 @@ describe("rg -I edge cases", () => {
       },
     });
     // Combine -I with -i and -n
-    const result = await bash.exec("rg -Iin test");
+    const result = toText(await bash.exec("rg -Iin test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("1:Test\n2:test\n3:TEST\n");
   });
@@ -357,7 +358,7 @@ describe("rg -I edge cases", () => {
         "/home/user/file.txt": "match\n",
       },
     });
-    const result = await bash.exec("rg -In match");
+    const result = toText(await bash.exec("rg -In match"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("1:match\n");
   });
@@ -371,7 +372,7 @@ describe("rg -I with regex patterns", () => {
         "/home/user/file.txt": "apple\norange\nbanana\n",
       },
     });
-    const result = await bash.exec("rg -I 'apple|banana'");
+    const result = toText(await bash.exec("rg -I 'apple|banana'"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("1:apple\n3:banana\n");
   });
@@ -383,7 +384,7 @@ describe("rg -I with regex patterns", () => {
         "/home/user/file.txt": "abc123\ndef456\n",
       },
     });
-    const result = await bash.exec("rg -I '[0-9]+'");
+    const result = toText(await bash.exec("rg -I '[0-9]+'"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("1:abc123\n2:def456\n");
   });
@@ -398,7 +399,7 @@ describe("rg -I piping use case", () => {
       },
     });
     // -I -N -o gives just the matched text, perfect for piping
-    const result = await bash.exec("rg -I -N -o '[0-9]+'");
+    const result = toText(await bash.exec("rg -I -N -o '[0-9]+'"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("100\n200\n300\n");
   });

@@ -22,6 +22,7 @@ import type {
   WordNode,
 } from "../ast/types.js";
 import type { ExecResult } from "../types.js";
+import { concat, EMPTY, encode } from "../utils/bytes.js";
 import { evaluateArithmetic } from "./arithmetic.js";
 import { matchPattern } from "./conditionals.js";
 import { BreakError, ContinueError, GlobError } from "./errors.js";
@@ -42,14 +43,14 @@ export async function executeIf(
   ctx: InterpreterContext,
   node: IfNode,
 ): Promise<ExecResult> {
-  let stdout = "";
-  let stderr = "";
+  let stdout: Uint8Array = EMPTY;
+  let stderr: Uint8Array = EMPTY;
 
   for (const clause of node.clauses) {
     // Condition evaluation should not trigger errexit
     const condResult = await executeCondition(ctx, clause.condition);
-    stdout += condResult.stdout;
-    stderr += condResult.stderr;
+    stdout = concat(stdout, condResult.stdout);
+    stderr = concat(stderr, condResult.stderr);
 
     if (condResult.exitCode === 0) {
       return executeStatements(ctx, clause.body, stdout, stderr);
@@ -60,7 +61,7 @@ export async function executeIf(
     return executeStatements(ctx, node.elseBody, stdout, stderr);
   }
 
-  return result(stdout, stderr, 0);
+  return { stdout, stderr, exitCode: 0 };
 }
 
 export async function executeFor(
@@ -75,8 +76,8 @@ export async function executeFor(
     return preOpenError;
   }
 
-  let stdout = "";
-  let stderr = "";
+  let stdout: Uint8Array = EMPTY;
+  let stderr: Uint8Array = EMPTY;
   let exitCode = 0;
   let iterations = 0;
 
@@ -99,7 +100,7 @@ export async function executeFor(
     } catch (e) {
       if (e instanceof GlobError) {
         // failglob: return error with exit code 1
-        return { stdout: "", stderr: e.stderr, exitCode: 1 };
+        return { stdout: EMPTY, stderr: e.stderr, exitCode: 1 };
       }
       throw e;
     }
@@ -123,8 +124,8 @@ export async function executeFor(
       try {
         for (const stmt of node.body) {
           const stmtResult = await ctx.executeStatement(stmt);
-          stdout += stmtResult.stdout;
-          stderr += stmtResult.stderr;
+          stdout = concat(stdout, stmtResult.stdout);
+          stderr = concat(stderr, stmtResult.stderr);
           exitCode = stmtResult.exitCode;
         }
       } catch (error) {
@@ -176,8 +177,8 @@ export async function executeCStyleFor(
     ctx.state.currentLine = loopLine;
   }
 
-  let stdout = "";
-  let stderr = "";
+  let stdout: Uint8Array = EMPTY;
+  let stderr: Uint8Array = EMPTY;
   let exitCode = 0;
   let iterations = 0;
 
@@ -213,8 +214,8 @@ export async function executeCStyleFor(
       try {
         for (const stmt of node.body) {
           const stmtResult = await ctx.executeStatement(stmt);
-          stdout += stmtResult.stdout;
-          stderr += stmtResult.stderr;
+          stdout = concat(stdout, stmtResult.stdout);
+          stderr = concat(stderr, stmtResult.stderr);
           exitCode = stmtResult.exitCode;
         }
       } catch (error) {
@@ -258,10 +259,10 @@ export async function executeCStyleFor(
 export async function executeWhile(
   ctx: InterpreterContext,
   node: WhileNode,
-  stdin = "",
+  stdin: Uint8Array = EMPTY,
 ): Promise<ExecResult> {
-  let stdout = "";
-  let stderr = "";
+  let stdout: Uint8Array = EMPTY;
+  let stderr: Uint8Array = EMPTY;
   let exitCode = 0;
   let iterations = 0;
 
@@ -280,14 +281,16 @@ export async function executeWhile(
           .map((line) => line.replace(/^\t+/, ""))
           .join("\n");
       }
-      effectiveStdin = content;
+      effectiveStdin = encode(content);
     } else if (redir.operator === "<<<" && redir.target.type === "Word") {
-      effectiveStdin = `${await expandWord(ctx, redir.target as WordNode)}\n`;
+      effectiveStdin = encode(
+        `${await expandWord(ctx, redir.target as WordNode)}\n`,
+      );
     } else if (redir.operator === "<" && redir.target.type === "Word") {
       try {
         const target = await expandWord(ctx, redir.target as WordNode);
         const filePath = ctx.fs.resolvePath(ctx.state.cwd, target);
-        effectiveStdin = await ctx.fs.readFile(filePath);
+        effectiveStdin = encode(await ctx.fs.readFile(filePath));
       } catch {
         const target = await expandWord(ctx, redir.target as WordNode);
         return failure(`bash: ${target}: No such file or directory\n`);
@@ -297,7 +300,7 @@ export async function executeWhile(
 
   // Save and set groupStdin for piped while loops
   const savedGroupStdin = ctx.state.groupStdin;
-  if (effectiveStdin) {
+  if (effectiveStdin.length > 0) {
     ctx.state.groupStdin = effectiveStdin;
   }
 
@@ -323,16 +326,16 @@ export async function executeWhile(
       ctx.state.inCondition = true;
       try {
         for (const stmt of node.condition) {
-          const result = await ctx.executeStatement(stmt);
-          stdout += result.stdout;
-          stderr += result.stderr;
-          conditionExitCode = result.exitCode;
+          const stmtResult = await ctx.executeStatement(stmt);
+          stdout = concat(stdout, stmtResult.stdout);
+          stderr = concat(stderr, stmtResult.stderr);
+          conditionExitCode = stmtResult.exitCode;
         }
       } catch (error) {
         // break/continue in condition should affect THIS while loop
         if (error instanceof BreakError) {
-          stdout += error.stdout;
-          stderr += error.stderr;
+          stdout = concat(stdout, error.stdout);
+          stderr = concat(stderr, error.stderr);
           if (error.levels > 1 && ctx.state.loopDepth > 1) {
             error.levels--;
             error.stdout = stdout;
@@ -342,8 +345,8 @@ export async function executeWhile(
           }
           shouldBreak = true;
         } else if (error instanceof ContinueError) {
-          stdout += error.stdout;
-          stderr += error.stderr;
+          stdout = concat(stdout, error.stdout);
+          stderr = concat(stderr, error.stderr);
           if (error.levels > 1 && ctx.state.loopDepth > 1) {
             error.levels--;
             error.stdout = stdout;
@@ -367,8 +370,8 @@ export async function executeWhile(
       try {
         for (const stmt of node.body) {
           const stmtResult = await ctx.executeStatement(stmt);
-          stdout += stmtResult.stdout;
-          stderr += stmtResult.stderr;
+          stdout = concat(stdout, stmtResult.stdout);
+          stderr = concat(stderr, stmtResult.stderr);
           exitCode = stmtResult.exitCode;
         }
       } catch (error) {
@@ -400,8 +403,8 @@ export async function executeUntil(
   ctx: InterpreterContext,
   node: UntilNode,
 ): Promise<ExecResult> {
-  let stdout = "";
-  let stderr = "";
+  let stdout: Uint8Array = EMPTY;
+  let stderr: Uint8Array = EMPTY;
   let exitCode = 0;
   let iterations = 0;
 
@@ -420,16 +423,16 @@ export async function executeUntil(
 
       // Condition evaluation should not trigger errexit
       const condResult = await executeCondition(ctx, node.condition);
-      stdout += condResult.stdout;
-      stderr += condResult.stderr;
+      stdout = concat(stdout, condResult.stdout);
+      stderr = concat(stderr, condResult.stderr);
 
       if (condResult.exitCode === 0) break;
 
       try {
         for (const stmt of node.body) {
           const stmtResult = await ctx.executeStatement(stmt);
-          stdout += stmtResult.stdout;
-          stderr += stmtResult.stderr;
+          stdout = concat(stdout, stmtResult.stdout);
+          stderr = concat(stderr, stmtResult.stderr);
           exitCode = stmtResult.exitCode;
         }
       } catch (error) {
@@ -468,8 +471,8 @@ export async function executeCase(
     return preOpenError;
   }
 
-  let stdout = "";
-  let stderr = "";
+  let stdout: Uint8Array = EMPTY;
+  let stderr: Uint8Array = EMPTY;
   let exitCode = 0;
 
   const value = await expandWord(ctx, node.word);

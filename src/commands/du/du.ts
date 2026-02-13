@@ -1,5 +1,6 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
+import { encode } from "../../utils/bytes.js";
 import { DEFAULT_BATCH_SIZE } from "../../utils/constants.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
@@ -82,7 +83,11 @@ export const duCommand: Command = {
       stdout += `${formatSize(grandTotal, options.humanReadable)}\ttotal\n`;
     }
 
-    return { stdout, stderr, exitCode: stderr ? 1 : 0 };
+    return {
+      stdout: encode(stdout),
+      stderr: encode(stderr),
+      exitCode: stderr ? 1 : 0,
+    };
   },
 };
 

@@ -8,6 +8,7 @@
  */
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { decode, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
 const joinHelp = {
@@ -189,8 +190,8 @@ export const join: Command = {
         if (Number.isNaN(field) || field < 1) {
           return {
             exitCode: 1,
-            stdout: "",
-            stderr: `join: invalid field number: '${args[i + 1]}'\n`,
+            stdout: EMPTY,
+            stderr: encode(`join: invalid field number: '${args[i + 1]}'\n`),
           };
         }
         options.field1 = field;
@@ -200,8 +201,8 @@ export const join: Command = {
         if (Number.isNaN(field) || field < 1) {
           return {
             exitCode: 1,
-            stdout: "",
-            stderr: `join: invalid field number: '${args[i + 1]}'\n`,
+            stdout: EMPTY,
+            stderr: encode(`join: invalid field number: '${args[i + 1]}'\n`),
           };
         }
         options.field2 = field;
@@ -220,8 +221,8 @@ export const join: Command = {
         if (fileNum !== 1 && fileNum !== 2) {
           return {
             exitCode: 1,
-            stdout: "",
-            stderr: `join: invalid file number: '${args[i + 1]}'\n`,
+            stdout: EMPTY,
+            stderr: encode(`join: invalid file number: '${args[i + 1]}'\n`),
           };
         }
         options.printUnpairable.add(fileNum);
@@ -234,8 +235,8 @@ export const join: Command = {
         if (fileNum !== 1 && fileNum !== 2) {
           return {
             exitCode: 1,
-            stdout: "",
-            stderr: `join: invalid file number: '${args[i + 1]}'\n`,
+            stdout: EMPTY,
+            stderr: encode(`join: invalid file number: '${args[i + 1]}'\n`),
           };
         }
         options.onlyUnpairable.add(fileNum);
@@ -251,8 +252,8 @@ export const join: Command = {
         if (!format) {
           return {
             exitCode: 1,
-            stdout: "",
-            stderr: `join: invalid field spec: '${args[i + 1]}'\n`,
+            stdout: EMPTY,
+            stderr: encode(`join: invalid field spec: '${args[i + 1]}'\n`),
           };
         }
         options.outputFormat = format;
@@ -275,11 +276,12 @@ export const join: Command = {
     if (files.length !== 2) {
       return {
         exitCode: 1,
-        stdout: "",
-        stderr:
+        stdout: EMPTY,
+        stderr: encode(
           files.length < 2
             ? "join: missing file operand\n"
             : "join: extra operand\n",
+        ),
       };
     }
 
@@ -287,15 +289,15 @@ export const join: Command = {
     const contents: string[] = [];
     for (const file of files) {
       if (file === "-") {
-        contents.push(ctx.stdin ?? "");
+        contents.push(decode(ctx.stdin));
       } else {
         const filePath = ctx.fs.resolvePath(ctx.cwd, file);
         const content = await ctx.fs.readFile(filePath);
         if (content === null) {
           return {
             exitCode: 1,
-            stdout: "",
-            stderr: `join: ${file}: No such file or directory\n`,
+            stdout: EMPTY,
+            stderr: encode(`join: ${file}: No such file or directory\n`),
           };
         }
         contents.push(content);
@@ -365,8 +367,8 @@ export const join: Command = {
 
     return {
       exitCode: 0,
-      stdout: output.length > 0 ? `${output.join("\n")}\n` : "",
-      stderr: "",
+      stdout: encode(output.length > 0 ? `${output.join("\n")}\n` : ""),
+      stderr: EMPTY,
     };
   },
 };

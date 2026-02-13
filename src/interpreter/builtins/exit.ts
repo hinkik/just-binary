@@ -2,12 +2,13 @@
  * exit - Exit shell builtin
  */
 
+import { EMPTY, encode } from "../../utils/bytes.js";
 import { ExitError } from "../errors.js";
 import type { InterpreterContext } from "../types.js";
 
 export function handleExit(ctx: InterpreterContext, args: string[]): never {
   let exitCode: number;
-  let stderr = "";
+  let stderr: Uint8Array = EMPTY;
 
   if (args.length === 0) {
     // Use last command's exit code when no argument given
@@ -17,7 +18,7 @@ export function handleExit(ctx: InterpreterContext, args: string[]): never {
     const parsed = Number.parseInt(arg, 10);
     // Empty string or non-numeric is an error
     if (arg === "" || Number.isNaN(parsed) || !/^-?\d+$/.test(arg)) {
-      stderr = `bash: exit: ${arg}: numeric argument required\n`;
+      stderr = encode(`bash: exit: ${arg}: numeric argument required\n`);
       exitCode = 2;
     } else {
       // Exit codes are modulo 256 (wrap around)
@@ -25,5 +26,5 @@ export function handleExit(ctx: InterpreterContext, args: string[]): never {
     }
   }
 
-  throw new ExitError(exitCode, "", stderr);
+  throw new ExitError(exitCode, EMPTY, stderr);
 }

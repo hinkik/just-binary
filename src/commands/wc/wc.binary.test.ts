@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { toText } from "../../test-utils.js";
 
 describe("wc with binary files", () => {
   it("should count bytes correctly", async () => {
@@ -9,7 +10,7 @@ describe("wc with binary files", () => {
       },
     });
 
-    const result = await env.exec("wc -c /binary.bin");
+    const result = toText(await env.exec("wc -c /binary.bin"));
     expect(result.stdout).toContain("5");
     expect(result.exitCode).toBe(0);
   });
@@ -21,7 +22,7 @@ describe("wc with binary files", () => {
       },
     });
 
-    const result = await env.exec("wc -l /binary.bin");
+    const result = toText(await env.exec("wc -l /binary.bin"));
     expect(result.stdout).toContain("3");
     expect(result.exitCode).toBe(0);
   });

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { toText } from "../../test-utils.js";
 
 describe("find actions", () => {
   describe("-exec {} + (batch mode)", () => {
@@ -11,8 +12,8 @@ describe("find actions", () => {
           "/dir/c.txt": "ccc",
         },
       });
-      const result = await env.exec(
-        'find /dir -type f -name "*.txt" -exec cat {} +',
+      const result = toText(
+        await env.exec('find /dir -type f -name "*.txt" -exec cat {} +'),
       );
       // All files should be passed to cat at once - output is concatenated
       expect(result.stdout).toBe("aaabbbccc");
@@ -27,8 +28,8 @@ describe("find actions", () => {
           "/dir/b.txt": "line1\nline2\nline3\n",
         },
       });
-      const result = await env.exec(
-        'find /dir -type f -name "*.txt" -exec wc -l {} +',
+      const result = toText(
+        await env.exec('find /dir -type f -name "*.txt" -exec wc -l {} +'),
       );
       // wc -l with multiple files shows per-file counts and total
       expect(result.stdout).toBe(`  2 /dir/a.txt
@@ -47,8 +48,8 @@ describe("find actions", () => {
           "/dir/c.txt": "goodbye",
         },
       });
-      const result = await env.exec(
-        "find /dir -type f -exec grep -l hello {} +",
+      const result = toText(
+        await env.exec("find /dir -type f -exec grep -l hello {} +"),
       );
       expect(result.stdout).toBe("/dir/a.txt\n/dir/b.txt\n");
       expect(result.stderr).toBe("");
@@ -65,8 +66,10 @@ describe("find actions", () => {
         },
       });
       // Using echo to see each file is processed separately
-      const result = await env.exec(
-        'find /dir -type f -name "*.txt" -exec echo FILE: {} \\;',
+      const result = toText(
+        await env.exec(
+          'find /dir -type f -name "*.txt" -exec echo FILE: {} \\;',
+        ),
       );
       expect(result.stdout).toBe("FILE: /dir/a.txt\nFILE: /dir/b.txt\n");
       expect(result.stderr).toBe("");
@@ -82,7 +85,9 @@ describe("find actions", () => {
           "/dir/b.txt": "b",
         },
       });
-      const result = await env.exec('find /dir -type f -name "*.txt" -print0');
+      const result = toText(
+        await env.exec('find /dir -type f -name "*.txt" -print0'),
+      );
       expect(result.stdout).toBe("/dir/a.txt\0/dir/b.txt\0");
       expect(result.stderr).toBe("");
       expect(result.exitCode).toBe(0);
@@ -95,8 +100,8 @@ describe("find actions", () => {
           "/dir/normal.txt": "content",
         },
       });
-      const result = await env.exec(
-        "find /dir -type f -print0 | xargs -0 echo",
+      const result = toText(
+        await env.exec("find /dir -type f -print0 | xargs -0 echo"),
       );
       expect(result.stdout).toBe("/dir/file with spaces.txt /dir/normal.txt\n");
       expect(result.stderr).toBe("");
@@ -116,7 +121,7 @@ describe("find actions", () => {
       await env.exec('find /dir -type f -name "*.txt" -delete');
 
       // Check that .txt files are gone
-      const result = await env.exec("ls /dir");
+      const result = toText(await env.exec("ls /dir"));
       expect(result.stdout).toBe("keep.md\n");
       expect(result.stderr).toBe("");
     });
@@ -131,7 +136,7 @@ describe("find actions", () => {
       await env.exec("rm /dir/subdir/.keep");
       await env.exec("find /dir -type d -empty -delete");
 
-      const result = await env.exec("ls /dir");
+      const result = toText(await env.exec("ls /dir"));
       expect(result.stdout).toBe("");
       expect(result.stderr).toBe("");
     });
@@ -142,7 +147,9 @@ describe("find actions", () => {
           "/dir/subdir/file.txt": "content",
         },
       });
-      const result = await env.exec("find /dir -type d -name subdir -delete");
+      const result = toText(
+        await env.exec("find /dir -type d -name subdir -delete"),
+      );
       // Should fail because directory is not empty
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toBe(
@@ -161,7 +168,7 @@ describe("find actions", () => {
       // Delete all .txt files - should work because files are deleted deepest-first
       await env.exec('find /dir -name "*.txt" -delete');
 
-      const result = await env.exec("find /dir -type f");
+      const result = toText(await env.exec("find /dir -type f"));
       expect(result.stdout).toBe("");
       expect(result.stderr).toBe("");
       expect(result.exitCode).toBe(0);
@@ -177,7 +184,7 @@ describe("find actions", () => {
         },
       });
       // Only print .txt files explicitly
-      const result = await env.exec('find /dir -name "*.txt" -print');
+      const result = toText(await env.exec('find /dir -name "*.txt" -print'));
       expect(result.stdout).toBe("/dir/a.txt\n");
       expect(result.stderr).toBe("");
       expect(result.exitCode).toBe(0);
@@ -192,8 +199,8 @@ describe("find actions", () => {
         },
       });
       // Complex expression: print .txt OR process .md silently
-      const result = await env.exec(
-        'find /dir -name "*.txt" -print -o -name "*.md"',
+      const result = toText(
+        await env.exec('find /dir -name "*.txt" -print -o -name "*.md"'),
       );
       // Only .txt files are printed because -print is in that branch
       expect(result.stdout).toBe("/dir/a.txt\n");

@@ -3,6 +3,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { toText } from "../../test-utils.js";
 
 describe("yq navigation operators", () => {
   it("parent returns immediate parent", async () => {
@@ -11,7 +12,9 @@ describe("yq navigation operators", () => {
         "/data.yaml": "a:\n  b:\n    c: value\n",
       },
     });
-    const result = await bash.exec("yq -o json '.a.b.c | parent' /data.yaml");
+    const result = toText(
+      await bash.exec("yq -o json '.a.b.c | parent' /data.yaml"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe('{\n  "c": "value"\n}\n');
   });
@@ -22,8 +25,8 @@ describe("yq navigation operators", () => {
         "/data.yaml": "a:\n  b:\n    c: value\n",
       },
     });
-    const result = await bash.exec(
-      "yq -o json '.a.b.c | parent(2)' /data.yaml",
+    const result = toText(
+      await bash.exec("yq -o json '.a.b.c | parent(2)' /data.yaml"),
     );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe('{\n  "b": {\n    "c": "value"\n  }\n}\n');
@@ -35,8 +38,8 @@ describe("yq navigation operators", () => {
         "/data.yaml": "a:\n  b:\n    c: value\n",
       },
     });
-    const result = await bash.exec(
-      "yq -o json '.a.b.c | parent(-1)' /data.yaml",
+    const result = toText(
+      await bash.exec("yq -o json '.a.b.c | parent(-1)' /data.yaml"),
     );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
@@ -50,7 +53,9 @@ describe("yq navigation operators", () => {
         "/data.yaml": "a:\n  b:\n    c: value\n",
       },
     });
-    const result = await bash.exec("yq -o json '.a.b.c | root' /data.yaml");
+    const result = toText(
+      await bash.exec("yq -o json '.a.b.c | root' /data.yaml"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       '{\n  "a": {\n    "b": {\n      "c": "value"\n    }\n  }\n}\n',
@@ -63,8 +68,8 @@ describe("yq navigation operators", () => {
         "/data.yaml": "a:\n  b:\n    c: value\n",
       },
     });
-    const result = await bash.exec(
-      "yq -o json '.a.b.c | parents | length' /data.yaml",
+    const result = toText(
+      await bash.exec("yq -o json '.a.b.c | parents | length' /data.yaml"),
     );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("3\n"); // parent .a.b, grandparent .a, root
@@ -77,8 +82,8 @@ describe("yq navigation operators", () => {
           "/data.yaml": "a:\n  b: test\n",
         },
       });
-      const result = await bash.exec(
-        "yq -o json '.a.b | parent(0)' /data.yaml",
+      const result = toText(
+        await bash.exec("yq -o json '.a.b | parent(0)' /data.yaml"),
       );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe('"test"\n');
@@ -90,8 +95,8 @@ describe("yq navigation operators", () => {
           "/data.yaml": "a:\n  b:\n    c: value\n",
         },
       });
-      const result = await bash.exec(
-        "yq -o json '.a.b.c | parent(-2)' /data.yaml",
+      const result = toText(
+        await bash.exec("yq -o json '.a.b.c | parent(-2)' /data.yaml"),
       );
       expect(result.exitCode).toBe(0);
       // -2 means one level below root, which is .a
@@ -104,8 +109,8 @@ describe("yq navigation operators", () => {
           "/data.yaml": "a:\n  b: test\n",
         },
       });
-      const result = await bash.exec(
-        "yq -o json '.a.b | parent(10)' /data.yaml",
+      const result = toText(
+        await bash.exec("yq -o json '.a.b | parent(10)' /data.yaml"),
       );
       expect(result.exitCode).toBe(0);
       // Beyond root should return nothing
@@ -118,7 +123,9 @@ describe("yq navigation operators", () => {
           "/data.yaml": "value: test\n",
         },
       });
-      const result = await bash.exec("yq -o json '. | parent' /data.yaml");
+      const result = toText(
+        await bash.exec("yq -o json '. | parent' /data.yaml"),
+      );
       expect(result.exitCode).toBe(0);
       // At root, no parent
       expect(result.stdout).toBe("");
@@ -131,8 +138,8 @@ describe("yq navigation operators", () => {
             "items:\n  - name: foo\n    val: 1\n  - name: bar\n    val: 2\n",
         },
       });
-      const result = await bash.exec(
-        "yq -o json '.items[0].name | parent' /data.yaml",
+      const result = toText(
+        await bash.exec("yq -o json '.items[0].name | parent' /data.yaml"),
       );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe('{\n  "name": "foo",\n  "val": 1\n}\n');
@@ -144,8 +151,8 @@ describe("yq navigation operators", () => {
           "/data.yaml": "a: test\n",
         },
       });
-      const result = await bash.exec(
-        "yq -o json '.a | parents | length' /data.yaml",
+      const result = toText(
+        await bash.exec("yq -o json '.a | parents | length' /data.yaml"),
       );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("1\n"); // Just root
@@ -157,7 +164,7 @@ describe("yq navigation operators", () => {
           "/data.yaml": "a: 1\nb: 2\n",
         },
       });
-      const result = await bash.exec("yq -o json 'root' /data.yaml");
+      const result = toText(await bash.exec("yq -o json 'root' /data.yaml"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe('{\n  "a": 1,\n  "b": 2\n}\n');
     });
@@ -168,8 +175,8 @@ describe("yq navigation operators", () => {
           "/data.yaml": "a:\n  b:\n    c:\n      d: value\n",
         },
       });
-      const result = await bash.exec(
-        "yq -o json '.a.b.c.d | parent | parent' /data.yaml",
+      const result = toText(
+        await bash.exec("yq -o json '.a.b.c.d | parent | parent' /data.yaml"),
       );
       expect(result.exitCode).toBe(0);
       // First parent: .a.b.c, second parent: .a.b
@@ -185,8 +192,10 @@ describe("yq navigation operators", () => {
       });
       // This is a complex case - select doesn't preserve path context in our impl
       // So parent after select may not work as expected
-      const result = await bash.exec(
-        "yq -o json '.items[] | select(.active == true) | .name' /data.yaml",
+      const result = toText(
+        await bash.exec(
+          "yq -o json '.items[] | select(.active == true) | .name' /data.yaml",
+        ),
       );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe('"foo"\n');

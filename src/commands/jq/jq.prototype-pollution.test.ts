@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { toText } from "../../test-utils.js";
 
 /**
  * Exhaustive tests for prototype pollution defense-in-depth.
@@ -15,8 +16,8 @@ describe("jq prototype pollution defense", () => {
     it("should safely access __proto__ as a regular key", async () => {
       const env = new Bash();
       // Accessing __proto__ should not return Object.prototype
-      const result = await env.exec(
-        `echo '{"__proto__": "safe"}' | jq '.__proto__'`,
+      const result = toText(
+        await env.exec(`echo '{"__proto__": "safe"}' | jq '.__proto__'`),
       );
       // Should return null (key ignored) or the literal value, but NOT Object methods
       expect(result.exitCode).toBe(0);
@@ -25,8 +26,8 @@ describe("jq prototype pollution defense", () => {
 
     it("should safely access constructor as a regular key", async () => {
       const env = new Bash();
-      const result = await env.exec(
-        `echo '{"constructor": "safe"}' | jq '.constructor'`,
+      const result = toText(
+        await env.exec(`echo '{"constructor": "safe"}' | jq '.constructor'`),
       );
       expect(result.exitCode).toBe(0);
       // Should not return the Object constructor function
@@ -35,8 +36,8 @@ describe("jq prototype pollution defense", () => {
 
     it("should safely access prototype as a regular key", async () => {
       const env = new Bash();
-      const result = await env.exec(
-        `echo '{"prototype": "safe"}' | jq '.prototype'`,
+      const result = toText(
+        await env.exec(`echo '{"prototype": "safe"}' | jq '.prototype'`),
       );
       expect(result.exitCode).toBe(0);
     });
@@ -46,8 +47,8 @@ describe("jq prototype pollution defense", () => {
     it("should not pollute prototype when constructing object with __proto__", async () => {
       const env = new Bash();
       // Attempting to construct an object with __proto__ key should not pollute Object.prototype
-      const result = await env.exec(
-        `echo 'null' | jq '{("__proto__"): "polluted"}'`,
+      const result = toText(
+        await env.exec(`echo 'null' | jq '{("__proto__"): "polluted"}'`),
       );
       expect(result.exitCode).toBe(0);
       // The result should be an empty object (dangerous key filtered out)
@@ -56,8 +57,8 @@ describe("jq prototype pollution defense", () => {
 
     it("should not pollute prototype when constructing object with constructor", async () => {
       const env = new Bash();
-      const result = await env.exec(
-        `echo 'null' | jq '{("constructor"): "polluted"}'`,
+      const result = toText(
+        await env.exec(`echo 'null' | jq '{("constructor"): "polluted"}'`),
       );
       expect(result.exitCode).toBe(0);
       expect(result.stdout.trim()).toBe("{}");
@@ -65,8 +66,8 @@ describe("jq prototype pollution defense", () => {
 
     it("should not pollute prototype when constructing object with prototype", async () => {
       const env = new Bash();
-      const result = await env.exec(
-        `echo 'null' | jq '{("prototype"): "polluted"}'`,
+      const result = toText(
+        await env.exec(`echo 'null' | jq '{("prototype"): "polluted"}'`),
       );
       expect(result.exitCode).toBe(0);
       expect(result.stdout.trim()).toBe("{}");
@@ -74,8 +75,8 @@ describe("jq prototype pollution defense", () => {
 
     it("should construct normal keys correctly while filtering dangerous ones", async () => {
       const env = new Bash();
-      const result = await env.exec(
-        `echo 'null' | jq '{a: 1, ("__proto__"): 2, b: 3}'`,
+      const result = toText(
+        await env.exec(`echo 'null' | jq '{a: 1, ("__proto__"): 2, b: 3}'`),
       );
       expect(result.exitCode).toBe(0);
       const parsed = JSON.parse(result.stdout.trim());
@@ -87,8 +88,10 @@ describe("jq prototype pollution defense", () => {
   describe("from_entries with dangerous keys", () => {
     it("should filter __proto__ in from_entries", async () => {
       const env = new Bash();
-      const result = await env.exec(
-        `echo '[{"key":"__proto__","value":"polluted"},{"key":"safe","value":"ok"}]' | jq 'from_entries'`,
+      const result = toText(
+        await env.exec(
+          `echo '[{"key":"__proto__","value":"polluted"},{"key":"safe","value":"ok"}]' | jq 'from_entries'`,
+        ),
       );
       expect(result.exitCode).toBe(0);
       const parsed = JSON.parse(result.stdout.trim());
@@ -99,8 +102,10 @@ describe("jq prototype pollution defense", () => {
 
     it("should filter constructor in from_entries", async () => {
       const env = new Bash();
-      const result = await env.exec(
-        `echo '[{"key":"constructor","value":"polluted"}]' | jq 'from_entries'`,
+      const result = toText(
+        await env.exec(
+          `echo '[{"key":"constructor","value":"polluted"}]' | jq 'from_entries'`,
+        ),
       );
       expect(result.exitCode).toBe(0);
       expect(result.stdout.trim()).toBe("{}");
@@ -108,8 +113,10 @@ describe("jq prototype pollution defense", () => {
 
     it("should filter prototype in from_entries", async () => {
       const env = new Bash();
-      const result = await env.exec(
-        `echo '[{"key":"prototype","value":"polluted"}]' | jq 'from_entries'`,
+      const result = toText(
+        await env.exec(
+          `echo '[{"key":"prototype","value":"polluted"}]' | jq 'from_entries'`,
+        ),
       );
       expect(result.exitCode).toBe(0);
       expect(result.stdout.trim()).toBe("{}");
@@ -118,20 +125,26 @@ describe("jq prototype pollution defense", () => {
     it("should handle from_entries with name/Name/k variants for dangerous keys", async () => {
       const env = new Bash();
       // Test with 'name' variant
-      const result1 = await env.exec(
-        `echo '[{"name":"__proto__","value":"polluted"}]' | jq 'from_entries'`,
+      const result1 = toText(
+        await env.exec(
+          `echo '[{"name":"__proto__","value":"polluted"}]' | jq 'from_entries'`,
+        ),
       );
       expect(result1.stdout.trim()).toBe("{}");
 
       // Test with 'Name' variant
-      const result2 = await env.exec(
-        `echo '[{"Name":"constructor","value":"polluted"}]' | jq 'from_entries'`,
+      const result2 = toText(
+        await env.exec(
+          `echo '[{"Name":"constructor","value":"polluted"}]' | jq 'from_entries'`,
+        ),
       );
       expect(result2.stdout.trim()).toBe("{}");
 
       // Test with 'k' variant
-      const result3 = await env.exec(
-        `echo '[{"k":"prototype","v":"polluted"}]' | jq 'from_entries'`,
+      const result3 = toText(
+        await env.exec(
+          `echo '[{"k":"prototype","v":"polluted"}]' | jq 'from_entries'`,
+        ),
       );
       expect(result3.stdout.trim()).toBe("{}");
     });
@@ -140,8 +153,10 @@ describe("jq prototype pollution defense", () => {
   describe("with_entries with dangerous keys", () => {
     it("should filter __proto__ when renaming keys via with_entries", async () => {
       const env = new Bash();
-      const result = await env.exec(
-        `echo '{"a":1}' | jq 'with_entries(.key = "__proto__")'`,
+      const result = toText(
+        await env.exec(
+          `echo '{"a":1}' | jq 'with_entries(.key = "__proto__")'`,
+        ),
       );
       expect(result.exitCode).toBe(0);
       expect(result.stdout.trim()).toBe("{}");
@@ -149,8 +164,10 @@ describe("jq prototype pollution defense", () => {
 
     it("should filter constructor when transforming via with_entries", async () => {
       const env = new Bash();
-      const result = await env.exec(
-        `echo '{"a":1}' | jq 'with_entries(.key = "constructor")'`,
+      const result = toText(
+        await env.exec(
+          `echo '{"a":1}' | jq 'with_entries(.key = "constructor")'`,
+        ),
       );
       expect(result.exitCode).toBe(0);
       expect(result.stdout.trim()).toBe("{}");
@@ -160,8 +177,8 @@ describe("jq prototype pollution defense", () => {
   describe("setpath with dangerous keys", () => {
     it("should ignore setpath with __proto__", async () => {
       const env = new Bash();
-      const result = await env.exec(
-        `echo '{}' | jq 'setpath(["__proto__"]; "polluted")'`,
+      const result = toText(
+        await env.exec(`echo '{}' | jq 'setpath(["__proto__"]; "polluted")'`),
       );
       expect(result.exitCode).toBe(0);
       expect(result.stdout.trim()).toBe("{}");
@@ -169,8 +186,8 @@ describe("jq prototype pollution defense", () => {
 
     it("should ignore setpath with constructor", async () => {
       const env = new Bash();
-      const result = await env.exec(
-        `echo '{}' | jq 'setpath(["constructor"]; "polluted")'`,
+      const result = toText(
+        await env.exec(`echo '{}' | jq 'setpath(["constructor"]; "polluted")'`),
       );
       expect(result.exitCode).toBe(0);
       expect(result.stdout.trim()).toBe("{}");
@@ -178,8 +195,10 @@ describe("jq prototype pollution defense", () => {
 
     it("should ignore setpath with nested dangerous key", async () => {
       const env = new Bash();
-      const result = await env.exec(
-        `echo '{"a":{}}' | jq 'setpath(["a","__proto__"]; "polluted")'`,
+      const result = toText(
+        await env.exec(
+          `echo '{"a":{}}' | jq 'setpath(["a","__proto__"]; "polluted")'`,
+        ),
       );
       expect(result.exitCode).toBe(0);
       const parsed = JSON.parse(result.stdout.trim());
@@ -188,8 +207,10 @@ describe("jq prototype pollution defense", () => {
 
     it("should set safe keys while ignoring dangerous ones in same path", async () => {
       const env = new Bash();
-      const result = await env.exec(
-        `echo '{}' | jq 'setpath(["safe"]; "ok") | setpath(["__proto__"]; "bad")'`,
+      const result = toText(
+        await env.exec(
+          `echo '{}' | jq 'setpath(["safe"]; "ok") | setpath(["__proto__"]; "bad")'`,
+        ),
       );
       expect(result.exitCode).toBe(0);
       const parsed = JSON.parse(result.stdout.trim());
@@ -200,15 +221,17 @@ describe("jq prototype pollution defense", () => {
   describe("update operations with dangerous keys", () => {
     it("should ignore assignment to .__proto__", async () => {
       const env = new Bash();
-      const result = await env.exec(`echo '{}' | jq '.__proto__ = "polluted"'`);
+      const result = toText(
+        await env.exec(`echo '{}' | jq '.__proto__ = "polluted"'`),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout.trim()).toBe("{}");
     });
 
     it("should ignore assignment to .constructor", async () => {
       const env = new Bash();
-      const result = await env.exec(
-        `echo '{}' | jq '.constructor = "polluted"'`,
+      const result = toText(
+        await env.exec(`echo '{}' | jq '.constructor = "polluted"'`),
       );
       expect(result.exitCode).toBe(0);
       expect(result.stdout.trim()).toBe("{}");
@@ -216,8 +239,8 @@ describe("jq prototype pollution defense", () => {
 
     it("should ignore |= update with dangerous keys", async () => {
       const env = new Bash();
-      const result = await env.exec(
-        `echo '{}' | jq '.__proto__ |= . + "test"'`,
+      const result = toText(
+        await env.exec(`echo '{}' | jq '.__proto__ |= . + "test"'`),
       );
       expect(result.exitCode).toBe(0);
       expect(result.stdout.trim()).toBe("{}");
@@ -225,15 +248,17 @@ describe("jq prototype pollution defense", () => {
 
     it("should ignore += update with dangerous keys", async () => {
       const env = new Bash();
-      const result = await env.exec(`echo '{}' | jq '.__proto__ += "test"'`);
+      const result = toText(
+        await env.exec(`echo '{}' | jq '.__proto__ += "test"'`),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout.trim()).toBe("{}");
     });
 
     it("should handle indexed assignment with dangerous string keys", async () => {
       const env = new Bash();
-      const result = await env.exec(
-        `echo '{}' | jq '.["__proto__"] = "polluted"'`,
+      const result = toText(
+        await env.exec(`echo '{}' | jq '.["__proto__"] = "polluted"'`),
       );
       expect(result.exitCode).toBe(0);
       expect(result.stdout.trim()).toBe("{}");
@@ -243,7 +268,9 @@ describe("jq prototype pollution defense", () => {
   describe("delete operations with dangerous keys", () => {
     it("should safely handle del(.__proto__)", async () => {
       const env = new Bash();
-      const result = await env.exec(`echo '{"a":1}' | jq 'del(.__proto__)'`);
+      const result = toText(
+        await env.exec(`echo '{"a":1}' | jq 'del(.__proto__)'`),
+      );
       expect(result.exitCode).toBe(0);
       const parsed = JSON.parse(result.stdout.trim());
       expect(parsed).toEqual({ a: 1 });
@@ -251,7 +278,9 @@ describe("jq prototype pollution defense", () => {
 
     it("should safely handle del(.constructor)", async () => {
       const env = new Bash();
-      const result = await env.exec(`echo '{"a":1}' | jq 'del(.constructor)'`);
+      const result = toText(
+        await env.exec(`echo '{"a":1}' | jq 'del(.constructor)'`),
+      );
       expect(result.exitCode).toBe(0);
       const parsed = JSON.parse(result.stdout.trim());
       expect(parsed).toEqual({ a: 1 });
@@ -259,8 +288,8 @@ describe("jq prototype pollution defense", () => {
 
     it("should safely handle delpaths with dangerous keys", async () => {
       const env = new Bash();
-      const result = await env.exec(
-        `echo '{"a":1}' | jq 'delpaths([["__proto__"]])'`,
+      const result = toText(
+        await env.exec(`echo '{"a":1}' | jq 'delpaths([["__proto__"]])'`),
       );
       expect(result.exitCode).toBe(0);
       const parsed = JSON.parse(result.stdout.trim());
@@ -271,8 +300,8 @@ describe("jq prototype pollution defense", () => {
   describe("deep merge with dangerous keys", () => {
     it("should filter dangerous keys during object multiplication (deep merge)", async () => {
       const env = new Bash();
-      const result = await env.exec(
-        `echo '{"a":1}' | jq '. * {"__proto__": "polluted"}'`,
+      const result = toText(
+        await env.exec(`echo '{"a":1}' | jq '. * {"__proto__": "polluted"}'`),
       );
       expect(result.exitCode).toBe(0);
       const parsed = JSON.parse(result.stdout.trim());
@@ -281,8 +310,10 @@ describe("jq prototype pollution defense", () => {
 
     it("should handle nested dangerous keys in deep merge", async () => {
       const env = new Bash();
-      const result = await env.exec(
-        `echo '{"a":{"b":1}}' | jq '. * {"a": {"__proto__": "polluted"}}'`,
+      const result = toText(
+        await env.exec(
+          `echo '{"a":{"b":1}}' | jq '. * {"a": {"__proto__": "polluted"}}'`,
+        ),
       );
       expect(result.exitCode).toBe(0);
       const parsed = JSON.parse(result.stdout.trim());
@@ -295,8 +326,10 @@ describe("jq prototype pollution defense", () => {
       const env = new Bash();
       // tostream produces path-value pairs, fromstream reconstructs
       // Manually craft a stream with dangerous key
-      const result = await env.exec(
-        `echo 'null' | jq 'fromstream(([["__proto__"], "polluted"], [[]]))'`,
+      const result = toText(
+        await env.exec(
+          `echo 'null' | jq 'fromstream(([["__proto__"], "polluted"], [[]]))'`,
+        ),
       );
       expect(result.exitCode).toBe(0);
       // Should be null or empty object, not an object with __proto__ set
@@ -309,8 +342,8 @@ describe("jq prototype pollution defense", () => {
     it("should handle .[] = update when object has dangerous keys", async () => {
       const env = new Bash();
       // When iterating over values and updating, dangerous keys should be skipped
-      const result = await env.exec(
-        `echo '{"a":1,"__proto__":2}' | jq '.[] |= . + 10'`,
+      const result = toText(
+        await env.exec(`echo '{"a":1,"__proto__":2}' | jq '.[] |= . + 10'`),
       );
       expect(result.exitCode).toBe(0);
       const parsed = JSON.parse(result.stdout.trim());
@@ -322,8 +355,10 @@ describe("jq prototype pollution defense", () => {
   describe("edge cases and combinations", () => {
     it("should handle multiple dangerous keys in single operation", async () => {
       const env = new Bash();
-      const result = await env.exec(
-        `echo '{}' | jq '{("__proto__"): 1, ("constructor"): 2, ("prototype"): 3, safe: 4}'`,
+      const result = toText(
+        await env.exec(
+          `echo '{}' | jq '{("__proto__"): 1, ("constructor"): 2, ("prototype"): 3, safe: 4}'`,
+        ),
       );
       expect(result.exitCode).toBe(0);
       const parsed = JSON.parse(result.stdout.trim());
@@ -333,8 +368,8 @@ describe("jq prototype pollution defense", () => {
     it("should handle dangerous keys with special characters", async () => {
       const env = new Bash();
       // __proto__ with different casing should be allowed (only exact match is dangerous)
-      const result = await env.exec(
-        `echo '{}' | jq '{("__Proto__"): 1, ("__PROTO__"): 2}'`,
+      const result = toText(
+        await env.exec(`echo '{}' | jq '{("__Proto__"): 1, ("__PROTO__"): 2}'`),
       );
       expect(result.exitCode).toBe(0);
       const parsed = JSON.parse(result.stdout.trim());
@@ -343,8 +378,10 @@ describe("jq prototype pollution defense", () => {
 
     it("should handle chained operations with dangerous keys", async () => {
       const env = new Bash();
-      const result = await env.exec(
-        `echo '{"a":1}' | jq '. + {("__proto__"): 2} | . + {b: 3}'`,
+      const result = toText(
+        await env.exec(
+          `echo '{"a":1}' | jq '. + {("__proto__"): 2} | . + {b: 3}'`,
+        ),
       );
       expect(result.exitCode).toBe(0);
       const parsed = JSON.parse(result.stdout.trim());
@@ -353,8 +390,10 @@ describe("jq prototype pollution defense", () => {
 
     it("should preserve normal functionality with safe keys", async () => {
       const env = new Bash();
-      const result = await env.exec(
-        `echo '{}' | jq '{a: 1, b: 2, c: 3} | .d = 4 | del(.b)'`,
+      const result = toText(
+        await env.exec(
+          `echo '{}' | jq '{a: 1, b: 2, c: 3} | .d = 4 | del(.b)'`,
+        ),
       );
       expect(result.exitCode).toBe(0);
       const parsed = JSON.parse(result.stdout.trim());
@@ -363,8 +402,10 @@ describe("jq prototype pollution defense", () => {
 
     it("should handle reduce with potential dangerous key accumulation", async () => {
       const env = new Bash();
-      const result = await env.exec(
-        `echo '["__proto__", "safe", "constructor"]' | jq 'reduce .[] as $k ({}; .[$k] = 1)'`,
+      const result = toText(
+        await env.exec(
+          `echo '["__proto__", "safe", "constructor"]' | jq 'reduce .[] as $k ({}; .[$k] = 1)'`,
+        ),
       );
       expect(result.exitCode).toBe(0);
       const parsed = JSON.parse(result.stdout.trim());
@@ -373,8 +414,10 @@ describe("jq prototype pollution defense", () => {
 
     it("should handle complex nested path operations safely", async () => {
       const env = new Bash();
-      const result = await env.exec(
-        `echo '{"a":{"b":{}}}' | jq '.a.b.__proto__ = "polluted"'`,
+      const result = toText(
+        await env.exec(
+          `echo '{"a":{"b":{}}}' | jq '.a.b.__proto__ = "polluted"'`,
+        ),
       );
       expect(result.exitCode).toBe(0);
       const parsed = JSON.parse(result.stdout.trim());
@@ -393,7 +436,7 @@ describe("jq prototype pollution defense", () => {
       );
 
       // Now check that a fresh empty object doesn't have unexpected properties
-      const result = await env.exec(`echo '{}' | jq 'keys'`);
+      const result = toText(await env.exec(`echo '{}' | jq 'keys'`));
       expect(result.exitCode).toBe(0);
       // Empty object should have no keys
       expect(result.stdout.trim()).toBe("[]");

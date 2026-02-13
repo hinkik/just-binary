@@ -7,6 +7,7 @@
 
 import { createUserRegex } from "../../regex/index.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 import {
   createArchive,
@@ -283,8 +284,8 @@ async function createTarArchive(
 ): Promise<ExecResult> {
   if (files.length === 0) {
     return {
-      stdout: "",
-      stderr: "tar: Cowardly refusing to create an empty archive\n",
+      stdout: EMPTY,
+      stderr: encode("tar: Cowardly refusing to create an empty archive\n"),
       exitCode: 2,
     };
   }
@@ -317,8 +318,8 @@ async function createTarArchive(
 
   if (allEntries.length === 0 && allErrors.length > 0) {
     return {
-      stdout: "",
-      stderr: `${allErrors.join("\n")}\n`,
+      stdout: EMPTY,
+      stderr: encode(`${allErrors.join("\n")}\n`),
       exitCode: 2,
     };
   }
@@ -340,8 +341,8 @@ async function createTarArchive(
   } catch (e) {
     const msg = e instanceof Error ? e.message : "unknown error";
     return {
-      stdout: "",
-      stderr: `tar: error creating archive: ${msg}\n`,
+      stdout: EMPTY,
+      stderr: encode(`tar: error creating archive: ${msg}\n`),
       exitCode: 2,
     };
   }
@@ -355,8 +356,8 @@ async function createTarArchive(
     } catch (e) {
       const msg = e instanceof Error ? e.message : "unknown error";
       return {
-        stdout: "",
-        stderr: `tar: ${options.file}: ${msg}\n`,
+        stdout: EMPTY,
+        stderr: encode(`tar: ${options.file}: ${msg}\n`),
         exitCode: 2,
       };
     }
@@ -370,7 +371,11 @@ async function createTarArchive(
   if (allErrors.length > 0) {
     stderr += `${allErrors.join("\n")}\n`;
   }
-  return { stdout, stderr, exitCode: allErrors.length > 0 ? 2 : 0 };
+  return {
+    stdout: encode(stdout),
+    stderr: encode(stderr),
+    exitCode: allErrors.length > 0 ? 2 : 0,
+  };
 }
 
 /**
@@ -383,16 +388,16 @@ async function appendTarArchive(
 ): Promise<ExecResult> {
   if (!options.file || options.file === "-") {
     return {
-      stdout: "",
-      stderr: "tar: Cannot append to stdin/stdout\n",
+      stdout: EMPTY,
+      stderr: encode("tar: Cannot append to stdin/stdout\n"),
       exitCode: 2,
     };
   }
 
   if (files.length === 0) {
     return {
-      stdout: "",
-      stderr: "tar: Cowardly refusing to append nothing to archive\n",
+      stdout: EMPTY,
+      stderr: encode("tar: Cowardly refusing to append nothing to archive\n"),
       exitCode: 2,
     };
   }
@@ -405,8 +410,10 @@ async function appendTarArchive(
     existingData = await ctx.fs.readFileBuffer(archivePath);
   } catch {
     return {
-      stdout: "",
-      stderr: `tar: ${options.file}: Cannot open: No such file or directory\n`,
+      stdout: EMPTY,
+      stderr: encode(
+        `tar: ${options.file}: Cannot open: No such file or directory\n`,
+      ),
       exitCode: 2,
     };
   }
@@ -415,8 +422,8 @@ async function appendTarArchive(
   const parseResult = await parseArchive(existingData);
   if (parseResult.error) {
     return {
-      stdout: "",
-      stderr: `tar: ${parseResult.error}\n`,
+      stdout: EMPTY,
+      stderr: encode(`tar: ${parseResult.error}\n`),
       exitCode: 2,
     };
   }
@@ -470,8 +477,8 @@ async function appendTarArchive(
   } catch (e) {
     const msg = e instanceof Error ? e.message : "unknown error";
     return {
-      stdout: "",
-      stderr: `tar: error creating archive: ${msg}\n`,
+      stdout: EMPTY,
+      stderr: encode(`tar: error creating archive: ${msg}\n`),
       exitCode: 2,
     };
   }
@@ -482,8 +489,8 @@ async function appendTarArchive(
   } catch (e) {
     const msg = e instanceof Error ? e.message : "unknown error";
     return {
-      stdout: "",
-      stderr: `tar: ${options.file}: ${msg}\n`,
+      stdout: EMPTY,
+      stderr: encode(`tar: ${options.file}: ${msg}\n`),
       exitCode: 2,
     };
   }
@@ -492,7 +499,11 @@ async function appendTarArchive(
   if (allErrors.length > 0) {
     stderr += `${allErrors.join("\n")}\n`;
   }
-  return { stdout: "", stderr, exitCode: allErrors.length > 0 ? 2 : 0 };
+  return {
+    stdout: EMPTY,
+    stderr: encode(stderr),
+    exitCode: allErrors.length > 0 ? 2 : 0,
+  };
 }
 
 /**
@@ -505,16 +516,16 @@ async function updateTarArchive(
 ): Promise<ExecResult> {
   if (!options.file || options.file === "-") {
     return {
-      stdout: "",
-      stderr: "tar: Cannot update stdin/stdout\n",
+      stdout: EMPTY,
+      stderr: encode("tar: Cannot update stdin/stdout\n"),
       exitCode: 2,
     };
   }
 
   if (files.length === 0) {
     return {
-      stdout: "",
-      stderr: "tar: Cowardly refusing to update with nothing\n",
+      stdout: EMPTY,
+      stderr: encode("tar: Cowardly refusing to update with nothing\n"),
       exitCode: 2,
     };
   }
@@ -527,8 +538,10 @@ async function updateTarArchive(
     existingData = await ctx.fs.readFileBuffer(archivePath);
   } catch {
     return {
-      stdout: "",
-      stderr: `tar: ${options.file}: Cannot open: No such file or directory\n`,
+      stdout: EMPTY,
+      stderr: encode(
+        `tar: ${options.file}: Cannot open: No such file or directory\n`,
+      ),
       exitCode: 2,
     };
   }
@@ -537,8 +550,8 @@ async function updateTarArchive(
   const parseResult = await parseArchive(existingData);
   if (parseResult.error) {
     return {
-      stdout: "",
-      stderr: `tar: ${parseResult.error}\n`,
+      stdout: EMPTY,
+      stderr: encode(`tar: ${parseResult.error}\n`),
       exitCode: 2,
     };
   }
@@ -588,7 +601,11 @@ async function updateTarArchive(
     if (allErrors.length > 0) {
       stderr = `${allErrors.join("\n")}\n`;
     }
-    return { stdout: "", stderr, exitCode: allErrors.length > 0 ? 2 : 0 };
+    return {
+      stdout: EMPTY,
+      stderr: encode(stderr),
+      exitCode: allErrors.length > 0 ? 2 : 0,
+    };
   }
 
   // Convert existing entries to TarCreateEntry format, excluding ones we're updating
@@ -617,8 +634,8 @@ async function updateTarArchive(
   } catch (e) {
     const msg = e instanceof Error ? e.message : "unknown error";
     return {
-      stdout: "",
-      stderr: `tar: error creating archive: ${msg}\n`,
+      stdout: EMPTY,
+      stderr: encode(`tar: error creating archive: ${msg}\n`),
       exitCode: 2,
     };
   }
@@ -629,8 +646,8 @@ async function updateTarArchive(
   } catch (e) {
     const msg = e instanceof Error ? e.message : "unknown error";
     return {
-      stdout: "",
-      stderr: `tar: ${options.file}: ${msg}\n`,
+      stdout: EMPTY,
+      stderr: encode(`tar: ${options.file}: ${msg}\n`),
       exitCode: 2,
     };
   }
@@ -639,7 +656,11 @@ async function updateTarArchive(
   if (allErrors.length > 0) {
     stderr += `${allErrors.join("\n")}\n`;
   }
-  return { stdout: "", stderr, exitCode: allErrors.length > 0 ? 2 : 0 };
+  return {
+    stdout: EMPTY,
+    stderr: encode(stderr),
+    exitCode: allErrors.length > 0 ? 2 : 0,
+  };
 }
 
 /**
@@ -659,14 +680,16 @@ async function extractTarArchive(
       archiveData = await ctx.fs.readFileBuffer(archivePath);
     } catch {
       return {
-        stdout: "",
-        stderr: `tar: ${options.file}: Cannot open: No such file or directory\n`,
+        stdout: EMPTY,
+        stderr: encode(
+          `tar: ${options.file}: Cannot open: No such file or directory\n`,
+        ),
         exitCode: 2,
       };
     }
   } else {
-    // Read from stdin - convert binary string directly to bytes without UTF-8 re-encoding
-    archiveData = Uint8Array.from(ctx.stdin, (c) => c.charCodeAt(0));
+    // ctx.stdin is already Uint8Array
+    archiveData = ctx.stdin;
   }
 
   // Parse archive - auto-detect compression or use flags
@@ -691,8 +714,8 @@ async function extractTarArchive(
 
   if (parseResult.error) {
     return {
-      stdout: "",
-      stderr: `tar: ${parseResult.error}\n`,
+      stdout: EMPTY,
+      stderr: encode(`tar: ${parseResult.error}\n`),
       exitCode: 2,
     };
   }
@@ -853,7 +876,11 @@ async function extractTarArchive(
   if (errors.length > 0) {
     stderr += `${errors.join("\n")}\n`;
   }
-  return { stdout: stdoutContent, stderr, exitCode: errors.length > 0 ? 2 : 0 };
+  return {
+    stdout: encode(stdoutContent),
+    stderr: encode(stderr),
+    exitCode: errors.length > 0 ? 2 : 0,
+  };
 }
 
 /**
@@ -873,14 +900,16 @@ async function listTarArchive(
       archiveData = await ctx.fs.readFileBuffer(archivePath);
     } catch {
       return {
-        stdout: "",
-        stderr: `tar: ${options.file}: Cannot open: No such file or directory\n`,
+        stdout: EMPTY,
+        stderr: encode(
+          `tar: ${options.file}: Cannot open: No such file or directory\n`,
+        ),
         exitCode: 2,
       };
     }
   } else {
-    // Read from stdin - convert binary string directly to bytes without UTF-8 re-encoding
-    archiveData = Uint8Array.from(ctx.stdin, (c) => c.charCodeAt(0));
+    // ctx.stdin is already Uint8Array
+    archiveData = ctx.stdin;
   }
 
   // Parse archive - auto-detect compression or use flags
@@ -905,8 +934,8 @@ async function listTarArchive(
 
   if (parseResult.error) {
     return {
-      stdout: "",
-      stderr: `tar: ${parseResult.error}\n`,
+      stdout: EMPTY,
+      stderr: encode(`tar: ${parseResult.error}\n`),
       exitCode: 2,
     };
   }
@@ -958,7 +987,7 @@ async function listTarArchive(
     }
   }
 
-  return { stdout, stderr: "", exitCode: 0 };
+  return { stdout: encode(stdout), stderr: EMPTY, exitCode: 0 };
 }
 
 export const tarCommand: Command = {
@@ -985,16 +1014,17 @@ export const tarCommand: Command = {
     ].filter(Boolean).length;
     if (opCount === 0) {
       return {
-        stdout: "",
-        stderr: "tar: You must specify one of -c, -r, -u, -x, or -t\n",
+        stdout: EMPTY,
+        stderr: encode("tar: You must specify one of -c, -r, -u, -x, or -t\n"),
         exitCode: 2,
       };
     }
     if (opCount > 1) {
       return {
-        stdout: "",
-        stderr:
+        stdout: EMPTY,
+        stderr: encode(
           "tar: You may not specify more than one of -c, -r, -u, -x, or -t\n",
+        ),
         exitCode: 2,
       };
     }
@@ -1022,8 +1052,10 @@ export const tarCommand: Command = {
     ].filter(Boolean).length;
     if (compCount > 1) {
       return {
-        stdout: "",
-        stderr: "tar: You may not specify more than one compression option\n",
+        stdout: EMPTY,
+        stderr: encode(
+          "tar: You may not specify more than one compression option\n",
+        ),
         exitCode: 2,
       };
     }
@@ -1031,9 +1063,10 @@ export const tarCommand: Command = {
     // Append and update don't work with compression
     if ((options.append || options.update) && compCount > 0) {
       return {
-        stdout: "",
-        stderr:
+        stdout: EMPTY,
+        stderr: encode(
           "tar: Cannot append/update compressed archives - decompress first\n",
+        ),
         exitCode: 2,
       };
     }
@@ -1051,8 +1084,10 @@ export const tarCommand: Command = {
         finalFiles = [...files, ...additionalFiles];
       } catch {
         return {
-          stdout: "",
-          stderr: `tar: ${options.filesFrom}: Cannot open: No such file or directory\n`,
+          stdout: EMPTY,
+          stderr: encode(
+            `tar: ${options.filesFrom}: Cannot open: No such file or directory\n`,
+          ),
           exitCode: 2,
         };
       }
@@ -1070,8 +1105,10 @@ export const tarCommand: Command = {
         options.exclude.push(...additionalExcludes);
       } catch {
         return {
-          stdout: "",
-          stderr: `tar: ${options.excludeFrom}: Cannot open: No such file or directory\n`,
+          stdout: EMPTY,
+          stderr: encode(
+            `tar: ${options.excludeFrom}: Cannot open: No such file or directory\n`,
+          ),
           exitCode: 2,
         };
       }

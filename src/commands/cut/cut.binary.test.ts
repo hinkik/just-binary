@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { toText } from "../../test-utils.js";
 
 describe("cut with binary content", () => {
   it("should cut fields from binary file", async () => {
@@ -16,7 +17,7 @@ describe("cut with binary content", () => {
       },
     });
 
-    const result = await env.exec("cut -d: -f2 /data.bin");
+    const result = toText(await env.exec("cut -d: -f2 /data.bin"));
     expect(result.stdout).toBe("b\n");
     expect(result.exitCode).toBe(0);
   });

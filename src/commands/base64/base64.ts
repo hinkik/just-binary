@@ -4,6 +4,7 @@
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
+import { EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const base64Help = {
@@ -30,10 +31,10 @@ async function readBinary(
 ): Promise<{ ok: true; data: Uint8Array } | { ok: false; error: ExecResult }> {
   // No files - read from stdin
   if (files.length === 0 || (files.length === 1 && files[0] === "-")) {
-    // Convert binary string directly to bytes without UTF-8 re-encoding
+    // ctx.stdin is already Uint8Array
     return {
       ok: true,
-      data: Uint8Array.from(ctx.stdin, (c) => c.charCodeAt(0)),
+      data: ctx.stdin,
     };
   }
 
@@ -41,8 +42,8 @@ async function readBinary(
   const chunks: Uint8Array[] = [];
   for (const file of files) {
     if (file === "-") {
-      // Convert binary string directly to bytes without UTF-8 re-encoding
-      chunks.push(Uint8Array.from(ctx.stdin, (c) => c.charCodeAt(0)));
+      // ctx.stdin is already Uint8Array
+      chunks.push(ctx.stdin);
       continue;
     }
     try {
@@ -53,8 +54,8 @@ async function readBinary(
       return {
         ok: false,
         error: {
-          stdout: "",
-          stderr: `${cmdName}: ${file}: No such file or directory\n`,
+          stdout: EMPTY,
+          stderr: encode(`${cmdName}: ${file}: No such file or directory\n`),
           exitCode: 1,
         },
       };
@@ -101,8 +102,16 @@ export const base64Command: Command = {
           const decoded = Buffer.from(cleaned, "base64");
           // Convert to binary string (each char code = byte value)
           // Use Buffer's latin1 encoding which treats each byte as a character
-          const result = decoded.toString("latin1");
-          return { stdout: result, stderr: "", exitCode: 0 };
+          // Return decoded bytes directly as Uint8Array
+          return {
+            stdout: new Uint8Array(
+              decoded.buffer,
+              decoded.byteOffset,
+              decoded.byteLength,
+            ) as Uint8Array,
+            stderr: EMPTY,
+            exitCode: 0,
+          };
         }
 
         // Browser fallback - use binary string (latin1) to preserve bytes for input
@@ -110,7 +119,7 @@ export const base64Command: Command = {
         const cleaned = input.replace(/\s/g, "");
         // Decode base64 to binary string (each char code = byte value)
         const decoded = atob(cleaned);
-        return { stdout: decoded, stderr: "", exitCode: 0 };
+        return { stdout: encode(decoded), stderr: EMPTY, exitCode: 0 };
       }
 
       // Encoding: read as binary
@@ -134,9 +143,13 @@ export const base64Command: Command = {
         }
         encoded = lines.join("\n") + (encoded.length > 0 ? "\n" : "");
       }
-      return { stdout: encoded, stderr: "", exitCode: 0 };
+      return { stdout: encode(encoded), stderr: EMPTY, exitCode: 0 };
     } catch {
-      return { stdout: "", stderr: "base64: invalid input\n", exitCode: 1 };
+      return {
+        stdout: EMPTY,
+        stderr: encode("base64: invalid input\n"),
+        exitCode: 1,
+      };
     }
   },
 };

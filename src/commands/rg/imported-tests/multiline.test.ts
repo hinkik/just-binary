@@ -10,6 +10,7 @@
 
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../../Bash.js";
+import { toText } from "../../../test-utils.js";
 
 describe("rg multiline: basic overlapping matches", () => {
   // This tests that multiline matches that span multiple lines, but where
@@ -21,7 +22,7 @@ describe("rg multiline: basic overlapping matches", () => {
         "/home/user/test": "xxx\nabc\ndefxxxabc\ndefxxx\nxxx",
       },
     });
-    const result = await bash.exec("rg -n -U 'abc\\ndef' test");
+    const result = toText(await bash.exec("rg -n -U 'abc\\ndef' test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("2:abc\n3:defxxxabc\n4:defxxx\n");
   });
@@ -35,7 +36,7 @@ describe("rg multiline: basic overlapping matches", () => {
         "/home/user/test": "xxx\nabc\ndefabc\ndefxxx\nxxx",
       },
     });
-    const result = await bash.exec("rg -n -U 'abc\\ndef' test");
+    const result = toText(await bash.exec("rg -n -U 'abc\\ndef' test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("2:abc\n3:defabc\n4:defxxx\n");
   });
@@ -60,8 +61,8 @@ and exhibited clearly, with a label attached.
     });
     // Pattern tries to match "of this world" followed by any chars and "detective work"
     // With standard multiline (no dotall), . doesn't match \n, so this should fail
-    const result = await bash.exec(
-      "rg -n -U 'of this world.+detective work' sherlock",
+    const result = toText(
+      await bash.exec("rg -n -U 'of this world.+detective work' sherlock"),
     );
     expect(result.exitCode).toBe(1);
     expect(result.stdout).toBe("");
@@ -90,7 +91,9 @@ describe("rg multiline: dot_all", () => {
         "/home/user/test": "foo\nbar\n",
       },
     });
-    const result = await bash.exec("rg --multiline-dotall 'foo.bar' test");
+    const result = toText(
+      await bash.exec("rg --multiline-dotall 'foo.bar' test"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("foo");
   });

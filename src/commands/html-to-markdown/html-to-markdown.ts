@@ -6,6 +6,7 @@
 
 import TurndownService from "turndown";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { decode, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
 const htmlToMarkdownHelp = {
@@ -95,22 +96,24 @@ export const htmlToMarkdownCommand: Command = {
     // Get input
     let input: string;
     if (files.length === 0 || (files.length === 1 && files[0] === "-")) {
-      input = ctx.stdin;
+      input = decode(ctx.stdin);
     } else {
       try {
         const filePath = ctx.fs.resolvePath(ctx.cwd, files[0]);
         input = await ctx.fs.readFile(filePath);
       } catch {
         return {
-          stdout: "",
-          stderr: `html-to-markdown: ${files[0]}: No such file or directory\n`,
+          stdout: EMPTY,
+          stderr: encode(
+            `html-to-markdown: ${files[0]}: No such file or directory\n`,
+          ),
           exitCode: 1,
         };
       }
     }
 
     if (!input.trim()) {
-      return { stdout: "", stderr: "", exitCode: 0 };
+      return { stdout: EMPTY, stderr: EMPTY, exitCode: 0 };
     }
 
     try {
@@ -127,16 +130,16 @@ export const htmlToMarkdownCommand: Command = {
 
       const markdown = turndownService.turndown(input).trim();
       return {
-        stdout: `${markdown}\n`,
-        stderr: "",
+        stdout: encode(`${markdown}\n`),
+        stderr: EMPTY,
         exitCode: 0,
       };
     } catch (error) {
       return {
-        stdout: "",
-        stderr: `html-to-markdown: conversion error: ${
-          (error as Error).message
-        }\n`,
+        stdout: EMPTY,
+        stderr: encode(
+          `html-to-markdown: conversion error: ${(error as Error).message}\n`,
+        ),
         exitCode: 1,
       };
     }

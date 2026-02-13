@@ -1,4 +1,5 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const dirnameHelp = {
@@ -20,8 +21,8 @@ export const dirnameCommand: Command = {
 
     if (names.length === 0) {
       return {
-        stdout: "",
-        stderr: "dirname: missing operand\n",
+        stdout: EMPTY,
+        stderr: encode("dirname: missing operand\n"),
         exitCode: 1,
       };
     }
@@ -41,8 +42,8 @@ export const dirnameCommand: Command = {
     }
 
     return {
-      stdout: `${results.join("\n")}\n`,
-      stderr: "",
+      stdout: encode(`${results.join("\n")}\n`),
+      stderr: EMPTY,
       exitCode: 0,
     };
   },

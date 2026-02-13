@@ -8,6 +8,7 @@
  */
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { EMPTY, encode } from "../../utils/bytes.js";
 
 type OutputFormat = "octal" | "hex" | "char";
 
@@ -46,8 +47,8 @@ async function odExecute(
     outputFormats.push("octal");
   }
 
-  // Get input - from file or stdin
-  let input = ctx.stdin;
+  // Get input bytes - from file or stdin
+  let inputBytes: Uint8Array = ctx.stdin;
 
   // Check for file argument
   if (fileArgs.length > 0 && fileArgs[0] !== "-") {
@@ -55,11 +56,11 @@ async function odExecute(
       ? fileArgs[0]
       : `${ctx.cwd}/${fileArgs[0]}`;
     try {
-      input = await ctx.fs.readFile(filePath);
+      inputBytes = (await ctx.fs.readFileBuffer(filePath)) as Uint8Array;
     } catch {
       return {
-        stdout: "",
-        stderr: `od: ${fileArgs[0]}: No such file or directory\n`,
+        stdout: EMPTY,
+        stderr: encode(`od: ${fileArgs[0]}: No such file or directory\n`),
         exitCode: 1,
       };
     }
@@ -104,11 +105,8 @@ async function odExecute(
     return ` ${code.toString(8).padStart(3, "0")}`;
   }
 
-  // Get bytes from input
-  const bytes: number[] = [];
-  for (const char of input) {
-    bytes.push(char.charCodeAt(0));
-  }
+  // Work directly with raw bytes from input
+  const bytes = Array.from(inputBytes);
 
   // Determine bytes per line (use 16 for hex/char compatibility)
   const bytesPerLine = 16;
@@ -152,8 +150,8 @@ async function odExecute(
   }
 
   return {
-    stdout: lines.length > 0 ? `${lines.join("\n")}\n` : "",
-    stderr: "",
+    stdout: encode(lines.length > 0 ? `${lines.join("\n")}\n` : ""),
+    stderr: EMPTY,
     exitCode: 0,
   };
 }

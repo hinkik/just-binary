@@ -8,6 +8,7 @@
  */
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { decode, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
 const commHelp = {
@@ -66,9 +67,10 @@ export const commCommand: Command = {
 
     if (files.length !== 2) {
       return {
-        stdout: "",
-        stderr:
+        stdout: EMPTY,
+        stderr: encode(
           "comm: missing operand\nTry 'comm --help' for more information.\n",
+        ),
         exitCode: 1,
       };
     }
@@ -76,7 +78,7 @@ export const commCommand: Command = {
     // Read file contents
     const readFile = async (file: string): Promise<string | null> => {
       if (file === "-") {
-        return ctx.stdin;
+        return decode(ctx.stdin);
       }
       try {
         const path = ctx.fs.resolvePath(ctx.cwd, file);
@@ -89,8 +91,8 @@ export const commCommand: Command = {
     const content1 = await readFile(files[0]);
     if (content1 === null) {
       return {
-        stdout: "",
-        stderr: `comm: ${files[0]}: No such file or directory\n`,
+        stdout: EMPTY,
+        stderr: encode(`comm: ${files[0]}: No such file or directory\n`),
         exitCode: 1,
       };
     }
@@ -98,8 +100,8 @@ export const commCommand: Command = {
     const content2 = await readFile(files[1]);
     if (content2 === null) {
       return {
-        stdout: "",
-        stderr: `comm: ${files[1]}: No such file or directory\n`,
+        stdout: EMPTY,
+        stderr: encode(`comm: ${files[1]}: No such file or directory\n`),
         exitCode: 1,
       };
     }
@@ -156,7 +158,7 @@ export const commCommand: Command = {
       }
     }
 
-    return { stdout: output, stderr: "", exitCode: 0 };
+    return { stdout: encode(output), stderr: EMPTY, exitCode: 0 };
   },
 };
 

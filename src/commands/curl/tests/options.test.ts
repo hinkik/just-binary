@@ -12,6 +12,7 @@ import {
   vi,
 } from "vitest";
 import { Bash } from "../../../Bash.js";
+import { toText } from "../../../test-utils.js";
 
 const originalFetch = global.fetch;
 let lastRequest: { url: string; options: RequestInit } | null = null;
@@ -47,15 +48,15 @@ describe("curl options", () => {
   describe("argument parsing", () => {
     it("requires URL", async () => {
       const env = createEnv();
-      const result = await env.exec("curl");
+      const result = toText(await env.exec("curl"));
       expect(result.exitCode).toBe(2);
       expect(result.stderr).toContain("no URL specified");
     });
 
     it("rejects unknown long options", async () => {
       const env = createEnv();
-      const result = await env.exec(
-        "curl --unknown-option https://api.example.com",
+      const result = toText(
+        await env.exec("curl --unknown-option https://api.example.com"),
       );
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("unrecognized option");
@@ -63,7 +64,7 @@ describe("curl options", () => {
 
     it("rejects unknown short options", async () => {
       const env = createEnv();
-      const result = await env.exec("curl -z https://api.example.com");
+      const result = toText(await env.exec("curl -z https://api.example.com"));
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("invalid option");
     });
@@ -204,7 +205,9 @@ describe("curl options", () => {
 
     it("writes to file named from URL with -O", async () => {
       const env = createEnv();
-      const result = await env.exec("curl -O https://api.example.com/file.txt");
+      const result = toText(
+        await env.exec("curl -O https://api.example.com/file.txt"),
+      );
       expect(result.exitCode).toBe(0);
       // File is written to cwd (defaults to /home/user)
       const content = await env.fs.readFile("/home/user/file.txt");
@@ -215,13 +218,17 @@ describe("curl options", () => {
   describe("silent mode", () => {
     it("suppresses error output with -s", async () => {
       const env = createEnv();
-      const result = await env.exec("curl -s https://other-domain.com/test");
+      const result = toText(
+        await env.exec("curl -s https://other-domain.com/test"),
+      );
       expect(result.stderr).toBe("");
     });
 
     it("shows errors with -sS", async () => {
       const env = createEnv();
-      const result = await env.exec("curl -sS https://other-domain.com/test");
+      const result = toText(
+        await env.exec("curl -sS https://other-domain.com/test"),
+      );
       expect(result.stderr).toContain("Network access denied");
     });
   });
@@ -229,7 +236,9 @@ describe("curl options", () => {
   describe("combined options", () => {
     it("handles combined short options -sSf", async () => {
       const env = createEnv();
-      const result = await env.exec("curl -sSf https://other-domain.com/test");
+      const result = toText(
+        await env.exec("curl -sSf https://other-domain.com/test"),
+      );
       expect(result.stderr).toContain("Network access denied");
       expect(result.exitCode).not.toBe(0);
     });
@@ -252,16 +261,18 @@ describe("curl options", () => {
   describe("write-out format", () => {
     it("outputs http_code with -w", async () => {
       const env = createEnv();
-      const result = await env.exec(
-        'curl -w "%{http_code}" https://api.example.com/test',
+      const result = toText(
+        await env.exec('curl -w "%{http_code}" https://api.example.com/test'),
       );
       expect(result.stdout).toContain("200");
     });
 
     it("outputs newlines with \\n", async () => {
       const env = createEnv();
-      const result = await env.exec(
-        'curl -w "\\n%{http_code}\\n" https://api.example.com/test',
+      const result = toText(
+        await env.exec(
+          'curl -w "\\n%{http_code}\\n" https://api.example.com/test',
+        ),
       );
       expect(result.stdout).toContain("\n200\n");
     });

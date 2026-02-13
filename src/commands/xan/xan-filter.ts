@@ -3,6 +3,7 @@
  */
 
 import type { CommandContext, ExecResult } from "../../types.js";
+import { EMPTY, encode } from "../../utils/bytes.js";
 import { showHelp } from "../help.js";
 import { type EvaluateOptions, evaluate } from "../query-engine/index.js";
 import { parseMoonbladeExpr } from "./column-selection.js";
@@ -46,8 +47,8 @@ export async function cmdFilter(
 
   if (!expr) {
     return {
-      stdout: "",
-      stderr: "xan filter: no expression specified\n",
+      stdout: EMPTY,
+      stderr: encode("xan filter: no expression specified\n"),
       exitCode: 1,
     };
   }
@@ -72,7 +73,11 @@ export async function cmdFilter(
     }
   }
 
-  return { stdout: formatCsv(headers, filtered), stderr: "", exitCode: 0 };
+  return {
+    stdout: encode(formatCsv(headers, filtered)),
+    stderr: EMPTY,
+    exitCode: 0,
+  };
 }
 
 export async function cmdSort(
@@ -122,7 +127,11 @@ export async function cmdSort(
     return reverse ? -cmp : cmp;
   });
 
-  return { stdout: formatCsv(headers, sorted), stderr: "", exitCode: 0 };
+  return {
+    stdout: encode(formatCsv(headers, sorted)),
+    stderr: EMPTY,
+    exitCode: 0,
+  };
 }
 
 export async function cmdDedup(
@@ -152,7 +161,11 @@ export async function cmdDedup(
     return true;
   });
 
-  return { stdout: formatCsv(headers, deduped), stderr: "", exitCode: 0 };
+  return {
+    stdout: encode(formatCsv(headers, deduped)),
+    stderr: EMPTY,
+    exitCode: 0,
+  };
 }
 
 export async function cmdTop(
@@ -199,5 +212,9 @@ export async function cmdTop(
   });
 
   const rows = sorted.slice(0, n);
-  return { stdout: formatCsv(headers, rows), stderr: "", exitCode: 0 };
+  return {
+    stdout: encode(formatCsv(headers, rows)),
+    stderr: EMPTY,
+    exitCode: 0,
+  };
 }

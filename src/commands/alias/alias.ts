@@ -1,4 +1,5 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const aliasHelp = {
@@ -29,7 +30,7 @@ export const aliasCommand: Command = {
           stdout += `alias ${name}='${value}'\n`;
         }
       }
-      return { stdout, stderr: "", exitCode: 0 };
+      return { stdout: encode(stdout), stderr: EMPTY, exitCode: 0 };
     }
 
     // Process alias definitions
@@ -42,14 +43,14 @@ export const aliasCommand: Command = {
         const key = ALIAS_PREFIX + arg;
         if (ctx.env.get(key)) {
           return {
-            stdout: `alias ${arg}='${ctx.env.get(key)}'\n`,
-            stderr: "",
+            stdout: encode(`alias ${arg}='${ctx.env.get(key)}'\n`),
+            stderr: EMPTY,
             exitCode: 0,
           };
         } else {
           return {
-            stdout: "",
-            stderr: `alias: ${arg}: not found\n`,
+            stdout: EMPTY,
+            stderr: encode(`alias: ${arg}: not found\n`),
             exitCode: 1,
           };
         }
@@ -68,7 +69,7 @@ export const aliasCommand: Command = {
       }
     }
 
-    return { stdout: "", stderr: "", exitCode: 0 };
+    return { stdout: EMPTY, stderr: EMPTY, exitCode: 0 };
   },
 };
 
@@ -90,8 +91,8 @@ export const unaliasCommand: Command = {
 
     if (args.length === 0) {
       return {
-        stdout: "",
-        stderr: "unalias: usage: unalias [-a] name [name ...]\n",
+        stdout: EMPTY,
+        stderr: encode("unalias: usage: unalias [-a] name [name ...]\n"),
         exitCode: 1,
       };
     }
@@ -103,7 +104,7 @@ export const unaliasCommand: Command = {
           ctx.env.delete(key);
         }
       }
-      return { stdout: "", stderr: "", exitCode: 0 };
+      return { stdout: EMPTY, stderr: EMPTY, exitCode: 0 };
     }
 
     // Skip "--" option separator (POSIX standard)
@@ -121,7 +122,11 @@ export const unaliasCommand: Command = {
       }
     }
 
-    return { stdout: "", stderr, exitCode: anyError ? 1 : 0 };
+    return {
+      stdout: EMPTY,
+      stderr: encode(stderr),
+      exitCode: anyError ? 1 : 0,
+    };
   },
 };
 

@@ -1,4 +1,5 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { decode, EMPTY, encode } from "../../utils/bytes.js";
 import { readAndConcat } from "../../utils/file-reader.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 import { createComparator, filterUnique } from "./comparator.js";
@@ -152,7 +153,7 @@ export const sortCommand: Command = {
     // Read from files or stdin
     const readResult = await readAndConcat(ctx, files, { cmdName: "sort" });
     if (!readResult.ok) return readResult.error;
-    const content = readResult.content;
+    const content = decode(readResult.content);
 
     // Split into lines (preserve empty lines at the end for sorting)
     let lines = content.split("\n");
@@ -171,13 +172,15 @@ export const sortCommand: Command = {
       for (let i = 1; i < lines.length; i++) {
         if (comparator(lines[i - 1], lines[i]) > 0) {
           return {
-            stdout: "",
-            stderr: `sort: ${checkFile}:${i + 1}: disorder: ${lines[i]}\n`,
+            stdout: EMPTY,
+            stderr: encode(
+              `sort: ${checkFile}:${i + 1}: disorder: ${lines[i]}\n`,
+            ),
             exitCode: 1,
           };
         }
       }
-      return { stdout: "", stderr: "", exitCode: 0 };
+      return { stdout: EMPTY, stderr: EMPTY, exitCode: 0 };
     }
 
     // Sort lines using the comparator
@@ -194,10 +197,10 @@ export const sortCommand: Command = {
     if (options.outputFile) {
       const outPath = ctx.fs.resolvePath(ctx.cwd, options.outputFile);
       await ctx.fs.writeFile(outPath, output);
-      return { stdout: "", stderr: "", exitCode: 0 };
+      return { stdout: EMPTY, stderr: EMPTY, exitCode: 0 };
     }
 
-    return { stdout: output, stderr: "", exitCode: 0 };
+    return { stdout: encode(output), stderr: EMPTY, exitCode: 0 };
   },
 };
 

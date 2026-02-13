@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { toText } from "../../test-utils.js";
 
 describe("cat", () => {
   it("should read file contents", async () => {
     const env = new Bash({
       files: { "/test.txt": "hello world" },
     });
-    const result = await env.exec("cat /test.txt");
+    const result = toText(await env.exec("cat /test.txt"));
     expect(result.stdout).toBe("hello world");
     expect(result.stderr).toBe("");
     expect(result.exitCode).toBe(0);
@@ -16,7 +17,7 @@ describe("cat", () => {
     const env = new Bash({
       files: { "/test.txt": "hello world\n" },
     });
-    const result = await env.exec("cat /test.txt");
+    const result = toText(await env.exec("cat /test.txt"));
     expect(result.stdout).toBe("hello world\n");
     expect(result.stderr).toBe("");
   });
@@ -28,7 +29,7 @@ describe("cat", () => {
         "/b.txt": "bbb\n",
       },
     });
-    const result = await env.exec("cat /a.txt /b.txt");
+    const result = toText(await env.exec("cat /a.txt /b.txt"));
     expect(result.stdout).toBe("aaa\nbbb\n");
     expect(result.stderr).toBe("");
   });
@@ -41,7 +42,7 @@ describe("cat", () => {
         "/c.txt": "C",
       },
     });
-    const result = await env.exec("cat /a.txt /b.txt /c.txt");
+    const result = toText(await env.exec("cat /a.txt /b.txt /c.txt"));
     expect(result.stdout).toBe("ABC");
     expect(result.stderr).toBe("");
   });
@@ -50,7 +51,7 @@ describe("cat", () => {
     const env = new Bash({
       files: { "/test.txt": "line1\nline2\nline3\n" },
     });
-    const result = await env.exec("cat -n /test.txt");
+    const result = toText(await env.exec("cat -n /test.txt"));
     expect(result.stdout).toBe("     1\tline1\n     2\tline2\n     3\tline3\n");
     expect(result.stderr).toBe("");
   });
@@ -59,14 +60,14 @@ describe("cat", () => {
     const env = new Bash({
       files: { "/test.txt": "a\n" },
     });
-    const result = await env.exec("cat -n /test.txt");
+    const result = toText(await env.exec("cat -n /test.txt"));
     expect(result.stdout).toBe("     1\ta\n");
     expect(result.stderr).toBe("");
   });
 
   it("should error on missing file", async () => {
     const env = new Bash();
-    const result = await env.exec("cat /missing.txt");
+    const result = toText(await env.exec("cat /missing.txt"));
     expect(result.stdout).toBe("");
     expect(result.stderr).toBe(
       "cat: /missing.txt: No such file or directory\n",
@@ -78,7 +79,7 @@ describe("cat", () => {
     const env = new Bash({
       files: { "/exists.txt": "content" },
     });
-    const result = await env.exec("cat /missing.txt /exists.txt");
+    const result = toText(await env.exec("cat /missing.txt /exists.txt"));
     expect(result.stdout).toBe("content");
     expect(result.stderr).toBe(
       "cat: /missing.txt: No such file or directory\n",
@@ -88,7 +89,7 @@ describe("cat", () => {
 
   it("should read from stdin when no file specified", async () => {
     const env = new Bash();
-    const result = await env.exec('echo "hello" | cat');
+    const result = toText(await env.exec('echo "hello" | cat'));
     expect(result.stdout).toBe("hello\n");
     expect(result.stderr).toBe("");
   });
@@ -97,7 +98,7 @@ describe("cat", () => {
     const env = new Bash({
       files: { "/empty.txt": "" },
     });
-    const result = await env.exec("cat /empty.txt");
+    const result = toText(await env.exec("cat /empty.txt"));
     expect(result.stdout).toBe("");
     expect(result.stderr).toBe("");
     expect(result.exitCode).toBe(0);
@@ -107,7 +108,7 @@ describe("cat", () => {
     const env = new Bash({
       files: { "/special.txt": "tab:\there\nnewline above" },
     });
-    const result = await env.exec("cat /special.txt");
+    const result = toText(await env.exec("cat /special.txt"));
     expect(result.stdout).toBe("tab:\there\nnewline above");
     expect(result.stderr).toBe("");
   });
@@ -117,14 +118,14 @@ describe("cat", () => {
       files: { "/home/user/file.txt": "content" },
       cwd: "/home/user",
     });
-    const result = await env.exec("cat file.txt");
+    const result = toText(await env.exec("cat file.txt"));
     expect(result.stdout).toBe("content");
     expect(result.stderr).toBe("");
   });
 
   it("should show line numbers from stdin with -n", async () => {
     const env = new Bash();
-    const result = await env.exec('echo -e "a\\nb\\nc" | cat -n');
+    const result = toText(await env.exec('echo -e "a\\nb\\nc" | cat -n'));
     expect(result.stdout).toBe("     1\ta\n     2\tb\n     3\tc\n");
     expect(result.stderr).toBe("");
   });
@@ -132,7 +133,7 @@ describe("cat", () => {
   describe("stdin placeholder (-)", () => {
     it("should read stdin when - is specified", async () => {
       const env = new Bash();
-      const result = await env.exec('echo "from stdin" | cat -');
+      const result = toText(await env.exec('echo "from stdin" | cat -'));
       expect(result.stdout).toBe("from stdin\n");
       expect(result.stderr).toBe("");
     });
@@ -142,7 +143,9 @@ describe("cat", () => {
         files: { "/file.txt": "from file\n" },
         cwd: "/",
       });
-      const result = await env.exec('echo "from stdin" | cat - /file.txt');
+      const result = toText(
+        await env.exec('echo "from stdin" | cat - /file.txt'),
+      );
       expect(result.stdout).toBe("from stdin\nfrom file\n");
       expect(result.stderr).toBe("");
     });
@@ -152,7 +155,9 @@ describe("cat", () => {
         files: { "/file.txt": "from file\n" },
         cwd: "/",
       });
-      const result = await env.exec('echo "from stdin" | cat /file.txt -');
+      const result = toText(
+        await env.exec('echo "from stdin" | cat /file.txt -'),
+      );
       expect(result.stdout).toBe("from file\nfrom stdin\n");
       expect(result.stderr).toBe("");
     });
@@ -162,7 +167,9 @@ describe("cat", () => {
         files: { "/file.txt": "line1\n" },
         cwd: "/",
       });
-      const result = await env.exec('echo "line2" | cat -n /file.txt -');
+      const result = toText(
+        await env.exec('echo "line2" | cat -n /file.txt -'),
+      );
       // Linux bash continues line numbers across input sources
       expect(result.stdout).toBe("     1\tline1\n     2\tline2\n");
       expect(result.stderr).toBe("");

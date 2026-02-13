@@ -3,6 +3,7 @@
  */
 
 import type { CommandContext, ExecResult } from "../../types.js";
+import { EMPTY, encode } from "../../utils/bytes.js";
 import type { EvaluateOptions } from "../query-engine/index.js";
 import { buildAggRow, computeAgg, parseAggExpr } from "./aggregation.js";
 import {
@@ -33,8 +34,8 @@ export async function cmdAgg(
 
   if (!expr) {
     return {
-      stdout: "",
-      stderr: "xan agg: no aggregation expression\n",
+      stdout: EMPTY,
+      stderr: encode("xan agg: no aggregation expression\n"),
       exitCode: 1,
     };
   }
@@ -52,7 +53,11 @@ export async function cmdAgg(
   const headers = specs.map((s) => s.alias);
   const row = buildAggRow(data, specs, evalOptions);
 
-  return { stdout: formatCsv(headers, [row]), stderr: "", exitCode: 0 };
+  return {
+    stdout: encode(formatCsv(headers, [row])),
+    stderr: EMPTY,
+    exitCode: 0,
+  };
 }
 
 export async function cmdGroupby(
@@ -80,8 +85,8 @@ export async function cmdGroupby(
 
   if (!groupCols || !aggExpr) {
     return {
-      stdout: "",
-      stderr: "xan groupby: usage: xan groupby COLS EXPR [FILE]\n",
+      stdout: EMPTY,
+      stderr: encode("xan groupby: usage: xan groupby COLS EXPR [FILE]\n"),
       exitCode: 1,
     };
   }
@@ -129,7 +134,11 @@ export async function cmdGroupby(
     results.push(row);
   }
 
-  return { stdout: formatCsv(headers, results), stderr: "", exitCode: 0 };
+  return {
+    stdout: encode(formatCsv(headers, results)),
+    stderr: EMPTY,
+    exitCode: 0,
+  };
 }
 
 export async function cmdFrequency(
@@ -256,7 +265,11 @@ export async function cmdFrequency(
     }
   }
 
-  return { stdout: formatCsv(resultHeaders, results), stderr: "", exitCode: 0 };
+  return {
+    stdout: encode(formatCsv(resultHeaders, results)),
+    stderr: EMPTY,
+    exitCode: 0,
+  };
 }
 
 export async function cmdStats(
@@ -305,5 +318,9 @@ export async function cmdStats(
     });
   }
 
-  return { stdout: formatCsv(statsHeaders, results), stderr: "", exitCode: 0 };
+  return {
+    stdout: encode(formatCsv(statsHeaders, results)),
+    stderr: EMPTY,
+    exitCode: 0,
+  };
 }

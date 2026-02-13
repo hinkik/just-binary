@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { toText } from "../../test-utils.js";
 
 describe("awk with binary content", () => {
   it("should process binary file with awk", async () => {
@@ -18,7 +19,7 @@ describe("awk with binary content", () => {
       },
     });
 
-    const result = await env.exec("awk '{print $1 + $2}' /data.bin");
+    const result = toText(await env.exec("awk '{print $1 + $2}' /data.bin"));
     expect(result.stdout).toBe("3\n7\n");
     expect(result.exitCode).toBe(0);
   });

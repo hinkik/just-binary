@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { toText } from "../../test-utils.js";
 
 describe("tee with binary files", () => {
   it("should write binary content to file", async () => {
@@ -9,10 +10,10 @@ describe("tee with binary files", () => {
       },
     });
 
-    const result = await env.exec("cat /input.bin | tee /output.bin");
+    const result = toText(await env.exec("cat /input.bin | tee /output.bin"));
     expect(result.stdout).toBe("Hi\n");
 
-    const check = await env.exec("cat /output.bin");
+    const check = toText(await env.exec("cat /output.bin"));
     expect(check.stdout).toBe("Hi\n");
   });
 });

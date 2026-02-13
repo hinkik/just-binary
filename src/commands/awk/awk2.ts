@@ -8,6 +8,7 @@ import { mapToRecord } from "../../helpers/env.js";
 import { ExecutionLimitError } from "../../interpreter/errors.js";
 import { ConstantRegex, createUserRegex } from "../../regex/index.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { decode, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 import type { AwkProgram } from "./ast.js";
 import {
@@ -79,7 +80,11 @@ export const awkCommand2: Command = {
     }
 
     if (programIdx >= args.length) {
-      return { stdout: "", stderr: "awk: missing program\n", exitCode: 1 };
+      return {
+        stdout: EMPTY,
+        stderr: encode("awk: missing program\n"),
+        exitCode: 1,
+      };
     }
 
     const program = args[programIdx];
@@ -92,7 +97,7 @@ export const awkCommand2: Command = {
       ast = parser.parse(program);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      return { stdout: "", stderr: `awk: ${msg}\n`, exitCode: 1 };
+      return { stdout: EMPTY, stderr: encode(`awk: ${msg}\n`), exitCode: 1 };
     }
 
     // Create filesystem adapter with appendFile support
@@ -121,8 +126,15 @@ export const awkCommand2: Command = {
       cwd: ctx.cwd,
       // Wrap ctx.exec to match the expected signature for command pipe getline
       exec: ctx.exec
-        ? // biome-ignore lint/style/noNonNullAssertion: exec checked in ternary
-          (cmd: string) => ctx.exec!(cmd, { cwd: ctx.cwd })
+        ? async (cmd: string) => {
+            // biome-ignore lint/style/noNonNullAssertion: exec checked in ternary
+            const r = await ctx.exec!(cmd, { cwd: ctx.cwd });
+            return {
+              stdout: decode(r.stdout),
+              stderr: decode(r.stderr),
+              exitCode: r.exitCode,
+            };
+          }
         : undefined,
       coverage: ctx.coverage,
     });
@@ -161,8 +173,8 @@ export const awkCommand2: Command = {
         // exit in BEGIN still runs END blocks (AWK semantics)
         await interp.executeEnd();
         return {
-          stdout: interp.getOutput(),
-          stderr: "",
+          stdout: encode(interp.getOutput()),
+          stderr: EMPTY,
           exitCode: interp.getExitCode(),
         };
       }
@@ -172,8 +184,8 @@ export const awkCommand2: Command = {
       if (!hasMainRules && !hasEndBlocks) {
         // Just run END blocks (none), no input processing needed
         return {
-          stdout: interp.getOutput(),
-          stderr: "",
+          stdout: encode(interp.getOutput()),
+          stderr: EMPTY,
           exitCode: interp.getExitCode(),
         };
       }
@@ -197,14 +209,14 @@ export const awkCommand2: Command = {
             fileDataList.push({ filename: file, lines });
           } catch {
             return {
-              stdout: "",
-              stderr: `awk: ${file}: No such file or directory\n`,
+              stdout: EMPTY,
+              stderr: encode(`awk: ${file}: No such file or directory\n`),
               exitCode: 1,
             };
           }
         }
       } else {
-        const lines = ctx.stdin.split("\n");
+        const lines = decode(ctx.stdin).split("\n");
         if (lines.length > 0 && lines[lines.length - 1] === "") {
           lines.pop();
         }
@@ -233,8 +245,8 @@ export const awkCommand2: Command = {
       await interp.executeEnd();
 
       return {
-        stdout: interp.getOutput(),
-        stderr: "",
+        stdout: encode(interp.getOutput()),
+        stderr: EMPTY,
         exitCode: interp.getExitCode(),
       };
     } catch (e) {
@@ -243,8 +255,8 @@ export const awkCommand2: Command = {
       const exitCode =
         e instanceof ExecutionLimitError ? ExecutionLimitError.EXIT_CODE : 2;
       return {
-        stdout: interp.getOutput(),
-        stderr: `awk: ${msg}\n`,
+        stdout: encode(interp.getOutput()),
+        stderr: encode(`awk: ${msg}\n`),
         exitCode,
       };
     }

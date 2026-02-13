@@ -7,6 +7,7 @@
 
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../index.js";
+import { toText } from "../../test-utils.js";
 
 const DANGEROUS_KEYWORDS = [
   "constructor",
@@ -22,27 +23,33 @@ describe("SED Prototype Pollution Prevention", () => {
     for (const keyword of DANGEROUS_KEYWORDS) {
       it(`should define label :${keyword}`, async () => {
         const bash = new Bash();
-        const result = await bash.exec(`
+        const result = toText(
+          await bash.exec(`
           echo "test" | sed -e ':${keyword}' -e 'p' -e 'q'
-        `);
+        `),
+        );
         expect(result.exitCode).toBe(0);
         expect(result.stdout).toContain("test");
       });
 
       it(`should branch to label :${keyword}`, async () => {
         const bash = new Bash();
-        const result = await bash.exec(`
+        const result = toText(
+          await bash.exec(`
           echo -e "1\\n2\\n3" | sed -n ':${keyword}; p; n; b ${keyword}'
-        `);
+        `),
+        );
         expect(result.exitCode).toBe(0);
         expect(result.stdout).toContain("1");
       });
 
       it(`should test-branch to label :${keyword}`, async () => {
         const bash = new Bash();
-        const result = await bash.exec(`
+        const result = toText(
+          await bash.exec(`
           echo "aaa" | sed ':${keyword}; s/a/b/; t ${keyword}; p' | tail -1
-        `);
+        `),
+        );
         expect(result.exitCode).toBe(0);
         expect(result.stdout).toBe("bbb\n");
       });
@@ -52,16 +59,19 @@ describe("SED Prototype Pollution Prevention", () => {
   describe("Multiple Labels with Dangerous Names", () => {
     it("should handle multiple dangerous labels", async () => {
       const bash = new Bash();
-      const result = await bash.exec(`
+      const result = toText(
+        await bash.exec(`
         echo "start" | sed -e ':constructor' -e ':__proto__' -e ':prototype' -e 'p' -e 'q'
-      `);
+      `),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("start");
     });
 
     it("should branch between dangerous labels", async () => {
       const bash = new Bash();
-      const result = await bash.exec(`
+      const result = toText(
+        await bash.exec(`
         echo "x" | sed -n '
           :constructor
           s/x/y/
@@ -75,7 +85,8 @@ describe("SED Prototype Pollution Prevention", () => {
           p
           :end
         '
-      `);
+      `),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("z\n");
     });
@@ -86,18 +97,22 @@ describe("SED Prototype Pollution Prevention", () => {
       it(`should use :${keyword} in loop construct`, async () => {
         const bash = new Bash();
         // Simpler loop test that's more portable
-        const result = await bash.exec(`
+        const result = toText(
+          await bash.exec(`
           echo "aaa" | sed ':${keyword}; s/a/b/; t ${keyword}'
-        `);
+        `),
+        );
         expect(result.exitCode).toBe(0);
         expect(result.stdout).toBe("bbb\n");
       });
 
       it(`should use :${keyword} in substitution loop`, async () => {
         const bash = new Bash();
-        const result = await bash.exec(`
+        const result = toText(
+          await bash.exec(`
           echo "xxxxx" | sed ':${keyword}; s/xx/X/; t ${keyword}'
-        `);
+        `),
+        );
         expect(result.exitCode).toBe(0);
         // Result contains X's after substitution loop
         expect(result.stdout).toMatch(/X/);

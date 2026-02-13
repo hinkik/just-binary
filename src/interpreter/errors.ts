@@ -12,6 +12,8 @@
  * as they propagate through the execution stack.
  */
 
+import { concat, EMPTY, encode } from "../utils/bytes.js";
+
 /**
  * Base class for all control flow errors.
  * Carries stdout/stderr to preserve output during propagation.
@@ -19,8 +21,8 @@
 abstract class ControlFlowError extends Error {
   constructor(
     message: string,
-    public stdout: string = "",
-    public stderr: string = "",
+    public stdout: Uint8Array = EMPTY,
+    public stderr: Uint8Array = EMPTY,
   ) {
     super(message);
   }
@@ -28,9 +30,9 @@ abstract class ControlFlowError extends Error {
   /**
    * Prepend output from the current context before re-throwing.
    */
-  prependOutput(stdout: string, stderr: string): void {
-    this.stdout = stdout + this.stdout;
-    this.stderr = stderr + this.stderr;
+  prependOutput(stdout: Uint8Array, stderr: Uint8Array): void {
+    this.stdout = concat(stdout, this.stdout);
+    this.stderr = concat(stderr, this.stderr);
   }
 }
 
@@ -42,8 +44,8 @@ export class BreakError extends ControlFlowError {
 
   constructor(
     public levels: number = 1,
-    stdout: string = "",
-    stderr: string = "",
+    stdout: Uint8Array = EMPTY,
+    stderr: Uint8Array = EMPTY,
   ) {
     super("break", stdout, stderr);
   }
@@ -57,8 +59,8 @@ export class ContinueError extends ControlFlowError {
 
   constructor(
     public levels: number = 1,
-    stdout: string = "",
-    stderr: string = "",
+    stdout: Uint8Array = EMPTY,
+    stderr: Uint8Array = EMPTY,
   ) {
     super("continue", stdout, stderr);
   }
@@ -72,8 +74,8 @@ export class ReturnError extends ControlFlowError {
 
   constructor(
     public exitCode: number = 0,
-    stdout: string = "",
-    stderr: string = "",
+    stdout: Uint8Array = EMPTY,
+    stderr: Uint8Array = EMPTY,
   ) {
     super("return", stdout, stderr);
   }
@@ -87,8 +89,8 @@ export class ErrexitError extends ControlFlowError {
 
   constructor(
     public readonly exitCode: number,
-    stdout: string = "",
-    stderr: string = "",
+    stdout: Uint8Array = EMPTY,
+    stderr: Uint8Array = EMPTY,
   ) {
     super(`errexit: command exited with status ${exitCode}`, stdout, stderr);
   }
@@ -102,12 +104,12 @@ export class NounsetError extends ControlFlowError {
 
   constructor(
     public varName: string,
-    stdout: string = "",
+    stdout: Uint8Array = EMPTY,
   ) {
     super(
       `${varName}: unbound variable`,
       stdout,
-      `bash: ${varName}: unbound variable\n`,
+      encode(`bash: ${varName}: unbound variable\n`),
     );
   }
 }
@@ -120,8 +122,8 @@ export class ExitError extends ControlFlowError {
 
   constructor(
     public readonly exitCode: number,
-    stdout: string = "",
-    stderr: string = "",
+    stdout: Uint8Array = EMPTY,
+    stderr: Uint8Array = EMPTY,
   ) {
     super(`exit`, stdout, stderr);
   }
@@ -142,12 +144,12 @@ export class ArithmeticError extends ControlFlowError {
 
   constructor(
     message: string,
-    stdout: string = "",
-    stderr: string = "",
+    stdout: Uint8Array = EMPTY,
+    stderr: Uint8Array = EMPTY,
     fatal = false,
   ) {
     super(message, stdout, stderr);
-    this.stderr = stderr || `bash: ${message}\n`;
+    this.stderr = stderr.length > 0 ? stderr : encode(`bash: ${message}\n`);
     this.fatal = fatal;
   }
 }
@@ -159,9 +161,16 @@ export class ArithmeticError extends ControlFlowError {
 export class BadSubstitutionError extends ControlFlowError {
   readonly name = "BadSubstitutionError";
 
-  constructor(message: string, stdout: string = "", stderr: string = "") {
+  constructor(
+    message: string,
+    stdout: Uint8Array = EMPTY,
+    stderr: Uint8Array = EMPTY,
+  ) {
     super(message, stdout, stderr);
-    this.stderr = stderr || `bash: ${message}: bad substitution\n`;
+    this.stderr =
+      stderr.length > 0
+        ? stderr
+        : encode(`bash: ${message}: bad substitution\n`);
   }
 }
 
@@ -172,9 +181,14 @@ export class BadSubstitutionError extends ControlFlowError {
 export class GlobError extends ControlFlowError {
   readonly name = "GlobError";
 
-  constructor(pattern: string, stdout: string = "", stderr: string = "") {
+  constructor(
+    pattern: string,
+    stdout: Uint8Array = EMPTY,
+    stderr: Uint8Array = EMPTY,
+  ) {
     super(`no match: ${pattern}`, stdout, stderr);
-    this.stderr = stderr || `bash: no match: ${pattern}\n`;
+    this.stderr =
+      stderr.length > 0 ? stderr : encode(`bash: no match: ${pattern}\n`);
   }
 }
 
@@ -185,9 +199,13 @@ export class GlobError extends ControlFlowError {
 export class BraceExpansionError extends ControlFlowError {
   readonly name = "BraceExpansionError";
 
-  constructor(message: string, stdout: string = "", stderr: string = "") {
+  constructor(
+    message: string,
+    stdout: Uint8Array = EMPTY,
+    stderr: Uint8Array = EMPTY,
+  ) {
     super(message, stdout, stderr);
-    this.stderr = stderr || `bash: ${message}\n`;
+    this.stderr = stderr.length > 0 ? stderr : encode(`bash: ${message}\n`);
   }
 }
 
@@ -209,11 +227,11 @@ export class ExecutionLimitError extends ControlFlowError {
       | "string_length"
       | "glob_operations"
       | "substitution_depth",
-    stdout: string = "",
-    stderr: string = "",
+    stdout: Uint8Array = EMPTY,
+    stderr: Uint8Array = EMPTY,
   ) {
     super(message, stdout, stderr);
-    this.stderr = stderr || `bash: ${message}\n`;
+    this.stderr = stderr.length > 0 ? stderr : encode(`bash: ${message}\n`);
   }
 }
 
@@ -224,7 +242,7 @@ export class ExecutionLimitError extends ControlFlowError {
 export class SubshellExitError extends ControlFlowError {
   readonly name = "SubshellExitError";
 
-  constructor(stdout: string = "", stderr: string = "") {
+  constructor(stdout: Uint8Array = EMPTY, stderr: Uint8Array = EMPTY) {
     super("subshell exit", stdout, stderr);
   }
 }
@@ -257,8 +275,8 @@ export class PosixFatalError extends ControlFlowError {
 
   constructor(
     public readonly exitCode: number,
-    stdout: string = "",
-    stderr: string = "",
+    stdout: Uint8Array = EMPTY,
+    stderr: Uint8Array = EMPTY,
   ) {
     super("posix fatal error", stdout, stderr);
   }

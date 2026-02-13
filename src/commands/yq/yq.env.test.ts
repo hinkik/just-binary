@@ -3,13 +3,16 @@
  */
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { toText } from "../../test-utils.js";
 
 describe("yq environment variables", () => {
   it("env returns environment object", async () => {
     const bash = new Bash({
       env: { TEST_VAR: "test_value" },
     });
-    const result = await bash.exec("echo 'null' | yq -o json 'env.TEST_VAR'");
+    const result = toText(
+      await bash.exec("echo 'null' | yq -o json 'env.TEST_VAR'"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe('"test_value"\n');
   });
@@ -18,7 +21,9 @@ describe("yq environment variables", () => {
     const bash = new Bash({
       env: { MY_VAR: "my_value" },
     });
-    const result = await bash.exec("echo 'null' | yq -o json '$ENV.MY_VAR'");
+    const result = toText(
+      await bash.exec("echo 'null' | yq -o json '$ENV.MY_VAR'"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe('"my_value"\n');
   });
@@ -27,7 +32,9 @@ describe("yq environment variables", () => {
     const bash = new Bash({
       env: { A: "1", B: "2" },
     });
-    const result = await bash.exec("echo 'null' | yq -o json 'env | keys'");
+    const result = toText(
+      await bash.exec("echo 'null' | yq -o json 'env | keys'"),
+    );
     expect(result.exitCode).toBe(0);
     // Should contain A and B (may have other vars too)
     expect(result.stdout).toContain('"A"');
@@ -39,8 +46,8 @@ describe("yq environment variables", () => {
       const bash = new Bash({
         env: { A: "1" },
       });
-      const result = await bash.exec(
-        "echo 'null' | yq -o json 'env.NONEXISTENT'",
+      const result = toText(
+        await bash.exec("echo 'null' | yq -o json 'env.NONEXISTENT'"),
       );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("null\n");
@@ -50,8 +57,8 @@ describe("yq environment variables", () => {
       const bash = new Bash({
         env: { A: "1" },
       });
-      const result = await bash.exec(
-        "echo 'null' | yq -o json '$ENV.NONEXISTENT'",
+      const result = toText(
+        await bash.exec("echo 'null' | yq -o json '$ENV.NONEXISTENT'"),
       );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("null\n");
@@ -61,7 +68,9 @@ describe("yq environment variables", () => {
       const bash = new Bash({
         env: { EMPTY: "" },
       });
-      const result = await bash.exec("echo 'null' | yq -o json 'env.EMPTY'");
+      const result = toText(
+        await bash.exec("echo 'null' | yq -o json 'env.EMPTY'"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe('""\n');
     });
@@ -70,7 +79,9 @@ describe("yq environment variables", () => {
       const bash = new Bash({
         env: { SPECIAL: "a=1&b=2" },
       });
-      const result = await bash.exec("echo 'null' | yq -o json 'env.SPECIAL'");
+      const result = toText(
+        await bash.exec("echo 'null' | yq -o json 'env.SPECIAL'"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe('"a=1&b=2"\n');
     });
@@ -80,8 +91,10 @@ describe("yq environment variables", () => {
         env: { NAME: "world" },
       });
       // Use env var in string interpolation would be nice, but test basic combination
-      const result = await bash.exec(
-        'echo \'{"greeting": "hello"}\' | yq -o json \'.greeting + " " + env.NAME\'',
+      const result = toText(
+        await bash.exec(
+          'echo \'{"greeting": "hello"}\' | yq -o json \'.greeting + " " + env.NAME\'',
+        ),
       );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe('"hello world"\n');

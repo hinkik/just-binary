@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { toText } from "../../test-utils.js";
 
 describe("chmod command", () => {
   describe("octal mode", () => {
@@ -7,11 +8,11 @@ describe("chmod command", () => {
       const env = new Bash({
         files: { "/test.txt": "hello" },
       });
-      const result = await env.exec("chmod 755 /test.txt");
+      const result = toText(await env.exec("chmod 755 /test.txt"));
       expect(result.exitCode).toBe(0);
 
       // Verify mode changed via stat
-      const statResult = await env.exec("stat -c %a /test.txt");
+      const statResult = toText(await env.exec("stat -c %a /test.txt"));
       expect(statResult.stdout.trim()).toBe("755");
     });
 
@@ -21,7 +22,7 @@ describe("chmod command", () => {
       });
       await env.exec("chmod 444 /test.txt");
 
-      const statResult = await env.exec("stat -c %a /test.txt");
+      const statResult = toText(await env.exec("stat -c %a /test.txt"));
       expect(statResult.stdout.trim()).toBe("444");
     });
   });
@@ -34,7 +35,7 @@ describe("chmod command", () => {
       // Default mode is 644 (rw-r--r--)
       await env.exec("chmod u+x /script.sh");
 
-      const statResult = await env.exec("stat -c %a /script.sh");
+      const statResult = toText(await env.exec("stat -c %a /script.sh"));
       expect(statResult.stdout.trim()).toBe("744");
     });
 
@@ -44,7 +45,7 @@ describe("chmod command", () => {
       });
       await env.exec("chmod a+x /script.sh");
 
-      const statResult = await env.exec("stat -c %a /script.sh");
+      const statResult = toText(await env.exec("stat -c %a /script.sh"));
       expect(statResult.stdout.trim()).toBe("755");
     });
 
@@ -55,7 +56,7 @@ describe("chmod command", () => {
       await env.exec("chmod 664 /test.txt"); // rw-rw-r--
       await env.exec("chmod g-w /test.txt");
 
-      const statResult = await env.exec("stat -c %a /test.txt");
+      const statResult = toText(await env.exec("stat -c %a /test.txt"));
       expect(statResult.stdout.trim()).toBe("644");
     });
 
@@ -65,7 +66,7 @@ describe("chmod command", () => {
       });
       await env.exec("chmod u=rwx /test.txt");
 
-      const statResult = await env.exec("stat -c %a /test.txt");
+      const statResult = toText(await env.exec("stat -c %a /test.txt"));
       expect(statResult.stdout.trim()).toBe("744");
     });
   });
@@ -78,11 +79,11 @@ describe("chmod command", () => {
           "/b.txt": "b",
         },
       });
-      const result = await env.exec("chmod 600 /a.txt /b.txt");
+      const result = toText(await env.exec("chmod 600 /a.txt /b.txt"));
       expect(result.exitCode).toBe(0);
 
-      const statA = await env.exec("stat -c %a /a.txt");
-      const statB = await env.exec("stat -c %a /b.txt");
+      const statA = toText(await env.exec("stat -c %a /a.txt"));
+      const statB = toText(await env.exec("stat -c %a /b.txt"));
       expect(statA.stdout.trim()).toBe("600");
       expect(statB.stdout.trim()).toBe("600");
     });
@@ -96,11 +97,11 @@ describe("chmod command", () => {
           "/dir/sub/b.txt": "b",
         },
       });
-      const result = await env.exec("chmod -R 755 /dir");
+      const result = toText(await env.exec("chmod -R 755 /dir"));
       expect(result.exitCode).toBe(0);
 
-      const statA = await env.exec("stat -c %a /dir/a.txt");
-      const statB = await env.exec("stat -c %a /dir/sub/b.txt");
+      const statA = toText(await env.exec("stat -c %a /dir/a.txt"));
+      const statB = toText(await env.exec("stat -c %a /dir/sub/b.txt"));
       expect(statA.stdout.trim()).toBe("755");
       expect(statB.stdout.trim()).toBe("755");
     });
@@ -109,14 +110,14 @@ describe("chmod command", () => {
   describe("error handling", () => {
     it("should error on missing operand", async () => {
       const env = new Bash();
-      const result = await env.exec("chmod");
+      const result = toText(await env.exec("chmod"));
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("missing operand");
     });
 
     it("should error on missing file", async () => {
       const env = new Bash();
-      const result = await env.exec("chmod 755 /nonexistent");
+      const result = toText(await env.exec("chmod 755 /nonexistent"));
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("No such file");
     });
@@ -125,14 +126,14 @@ describe("chmod command", () => {
       const env = new Bash({
         files: { "/test.txt": "hello" },
       });
-      const result = await env.exec("chmod xyz /test.txt");
+      const result = toText(await env.exec("chmod xyz /test.txt"));
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("invalid mode");
     });
 
     it("should show help with --help", async () => {
       const env = new Bash();
-      const result = await env.exec("chmod --help");
+      const result = toText(await env.exec("chmod --help"));
       expect(result.stdout).toContain("chmod");
       expect(result.stdout).toContain("change file mode");
       expect(result.exitCode).toBe(0);

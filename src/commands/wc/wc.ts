@@ -1,5 +1,6 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
+import { decode, EMPTY, encode } from "../../utils/bytes.js";
 import { readFiles } from "../../utils/file-reader.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
@@ -52,10 +53,12 @@ export const wcCommand: Command = {
 
     // If reading from stdin (no files), use simpler output
     if (files.length === 0) {
-      const stats = countStats(readResult.files[0].content);
+      const stats = countStats(decode(readResult.files[0].content));
       return {
-        stdout: `${formatStats(stats, showLines, showWords, showChars, "", 0)}\n`,
-        stderr: "",
+        stdout: encode(
+          `${formatStats(stats, showLines, showWords, showChars, "", 0)}\n`,
+        ),
+        stderr: EMPTY,
         exitCode: 0,
       };
     }
@@ -70,7 +73,7 @@ export const wcCommand: Command = {
     let totalChars = 0;
 
     for (const { filename, content } of readResult.files) {
-      const stats = countStats(content);
+      const stats = countStats(decode(content));
       totalLines += stats.lines;
       totalWords += stats.words;
       totalChars += stats.chars;
@@ -117,7 +120,11 @@ export const wcCommand: Command = {
       )}\n`;
     }
 
-    return { stdout, stderr: readResult.stderr, exitCode: readResult.exitCode };
+    return {
+      stdout: encode(stdout),
+      stderr: encode(readResult.stderr),
+      exitCode: readResult.exitCode,
+    };
   },
 };
 

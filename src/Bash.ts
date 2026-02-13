@@ -59,6 +59,7 @@ import type {
   FeatureCoverageWriter,
   TraceCallback,
 } from "./types.js";
+import { decode, EMPTY, encode } from "./utils/bytes.js";
 
 export type { ExecutionLimits } from "./limits.js";
 
@@ -203,7 +204,7 @@ export interface ExecOptions {
    * Standard input to pass to the script.
    * This will be available to commands via stdin (e.g., for `bash -c 'cat'`).
    */
-  stdin?: string;
+  stdin?: Uint8Array;
 }
 
 export class Bash {
@@ -414,11 +415,11 @@ export class Bash {
 
   private logResult(result: BashExecResult): BashExecResult {
     if (this.logger) {
-      if (result.stdout) {
-        this.logger.debug("stdout", { output: result.stdout });
+      if (result.stdout.length > 0) {
+        this.logger.debug("stdout", { output: decode(result.stdout) });
       }
-      if (result.stderr) {
-        this.logger.info("stderr", { output: result.stderr });
+      if (result.stderr.length > 0) {
+        this.logger.info("stderr", { output: decode(result.stderr) });
       }
       this.logger.info("exit", { exitCode: result.exitCode });
     }
@@ -436,8 +437,10 @@ export class Bash {
     this.state.commandCount++;
     if (this.state.commandCount > this.limits.maxCommandCount) {
       return {
-        stdout: "",
-        stderr: `bash: maximum command count (${this.limits.maxCommandCount}) exceeded (possible infinite loop). Increase with executionLimits.maxCommandCount option.\n`,
+        stdout: EMPTY,
+        stderr: encode(
+          `bash: maximum command count (${this.limits.maxCommandCount}) exceeded (possible infinite loop). Increase with executionLimits.maxCommandCount option.\n`,
+        ),
         exitCode: 1,
         env: mapToRecordWithExtras(this.state.env, options?.env),
       };
@@ -445,8 +448,8 @@ export class Bash {
 
     if (!commandLine.trim()) {
       return {
-        stdout: "",
-        stderr: "",
+        stdout: EMPTY,
+        stderr: EMPTY,
         exitCode: 0,
         env: mapToRecordWithExtras(this.state.env, options?.env),
       };
@@ -510,7 +513,7 @@ export class Bash {
       // Share hashTable reference - it should persist across exec calls
       hashTable: this.state.hashTable,
       // Pass stdin through to commands (for bash -c with piped input)
-      groupStdin: options?.stdin,
+      groupStdin: options?.stdin || undefined,
     };
 
     // Normalize indented multi-line scripts (unless rawScript is true)
@@ -596,16 +599,16 @@ export class Bash {
       // SecurityViolationError is thrown when defense-in-depth detects a blocked operation
       if (error instanceof SecurityViolationError) {
         return this.logResult({
-          stdout: "",
-          stderr: `bash: security violation: ${error.message}\n`,
+          stdout: EMPTY,
+          stderr: encode(`bash: security violation: ${error.message}\n`),
           exitCode: 1,
           env: mapToRecordWithExtras(this.state.env, options?.env),
         });
       }
       if ((error as ParseException).name === "ParseException") {
         return this.logResult({
-          stdout: "",
-          stderr: `bash: syntax error: ${(error as Error).message}\n`,
+          stdout: EMPTY,
+          stderr: encode(`bash: syntax error: ${(error as Error).message}\n`),
           exitCode: 2,
           env: mapToRecordWithExtras(this.state.env, options?.env),
         });
@@ -613,8 +616,8 @@ export class Bash {
       // LexerError is thrown for lexer-level issues like unterminated quotes
       if (error instanceof LexerError) {
         return this.logResult({
-          stdout: "",
-          stderr: `bash: ${error.message}\n`,
+          stdout: EMPTY,
+          stderr: encode(`bash: ${error.message}\n`),
           exitCode: 2,
           env: mapToRecordWithExtras(this.state.env, options?.env),
         });
@@ -622,8 +625,8 @@ export class Bash {
       // RangeError occurs when JavaScript call stack is exceeded (deep recursion)
       if (error instanceof RangeError) {
         return this.logResult({
-          stdout: "",
-          stderr: `bash: ${error.message}\n`,
+          stdout: EMPTY,
+          stderr: encode(`bash: ${error.message}\n`),
           exitCode: 1,
           env: mapToRecordWithExtras(this.state.env, options?.env),
         });

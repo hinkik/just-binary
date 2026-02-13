@@ -1,6 +1,7 @@
 import { minimatch } from "minimatch";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
+import { decode, EMPTY, encode } from "../../utils/bytes.js";
 import { DEFAULT_BATCH_SIZE } from "../../utils/constants.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
@@ -164,8 +165,8 @@ export const lsCommand: Command = {
           humanReadable,
           sortBySize,
         );
-        stdout += result.stdout;
-        stderr += result.stderr;
+        stdout += decode(result.stdout);
+        stderr += decode(result.stderr);
         if (result.exitCode !== 0) exitCode = result.exitCode;
       } else {
         const result = await listPath(
@@ -180,13 +181,13 @@ export const lsCommand: Command = {
           humanReadable,
           sortBySize,
         );
-        stdout += result.stdout;
-        stderr += result.stderr;
+        stdout += decode(result.stdout);
+        stderr += decode(result.stderr);
         if (result.exitCode !== 0) exitCode = result.exitCode;
       }
     }
 
-    return { stdout, stderr, exitCode };
+    return { stdout: encode(stdout), stderr: encode(stderr), exitCode };
   },
 };
 
@@ -222,8 +223,8 @@ async function listGlob(
 
   if (matches.length === 0) {
     return {
-      stdout: "",
-      stderr: `ls: ${pattern}: No such file or directory\n`,
+      stdout: EMPTY,
+      stderr: encode(`ls: ${pattern}: No such file or directory\n`),
       exitCode: 2,
     };
   }
@@ -269,10 +270,18 @@ async function listGlob(
         lines.push(`-rw-r--r-- 1 user user     0 Jan  1 00:00 ${match}`);
       }
     }
-    return { stdout: `${lines.join("\n")}\n`, stderr: "", exitCode: 0 };
+    return {
+      stdout: encode(`${lines.join("\n")}\n`),
+      stderr: EMPTY,
+      exitCode: 0,
+    };
   }
 
-  return { stdout: `${matches.join("\n")}\n`, stderr: "", exitCode: 0 };
+  return {
+    stdout: encode(`${matches.join("\n")}\n`),
+    stderr: EMPTY,
+    exitCode: 0,
+  };
 }
 
 async function listPath(
@@ -304,12 +313,14 @@ async function listPath(
         const mtime = stat.mtime ?? new Date(0);
         const dateStr = formatDate(mtime);
         return {
-          stdout: `-rw-r--r-- 1 user user ${sizeStr} ${dateStr} ${path}\n`,
-          stderr: "",
+          stdout: encode(
+            `-rw-r--r-- 1 user user ${sizeStr} ${dateStr} ${path}\n`,
+          ),
+          stderr: EMPTY,
           exitCode: 0,
         };
       }
-      return { stdout: `${path}\n`, stderr: "", exitCode: 0 };
+      return { stdout: encode(`${path}\n`), stderr: EMPTY, exitCode: 0 };
     }
 
     // It's a directory
@@ -498,15 +509,15 @@ async function listPath(
       // Append results
       for (const { result } of subResults) {
         stdout += "\n";
-        stdout += result.stdout;
+        stdout += decode(result.stdout);
       }
     }
 
-    return { stdout, stderr: "", exitCode: 0 };
+    return { stdout: encode(stdout), stderr: EMPTY, exitCode: 0 };
   } catch {
     return {
-      stdout: "",
-      stderr: `ls: ${path}: No such file or directory\n`,
+      stdout: EMPTY,
+      stderr: encode(`ls: ${path}: No such file or directory\n`),
       exitCode: 2,
     };
   }

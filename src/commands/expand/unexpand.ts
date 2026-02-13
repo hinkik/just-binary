@@ -8,6 +8,7 @@
  */
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { decode, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
 const unexpandHelp = {
@@ -201,8 +202,8 @@ export const unexpand: Command = {
         if (!stops) {
           return {
             exitCode: 1,
-            stdout: "",
-            stderr: `unexpand: invalid tab size: '${args[i + 1]}'\n`,
+            stdout: EMPTY,
+            stderr: encode(`unexpand: invalid tab size: '${args[i + 1]}'\n`),
           };
         }
         options.tabStops = stops;
@@ -212,8 +213,8 @@ export const unexpand: Command = {
         if (!stops) {
           return {
             exitCode: 1,
-            stdout: "",
-            stderr: `unexpand: invalid tab size: '${arg.slice(2)}'\n`,
+            stdout: EMPTY,
+            stderr: encode(`unexpand: invalid tab size: '${arg.slice(2)}'\n`),
           };
         }
         options.tabStops = stops;
@@ -223,8 +224,8 @@ export const unexpand: Command = {
         if (!stops) {
           return {
             exitCode: 1,
-            stdout: "",
-            stderr: `unexpand: invalid tab size: '${args[i + 1]}'\n`,
+            stdout: EMPTY,
+            stderr: encode(`unexpand: invalid tab size: '${args[i + 1]}'\n`),
           };
         }
         options.tabStops = stops;
@@ -234,8 +235,8 @@ export const unexpand: Command = {
         if (!stops) {
           return {
             exitCode: 1,
-            stdout: "",
-            stderr: `unexpand: invalid tab size: '${arg.slice(7)}'\n`,
+            stdout: EMPTY,
+            stderr: encode(`unexpand: invalid tab size: '${arg.slice(7)}'\n`),
           };
         }
         options.tabStops = stops;
@@ -257,7 +258,7 @@ export const unexpand: Command = {
     let output = "";
 
     if (files.length === 0) {
-      const input = ctx.stdin ?? "";
+      const input = decode(ctx.stdin);
       output = processContent(input, options);
     } else {
       for (const file of files) {
@@ -266,8 +267,8 @@ export const unexpand: Command = {
         if (content === null) {
           return {
             exitCode: 1,
-            stdout: output,
-            stderr: `unexpand: ${file}: No such file or directory\n`,
+            stdout: encode(output),
+            stderr: encode(`unexpand: ${file}: No such file or directory\n`),
           };
         }
         output += processContent(content, options);
@@ -276,8 +277,8 @@ export const unexpand: Command = {
 
     return {
       exitCode: 0,
-      stdout: output,
-      stderr: "",
+      stdout: encode(output),
+      stderr: EMPTY,
     };
   },
 };

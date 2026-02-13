@@ -24,10 +24,11 @@
 
 import { type ParseException, Parser, parse } from "../../parser/parser.js";
 import type { ExecResult } from "../../types.js";
+import { decode, EMPTY, encode } from "../../utils/bytes.js";
 import { matchPattern } from "../conditionals.js";
 import { expandWord, getArrayElements } from "../expansion.js";
 import { callFunction } from "../functions.js";
-import { failure, result, success } from "../helpers/result.js";
+import { failure, result, successText } from "../helpers/result.js";
 import type { InterpreterContext } from "../types.js";
 
 // List of shell keywords (matches bash)
@@ -405,7 +406,7 @@ export async function handleCompgen(
       }
     } catch {
       // Expansion errors (e.g., arithmetic division by zero) return status 1
-      return result("", "", 1);
+      return result(EMPTY, EMPTY, 1);
     }
   }
 
@@ -472,18 +473,18 @@ export async function handleCompgen(
 
       try {
         // Call the function - errors during execution return exit code 1
-        const funcResult = await callFunction(ctx, func, funcArgs, "");
+        const funcResult = await callFunction(ctx, func, funcArgs, EMPTY);
 
         // Check if there was an error (e.g., division by zero)
         if (funcResult.exitCode !== 0) {
           // Restore saved environment
           restoreEnv(ctx, savedEnv);
           restoreEnv(ctx, savedCompreply);
-          return result("", funcResult.stderr, 1);
+          return result(EMPTY, funcResult.stderr, 1);
         }
 
         // Capture function stdout (e.g., debug output from the function)
-        functionStdout = funcResult.stdout;
+        functionStdout = decode(funcResult.stdout);
 
         // Get COMPREPLY values (supports both scalar and array)
         const compreplyValues = getCompreplyValues(ctx);
@@ -492,7 +493,7 @@ export async function handleCompgen(
         // If function execution fails, return exit code 1
         restoreEnv(ctx, savedEnv);
         restoreEnv(ctx, savedCompreply);
-        return result("", "", 1);
+        return result(EMPTY, EMPTY, 1);
       }
 
       // Restore saved environment
@@ -512,13 +513,13 @@ export async function handleCompgen(
 
       // Check for errors
       if (cmdResult.exitCode !== 0) {
-        return result("", cmdResult.stderr, cmdResult.exitCode);
+        return result(EMPTY, cmdResult.stderr, cmdResult.exitCode);
       }
 
       // Split stdout into lines and add as completions
       // All non-empty lines are used as completions (no prefix filtering)
-      if (cmdResult.stdout) {
-        const lines = cmdResult.stdout.split("\n");
+      if (cmdResult.stdout.length > 0) {
+        const lines = decode(cmdResult.stdout).split("\n");
         for (const line of lines) {
           // Skip empty lines
           if (line.length > 0) {
@@ -557,7 +558,7 @@ export async function handleCompgen(
   // If no completions found and we had a search prefix, return exit code 1
   if (filteredCompletions.length === 0 && searchPrefix !== null) {
     // Still output any function stdout even if no completions
-    return result(functionStdout, "", 1);
+    return result(encode(functionStdout), EMPTY, 1);
   }
 
   // Apply prefix/suffix and output
@@ -567,7 +568,7 @@ export async function handleCompgen(
   // Prepend function stdout to completions output
   const output =
     functionStdout + (completionOutput ? `${completionOutput}\n` : "");
-  return success(output);
+  return successText(output);
 }
 
 /**

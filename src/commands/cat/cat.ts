@@ -1,5 +1,6 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
+import { concat, decode, encode } from "../../utils/bytes.js";
 import { readFiles } from "../../utils/file-reader.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
@@ -38,21 +39,36 @@ export const catCommand: Command = {
       stopOnError: false,
     });
 
-    let stdout = "";
-    let lineNumber = 1;
+    if (showLineNumbers) {
+      let stdout = "";
+      let lineNumber = 1;
 
-    for (const { content } of readResult.files) {
-      if (showLineNumbers) {
-        // Real bash continues line numbers across files
-        const result = addLineNumbers(content, lineNumber);
+      for (const { content } of readResult.files) {
+        // Decode to text only when line numbering is needed
+        const text = decode(content);
+        const result = addLineNumbers(text, lineNumber);
         stdout += result.content;
         lineNumber = result.nextLineNumber;
-      } else {
-        stdout += content;
       }
+
+      return {
+        stdout: encode(stdout),
+        stderr: encode(readResult.stderr),
+        exitCode: readResult.exitCode,
+      };
     }
 
-    return { stdout, stderr: readResult.stderr, exitCode: readResult.exitCode };
+    // Pure byte pass-through — no decoding needed
+    const stdout = readResult.files.reduce(
+      (acc, f) => concat(acc, f.content),
+      new Uint8Array(0) as Uint8Array,
+    );
+
+    return {
+      stdout,
+      stderr: encode(readResult.stderr),
+      exitCode: readResult.exitCode,
+    };
   },
 };
 

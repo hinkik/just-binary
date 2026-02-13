@@ -1,4 +1,5 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
 const timeoutHelp = {
@@ -100,8 +101,8 @@ export const timeoutCommand: Command = {
 
     if (remainingArgs.length === 0) {
       return {
-        stdout: "",
-        stderr: "timeout: missing operand\n",
+        stdout: EMPTY,
+        stderr: encode("timeout: missing operand\n"),
         exitCode: 1,
       };
     }
@@ -112,8 +113,8 @@ export const timeoutCommand: Command = {
 
     if (durationMs === null) {
       return {
-        stdout: "",
-        stderr: `timeout: invalid time interval '${durationStr}'\n`,
+        stdout: EMPTY,
+        stderr: encode(`timeout: invalid time interval '${durationStr}'\n`),
         exitCode: 1,
       };
     }
@@ -122,8 +123,8 @@ export const timeoutCommand: Command = {
     const commandArgs = remainingArgs.slice(1);
     if (commandArgs.length === 0) {
       return {
-        stdout: "",
-        stderr: "timeout: missing operand\n",
+        stdout: EMPTY,
+        stderr: encode("timeout: missing operand\n"),
         exitCode: 1,
       };
     }
@@ -131,8 +132,8 @@ export const timeoutCommand: Command = {
     // Need exec function to run subcommand
     if (!ctx.exec) {
       return {
-        stdout: "",
-        stderr: "timeout: exec not available\n",
+        stdout: EMPTY,
+        stderr: encode("timeout: exec not available\n"),
         exitCode: 1,
       };
     }
@@ -162,8 +163,8 @@ export const timeoutCommand: Command = {
     if (outcome.timedOut) {
       // Command timed out
       return {
-        stdout: "",
-        stderr: "",
+        stdout: EMPTY,
+        stderr: EMPTY,
         exitCode: preserveStatus ? 124 : 124,
       };
     }

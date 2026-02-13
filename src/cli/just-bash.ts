@@ -40,6 +40,7 @@
 import { resolve } from "node:path";
 import { Bash } from "../Bash.js";
 import { OverlayFs } from "../fs/overlay-fs/index.js";
+import { decode } from "../utils/bytes.js";
 
 interface CliOptions {
   script?: string;
@@ -321,17 +322,17 @@ async function main(): Promise<void> {
     if (options.json) {
       console.log(
         JSON.stringify({
-          stdout: result.stdout,
-          stderr: result.stderr,
+          stdout: decode(result.stdout),
+          stderr: decode(result.stderr),
           exitCode: result.exitCode,
         }),
       );
     } else {
       // Output stdout and stderr directly
-      if (result.stdout) {
+      if (result.stdout.length > 0) {
         process.stdout.write(result.stdout);
       }
-      if (result.stderr) {
+      if (result.stderr.length > 0) {
         process.stderr.write(result.stderr);
       }
     }

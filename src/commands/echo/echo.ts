@@ -1,4 +1,5 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { EMPTY, encode, encodeMixed } from "../../utils/bytes.js";
 
 /**
  * Process echo -e escape sequences
@@ -198,9 +199,10 @@ export const echoCommand: Command = {
       output = result.output;
       if (result.stop) {
         // \c encountered - suppress newline and stop
+        // Use mixed encoding to handle both raw bytes and Unicode
         return {
-          stdout: output,
-          stderr: "",
+          stdout: encodeMixed(output),
+          stderr: EMPTY,
           exitCode: 0,
         };
       }
@@ -211,8 +213,12 @@ export const echoCommand: Command = {
     }
 
     return {
-      stdout: output,
-      stderr: "",
+      // When escapes are interpreted, the output may contain a mix of
+      // raw byte values (0x80-0xFF from \xHH / \0NNN) and true Unicode
+      // characters (from \u / \U). Use encodeMixed to handle both correctly.
+      // When escapes are NOT interpreted, use normal UTF-8 encoding.
+      stdout: interpretEscapes ? encodeMixed(output) : encode(output),
+      stderr: EMPTY,
       exitCode: 0,
     };
   },

@@ -298,7 +298,7 @@ export interface ProcessState {
  */
 export interface IOState {
   /** Stdin available for commands in compound commands (groups, subshells, while loops with piped input) */
-  groupStdin?: string;
+  groupStdin?: Uint8Array;
   /** File descriptors for process substitution and here-docs */
   fileDescriptors?: Map<number, string>;
   /** Next available file descriptor for {varname}>file allocation (starts at 10) */
@@ -397,11 +397,15 @@ export interface InterpreterContext {
   limits: Required<ExecutionLimits>;
   execFn: (
     script: string,
-    options?: { env?: Record<string, string>; cwd?: string },
+    options?: {
+      env?: Record<string, string>;
+      cwd?: string;
+      stdin?: Uint8Array;
+    },
   ) => Promise<ExecResult>;
   executeScript: (node: ScriptNode) => Promise<ExecResult>;
   executeStatement: (node: StatementNode) => Promise<ExecResult>;
-  executeCommand: (node: CommandNode, stdin: string) => Promise<ExecResult>;
+  executeCommand: (node: CommandNode, stdin: Uint8Array) => Promise<ExecResult>;
   /** Optional secure fetch function for network-enabled commands */
   fetch?: SecureFetch;
   /** Optional sleep function for testing with mock clocks */

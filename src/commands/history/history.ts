@@ -1,4 +1,5 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const historyHelp = {
@@ -34,7 +35,7 @@ export const historyCommand: Command = {
     // Handle -c (clear)
     if (args[0] === "-c") {
       ctx.env.set(HISTORY_KEY, "[]");
-      return { stdout: "", stderr: "", exitCode: 0 };
+      return { stdout: EMPTY, stderr: EMPTY, exitCode: 0 };
     }
 
     // Get optional count
@@ -51,7 +52,7 @@ export const historyCommand: Command = {
       stdout += `${lineNum}  ${history[i]}\n`;
     }
 
-    return { stdout, stderr: "", exitCode: 0 };
+    return { stdout: encode(stdout), stderr: EMPTY, exitCode: 0 };
   },
 };
 

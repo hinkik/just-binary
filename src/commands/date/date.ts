@@ -3,6 +3,7 @@
  */
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
 const dateHelp = {
@@ -199,8 +200,8 @@ export const dateCommand: Command = {
     const date = dateStr !== null ? parseDate(dateStr) : new Date();
     if (!date)
       return {
-        stdout: "",
-        stderr: `date: invalid date '${dateStr}'\n`,
+        stdout: EMPTY,
+        stderr: encode(`date: invalid date '${dateStr}'\n`),
         exitCode: 1,
       };
 
@@ -210,7 +211,7 @@ export const dateCommand: Command = {
     else if (rfc) out = formatDate(date, "%a, %d %b %Y %H:%M:%S %z", utc);
     else out = formatDate(date, "%a %b %e %H:%M:%S %Z %Y", utc);
 
-    return { stdout: `${out}\n`, stderr: "", exitCode: 0 };
+    return { stdout: encode(`${out}\n`), stderr: EMPTY, exitCode: 0 };
   },
 };
 

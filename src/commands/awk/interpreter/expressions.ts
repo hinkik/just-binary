@@ -7,6 +7,7 @@
 import { ExecutionLimitError } from "../../../interpreter/errors.js";
 import { createUserRegex } from "../../../regex/index.js";
 import { applyNumericBinaryOp } from "../../../shared/operators.js";
+import { encode } from "../../../utils/bytes.js";
 import type {
   AwkArrayAccess,
   AwkExpr,
@@ -193,7 +194,7 @@ async function evalBinaryOp(
       throw new ExecutionLimitError(
         `awk: string concatenation size limit exceeded (${ctx.maxOutputSize} bytes)`,
         "string_length",
-        ctx.output,
+        encode(ctx.output),
       );
     }
     return result;
@@ -306,7 +307,7 @@ async function callUserFunction(
     throw new ExecutionLimitError(
       `awk: recursion depth exceeded maximum (${ctx.maxRecursionDepth})`,
       "recursion",
-      ctx.output,
+      encode(ctx.output),
     );
   }
 

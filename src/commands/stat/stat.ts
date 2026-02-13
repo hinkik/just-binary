@@ -1,5 +1,6 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
+import { EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const statHelp = {
@@ -32,8 +33,8 @@ export const statCommand: Command = {
 
     if (files.length === 0) {
       return {
-        stdout: "",
-        stderr: "stat: missing operand\n",
+        stdout: EMPTY,
+        stderr: encode("stat: missing operand\n"),
         exitCode: 1,
       };
     }
@@ -82,7 +83,11 @@ export const statCommand: Command = {
       }
     }
 
-    return { stdout, stderr, exitCode: hasError ? 1 : 0 };
+    return {
+      stdout: encode(stdout),
+      stderr: encode(stderr),
+      exitCode: hasError ? 1 : 0,
+    };
   },
 };
 

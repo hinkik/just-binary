@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Bash, type BashLogger } from "./Bash.js";
+import { toText } from "./test-utils.js";
 
 // Helper to create a mock clock for testing sleep
 function createMockClock() {
@@ -53,22 +54,26 @@ describe("exec options", () => {
   describe("per-exec env", () => {
     it("should use env vars for single execution", async () => {
       const env = new Bash();
-      const result = await env.exec("echo $FOO", { env: { FOO: "bar" } });
+      const result = toText(
+        await env.exec("echo $FOO", { env: { FOO: "bar" } }),
+      );
       expect(result.stdout).toBe("bar\n");
     });
 
     it("should not persist env vars after execution", async () => {
       const env = new Bash();
       await env.exec("echo $FOO", { env: { FOO: "bar" } });
-      const result = await env.exec("echo $FOO");
+      const result = toText(await env.exec("echo $FOO"));
       expect(result.stdout).toBe("\n"); // FOO should not be set
     });
 
     it("should merge with existing env vars", async () => {
       const env = new Bash({ env: { EXISTING: "value" } });
-      const result = await env.exec("echo $EXISTING $NEW", {
-        env: { NEW: "added" },
-      });
+      const result = toText(
+        await env.exec("echo $EXISTING $NEW", {
+          env: { NEW: "added" },
+        }),
+      );
       expect(result.stdout).toBe("value added\n");
     });
 
@@ -76,27 +81,33 @@ describe("exec options", () => {
       const env = new Bash({ env: { VAR: "original" } });
 
       // Override temporarily
-      const result1 = await env.exec("echo $VAR", { env: { VAR: "override" } });
+      const result1 = toText(
+        await env.exec("echo $VAR", { env: { VAR: "override" } }),
+      );
       expect(result1.stdout).toBe("override\n");
 
       // Original should be restored
-      const result2 = await env.exec("echo $VAR");
+      const result2 = toText(await env.exec("echo $VAR"));
       expect(result2.stdout).toBe("original\n");
     });
 
     it("should work with multiple env vars", async () => {
       const env = new Bash();
-      const result = await env.exec("echo $A $B $C", {
-        env: { A: "1", B: "2", C: "3" },
-      });
+      const result = toText(
+        await env.exec("echo $A $B $C", {
+          env: { A: "1", B: "2", C: "3" },
+        }),
+      );
       expect(result.stdout).toBe("1 2 3\n");
     });
 
     it("should handle env vars with special characters", async () => {
       const env = new Bash();
-      const result = await env.exec('echo "$MSG"', {
-        env: { MSG: "hello world" },
-      });
+      const result = toText(
+        await env.exec('echo "$MSG"', {
+          env: { MSG: "hello world" },
+        }),
+      );
       expect(result.stdout).toBe("hello world\n");
     });
   });
@@ -104,7 +115,7 @@ describe("exec options", () => {
   describe("per-exec cwd", () => {
     it("should use cwd for single execution", async () => {
       const env = new Bash({ files: { "/tmp/test/file.txt": "content" } });
-      const result = await env.exec("pwd", { cwd: "/tmp/test" });
+      const result = toText(await env.exec("pwd", { cwd: "/tmp/test" }));
       expect(result.stdout).toBe("/tmp/test\n");
     });
 
@@ -114,7 +125,7 @@ describe("exec options", () => {
         cwd: "/",
       });
       await env.exec("pwd", { cwd: "/tmp/test" });
-      const result = await env.exec("pwd");
+      const result = toText(await env.exec("pwd"));
       expect(result.stdout).toBe("/\n");
     });
 
@@ -122,7 +133,9 @@ describe("exec options", () => {
       const env = new Bash({
         files: { "/project/src/main.ts": "console.log('hi')" },
       });
-      const result = await env.exec("cat main.ts", { cwd: "/project/src" });
+      const result = toText(
+        await env.exec("cat main.ts", { cwd: "/project/src" }),
+      );
       expect(result.stdout).toBe("console.log('hi')");
     });
   });
@@ -133,10 +146,12 @@ describe("exec options", () => {
         files: { "/app/config": "config file" },
         cwd: "/",
       });
-      const result = await env.exec('echo "$PWD: $APP_ENV"', {
-        cwd: "/app",
-        env: { APP_ENV: "production" },
-      });
+      const result = toText(
+        await env.exec('echo "$PWD: $APP_ENV"', {
+          cwd: "/app",
+          env: { APP_ENV: "production" },
+        }),
+      );
       expect(result.stdout).toBe("/app: production\n");
     });
 
@@ -149,10 +164,10 @@ describe("exec options", () => {
 
       await env.exec("echo $MODE", { cwd: "/app", env: { MODE: "prod" } });
 
-      const cwdResult = await env.exec("pwd");
+      const cwdResult = toText(await env.exec("pwd"));
       expect(cwdResult.stdout).toBe("/\n");
 
-      const envResult = await env.exec("echo $MODE");
+      const envResult = toText(await env.exec("echo $MODE"));
       expect(envResult.stdout).toBe("dev\n");
     });
   });
@@ -161,14 +176,14 @@ describe("exec options", () => {
     it("should restore state even on command error", async () => {
       const env = new Bash({ env: { VAR: "original" } });
       await env.exec("nonexistent_command", { env: { VAR: "temp" } });
-      const result = await env.exec("echo $VAR");
+      const result = toText(await env.exec("echo $VAR"));
       expect(result.stdout).toBe("original\n");
     });
 
     it("should restore state even on parse error", async () => {
       const env = new Bash({ env: { VAR: "original" } });
       await env.exec("echo ${", { env: { VAR: "temp" } });
-      const result = await env.exec("echo $VAR");
+      const result = toText(await env.exec("echo $VAR"));
       expect(result.stdout).toBe("original\n");
     });
   });
@@ -179,8 +194,8 @@ describe("exec options", () => {
 
       // Run two commands concurrently with different per-exec env
       const [result1, result2] = await Promise.all([
-        env.exec("echo $VAR", { env: { VAR: "A" } }),
-        env.exec("echo $VAR", { env: { VAR: "B" } }),
+        env.exec("echo $VAR", { env: { VAR: "A" } }).then(toText),
+        env.exec("echo $VAR", { env: { VAR: "B" } }).then(toText),
       ]);
 
       // Each should see their own VAR value (isolated state)
@@ -207,8 +222,8 @@ describe("exec options", () => {
       const env = new Bash({ env: { SHARED: "original" } });
 
       const [result1, result2] = await Promise.all([
-        env.exec("echo $SHARED $VAR", { env: { VAR: "A" } }),
-        env.exec("echo $SHARED $VAR", { env: { VAR: "B" } }),
+        env.exec("echo $SHARED $VAR", { env: { VAR: "A" } }).then(toText),
+        env.exec("echo $SHARED $VAR", { env: { VAR: "B" } }).then(toText),
       ]);
 
       // Both should see the shared original value plus their own
@@ -222,8 +237,8 @@ describe("exec options", () => {
       // Without per-exec options, state is shared (as expected)
       // These run sequentially due to async/await nature anyway
       const results = await Promise.all([
-        env.exec("echo start"),
-        env.exec("echo end"),
+        env.exec("echo start").then(toText),
+        env.exec("echo end").then(toText),
       ]);
 
       expect(results[0].stdout.trim()).toBe("start");
@@ -363,19 +378,19 @@ describe("exec options", () => {
 
       // Advance 1 second - first should complete
       clock.advance(1000);
-      const r1 = await p1;
+      const r1 = toText(await p1);
       expect(r1.stdout).toBe("done1\n");
       expect(clock.pendingCount).toBe(2);
 
       // Advance another second - second should complete
       clock.advance(1000);
-      const r2 = await p2;
+      const r2 = toText(await p2);
       expect(r2.stdout).toBe("done2\n");
       expect(clock.pendingCount).toBe(1);
 
       // Advance final second - third should complete
       clock.advance(1000);
-      const r3 = await p3;
+      const r3 = toText(await p3);
       expect(r3.stdout).toBe("done3\n");
       expect(clock.pendingCount).toBe(0);
     });
@@ -400,7 +415,7 @@ describe("exec options", () => {
       // Advance clock to complete both
       clock.advance(1000);
 
-      const [r1, r2] = await Promise.all([p1, p2]);
+      const [r1, r2] = await Promise.all([p1.then(toText), p2.then(toText)]);
 
       // Each should see their own env, not the other's
       expect(r1.stdout).toBe("A=value_A SHARED=original\n");
@@ -426,13 +441,13 @@ describe("exec options", () => {
 
       // Advance 1 second - p2 completes first
       clock.advance(1000);
-      const r2 = await p2;
+      const r2 = toText(await p2);
       // p2 should see isolated copy of initial env, not p1's modification
       expect(r2.stdout).toBe("initial\n");
 
       // Advance another second - p1 completes
       clock.advance(1000);
-      const r1 = await p1;
+      const r1 = toText(await p1);
       // p1 should see its own modification
       expect(r1.stdout).toBe("modified\n");
 
@@ -462,7 +477,7 @@ describe("exec options", () => {
       // Advance clock to complete all
       clock.advance(2000);
 
-      const results = await Promise.all(promises);
+      const results = await Promise.all(promises.map((p) => p.then(toText)));
 
       // Verify each result has correct isolated env
       for (let i = 0; i < 10; i++) {
@@ -498,17 +513,17 @@ describe("exec options", () => {
 
       // Advance 1 second
       clock.advance(1000);
-      const r2 = await p2;
+      const r2 = toText(await p2);
       expect(r2.stdout).toBe("from_p2\n");
 
       // Advance another second
       clock.advance(1000);
-      const r1 = await p1;
+      const r1 = toText(await p1);
       expect(r1.stdout).toBe("from_p1\n");
 
       // Both files should exist (fs is shared, not isolated)
-      const checkP1 = await env.exec("cat /data/p1.txt");
-      const checkP2 = await env.exec("cat /data/p2.txt");
+      const checkP1 = toText(await env.exec("cat /data/p1.txt"));
+      const checkP2 = toText(await env.exec("cat /data/p2.txt"));
       expect(checkP1.stdout).toBe("from_p1\n");
       expect(checkP2.stdout).toBe("from_p2\n");
     });
@@ -533,7 +548,11 @@ describe("exec options", () => {
       await waitFor(() => clock.pendingCount === 3);
       clock.advance(1000);
 
-      const [r1, r2, r3] = await Promise.all([p1, p2, p3]);
+      const [r1, r2, r3] = await Promise.all([
+        p1.then(toText),
+        p2.then(toText),
+        p3.then(toText),
+      ]);
 
       expect(r1.stdout).toBe("/home\nhome");
       expect(r2.stdout).toBe("/tmp\ntmp");
@@ -561,11 +580,11 @@ describe("exec options", () => {
 
       await waitFor(() => clock.pendingCount === 2);
       clock.advance(1000);
-      const r1 = await p1;
+      const r1 = toText(await p1);
       expect(r1.stdout).toBe("from_p1\n");
 
       clock.advance(1000);
-      const r2 = await p2;
+      const r2 = toText(await p2);
       // Function should not be visible in isolated context
       expect(r2.stdout).toContain("not_found");
     });
@@ -588,12 +607,12 @@ describe("exec options", () => {
 
       await waitFor(() => clock.pendingCount === 2);
       clock.advance(1000);
-      const r1 = await p1;
+      const r1 = toText(await p1);
       expect(r1.stdout).toBe(""); // errexit stopped execution
       expect(r1.exitCode).toBe(1);
 
       clock.advance(1000);
-      const r2 = await p2;
+      const r2 = toText(await p2);
       expect(r2.stdout).toBe("should_see\n"); // no errexit
       expect(r2.exitCode).toBe(0);
     });
@@ -614,7 +633,7 @@ describe("exec options", () => {
       await p1;
 
       clock.advance(1000);
-      const r2 = await p2;
+      const r2 = toText(await p2);
 
       // p2 sees original value because each exec is isolated
       expect(r2.stdout).toBe("0\n");
@@ -640,7 +659,7 @@ describe("exec options", () => {
       await waitFor(() => clock.pendingCount === 20);
       // Advance clock
       clock.advance(100);
-      const results = await Promise.all(promises);
+      const results = await Promise.all(promises.map((p) => p.then(toText)));
 
       // All should see the original value
       for (const result of results) {
@@ -682,7 +701,7 @@ describe("exec options", () => {
 
     it("should not log when logger is not provided", async () => {
       const env = new Bash();
-      const result = await env.exec("echo hello");
+      const result = toText(await env.exec("echo hello"));
       expect(result.stdout).toBe("hello\n");
       // No errors, just ensure it works without logger
     });

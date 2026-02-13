@@ -1,5 +1,6 @@
 import { getErrorMessage } from "../../interpreter/helpers/errors.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { EMPTY, encode } from "../../utils/bytes.js";
 import { unknownOption } from "../help.js";
 
 /**
@@ -76,8 +77,8 @@ export const touchCommand: Command = {
         // -d DATE or --date=DATE
         if (i + 1 >= args.length) {
           return {
-            stdout: "",
-            stderr: "touch: option requires an argument -- 'd'\n",
+            stdout: EMPTY,
+            stderr: encode("touch: option requires an argument -- 'd'\n"),
             exitCode: 1,
           };
         }
@@ -107,8 +108,8 @@ export const touchCommand: Command = {
             // -d requires next argument
             if (i + 1 >= args.length) {
               return {
-                stdout: "",
-                stderr: "touch: option requires an argument -- 'd'\n",
+                stdout: EMPTY,
+                stderr: encode("touch: option requires an argument -- 'd'\n"),
                 exitCode: 1,
               };
             }
@@ -132,8 +133,8 @@ export const touchCommand: Command = {
 
     if (files.length === 0) {
       return {
-        stdout: "",
-        stderr: "touch: missing file operand\n",
+        stdout: EMPTY,
+        stderr: encode("touch: missing file operand\n"),
         exitCode: 1,
       };
     }
@@ -144,8 +145,8 @@ export const touchCommand: Command = {
       targetTime = parseDateString(dateStr);
       if (targetTime === null) {
         return {
-          stdout: "",
-          stderr: `touch: invalid date format '${dateStr}'\n`,
+          stdout: EMPTY,
+          stderr: encode(`touch: invalid date format '${dateStr}'\n`),
           exitCode: 1,
         };
       }
@@ -176,7 +177,7 @@ export const touchCommand: Command = {
       }
     }
 
-    return { stdout: "", stderr, exitCode };
+    return { stdout: EMPTY, stderr: encode(stderr), exitCode };
   },
 };
 

@@ -5,6 +5,7 @@
 import * as Diff from "diff";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
+import { decode, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const diffHelp = {
@@ -49,59 +50,68 @@ export const diffCommand: Command = {
     void parsed.result.flags.unified;
 
     if (files.length < 2) {
-      return { stdout: "", stderr: "diff: missing operand\n", exitCode: 2 };
+      return {
+        stdout: EMPTY,
+        stderr: encode("diff: missing operand\n"),
+        exitCode: 2,
+      };
     }
 
-    let c1: string, c2: string;
+    let b1: Uint8Array, b2: Uint8Array;
     const [f1, f2] = files;
 
     try {
-      c1 =
+      b1 =
         f1 === "-"
           ? ctx.stdin
-          : await ctx.fs.readFile(ctx.fs.resolvePath(ctx.cwd, f1));
+          : await ctx.fs.readFileBuffer(ctx.fs.resolvePath(ctx.cwd, f1));
     } catch {
       return {
-        stdout: "",
-        stderr: `diff: ${f1}: No such file or directory\n`,
+        stdout: EMPTY,
+        stderr: encode(`diff: ${f1}: No such file or directory\n`),
         exitCode: 2,
       };
     }
 
     try {
-      c2 =
+      b2 =
         f2 === "-"
           ? ctx.stdin
-          : await ctx.fs.readFile(ctx.fs.resolvePath(ctx.cwd, f2));
+          : await ctx.fs.readFileBuffer(ctx.fs.resolvePath(ctx.cwd, f2));
     } catch {
       return {
-        stdout: "",
-        stderr: `diff: ${f2}: No such file or directory\n`,
+        stdout: EMPTY,
+        stderr: encode(`diff: ${f2}: No such file or directory\n`),
         exitCode: 2,
       };
     }
 
-    let t1 = c1,
-      t2 = c2;
-    if (ignoreCase) {
-      t1 = t1.toLowerCase();
-      t2 = t2.toLowerCase();
+    // Compare raw bytes to avoid UTF-8 decode masking binary differences
+    const bytesEqual =
+      b1.length === b2.length && b1.every((v, i) => v === b2[i]);
+
+    const c1 = decode(b1);
+    const c2 = decode(b2);
+
+    let identical = bytesEqual;
+    if (!identical && ignoreCase) {
+      identical = c1.toLowerCase() === c2.toLowerCase();
     }
 
-    if (t1 === t2) {
+    if (identical) {
       if (reportSame)
         return {
-          stdout: `Files ${f1} and ${f2} are identical\n`,
-          stderr: "",
+          stdout: encode(`Files ${f1} and ${f2} are identical\n`),
+          stderr: EMPTY,
           exitCode: 0,
         };
-      return { stdout: "", stderr: "", exitCode: 0 };
+      return { stdout: EMPTY, stderr: EMPTY, exitCode: 0 };
     }
 
     if (brief) {
       return {
-        stdout: `Files ${f1} and ${f2} differ\n`,
-        stderr: "",
+        stdout: encode(`Files ${f1} and ${f2} differ\n`),
+        stderr: EMPTY,
         exitCode: 1,
       };
     }
@@ -109,7 +119,7 @@ export const diffCommand: Command = {
     const output = Diff.createTwoFilesPatch(f1, f2, c1, c2, "", "", {
       context: 3,
     });
-    return { stdout: output, stderr: "", exitCode: 1 };
+    return { stdout: encode(output), stderr: EMPTY, exitCode: 1 };
   },
 };
 

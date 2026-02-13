@@ -6,6 +6,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { toText } from "../../test-utils.js";
 
 // Classic test fixture from ripgrep tests
 const SHERLOCK = `For the Doctor Watsons of this world, as opposed to the Sherlock
@@ -24,7 +25,7 @@ describe("rg ripgrep-compat: basic search", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = await bash.exec("rg Sherlock sherlock");
+    const result = toText(await bash.exec("rg Sherlock sherlock"));
     expect(result.exitCode).toBe(0);
     // ripgrep: single file = no filename prefix, no line numbers by default
     expect(result.stdout).toBe(
@@ -39,7 +40,7 @@ describe("rg ripgrep-compat: basic search", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = await bash.exec("rg Sherlock");
+    const result = toText(await bash.exec("rg Sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       "sherlock:1:For the Doctor Watsons of this world, as opposed to the Sherlock\nsherlock:3:be, to a very large extent, the result of luck. Sherlock Holmes\n",
@@ -53,7 +54,7 @@ describe("rg ripgrep-compat: basic search", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = await bash.exec("rg -n Sherlock sherlock");
+    const result = toText(await bash.exec("rg -n Sherlock sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       "1:For the Doctor Watsons of this world, as opposed to the Sherlock\n3:be, to a very large extent, the result of luck. Sherlock Holmes\n",
@@ -67,7 +68,7 @@ describe("rg ripgrep-compat: basic search", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = await bash.exec("rg -N Sherlock sherlock");
+    const result = toText(await bash.exec("rg -N Sherlock sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       "For the Doctor Watsons of this world, as opposed to the Sherlock\nbe, to a very large extent, the result of luck. Sherlock Holmes\n",
@@ -83,7 +84,7 @@ describe("rg ripgrep-compat: inverted match", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = await bash.exec("rg -v Sherlock sherlock");
+    const result = toText(await bash.exec("rg -v Sherlock sherlock"));
     expect(result.exitCode).toBe(0);
     // Lines NOT containing "Sherlock"
     expect(result.stdout).toBe(
@@ -98,7 +99,7 @@ describe("rg ripgrep-compat: inverted match", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = await bash.exec("rg -n -v Sherlock sherlock");
+    const result = toText(await bash.exec("rg -n -v Sherlock sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       "2:Holmeses, success in the province of detective work must always\n4:can extract a clew from a wisp of straw or a flake of cigar ash;\n5:but Doctor Watson has to have it taken out for him and dusted,\n6:and exhibited clearly, with a label attached.\n",
@@ -114,7 +115,7 @@ describe("rg ripgrep-compat: case sensitivity", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = await bash.exec("rg -i sherlock sherlock");
+    const result = toText(await bash.exec("rg -i sherlock sherlock"));
     expect(result.exitCode).toBe(0);
     // Should match "Sherlock" case-insensitively
     expect(result.stdout).toBe(
@@ -130,7 +131,7 @@ describe("rg ripgrep-compat: case sensitivity", () => {
       },
     });
     // Smart case: lowercase pattern = case-insensitive
-    const result = await bash.exec("rg test");
+    const result = toText(await bash.exec("rg test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("foo:1:tEsT\n");
   });
@@ -143,7 +144,7 @@ describe("rg ripgrep-compat: case sensitivity", () => {
       },
     });
     // Smart case: uppercase in pattern = case-sensitive
-    const result = await bash.exec("rg TEST");
+    const result = toText(await bash.exec("rg TEST"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("foo:2:TEST\n");
   });
@@ -156,7 +157,7 @@ describe("rg ripgrep-compat: case sensitivity", () => {
       },
     });
     // -s forces case-sensitive even with lowercase pattern
-    const result = await bash.exec("rg -s test");
+    const result = toText(await bash.exec("rg -s test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("foo:2:test\n");
   });
@@ -170,7 +171,7 @@ describe("rg ripgrep-compat: word matching", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = await bash.exec("rg -w as sherlock");
+    const result = toText(await bash.exec("rg -w as sherlock"));
     expect(result.exitCode).toBe(0);
     // "as" as a word appears in first line
     expect(result.stdout).toBe(
@@ -186,7 +187,7 @@ describe("rg ripgrep-compat: word matching", () => {
       },
     });
     // -w should match "foo" as a word, not "foo" within "foobar"
-    const result = await bash.exec("rg -w foo haystack");
+    const result = toText(await bash.exec("rg -w foo haystack"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("foo bar baz\n");
   });
@@ -200,8 +201,10 @@ describe("rg ripgrep-compat: line matching", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = await bash.exec(
-      "rg -x 'and exhibited clearly, with a label attached.' sherlock",
+    const result = toText(
+      await bash.exec(
+        "rg -x 'and exhibited clearly, with a label attached.' sherlock",
+      ),
     );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
@@ -218,7 +221,7 @@ describe("rg ripgrep-compat: literal matching", () => {
         "/home/user/file": "blib\n()\nblab\n",
       },
     });
-    const result = await bash.exec("rg -F '()' file");
+    const result = toText(await bash.exec("rg -F '()' file"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("()\n");
   });
@@ -232,7 +235,7 @@ describe("rg ripgrep-compat: quiet mode", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = await bash.exec("rg -q Sherlock sherlock");
+    const result = toText(await bash.exec("rg -q Sherlock sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("");
   });
@@ -244,7 +247,7 @@ describe("rg ripgrep-compat: quiet mode", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = await bash.exec("rg -q NADA sherlock");
+    const result = toText(await bash.exec("rg -q NADA sherlock"));
     expect(result.exitCode).toBe(1);
     expect(result.stdout).toBe("");
   });
@@ -260,7 +263,7 @@ describe("rg ripgrep-compat: file type filtering", () => {
         "/home/user/file.rs": "Sherlock\n",
       },
     });
-    const result = await bash.exec("rg -t rust Sherlock");
+    const result = toText(await bash.exec("rg -t rust Sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.rs:1:Sherlock\n");
   });
@@ -273,7 +276,7 @@ describe("rg ripgrep-compat: file type filtering", () => {
         "/home/user/file.rs": "Sherlock\n",
       },
     });
-    const result = await bash.exec("rg -T rust Sherlock");
+    const result = toText(await bash.exec("rg -T rust Sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.py:1:Sherlock\n");
   });
@@ -289,7 +292,7 @@ describe("rg ripgrep-compat: glob filtering", () => {
         "/home/user/file.rs": "Sherlock\n",
       },
     });
-    const result = await bash.exec("rg -g '*.rs' Sherlock");
+    const result = toText(await bash.exec("rg -g '*.rs' Sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.rs:1:Sherlock\n");
   });
@@ -302,7 +305,7 @@ describe("rg ripgrep-compat: glob filtering", () => {
         "/home/user/file.rs": "Sherlock\n",
       },
     });
-    const result = await bash.exec("rg -g '!*.rs' Sherlock");
+    const result = toText(await bash.exec("rg -g '!*.rs' Sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.py:1:Sherlock\n");
   });
@@ -316,7 +319,7 @@ describe("rg ripgrep-compat: glob filtering", () => {
       },
     });
     // Standard glob is case-sensitive
-    const result = await bash.exec("rg -g '*.html' Sherlock");
+    const result = toText(await bash.exec("rg -g '*.html' Sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.html:1:Sherlock\n");
   });
@@ -330,7 +333,7 @@ describe("rg ripgrep-compat: count", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = await bash.exec("rg -c Sherlock");
+    const result = toText(await bash.exec("rg -c Sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("sherlock:2\n");
   });
@@ -344,7 +347,7 @@ describe("rg ripgrep-compat: files with/without matches", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = await bash.exec("rg -l Sherlock");
+    const result = toText(await bash.exec("rg -l Sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("sherlock\n");
   });
@@ -357,7 +360,7 @@ describe("rg ripgrep-compat: files with/without matches", () => {
         "/home/user/file.py": "foo\n",
       },
     });
-    const result = await bash.exec("rg --files-without-match Sherlock");
+    const result = toText(await bash.exec("rg --files-without-match Sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.py\n");
   });
@@ -371,7 +374,7 @@ describe("rg ripgrep-compat: context lines", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = await bash.exec("rg -A 1 Sherlock sherlock");
+    const result = toText(await bash.exec("rg -A 1 Sherlock sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       "For the Doctor Watsons of this world, as opposed to the Sherlock\nHolmeses, success in the province of detective work must always\nbe, to a very large extent, the result of luck. Sherlock Holmes\ncan extract a clew from a wisp of straw or a flake of cigar ash;\n",
@@ -385,7 +388,7 @@ describe("rg ripgrep-compat: context lines", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = await bash.exec("rg -B 1 Sherlock sherlock");
+    const result = toText(await bash.exec("rg -B 1 Sherlock sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       "For the Doctor Watsons of this world, as opposed to the Sherlock\nHolmeses, success in the province of detective work must always\nbe, to a very large extent, the result of luck. Sherlock Holmes\n",
@@ -399,7 +402,7 @@ describe("rg ripgrep-compat: context lines", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = await bash.exec("rg -C 1 'world|attached' sherlock");
+    const result = toText(await bash.exec("rg -C 1 'world|attached' sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       "For the Doctor Watsons of this world, as opposed to the Sherlock\nHolmeses, success in the province of detective work must always\n--\nbut Doctor Watson has to have it taken out for him and dusted,\nand exhibited clearly, with a label attached.\n",
@@ -415,7 +418,7 @@ describe("rg ripgrep-compat: hidden files", () => {
         "/home/user/.sherlock": SHERLOCK,
       },
     });
-    const result = await bash.exec("rg Sherlock");
+    const result = toText(await bash.exec("rg Sherlock"));
     expect(result.exitCode).toBe(1);
   });
 
@@ -426,7 +429,7 @@ describe("rg ripgrep-compat: hidden files", () => {
         "/home/user/.sherlock": SHERLOCK,
       },
     });
-    const result = await bash.exec("rg --hidden Sherlock");
+    const result = toText(await bash.exec("rg --hidden Sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       ".sherlock:1:For the Doctor Watsons of this world, as opposed to the Sherlock\n.sherlock:3:be, to a very large extent, the result of luck. Sherlock Holmes\n",
@@ -443,7 +446,7 @@ describe("rg ripgrep-compat: gitignore", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = await bash.exec("rg Sherlock");
+    const result = toText(await bash.exec("rg Sherlock"));
     expect(result.exitCode).toBe(1);
   });
 
@@ -455,7 +458,7 @@ describe("rg ripgrep-compat: gitignore", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = await bash.exec("rg --no-ignore Sherlock");
+    const result = toText(await bash.exec("rg --no-ignore Sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       "sherlock:1:For the Doctor Watsons of this world, as opposed to the Sherlock\nsherlock:3:be, to a very large extent, the result of luck. Sherlock Holmes\n",
@@ -472,7 +475,7 @@ describe("rg ripgrep-compat: max depth", () => {
         "/home/user/one/too/many": "far\n",
       },
     });
-    const result = await bash.exec("rg --max-depth 2 far");
+    const result = toText(await bash.exec("rg --max-depth 2 far"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("one/pass:1:far\n");
   });
@@ -486,7 +489,7 @@ describe("rg ripgrep-compat: multiple patterns", () => {
         "/home/user/file.txt": "foo\nbar\nbaz\n",
       },
     });
-    const result = await bash.exec("rg -e foo -e bar");
+    const result = toText(await bash.exec("rg -e foo -e bar"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.txt:1:foo\nfile.txt:2:bar\n");
   });
@@ -499,7 +502,7 @@ describe("rg ripgrep-compat: multiple patterns", () => {
         "/home/user/foo": "-test\n",
       },
     });
-    const result = await bash.exec("rg -e '-test'");
+    const result = toText(await bash.exec("rg -e '-test'"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("foo:1:-test\n");
   });
@@ -513,7 +516,7 @@ describe("rg ripgrep-compat: only matching", () => {
         "/home/user/digits.txt": "1 2 3\n",
       },
     });
-    const result = await bash.exec("rg -o '[0-9]+' digits.txt");
+    const result = toText(await bash.exec("rg -o '[0-9]+' digits.txt"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("1\n2\n3\n");
   });
@@ -528,7 +531,7 @@ describe("rg ripgrep-compat: regex patterns", () => {
         "/home/user/foo": "192.168.1.1\n",
       },
     });
-    const result = await bash.exec("rg '(\\d{1,3}\\.){3}\\d{1,3}'");
+    const result = toText(await bash.exec("rg '(\\d{1,3}\\.){3}\\d{1,3}'"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("foo:1:192.168.1.1\n");
   });
@@ -540,7 +543,7 @@ describe("rg ripgrep-compat: regex patterns", () => {
         "/home/user/file": "cat\ndog\nbird\n",
       },
     });
-    const result = await bash.exec("rg 'cat|dog'");
+    const result = toText(await bash.exec("rg 'cat|dog'"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file:1:cat\nfile:2:dog\n");
   });
@@ -554,7 +557,7 @@ describe("rg ripgrep-compat: exit codes", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = await bash.exec("rg .");
+    const result = toText(await bash.exec("rg ."));
     expect(result.exitCode).toBe(0);
   });
 
@@ -565,7 +568,7 @@ describe("rg ripgrep-compat: exit codes", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = await bash.exec("rg NADA");
+    const result = toText(await bash.exec("rg NADA"));
     expect(result.exitCode).toBe(1);
   });
 
@@ -576,7 +579,7 @@ describe("rg ripgrep-compat: exit codes", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = await bash.exec("rg '*'");
+    const result = toText(await bash.exec("rg '*'"));
     expect(result.exitCode).toBe(2);
   });
 });
@@ -590,7 +593,7 @@ describe("rg ripgrep-compat: binary files", () => {
         "/home/user/binary.bin": "hello\x00world\n",
       },
     });
-    const result = await bash.exec("rg hello");
+    const result = toText(await bash.exec("rg hello"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("text.txt:1:hello\n");
   });
@@ -607,7 +610,7 @@ describe("rg ripgrep-compat: gitignore patterns", () => {
         "/home/user/def/ghi/subdir.txt": "xyz\n",
       },
     });
-    const result = await bash.exec("rg xyz");
+    const result = toText(await bash.exec("rg xyz"));
     expect(result.exitCode).toBe(1);
   });
 
@@ -620,7 +623,7 @@ describe("rg ripgrep-compat: gitignore patterns", () => {
         "/home/user/src/llvm/foo": "test\n",
       },
     });
-    const result = await bash.exec("rg test");
+    const result = toText(await bash.exec("rg test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("src/llvm/foo:1:test\n");
   });
@@ -635,7 +638,7 @@ describe("rg ripgrep-compat: gitignore patterns", () => {
         "/home/user/vendor/other": "test\n",
       },
     });
-    const result = await bash.exec("rg test");
+    const result = toText(await bash.exec("rg test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("vendor/manifest:1:test\n");
   });
@@ -649,7 +652,7 @@ describe("rg ripgrep-compat: gitignore patterns", () => {
         "/home/user/test/foo/bar/baz": "test\n",
       },
     });
-    const result = await bash.exec("rg xyz");
+    const result = toText(await bash.exec("rg xyz"));
     expect(result.exitCode).toBe(1);
   });
 
@@ -662,7 +665,7 @@ describe("rg ripgrep-compat: gitignore patterns", () => {
         "/home/user/.foo": "test\n",
       },
     });
-    const result = await bash.exec("rg --hidden test");
+    const result = toText(await bash.exec("rg --hidden test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(".foo:1:test\n");
   });
@@ -677,7 +680,7 @@ describe("rg ripgrep-compat: unicode", () => {
         "/home/user/foo": "привет\nПривет\nПрИвЕт\n",
       },
     });
-    const result = await bash.exec("rg -i привет");
+    const result = toText(await bash.exec("rg -i привет"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("foo:1:привет\nfoo:2:Привет\nfoo:3:ПрИвЕт\n");
   });
@@ -695,7 +698,7 @@ describe("rg ripgrep-compat: column numbers (--column)", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = await bash.exec("rg -n --column Sherlock sherlock");
+    const result = toText(await bash.exec("rg -n --column Sherlock sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       "1:57:For the Doctor Watsons of this world, as opposed to the Sherlock\n3:49:be, to a very large extent, the result of luck. Sherlock Holmes\n",
@@ -714,7 +717,7 @@ describe("rg ripgrep-compat: patterns from file (-f)", () => {
     });
     // Use hidden file for patterns to avoid it being searched
     // When searching a single file, rg doesn't show filename by default
-    const result = await bash.exec("rg -f .patterns sherlock");
+    const result = toText(await bash.exec("rg -f .patterns sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       "For the Doctor Watsons of this world, as opposed to the Sherlock\nHolmeses, success in the province of detective work must always\nbe, to a very large extent, the result of luck. Sherlock Holmes\n",
@@ -730,7 +733,7 @@ describe("rg ripgrep-compat: replace (-r)", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = await bash.exec("rg -r FooBar Sherlock sherlock");
+    const result = toText(await bash.exec("rg -r FooBar Sherlock sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       "For the Doctor Watsons of this world, as opposed to the FooBar\nbe, to a very large extent, the result of luck. FooBar Holmes\n",
@@ -746,7 +749,9 @@ describe("rg ripgrep-compat: vimgrep format (--vimgrep)", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = await bash.exec("rg --vimgrep 'Sherlock|Watson' sherlock");
+    const result = toText(
+      await bash.exec("rg --vimgrep 'Sherlock|Watson' sherlock"),
+    );
     expect(result.exitCode).toBe(0);
     // Each match on separate line (line 1 appears twice for Watson and Sherlock)
     expect(result.stdout).toBe(
@@ -763,7 +768,7 @@ describe("rg ripgrep-compat: null separator (-0)", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = await bash.exec("rg -0 -l Sherlock");
+    const result = toText(await bash.exec("rg -0 -l Sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("sherlock\x00");
   });
@@ -777,7 +782,7 @@ describe("rg ripgrep-compat: max count (-m)", () => {
         "/home/user/foo": "test\ntest\ntest\n",
       },
     });
-    const result = await bash.exec("rg -m1 test");
+    const result = toText(await bash.exec("rg -m1 test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("foo:1:test\n");
   });
@@ -791,7 +796,7 @@ describe("rg ripgrep-compat: count matches (--count-matches)", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = await bash.exec("rg --count-matches the");
+    const result = toText(await bash.exec("rg --count-matches the"));
     expect(result.exitCode).toBe(0);
     // "the" appears 4 times in SHERLOCK
     expect(result.stdout).toBe("sherlock:4\n");
@@ -806,7 +811,7 @@ describe("rg ripgrep-compat: heading mode (--heading)", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = await bash.exec("rg --heading Sherlock");
+    const result = toText(await bash.exec("rg --heading Sherlock"));
     expect(result.exitCode).toBe(0);
     // File name on its own line, then matches without filename prefix
     expect(result.stdout).toMatch(/^sherlock\n/);
@@ -821,7 +826,7 @@ describe("rg ripgrep-compat: byte offset (-b)", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = await bash.exec("rg -b -o Sherlock");
+    const result = toText(await bash.exec("rg -b -o Sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("sherlock:56:Sherlock\nsherlock:177:Sherlock\n");
   });
@@ -835,7 +840,9 @@ describe("rg ripgrep-compat: context separator (--context-separator)", () => {
         "/home/user/test": "foo\nctx\nbar\nctx\nfoo\nctx\n",
       },
     });
-    const result = await bash.exec("rg -A1 --context-separator AAA foo test");
+    const result = toText(
+      await bash.exec("rg -A1 --context-separator AAA foo test"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("foo\nctx\nAAA\nfoo\nctx\n");
   });
@@ -849,7 +856,7 @@ describe("rg ripgrep-compat: multiline (-U)", () => {
         "/home/user/file": "foo\nbar\n",
       },
     });
-    const result = await bash.exec("rg -U 'foo\\nbar'");
+    const result = toText(await bash.exec("rg -U 'foo\\nbar'"));
     expect(result.exitCode).toBe(0);
   });
 });
@@ -862,7 +869,7 @@ describe("rg ripgrep-compat: passthrough (--passthru)", () => {
         "/home/user/file": "\nfoo\nbar\nfoobar\n\nbaz\n",
       },
     });
-    const result = await bash.exec("rg -n --passthru foo file");
+    const result = toText(await bash.exec("rg -n --passthru foo file"));
     expect(result.exitCode).toBe(0);
     // All lines printed, matches marked with :, non-matches with -
     expect(result.stdout).toBe("1-\n2:foo\n3-bar\n4:foobar\n5-\n6-baz\n");
@@ -880,7 +887,7 @@ describe("rg ripgrep-compat: sort (--sort)", () => {
         "/home/user/bar": "test\n",
       },
     });
-    const result = await bash.exec("rg --sort path test");
+    const result = toText(await bash.exec("rg --sort path test"));
     expect(result.exitCode).toBe(0);
     // Files are sorted alphabetically by path
     expect(result.stdout).toBe(
@@ -897,7 +904,7 @@ describe("rg ripgrep-compat: no-filename (-I)", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = await bash.exec("rg --no-filename Sherlock");
+    const result = toText(await bash.exec("rg --no-filename Sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       "1:For the Doctor Watsons of this world, as opposed to the Sherlock\n3:be, to a very large extent, the result of luck. Sherlock Holmes\n",
@@ -911,7 +918,7 @@ describe("rg ripgrep-compat: no-filename (-I)", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = await bash.exec("rg -I Sherlock");
+    const result = toText(await bash.exec("rg -I Sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       "1:For the Doctor Watsons of this world, as opposed to the Sherlock\n3:be, to a very large extent, the result of luck. Sherlock Holmes\n",
@@ -927,7 +934,7 @@ describe("rg ripgrep-compat: include-zero (--include-zero)", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = await bash.exec("rg -c --include-zero nada");
+    const result = toText(await bash.exec("rg -c --include-zero nada"));
     // Exit code 1 because no matches, but still outputs count
     expect(result.stdout).toBe("sherlock:0\n");
   });

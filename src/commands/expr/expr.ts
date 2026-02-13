@@ -1,5 +1,6 @@
 import { createUserRegex } from "../../regex/index.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { EMPTY, encode } from "../../utils/bytes.js";
 
 /**
  * expr - evaluate expressions
@@ -12,8 +13,8 @@ export const exprCommand: Command = {
   async execute(args: string[], _ctx: CommandContext): Promise<ExecResult> {
     if (args.length === 0) {
       return {
-        stdout: "",
-        stderr: "expr: missing operand\n",
+        stdout: EMPTY,
+        stderr: encode("expr: missing operand\n"),
         exitCode: 2,
       };
     }
@@ -23,14 +24,14 @@ export const exprCommand: Command = {
       // expr returns 1 if result is 0 or empty, 0 otherwise
       const exitCode = result === "0" || result === "" ? 1 : 0;
       return {
-        stdout: `${result}\n`,
-        stderr: "",
+        stdout: encode(`${result}\n`),
+        stderr: EMPTY,
         exitCode,
       };
     } catch (error) {
       return {
-        stdout: "",
-        stderr: `expr: ${(error as Error).message}\n`,
+        stdout: EMPTY,
+        stderr: encode(`expr: ${(error as Error).message}\n`),
         exitCode: 2,
       };
     }

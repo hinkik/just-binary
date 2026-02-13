@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { toText } from "../../test-utils.js";
 
 describe("comm", () => {
   describe("basic comparison", () => {
@@ -7,7 +8,7 @@ describe("comm", () => {
       const env = new Bash();
       await env.exec("echo -e 'a\\nb\\nc' > /tmp/file1");
       await env.exec("echo -e 'b\\nc\\nd' > /tmp/file2");
-      const result = await env.exec("comm /tmp/file1 /tmp/file2");
+      const result = toText(await env.exec("comm /tmp/file1 /tmp/file2"));
       expect(result.stdout).toBe("a\n\t\tb\n\t\tc\n\td\n");
       expect(result.exitCode).toBe(0);
     });
@@ -16,7 +17,7 @@ describe("comm", () => {
       const env = new Bash();
       await env.exec("echo -e 'a\\nb\\nc' > /tmp/file1");
       await env.exec("echo -e 'b\\nc\\nd' > /tmp/file2");
-      const result = await env.exec("comm -1 /tmp/file1 /tmp/file2");
+      const result = toText(await env.exec("comm -1 /tmp/file1 /tmp/file2"));
       expect(result.stdout).toBe("\tb\n\tc\nd\n");
       expect(result.exitCode).toBe(0);
     });
@@ -25,7 +26,7 @@ describe("comm", () => {
       const env = new Bash();
       await env.exec("echo -e 'a\\nb\\nc' > /tmp/file1");
       await env.exec("echo -e 'b\\nc\\nd' > /tmp/file2");
-      const result = await env.exec("comm -2 /tmp/file1 /tmp/file2");
+      const result = toText(await env.exec("comm -2 /tmp/file1 /tmp/file2"));
       expect(result.stdout).toBe("a\n\tb\n\tc\n");
       expect(result.exitCode).toBe(0);
     });
@@ -34,7 +35,7 @@ describe("comm", () => {
       const env = new Bash();
       await env.exec("echo -e 'a\\nb\\nc' > /tmp/file1");
       await env.exec("echo -e 'b\\nc\\nd' > /tmp/file2");
-      const result = await env.exec("comm -3 /tmp/file1 /tmp/file2");
+      const result = toText(await env.exec("comm -3 /tmp/file1 /tmp/file2"));
       expect(result.stdout).toBe("a\n\td\n");
       expect(result.exitCode).toBe(0);
     });
@@ -43,7 +44,7 @@ describe("comm", () => {
       const env = new Bash();
       await env.exec("echo -e 'a\\nb\\nc' > /tmp/file1");
       await env.exec("echo -e 'b\\nc\\nd' > /tmp/file2");
-      const result = await env.exec("comm -23 /tmp/file1 /tmp/file2");
+      const result = toText(await env.exec("comm -23 /tmp/file1 /tmp/file2"));
       expect(result.stdout).toBe("a\n");
       expect(result.exitCode).toBe(0);
     });
@@ -52,7 +53,7 @@ describe("comm", () => {
       const env = new Bash();
       await env.exec("echo -e 'a\\nb\\nc' > /tmp/file1");
       await env.exec("echo -e 'b\\nc\\nd' > /tmp/file2");
-      const result = await env.exec("comm -13 /tmp/file1 /tmp/file2");
+      const result = toText(await env.exec("comm -13 /tmp/file1 /tmp/file2"));
       expect(result.stdout).toBe("d\n");
       expect(result.exitCode).toBe(0);
     });
@@ -61,7 +62,7 @@ describe("comm", () => {
       const env = new Bash();
       await env.exec("echo -e 'a\\nb\\nc' > /tmp/file1");
       await env.exec("echo -e 'b\\nc\\nd' > /tmp/file2");
-      const result = await env.exec("comm -12 /tmp/file1 /tmp/file2");
+      const result = toText(await env.exec("comm -12 /tmp/file1 /tmp/file2"));
       expect(result.stdout).toBe("b\nc\n");
       expect(result.exitCode).toBe(0);
     });
@@ -71,7 +72,7 @@ describe("comm", () => {
     it("should handle empty files", async () => {
       const env = new Bash();
       await env.exec("touch /tmp/empty1 /tmp/empty2");
-      const result = await env.exec("comm /tmp/empty1 /tmp/empty2");
+      const result = toText(await env.exec("comm /tmp/empty1 /tmp/empty2"));
       expect(result.stdout).toBe("");
       expect(result.exitCode).toBe(0);
     });
@@ -80,7 +81,7 @@ describe("comm", () => {
       const env = new Bash();
       await env.exec("echo -e 'a\\nb\\nc' > /tmp/same1");
       await env.exec("echo -e 'a\\nb\\nc' > /tmp/same2");
-      const result = await env.exec("comm /tmp/same1 /tmp/same2");
+      const result = toText(await env.exec("comm /tmp/same1 /tmp/same2"));
       expect(result.stdout).toBe("\t\ta\n\t\tb\n\t\tc\n");
       expect(result.exitCode).toBe(0);
     });
@@ -89,7 +90,7 @@ describe("comm", () => {
       const env = new Bash();
       await env.exec("echo -e 'a\\nb' > /tmp/diff1");
       await env.exec("echo -e 'c\\nd' > /tmp/diff2");
-      const result = await env.exec("comm /tmp/diff1 /tmp/diff2");
+      const result = toText(await env.exec("comm /tmp/diff1 /tmp/diff2"));
       expect(result.stdout).toBe("a\nb\n\tc\n\td\n");
       expect(result.exitCode).toBe(0);
     });
@@ -97,7 +98,9 @@ describe("comm", () => {
     it("should handle stdin with -", async () => {
       const env = new Bash();
       await env.exec("echo -e 'a\\nb\\nc' > /tmp/file");
-      const result = await env.exec("echo -e 'b\\nc\\nd' | comm /tmp/file -");
+      const result = toText(
+        await env.exec("echo -e 'b\\nc\\nd' | comm /tmp/file -"),
+      );
       expect(result.stdout).toBe("a\n\t\tb\n\t\tc\n\td\n");
       expect(result.exitCode).toBe(0);
     });
@@ -106,7 +109,7 @@ describe("comm", () => {
   describe("error handling", () => {
     it("should error with missing operand", async () => {
       const env = new Bash();
-      const result = await env.exec("comm");
+      const result = toText(await env.exec("comm"));
       expect(result.stderr).toContain("missing operand");
       expect(result.exitCode).toBe(1);
     });
@@ -114,7 +117,7 @@ describe("comm", () => {
     it("should error with only one file", async () => {
       const env = new Bash();
       await env.exec("touch /tmp/only");
-      const result = await env.exec("comm /tmp/only");
+      const result = toText(await env.exec("comm /tmp/only"));
       expect(result.stderr).toContain("missing operand");
       expect(result.exitCode).toBe(1);
     });
@@ -122,7 +125,7 @@ describe("comm", () => {
     it("should error if file doesn't exist", async () => {
       const env = new Bash();
       await env.exec("touch /tmp/exists");
-      const result = await env.exec("comm /tmp/exists /tmp/noexist");
+      const result = toText(await env.exec("comm /tmp/exists /tmp/noexist"));
       expect(result.stderr).toContain("No such file or directory");
       expect(result.exitCode).toBe(1);
     });
@@ -131,7 +134,7 @@ describe("comm", () => {
   describe("--help", () => {
     it("should display help", async () => {
       const env = new Bash();
-      const result = await env.exec("comm --help");
+      const result = toText(await env.exec("comm --help"));
       expect(result.stdout).toContain("comm");
       expect(result.stdout).toContain("compare");
       expect(result.exitCode).toBe(0);

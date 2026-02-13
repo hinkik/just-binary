@@ -19,7 +19,7 @@ import type { InterpreterContext } from "../types.js";
 export async function handleEval(
   ctx: InterpreterContext,
   args: string[],
-  stdin?: string,
+  stdin?: Uint8Array,
 ): Promise<ExecResult> {
   // Handle options like bash does:
   // -- ends option processing

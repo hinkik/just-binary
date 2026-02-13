@@ -11,8 +11,8 @@ export interface FeatureCoverageWriter {
 }
 
 export interface ExecResult {
-  stdout: string;
-  stderr: string;
+  stdout: Uint8Array;
+  stderr: Uint8Array;
   exitCode: number;
   /** The final environment variables after execution (only set by BashEnv.exec) */
   env?: Record<string, string>;
@@ -37,7 +37,7 @@ export interface CommandExecOptions {
    * Standard input to pass to the subcommand.
    * Optional - if not provided, stdin will be empty.
    */
-  stdin?: string;
+  stdin?: Uint8Array;
 }
 
 /**
@@ -89,7 +89,7 @@ export interface CommandContext {
    */
   exportedEnv?: Record<string, string>;
   /** Standard input content */
-  stdin: string;
+  stdin: Uint8Array;
   /**
    * Execution limits configuration.
    * Available when running commands via BashEnv interpreter.

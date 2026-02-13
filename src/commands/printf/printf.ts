@@ -2,6 +2,7 @@ import { sprintf } from "sprintf-js";
 import { ExecutionLimitError } from "../../interpreter/errors.js";
 import { getErrorMessage } from "../../interpreter/helpers/errors.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { EMPTY, encode, encodeMixed } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 import { applyWidth, processEscapes } from "./escapes.js";
 import { formatStrftime } from "./strftime.js";
@@ -150,8 +151,8 @@ export const printfCommand: Command = {
 
     if (args.length === 0) {
       return {
-        stdout: "",
-        stderr: "printf: usage: printf format [arguments]\n",
+        stdout: EMPTY,
+        stderr: encode("printf: usage: printf format [arguments]\n"),
         exitCode: 2,
       };
     }
@@ -171,8 +172,8 @@ export const printfCommand: Command = {
         // Store result in variable
         if (argIndex + 1 >= args.length) {
           return {
-            stdout: "",
-            stderr: "printf: -v: option requires an argument\n",
+            stdout: EMPTY,
+            stderr: encode("printf: -v: option requires an argument\n"),
             exitCode: 1,
           };
         }
@@ -180,8 +181,8 @@ export const printfCommand: Command = {
         // Validate variable name
         if (!/^[a-zA-Z_][a-zA-Z0-9_]*(\[[^\]]+\])?$/.test(targetVar)) {
           return {
-            stdout: "",
-            stderr: `printf: \`${targetVar}': not a valid identifier\n`,
+            stdout: EMPTY,
+            stderr: encode(`printf: \`${targetVar}': not a valid identifier\n`),
             exitCode: 2,
           };
         }
@@ -196,8 +197,8 @@ export const printfCommand: Command = {
 
     if (argIndex >= args.length) {
       return {
-        stdout: "",
-        stderr: "printf: usage: printf format [arguments]\n",
+        stdout: EMPTY,
+        stderr: encode("printf: usage: printf format [arguments]\n"),
         exitCode: 1,
       };
     }
@@ -272,12 +273,19 @@ export const printfCommand: Command = {
         } else {
           ctx.env.set(targetVar, output);
         }
-        return { stdout: "", stderr: errorMessage, exitCode: hadError ? 1 : 0 };
+        return {
+          stdout: EMPTY,
+          stderr: encode(errorMessage),
+          exitCode: hadError ? 1 : 0,
+        };
       }
 
       return {
-        stdout: output,
-        stderr: errorMessage,
+        // Use mixed encoding: raw byte values from \xHH / \0NNN escapes
+        // (code points 0x80-0xFF) are emitted as-is, while true Unicode
+        // characters from \u / \U escapes are UTF-8 encoded.
+        stdout: encodeMixed(output),
+        stderr: encode(errorMessage),
         exitCode: hadError ? 1 : 0,
       };
     } catch (error) {
@@ -285,8 +293,8 @@ export const printfCommand: Command = {
         throw error;
       }
       return {
-        stdout: "",
-        stderr: `printf: ${getErrorMessage(error)}\n`,
+        stdout: EMPTY,
+        stderr: encode(`printf: ${getErrorMessage(error)}\n`),
         exitCode: 1,
       };
     }

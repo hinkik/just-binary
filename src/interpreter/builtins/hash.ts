@@ -16,7 +16,8 @@
  */
 
 import type { ExecResult } from "../../types.js";
-import { failure, OK, success } from "../helpers/result.js";
+import { encode } from "../../utils/bytes.js";
+import { failure, OK, successText } from "../helpers/result.js";
 import type { InterpreterContext } from "../types.js";
 
 export async function handleHash(
@@ -142,9 +143,9 @@ export async function handleHash(
       }
     }
     if (hasError) {
-      return { exitCode: 1, stdout, stderr };
+      return { exitCode: 1, stdout: encode(stdout), stderr: encode(stderr) };
     }
-    return success(stdout);
+    return successText(stdout);
   }
 
   // Handle -p (associate pathname with name)
@@ -164,7 +165,7 @@ export async function handleHash(
   // No args - display hash table
   if (names.length === 0) {
     if (ctx.state.hashTable.size === 0) {
-      return success("hash: hash table empty\n");
+      return successText("hash: hash table empty\n");
     }
 
     let stdout = "";
@@ -181,7 +182,7 @@ export async function handleHash(
         stdout += `   1\t${path}\n`;
       }
     }
-    return success(stdout);
+    return successText(stdout);
   }
 
   // Add names to hash table (look up in PATH)

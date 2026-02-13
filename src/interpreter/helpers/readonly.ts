@@ -5,6 +5,7 @@
  */
 
 import type { ExecResult } from "../../types.js";
+import { EMPTY, encode } from "../../utils/bytes.js";
 import { ExitError } from "../errors.js";
 import type { InterpreterContext } from "../types.js";
 
@@ -46,7 +47,7 @@ export function checkReadonlyError(
   if (isReadonly(ctx, name)) {
     const stderr = `${command}: ${name}: readonly variable\n`;
     // Assigning to a readonly variable is always fatal
-    throw new ExitError(1, "", stderr);
+    throw new ExitError(1, EMPTY, encode(stderr));
   }
   return null;
 }

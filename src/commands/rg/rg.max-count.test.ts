@@ -5,6 +5,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { toText } from "../../test-utils.js";
 
 describe("rg -m/--max-count basic functionality", () => {
   it("should stop after 1 match with -m1", async () => {
@@ -14,7 +15,7 @@ describe("rg -m/--max-count basic functionality", () => {
         "/home/user/file.txt": "foo\nfoo\nfoo\nfoo\n",
       },
     });
-    const result = await bash.exec("rg -m1 foo");
+    const result = toText(await bash.exec("rg -m1 foo"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.txt:1:foo\n");
   });
@@ -26,7 +27,7 @@ describe("rg -m/--max-count basic functionality", () => {
         "/home/user/file.txt": "foo\nbar\nfoo\nbar\nfoo\n",
       },
     });
-    const result = await bash.exec("rg -m2 foo");
+    const result = toText(await bash.exec("rg -m2 foo"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.txt:1:foo\nfile.txt:3:foo\n");
   });
@@ -38,7 +39,7 @@ describe("rg -m/--max-count basic functionality", () => {
         "/home/user/file.txt": "test\ntest\ntest\ntest\ntest\n",
       },
     });
-    const result = await bash.exec("rg -m 3 test");
+    const result = toText(await bash.exec("rg -m 3 test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       "file.txt:1:test\nfile.txt:2:test\nfile.txt:3:test\n",
@@ -52,7 +53,7 @@ describe("rg -m/--max-count basic functionality", () => {
         "/home/user/file.txt": "abc\nabc\nabc\nabc\n",
       },
     });
-    const result = await bash.exec("rg --max-count=2 abc");
+    const result = toText(await bash.exec("rg --max-count=2 abc"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.txt:1:abc\nfile.txt:2:abc\n");
   });
@@ -64,7 +65,7 @@ describe("rg -m/--max-count basic functionality", () => {
         "/home/user/file.txt": "xyz\nxyz\nxyz\n",
       },
     });
-    const result = await bash.exec("rg --max-count 1 xyz");
+    const result = toText(await bash.exec("rg --max-count 1 xyz"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.txt:1:xyz\n");
   });
@@ -76,7 +77,7 @@ describe("rg -m/--max-count basic functionality", () => {
         "/home/user/file.txt": "foo\nbar\n",
       },
     });
-    const result = await bash.exec("rg -m100 foo");
+    const result = toText(await bash.exec("rg -m100 foo"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.txt:1:foo\n");
   });
@@ -88,7 +89,7 @@ describe("rg -m/--max-count basic functionality", () => {
         "/home/user/file.txt": "foo\nbar\n",
       },
     });
-    const result = await bash.exec("rg -m1 notfound");
+    const result = toText(await bash.exec("rg -m1 notfound"));
     expect(result.exitCode).toBe(1);
     expect(result.stdout).toBe("");
   });
@@ -103,7 +104,7 @@ describe("rg -m with multiple files", () => {
         "/home/user/b.txt": "match\nmatch\nmatch\n",
       },
     });
-    const result = await bash.exec("rg -m1 match");
+    const result = toText(await bash.exec("rg -m1 match"));
     expect(result.exitCode).toBe(0);
     // Each file should have only 1 match
     expect(result.stdout).toBe("a.txt:1:match\nb.txt:1:match\n");
@@ -117,7 +118,7 @@ describe("rg -m with multiple files", () => {
         "/home/user/file2.txt": "foo\nfoo\nfoo\n",
       },
     });
-    const result = await bash.exec("rg -m2 foo");
+    const result = toText(await bash.exec("rg -m2 foo"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       "file1.txt:1:foo\nfile1.txt:2:foo\nfile2.txt:1:foo\nfile2.txt:2:foo\n",
@@ -132,7 +133,7 @@ describe("rg -m with multiple files", () => {
         "/home/user/few.txt": "x\n",
       },
     });
-    const result = await bash.exec("rg -m3 x");
+    const result = toText(await bash.exec("rg -m3 x"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       "few.txt:1:x\nmany.txt:1:x\nmany.txt:2:x\nmany.txt:3:x\n",
@@ -148,7 +149,7 @@ describe("rg -m with single file search", () => {
         "/home/user/data.txt": "line1\nline2\nline3\nline4\nline5\n",
       },
     });
-    const result = await bash.exec("rg -m2 line data.txt");
+    const result = toText(await bash.exec("rg -m2 line data.txt"));
     expect(result.exitCode).toBe(0);
     // Single file = no filename prefix, no line numbers by default
     expect(result.stdout).toBe("line1\nline2\n");
@@ -161,7 +162,7 @@ describe("rg -m with single file search", () => {
         "/home/user/data.txt": "a\na\na\na\na\n",
       },
     });
-    const result = await bash.exec("rg -n -m2 a data.txt");
+    const result = toText(await bash.exec("rg -n -m2 a data.txt"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("1:a\n2:a\n");
   });
@@ -177,7 +178,7 @@ describe("rg -m with other flags", () => {
     });
     // Note: -c counts all matches, -m doesn't affect the count in ripgrep
     // But our implementation limits before counting
-    const result = await bash.exec("rg -c x");
+    const result = toText(await bash.exec("rg -c x"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.txt:5\n");
   });
@@ -189,7 +190,7 @@ describe("rg -m with other flags", () => {
         "/home/user/file.txt": "foo\nbar\nfoo\nbaz\nfoo\n",
       },
     });
-    const result = await bash.exec("rg -m2 -v foo");
+    const result = toText(await bash.exec("rg -m2 -v foo"));
     expect(result.exitCode).toBe(0);
     // Lines NOT matching "foo", limited to 2
     expect(result.stdout).toBe("file.txt:2:bar\nfile.txt:4:baz\n");
@@ -202,7 +203,7 @@ describe("rg -m with other flags", () => {
         "/home/user/file.txt": "Foo\nFOO\nfoo\nFoO\n",
       },
     });
-    const result = await bash.exec("rg -m2 -i foo");
+    const result = toText(await bash.exec("rg -m2 -i foo"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.txt:1:Foo\nfile.txt:2:FOO\n");
   });
@@ -214,7 +215,7 @@ describe("rg -m with other flags", () => {
         "/home/user/file.txt": "foo bar\nfoobar\nbar foo\nbaz foo baz\n",
       },
     });
-    const result = await bash.exec("rg -m2 -w foo");
+    const result = toText(await bash.exec("rg -m2 -w foo"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.txt:1:foo bar\nfile.txt:3:bar foo\n");
   });
@@ -226,7 +227,7 @@ describe("rg -m with other flags", () => {
         "/home/user/file.txt": "abc123def\nabc456def\nabc789def\n",
       },
     });
-    const result = await bash.exec("rg -m2 -o '[0-9]+'");
+    const result = toText(await bash.exec("rg -m2 -o '[0-9]+'"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.txt:123\nfile.txt:456\n");
   });
@@ -240,7 +241,7 @@ describe("rg -m with other flags", () => {
       },
     });
     // -l just lists files, -m shouldn't affect output but may affect early exit
-    const result = await bash.exec("rg -m1 -l test");
+    const result = toText(await bash.exec("rg -m1 -l test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("a.txt\nb.txt\n");
   });
@@ -252,7 +253,7 @@ describe("rg -m with other flags", () => {
         "/home/user/file.txt": "find me\nfind me\nfind me\n",
       },
     });
-    const result = await bash.exec("rg -m1 -q 'find me'");
+    const result = toText(await bash.exec("rg -m1 -q 'find me'"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("");
   });
@@ -267,7 +268,7 @@ describe("rg -m with context lines", () => {
           "match1\nafter1\nmatch2\nafter2\nmatch3\nafter3\n",
       },
     });
-    const result = await bash.exec("rg -m1 -A1 match file.txt");
+    const result = toText(await bash.exec("rg -m1 -A1 match file.txt"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("match1\nafter1\n");
   });
@@ -280,7 +281,7 @@ describe("rg -m with context lines", () => {
           "before1\nmatch1\nbefore2\nmatch2\nbefore3\nmatch3\n",
       },
     });
-    const result = await bash.exec("rg -m1 -B1 match file.txt");
+    const result = toText(await bash.exec("rg -m1 -B1 match file.txt"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("before1\nmatch1\n");
   });
@@ -293,7 +294,7 @@ describe("rg -m with context lines", () => {
           "ctx1\nmatch1\nctx2\nmatch2\nctx3\nmatch3\nctx4\n",
       },
     });
-    const result = await bash.exec("rg -m1 -C1 match file.txt");
+    const result = toText(await bash.exec("rg -m1 -C1 match file.txt"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("ctx1\nmatch1\nctx2\n");
   });
@@ -306,7 +307,7 @@ describe("rg -m with context lines", () => {
           "a\nb\nmatch\nc\nd\ne\nf\nmatch\ng\nh\ni\nj\nmatch\nk\n",
       },
     });
-    const result = await bash.exec("rg -m2 -A2 match file.txt");
+    const result = toText(await bash.exec("rg -m2 -A2 match file.txt"));
     expect(result.exitCode).toBe(0);
     // 2 matches with 2 lines of after context each, plus separator
     expect(result.stdout).toContain("match");
@@ -325,7 +326,7 @@ describe("rg -m edge cases", () => {
         "/home/user/file.txt": "a\na\na\n",
       },
     });
-    const result = await bash.exec("rg -m0 a");
+    const result = toText(await bash.exec("rg -m0 a"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.txt:1:a\nfile.txt:2:a\nfile.txt:3:a\n");
   });
@@ -337,7 +338,7 @@ describe("rg -m edge cases", () => {
         "/home/user/file.txt": "test\ntest\n",
       },
     });
-    const result = await bash.exec("rg -m999999 test");
+    const result = toText(await bash.exec("rg -m999999 test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.txt:1:test\nfile.txt:2:test\n");
   });
@@ -349,7 +350,7 @@ describe("rg -m edge cases", () => {
         "/home/user/empty.txt": "",
       },
     });
-    const result = await bash.exec("rg -m1 test");
+    const result = toText(await bash.exec("rg -m1 test"));
     expect(result.exitCode).toBe(1);
     expect(result.stdout).toBe("");
   });
@@ -362,7 +363,7 @@ describe("rg -m edge cases", () => {
         "/home/user/code.py": "const = 'not js'\n",
       },
     });
-    const result = await bash.exec("rg -m1 -t js const");
+    const result = toText(await bash.exec("rg -m1 -t js const"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("code.js:1:const x = 1;\n");
   });
@@ -375,7 +376,7 @@ describe("rg -m edge cases", () => {
         "/home/user/test.txt": "error\n",
       },
     });
-    const result = await bash.exec("rg -m1 -g '*.log' error");
+    const result = toText(await bash.exec("rg -m1 -g '*.log' error"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("test.log:1:error\n");
   });
@@ -389,7 +390,7 @@ describe("rg -m with regex patterns", () => {
         "/home/user/file.txt": "cat\ndog\ncat\nbird\ncat\n",
       },
     });
-    const result = await bash.exec("rg -m2 'cat|dog'");
+    const result = toText(await bash.exec("rg -m2 'cat|dog'"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.txt:1:cat\nfile.txt:2:dog\n");
   });
@@ -401,7 +402,7 @@ describe("rg -m with regex patterns", () => {
         "/home/user/file.txt": "start line\nmiddle start\nstart again\n",
       },
     });
-    const result = await bash.exec("rg -m1 '^start'");
+    const result = toText(await bash.exec("rg -m1 '^start'"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.txt:1:start line\n");
   });

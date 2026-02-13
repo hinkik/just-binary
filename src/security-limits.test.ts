@@ -4,6 +4,7 @@
 
 import { beforeEach, describe, expect, it } from "vitest";
 import { Bash } from "./index.js";
+import { toText } from "./test-utils.js";
 
 describe("Security Limits", () => {
   let bash: Bash;
@@ -20,8 +21,8 @@ describe("Security Limits", () => {
       });
 
       // Generate a string that exceeds the limit
-      const result = await limitedBash.exec(
-        'x=$(printf "%200s" " "); echo "done"',
+      const result = toText(
+        await limitedBash.exec('x=$(printf "%200s" " "); echo "done"'),
       );
       expect(result.exitCode).toBe(126); // ExecutionLimitError exit code
       expect(result.stderr).toContain("limit exceeded");
@@ -32,7 +33,7 @@ describe("Security Limits", () => {
         executionLimits: { maxStringLength: 1000 },
       });
 
-      const result = await limitedBash.exec('echo "hello world"');
+      const result = toText(await limitedBash.exec('echo "hello world"'));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("hello world\n");
     });
@@ -46,7 +47,8 @@ describe("Security Limits", () => {
 
       // Try to read more lines than allowed using a heredoc
       // Use set -e to exit on first failure
-      const result = await limitedBash.exec(`
+      const result = toText(
+        await limitedBash.exec(`
 set -e
 mapfile -t arr <<'LINES'
 1
@@ -58,7 +60,8 @@ mapfile -t arr <<'LINES'
 7
 LINES
 echo "count: \${#arr[@]}"
-      `);
+      `),
+      );
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("array element limit exceeded");
     });
@@ -68,14 +71,16 @@ echo "count: \${#arr[@]}"
         executionLimits: { maxArrayElements: 10 },
       });
 
-      const result = await limitedBash.exec(`
+      const result = toText(
+        await limitedBash.exec(`
 mapfile -t arr <<'LINES'
 1
 2
 3
 LINES
 echo "count: \${#arr[@]}"
-      `);
+      `),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("count: 3");
     });
@@ -88,8 +93,8 @@ echo "count: \${#arr[@]}"
       });
 
       // Create deeply nested command substitution
-      const result = await limitedBash.exec(
-        "echo $(echo $(echo $(echo $(echo too-deep))))",
+      const result = toText(
+        await limitedBash.exec("echo $(echo $(echo $(echo $(echo too-deep))))"),
       );
       expect(result.exitCode).toBe(126);
       expect(result.stderr).toContain(
@@ -102,7 +107,9 @@ echo "count: \${#arr[@]}"
         executionLimits: { maxSubstitutionDepth: 5 },
       });
 
-      const result = await limitedBash.exec("echo $(echo $(echo hello))");
+      const result = toText(
+        await limitedBash.exec("echo $(echo $(echo hello))"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("hello\n");
     });
@@ -123,7 +130,7 @@ echo "count: \${#arr[@]}"
       `);
 
       // Try to glob - this should exceed the low limit on readdir
-      const result = await limitedBash.exec("echo /tmp/globtest/*");
+      const result = toText(await limitedBash.exec("echo /tmp/globtest/*"));
       expect(result.exitCode).toBe(126); // ExecutionLimitError exit code
       expect(result.stderr).toContain("Glob operation limit exceeded");
     });
@@ -140,7 +147,7 @@ echo "count: \${#arr[@]}"
       `);
 
       // Glob should work fine with reasonable limit
-      const result = await limitedBash.exec("echo /tmp/globtest2/*");
+      const result = toText(await limitedBash.exec("echo /tmp/globtest2/*"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("/tmp/globtest2/a");
     });
@@ -148,12 +155,14 @@ echo "count: \${#arr[@]}"
 
   describe("heredoc size limit", () => {
     it("should allow normal heredocs", async () => {
-      const result = await bash.exec(`
+      const result = toText(
+        await bash.exec(`
         cat <<EOF
         This is a normal heredoc
         with multiple lines
         EOF
-      `);
+      `),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("This is a normal heredoc");
     });
@@ -161,7 +170,7 @@ echo "count: \${#arr[@]}"
 
   describe("null byte validation in filesystem", () => {
     it("should reject paths with null bytes", async () => {
-      const result = await bash.exec('cat "/etc\\x00/passwd"');
+      const result = toText(await bash.exec('cat "/etc\\x00/passwd"'));
       expect(result.exitCode).not.toBe(0);
     });
   });

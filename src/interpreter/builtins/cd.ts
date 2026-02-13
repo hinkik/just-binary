@@ -3,7 +3,7 @@
  */
 
 import type { ExecResult } from "../../types.js";
-import { failure, success } from "../helpers/result.js";
+import { failure, success, successText } from "../helpers/result.js";
 import type { InterpreterContext } from "../types.js";
 
 export async function handleCd(
@@ -120,5 +120,5 @@ export async function handleCd(
   ctx.state.env.set("OLDPWD", ctx.state.previousDir);
 
   // cd - prints the new directory
-  return success(printPath ? `${newDir}\n` : "");
+  return printPath ? successText(`${newDir}\n`) : success();
 }

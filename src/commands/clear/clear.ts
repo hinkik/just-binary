@@ -1,4 +1,5 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const clearHelp = {
@@ -19,7 +20,7 @@ export const clearCommand: Command = {
     // ANSI escape sequence to clear screen and move cursor to top-left
     const clearSequence = "\x1B[2J\x1B[H";
 
-    return { stdout: clearSequence, stderr: "", exitCode: 0 };
+    return { stdout: encode(clearSequence), stderr: EMPTY, exitCode: 0 };
   },
 };
 

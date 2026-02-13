@@ -114,7 +114,7 @@ export function handleCompopt(
     spec.options =
       currentOptions.size > 0 ? Array.from(currentOptions) : undefined;
     ctx.state.completionSpecs.set("__default__", spec);
-    return success("");
+    return success();
   }
 
   // If -E flag is set, modify empty-line completion
@@ -136,7 +136,7 @@ export function handleCompopt(
     spec.options =
       currentOptions.size > 0 ? Array.from(currentOptions) : undefined;
     ctx.state.completionSpecs.set("__empty__", spec);
-    return success("");
+    return success();
   }
 
   // If command names are provided, modify their completion specs
@@ -160,7 +160,7 @@ export function handleCompopt(
         currentOptions.size > 0 ? Array.from(currentOptions) : undefined;
       ctx.state.completionSpecs.set(cmd, spec);
     }
-    return success("");
+    return success();
   }
 
   // No command name and not -D/-E: we need to be in a completion function

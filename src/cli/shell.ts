@@ -12,6 +12,7 @@ import * as readline from "node:readline";
 import { Bash } from "../Bash.js";
 import { OverlayFs } from "../fs/overlay-fs/overlay-fs.js";
 import { getErrorMessage } from "../interpreter/helpers/errors.js";
+import { decode } from "../utils/bytes.js";
 
 // ANSI colors
 const colors = {
@@ -137,12 +138,14 @@ class VirtualShell {
     try {
       const result = await this.env.exec(trimmed);
 
-      if (result.stdout) {
+      if (result.stdout.length > 0) {
         process.stdout.write(result.stdout);
       }
 
-      if (result.stderr) {
-        process.stderr.write(`${colors.red}${result.stderr}${colors.reset}`);
+      if (result.stderr.length > 0) {
+        process.stderr.write(
+          `${colors.red}${decode(result.stderr)}${colors.reset}`,
+        );
       }
     } catch (error) {
       console.error(

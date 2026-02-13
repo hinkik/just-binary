@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../Bash.js";
+import { toText } from "../test-utils.js";
 
 /**
  * Tests for shell-like functionality in BashEnv.
@@ -14,7 +15,7 @@ describe("Shell functionality", () => {
         cwd: "/home/user",
       });
 
-      const result = await env.exec("cd test; pwd");
+      const result = toText(await env.exec("cd test; pwd"));
       expect(result.stdout).toBe("/home/user/test\n");
     });
 
@@ -38,7 +39,7 @@ describe("Shell functionality", () => {
         cwd: "/",
       });
 
-      const result = await env.exec("cd /dir1; cd /dir2; cd -; pwd");
+      const result = toText(await env.exec("cd /dir1; cd /dir2; cd -; pwd"));
       expect(result.stdout).toContain("/dir1");
     });
 
@@ -49,7 +50,7 @@ describe("Shell functionality", () => {
         env: { HOME: "/home/user" },
       });
 
-      const result = await env.exec("cd ~; pwd");
+      const result = toText(await env.exec("cd ~; pwd"));
       expect(result.stdout).toBe("/home/user\n");
     });
 
@@ -60,7 +61,7 @@ describe("Shell functionality", () => {
         env: { HOME: "/home/user" },
       });
 
-      const result = await env.exec("cd; pwd");
+      const result = toText(await env.exec("cd; pwd"));
       expect(result.stdout).toBe("/home/user\n");
     });
 
@@ -70,7 +71,7 @@ describe("Shell functionality", () => {
         cwd: "/a/b/c",
       });
 
-      const result = await env.exec("cd ..; pwd");
+      const result = toText(await env.exec("cd ..; pwd"));
       expect(result.stdout).toBe("/a/b\n");
     });
 
@@ -80,7 +81,7 @@ describe("Shell functionality", () => {
         cwd: "/a/b/c/d",
       });
 
-      const result = await env.exec("cd ../..; pwd");
+      const result = toText(await env.exec("cd ../..; pwd"));
       expect(result.stdout).toBe("/a/b\n");
     });
   });
@@ -91,7 +92,7 @@ describe("Shell functionality", () => {
         cwd: "/home/user",
       });
 
-      const result = await env.exec("pwd");
+      const result = toText(await env.exec("pwd"));
       expect(result.stdout).toBe("/home/user\n");
     });
 
@@ -101,7 +102,7 @@ describe("Shell functionality", () => {
         cwd: "/",
       });
 
-      const result = await env.exec("cd /var/log; pwd");
+      const result = toText(await env.exec("cd /var/log; pwd"));
       expect(result.stdout).toBe("/var/log\n");
     });
   });
@@ -113,7 +114,7 @@ describe("Shell functionality", () => {
         cwd: "/",
       });
 
-      const result = await env.exec("cd /test && pwd");
+      const result = toText(await env.exec("cd /test && pwd"));
       expect(result.stdout).toBe("/test\n");
       // cd doesn't persist across execs
       expect(env.getCwd()).toBe("/");
@@ -124,7 +125,7 @@ describe("Shell functionality", () => {
         cwd: "/",
       });
 
-      const result = await env.exec("cd /nonexistent && pwd");
+      const result = toText(await env.exec("cd /nonexistent && pwd"));
       expect(result.exitCode).toBe(1);
       expect(env.getCwd()).toBe("/");
     });
@@ -135,7 +136,9 @@ describe("Shell functionality", () => {
         cwd: "/",
       });
 
-      const result = await env.exec("cd /nonexistent || cd /fallback && pwd");
+      const result = toText(
+        await env.exec("cd /nonexistent || cd /fallback && pwd"),
+      );
       expect(result.stdout).toBe("/fallback\n");
       // cd doesn't persist across execs
       expect(env.getCwd()).toBe("/");
@@ -147,7 +150,7 @@ describe("Shell functionality", () => {
         cwd: "/",
       });
 
-      const result = await env.exec("cd /test ; pwd");
+      const result = toText(await env.exec("cd /test ; pwd"));
       expect(result.stdout).toBe("/test\n");
     });
   });
@@ -156,7 +159,9 @@ describe("Shell functionality", () => {
     it("should support export within same exec", async () => {
       const env = new Bash();
 
-      const result = await env.exec("export MY_VAR=hello; echo $MY_VAR");
+      const result = toText(
+        await env.exec("export MY_VAR=hello; echo $MY_VAR"),
+      );
       expect(result.stdout).toBe("hello\n");
     });
 
@@ -164,7 +169,7 @@ describe("Shell functionality", () => {
       const env = new Bash();
 
       await env.exec("export MY_VAR=hello");
-      const result = await env.exec("echo $MY_VAR");
+      const result = toText(await env.exec("echo $MY_VAR"));
       expect(result.stdout).toBe("\n");
     });
 
@@ -173,7 +178,7 @@ describe("Shell functionality", () => {
         env: { MY_VAR: "hello" },
       });
 
-      const result = await env.exec("unset MY_VAR; echo $MY_VAR");
+      const result = toText(await env.exec("unset MY_VAR; echo $MY_VAR"));
       expect(result.stdout).toBe("\n");
     });
 
@@ -182,8 +187,8 @@ describe("Shell functionality", () => {
         env: { SHARED: "value" },
       });
 
-      const result1 = await env.exec("echo $SHARED");
-      const result2 = await env.exec("echo $SHARED");
+      const result1 = toText(await env.exec("echo $SHARED"));
+      const result2 = toText(await env.exec("echo $SHARED"));
       expect(result1.stdout).toBe("value\n");
       expect(result2.stdout).toBe("value\n");
     });
@@ -192,13 +197,13 @@ describe("Shell functionality", () => {
   describe("exit command", () => {
     it("should return exit code 0 by default", async () => {
       const env = new Bash();
-      const result = await env.exec("exit");
+      const result = toText(await env.exec("exit"));
       expect(result.exitCode).toBe(0);
     });
 
     it("should return specified exit code", async () => {
       const env = new Bash();
-      const result = await env.exec("exit 42");
+      const result = toText(await env.exec("exit 42"));
       expect(result.exitCode).toBe(42);
     });
   });

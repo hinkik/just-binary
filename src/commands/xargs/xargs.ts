@@ -1,4 +1,5 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { decode, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
 const xargsHelp = {
@@ -95,15 +96,17 @@ export const xargsCommand: Command = {
     // Priority: -0 (null) > -d (custom delimiter) > default (whitespace)
     let items: string[];
     if (nullSeparator) {
-      items = ctx.stdin.split("\0").filter((s) => s.length > 0);
+      items = decode(ctx.stdin)
+        .split("\0")
+        .filter((s) => s.length > 0);
     } else if (delimiter !== null) {
       // Custom delimiter - split on exact string
       // Strip trailing newline from input before splitting (echo adds trailing newlines)
-      const input = ctx.stdin.replace(/\n$/, "");
+      const input = decode(ctx.stdin).replace(/\n$/, "");
       items = input.split(delimiter).filter((s) => s.length > 0);
     } else {
       // Default: split on whitespace and trim
-      items = ctx.stdin
+      items = decode(ctx.stdin)
         .split(/\s+/)
         .map((s) => s.trim())
         .filter((s) => s.length > 0);
@@ -111,11 +114,11 @@ export const xargsCommand: Command = {
 
     if (items.length === 0) {
       if (noRunIfEmpty) {
-        return { stdout: "", stderr: "", exitCode: 0 };
+        return { stdout: EMPTY, stderr: EMPTY, exitCode: 0 };
       }
       // With no -r flag, still run the command with no args
       // (echo with no args just outputs newline)
-      return { stdout: "", stderr: "", exitCode: 0 };
+      return { stdout: EMPTY, stderr: EMPTY, exitCode: 0 };
     }
 
     // Execute commands
@@ -147,7 +150,7 @@ export const xargsCommand: Command = {
         return ctx.exec(cmdLine, { cwd: ctx.cwd });
       }
       // Fallback: just output what would be run
-      return { stdout: `${cmdLine}\n`, stderr: "", exitCode: 0 };
+      return { stdout: encode(`${cmdLine}\n`), stderr: EMPTY, exitCode: 0 };
     };
 
     // Helper to run commands with optional parallelism
@@ -158,8 +161,8 @@ export const xargsCommand: Command = {
           const batch = cmdArgsList.slice(i, i + maxProcs);
           const results = await Promise.all(batch.map(executeCommand));
           for (const result of results) {
-            stdout += result.stdout;
-            stderr += result.stderr;
+            stdout += decode(result.stdout);
+            stderr += decode(result.stderr);
             if (result.exitCode !== 0) {
               exitCode = result.exitCode;
             }
@@ -169,8 +172,8 @@ export const xargsCommand: Command = {
         // Sequential execution
         for (const cmdArgs of cmdArgsList) {
           const result = await executeCommand(cmdArgs);
-          stdout += result.stdout;
-          stderr += result.stderr;
+          stdout += decode(result.stdout);
+          stderr += decode(result.stderr);
           if (result.exitCode !== 0) {
             exitCode = result.exitCode;
           }
@@ -196,12 +199,12 @@ export const xargsCommand: Command = {
       // Default: all items on one line
       const cmdArgs = [...command, ...items];
       const result = await executeCommand(cmdArgs);
-      stdout += result.stdout;
-      stderr += result.stderr;
+      stdout += decode(result.stdout);
+      stderr += decode(result.stderr);
       exitCode = result.exitCode;
     }
 
-    return { stdout, stderr, exitCode };
+    return { stdout: encode(stdout), stderr: encode(stderr), exitCode };
   },
 };
 

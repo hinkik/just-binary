@@ -3,6 +3,7 @@
  */
 
 import type { CommandContext, ExecResult } from "../../types.js";
+import { decode, EMPTY, encode } from "../../utils/bytes.js";
 import { unknownOption } from "../help.js";
 
 export interface HeadTailOptions {
@@ -79,8 +80,8 @@ export function parseHeadTailArgs(
     return {
       ok: false,
       error: {
-        stdout: "",
-        stderr: `${cmdName}: invalid number of bytes\n`,
+        stdout: EMPTY,
+        stderr: encode(`${cmdName}: invalid number of bytes\n`),
         exitCode: 1,
       },
     };
@@ -91,8 +92,8 @@ export function parseHeadTailArgs(
     return {
       ok: false,
       error: {
-        stdout: "",
-        stderr: `${cmdName}: invalid number of lines\n`,
+        stdout: EMPTY,
+        stderr: encode(`${cmdName}: invalid number of lines\n`),
         exitCode: 1,
       },
     };
@@ -119,8 +120,8 @@ export async function processHeadTailFiles(
   // If no files, read from stdin
   if (files.length === 0) {
     return {
-      stdout: contentProcessor(ctx.stdin),
-      stderr: "",
+      stdout: encode(contentProcessor(decode(ctx.stdin))),
+      stderr: EMPTY,
       exitCode: 0,
     };
   }
@@ -154,7 +155,7 @@ export async function processHeadTailFiles(
     }
   }
 
-  return { stdout, stderr, exitCode };
+  return { stdout: encode(stdout), stderr: encode(stderr), exitCode };
 }
 
 /**

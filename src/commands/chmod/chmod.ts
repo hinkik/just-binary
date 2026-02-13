@@ -1,4 +1,5 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const chmodHelp = {
@@ -21,7 +22,11 @@ export const chmodCommand: Command = {
     }
 
     if (args.length < 2) {
-      return { stdout: "", stderr: "chmod: missing operand\n", exitCode: 1 };
+      return {
+        stdout: EMPTY,
+        stderr: encode("chmod: missing operand\n"),
+        exitCode: 1,
+      };
     }
 
     let recursive = false;
@@ -53,15 +58,19 @@ export const chmodCommand: Command = {
           continue;
         }
         return {
-          stdout: "",
-          stderr: `chmod: invalid option -- '${arg.slice(1)}'\n`,
+          stdout: EMPTY,
+          stderr: encode(`chmod: invalid option -- '${arg.slice(1)}'\n`),
           exitCode: 1,
         };
       }
     }
 
     if (args.length - argIdx < 2) {
-      return { stdout: "", stderr: "chmod: missing operand\n", exitCode: 1 };
+      return {
+        stdout: EMPTY,
+        stderr: encode("chmod: missing operand\n"),
+        exitCode: 1,
+      };
     }
 
     const modeArg = args[argIdx];
@@ -81,8 +90,8 @@ export const chmodCommand: Command = {
         parseMode(modeArg, 0o644);
       } catch {
         return {
-          stdout: "",
-          stderr: `chmod: invalid mode: '${modeArg}'\n`,
+          stdout: EMPTY,
+          stderr: encode(`chmod: invalid mode: '${modeArg}'\n`),
           exitCode: 1,
         };
       }
@@ -129,7 +138,11 @@ export const chmodCommand: Command = {
       }
     }
 
-    return { stdout, stderr, exitCode: anyError ? 1 : 0 };
+    return {
+      stdout: encode(stdout),
+      stderr: encode(stderr),
+      exitCode: anyError ? 1 : 0,
+    };
   },
 };
 

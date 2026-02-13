@@ -14,6 +14,7 @@
  */
 
 import type { ExecResult } from "../../types.js";
+import { decode, EMPTY, encode } from "../../utils/bytes.js";
 import { clearArray } from "../helpers/array.js";
 import { result } from "../helpers/result.js";
 import type { InterpreterContext } from "../types.js";
@@ -21,8 +22,9 @@ import type { InterpreterContext } from "../types.js";
 export function handleMapfile(
   ctx: InterpreterContext,
   args: string[],
-  stdin: string,
+  stdinBytes: Uint8Array,
 ): ExecResult {
+  const stdin = decode(stdinBytes);
   // Parse options
   let delimiter = "\n";
   let maxCount = 0; // 0 = unlimited
@@ -65,7 +67,7 @@ export function handleMapfile(
   // Use stdin from parameter, or fall back to groupStdin
   let effectiveStdin = stdin;
   if (!effectiveStdin && ctx.state.groupStdin !== undefined) {
-    effectiveStdin = ctx.state.groupStdin;
+    effectiveStdin = decode(ctx.state.groupStdin);
   }
 
   // Split input by delimiter
@@ -87,8 +89,10 @@ export function handleMapfile(
           // Check array element limit
           if (origin + lineCount >= maxArrayElements) {
             return result(
-              "",
-              `mapfile: array element limit exceeded (${maxArrayElements})\n`,
+              EMPTY,
+              encode(
+                `mapfile: array element limit exceeded (${maxArrayElements})\n`,
+              ),
               1,
             );
           }
@@ -131,8 +135,8 @@ export function handleMapfile(
     // Check array element limit
     if (origin + lineCount >= maxArrayElements) {
       return result(
-        "",
-        `mapfile: array element limit exceeded (${maxArrayElements})\n`,
+        EMPTY,
+        encode(`mapfile: array element limit exceeded (${maxArrayElements})\n`),
         1,
       );
     }
@@ -164,8 +168,8 @@ export function handleMapfile(
 
   // Consume from groupStdin if we used it
   if (ctx.state.groupStdin !== undefined && !stdin) {
-    ctx.state.groupStdin = "";
+    ctx.state.groupStdin = EMPTY;
   }
 
-  return result("", "", 0);
+  return result(EMPTY, EMPTY, 0);
 }

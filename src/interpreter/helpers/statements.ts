@@ -7,6 +7,7 @@
 
 import type { StatementNode } from "../../ast/types.js";
 import type { ExecResult } from "../../types.js";
+import { concat, EMPTY, encode } from "../../utils/bytes.js";
 import {
   ErrexitError,
   ExecutionLimitError,
@@ -23,15 +24,15 @@ import { getErrorMessage } from "./errors.js";
  *
  * @param ctx - Interpreter context
  * @param statements - Statements to execute
- * @param initialStdout - Initial stdout to prepend (default "")
- * @param initialStderr - Initial stderr to prepend (default "")
+ * @param initialStdout - Initial stdout to prepend (default EMPTY)
+ * @param initialStderr - Initial stderr to prepend (default EMPTY)
  * @returns Accumulated stdout, stderr, and final exit code
  */
 export async function executeStatements(
   ctx: InterpreterContext,
   statements: StatementNode[],
-  initialStdout = "",
-  initialStderr = "",
+  initialStdout: Uint8Array = EMPTY,
+  initialStderr: Uint8Array = EMPTY,
 ): Promise<ExecResult> {
   let stdout = initialStdout;
   let stderr = initialStderr;
@@ -40,8 +41,8 @@ export async function executeStatements(
   try {
     for (const stmt of statements) {
       const result = await ctx.executeStatement(stmt);
-      stdout += result.stdout;
-      stderr += result.stderr;
+      stdout = concat(stdout, result.stdout);
+      stderr = concat(stderr, result.stderr);
       exitCode = result.exitCode;
     }
   } catch (error) {
@@ -57,7 +58,7 @@ export async function executeStatements(
     }
     return {
       stdout,
-      stderr: `${stderr}${getErrorMessage(error)}\n`,
+      stderr: concat(stderr, encode(`${getErrorMessage(error)}\n`)),
       exitCode: 1,
     };
   }

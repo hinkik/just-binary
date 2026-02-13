@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { toText } from "../test-utils.js";
 import { Command, type OutputMessage, Sandbox } from "./Sandbox.js";
 
 describe("Sandbox API", () => {
@@ -340,7 +341,7 @@ describe("Sandbox API", () => {
 
     it("should allow direct BashEnv operations", async () => {
       const sandbox = await Sandbox.create();
-      const result = await sandbox.bashEnvInstance.exec("echo direct");
+      const result = toText(await sandbox.bashEnvInstance.exec("echo direct"));
       expect(result.stdout).toBe("direct\n");
     });
   });

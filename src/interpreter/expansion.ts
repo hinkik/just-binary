@@ -18,6 +18,7 @@ import type {
 import { parseArithmeticExpression } from "../parser/arithmetic-parser.js";
 import { Parser } from "../parser/parser.js";
 import { GlobExpander } from "../shell/glob.js";
+import { decode, isEmpty } from "../utils/bytes.js";
 import { evaluateArithmetic } from "./arithmetic.js";
 import {
   BadSubstitutionError,
@@ -785,13 +786,13 @@ async function expandPart(
         ctx.state.env.set("?", String(exitCode));
         // Command substitution stderr should go to the shell's stderr at expansion time,
         // NOT be affected by later redirections on the outer command
-        if (result.stderr) {
+        if (!isEmpty(result.stderr)) {
           ctx.state.expansionStderr =
-            (ctx.state.expansionStderr || "") + result.stderr;
+            (ctx.state.expansionStderr || "") + decode(result.stderr);
         }
         ctx.state.bashPid = savedBashPid;
         ctx.substitutionDepth = savedDepth;
-        const output = result.stdout.replace(/\n+$/, "");
+        const output = decode(result.stdout).replace(/\n+$/, "");
         // Check string length limit for command substitution output
         checkStringLength(
           output,
@@ -815,11 +816,11 @@ async function expandPart(
           ctx.state.lastExitCode = error.exitCode;
           ctx.state.env.set("?", String(error.exitCode));
           // Also forward stderr from the exit
-          if (error.stderr) {
+          if (!isEmpty(error.stderr)) {
             ctx.state.expansionStderr =
-              (ctx.state.expansionStderr || "") + error.stderr;
+              (ctx.state.expansionStderr || "") + decode(error.stderr);
           }
-          const exitOutput = error.stdout.replace(/\n+$/, "");
+          const exitOutput = decode(error.stdout).replace(/\n+$/, "");
           // Check string length limit for command substitution output
           checkStringLength(
             exitOutput,

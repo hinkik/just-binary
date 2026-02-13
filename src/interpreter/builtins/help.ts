@@ -10,7 +10,8 @@
 
 import { createUserRegex } from "../../regex/index.js";
 import type { ExecResult } from "../../types.js";
-import { failure, success } from "../helpers/result.js";
+import { encode } from "../../utils/bytes.js";
+import { failure, successText } from "../helpers/result.js";
 import type { InterpreterContext } from "../types.js";
 
 /**
@@ -854,8 +855,8 @@ export function handleHelp(
 
   return {
     exitCode: hasError ? 1 : 0,
-    stdout,
-    stderr,
+    stdout: encode(stdout),
+    stderr: encode(stderr),
   };
 }
 
@@ -899,5 +900,5 @@ function listAllBuiltins(): ExecResult {
     lines.push(right ? `${leftPadded}${right}` : left);
   }
 
-  return success(`${lines.join("\n")}\n`);
+  return successText(`${lines.join("\n")}\n`);
 }

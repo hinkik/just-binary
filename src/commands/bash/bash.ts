@@ -1,5 +1,6 @@
 import { mergeToNullPrototype } from "../../helpers/env.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { decode, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const bashHelp = {
@@ -37,11 +38,11 @@ export const bashCommand: Command = {
 
     // No arguments - read script from stdin if available
     if (args.length === 0) {
-      if (ctx.stdin?.trim()) {
-        return executeScript(ctx.stdin, "bash", [], ctx);
+      if (ctx.stdin?.length && decode(ctx.stdin).trim()) {
+        return executeScript(decode(ctx.stdin), "bash", [], ctx);
       }
       // No stdin - return success (interactive mode not supported)
-      return { stdout: "", stderr: "", exitCode: 0 };
+      return { stdout: EMPTY, stderr: EMPTY, exitCode: 0 };
     }
 
     // Read and execute script file
@@ -54,8 +55,8 @@ export const bashCommand: Command = {
       return executeScript(scriptContent, scriptPath, scriptArgs, ctx);
     } catch {
       return {
-        stdout: "",
-        stderr: `bash: ${scriptPath}: No such file or directory\n`,
+        stdout: EMPTY,
+        stderr: encode(`bash: ${scriptPath}: No such file or directory\n`),
         exitCode: 127,
       };
     }
@@ -87,11 +88,11 @@ export const shCommand: Command = {
 
     // No arguments - read script from stdin if available
     if (args.length === 0) {
-      if (ctx.stdin?.trim()) {
-        return executeScript(ctx.stdin, "sh", [], ctx);
+      if (ctx.stdin?.length && decode(ctx.stdin).trim()) {
+        return executeScript(decode(ctx.stdin), "sh", [], ctx);
       }
       // No stdin - return success (interactive mode not supported)
-      return { stdout: "", stderr: "", exitCode: 0 };
+      return { stdout: EMPTY, stderr: EMPTY, exitCode: 0 };
     }
 
     const scriptPath = args[0];
@@ -103,8 +104,8 @@ export const shCommand: Command = {
       return executeScript(scriptContent, scriptPath, scriptArgs, ctx);
     } catch {
       return {
-        stdout: "",
-        stderr: `sh: ${scriptPath}: No such file or directory\n`,
+        stdout: EMPTY,
+        stderr: encode(`sh: ${scriptPath}: No such file or directory\n`),
         exitCode: 127,
       };
     }
@@ -119,8 +120,8 @@ async function executeScript(
 ): Promise<ExecResult> {
   if (!ctx.exec) {
     return {
-      stdout: "",
-      stderr: "bash: internal error: exec function not available\n",
+      stdout: EMPTY,
+      stderr: encode("bash: internal error: exec function not available\n"),
       exitCode: 1,
     };
   }

@@ -3,6 +3,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { toText } from "../../test-utils.js";
 import { OverlayFs } from "./overlay-fs.js";
 
 describe("OverlayFs", () => {
@@ -86,7 +87,7 @@ describe("OverlayFs", () => {
       const overlay = new OverlayFs({ root: tempDir });
       const env = new Bash({ fs: overlay, cwd: overlay.getMountPoint() });
 
-      const result = await env.exec("cat file.txt");
+      const result = toText(await env.exec("cat file.txt"));
       expect(result.stdout).toBe("hello");
     });
   });
@@ -554,7 +555,7 @@ describe("OverlayFs", () => {
       const env = new Bash({ fs: overlay, cwd: "/" });
 
       // Read should work
-      const readResult = await env.exec("cat /data.txt");
+      const readResult = toText(await env.exec("cat /data.txt"));
       expect(readResult.stdout).toBe("hello");
       expect(readResult.exitCode).toBe(0);
 
@@ -574,7 +575,7 @@ describe("OverlayFs", () => {
       const overlay = new OverlayFs({ root: tempDir, mountPoint: "/" });
       const env = new Bash({ fs: overlay });
 
-      const result = await env.exec("cat /input.txt");
+      const result = toText(await env.exec("cat /input.txt"));
       expect(result.stdout).toBe("hello world");
       expect(result.exitCode).toBe(0);
     });
@@ -585,7 +586,7 @@ describe("OverlayFs", () => {
 
       await env.exec('echo "new content" > /output.txt');
 
-      const result = await env.exec("cat /output.txt");
+      const result = toText(await env.exec("cat /output.txt"));
       expect(result.stdout).toBe("new content\n");
 
       // Real fs should not have the file
@@ -597,7 +598,7 @@ describe("OverlayFs", () => {
       const overlay = new OverlayFs({ root: tempDir, mountPoint: "/" });
       const env = new Bash({ fs: overlay });
 
-      const result = await env.exec("grep banana /data.txt");
+      const result = toText(await env.exec("grep banana /data.txt"));
       expect(result.stdout).toBe("banana\n");
     });
 
@@ -608,7 +609,7 @@ describe("OverlayFs", () => {
 
       await env.exec('echo "memory" > /memory.txt');
 
-      const result = await env.exec('find / -name "*.txt"');
+      const result = toText(await env.exec('find / -name "*.txt"'));
       expect(result.stdout).toContain("real.txt");
       expect(result.stdout).toContain("memory.txt");
     });

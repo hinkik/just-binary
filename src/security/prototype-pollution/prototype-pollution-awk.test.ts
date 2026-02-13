@@ -7,6 +7,7 @@
 
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../index.js";
+import { toText } from "../../test-utils.js";
 
 const DANGEROUS_KEYWORDS = [
   "constructor",
@@ -22,21 +23,24 @@ describe("AWK Prototype Pollution Prevention", () => {
     for (const keyword of DANGEROUS_KEYWORDS) {
       it(`should allow array named ${keyword}`, async () => {
         const bash = new Bash();
-        const result = await bash.exec(`
+        const result = toText(
+          await bash.exec(`
           echo "a b c" | awk '{
             ${keyword}[1] = "first"
             ${keyword}[2] = "second"
             ${keyword}[3] = "third"
             print ${keyword}[1], ${keyword}[2], ${keyword}[3]
           }'
-        `);
+        `),
+        );
         expect(result.exitCode).toBe(0);
         expect(result.stdout).toBe("first second third\n");
       });
 
       it(`should iterate array named ${keyword}`, async () => {
         const bash = new Bash();
-        const result = await bash.exec(`
+        const result = toText(
+          await bash.exec(`
           echo "test" | awk '{
             ${keyword}["a"] = 1
             ${keyword}["b"] = 2
@@ -45,7 +49,8 @@ describe("AWK Prototype Pollution Prevention", () => {
               print k, ${keyword}[k]
             }
           }' | sort
-        `);
+        `),
+        );
         expect(result.exitCode).toBe(0);
         expect(result.stdout).toContain("a 1");
         expect(result.stdout).toContain("b 2");
@@ -54,26 +59,30 @@ describe("AWK Prototype Pollution Prevention", () => {
 
       it(`should delete from array named ${keyword}`, async () => {
         const bash = new Bash();
-        const result = await bash.exec(`
+        const result = toText(
+          await bash.exec(`
           echo "test" | awk '{
             ${keyword}[1] = "val"
             delete ${keyword}[1]
             print (1 in ${keyword}) ? "exists" : "deleted"
           }'
-        `);
+        `),
+        );
         expect(result.exitCode).toBe(0);
         expect(result.stdout).toBe("deleted\n");
       });
 
       it(`should check membership in array named ${keyword}`, async () => {
         const bash = new Bash();
-        const result = await bash.exec(`
+        const result = toText(
+          await bash.exec(`
           echo "test" | awk '{
             ${keyword}["key"] = "val"
             print ("key" in ${keyword}) ? "yes" : "no"
             print ("missing" in ${keyword}) ? "yes" : "no"
           }'
-        `);
+        `),
+        );
         expect(result.exitCode).toBe(0);
         expect(result.stdout).toBe("yes\nno\n");
       });
@@ -84,7 +93,8 @@ describe("AWK Prototype Pollution Prevention", () => {
     for (const keyword of DANGEROUS_KEYWORDS) {
       it(`should use ${keyword} as for-in loop variable`, async () => {
         const bash = new Bash();
-        const result = await bash.exec(`
+        const result = toText(
+          await bash.exec(`
           echo "test" | awk '{
             arr["x"] = 1
             arr["y"] = 2
@@ -93,7 +103,8 @@ describe("AWK Prototype Pollution Prevention", () => {
               print ${keyword}, arr[${keyword}]
             }
           }' | sort
-        `);
+        `),
+        );
         expect(result.exitCode).toBe(0);
         expect(result.stdout).toContain("x 1");
         expect(result.stdout).toContain("y 2");
@@ -102,13 +113,15 @@ describe("AWK Prototype Pollution Prevention", () => {
 
       it(`should preserve ${keyword} value after for-in`, async () => {
         const bash = new Bash();
-        const result = await bash.exec(`
+        const result = toText(
+          await bash.exec(`
           echo "test" | awk '{
             arr["only"] = 42
             for (${keyword} in arr) { }
             print ${keyword}
           }'
-        `);
+        `),
+        );
         expect(result.exitCode).toBe(0);
         expect(result.stdout).toBe("only\n");
       });
@@ -119,7 +132,8 @@ describe("AWK Prototype Pollution Prevention", () => {
     for (const keyword of DANGEROUS_KEYWORDS.slice(0, 3)) {
       it(`should use ${keyword} as function parameter`, async () => {
         const bash = new Bash();
-        const result = await bash.exec(`
+        const result = toText(
+          await bash.exec(`
           echo "test" | awk '
             function myfunc(${keyword}) {
               return ${keyword} * 2
@@ -128,14 +142,16 @@ describe("AWK Prototype Pollution Prevention", () => {
               print myfunc(21)
             }
           '
-        `);
+        `),
+        );
         expect(result.exitCode).toBe(0);
         expect(result.stdout).toBe("42\n");
       });
 
       it(`should use ${keyword} as local variable in function`, async () => {
         const bash = new Bash();
-        const result = await bash.exec(`
+        const result = toText(
+          await bash.exec(`
           echo "test" | awk '
             function myfunc(    ${keyword}) {
               ${keyword} = "local"
@@ -145,14 +161,16 @@ describe("AWK Prototype Pollution Prevention", () => {
               print myfunc()
             }
           '
-        `);
+        `),
+        );
         expect(result.exitCode).toBe(0);
         expect(result.stdout).toBe("local\n");
       });
 
       it(`should isolate ${keyword} parameter from global`, async () => {
         const bash = new Bash();
-        const result = await bash.exec(`
+        const result = toText(
+          await bash.exec(`
           echo "test" | awk '
             function myfunc(${keyword}) {
               ${keyword} = "modified"
@@ -165,7 +183,8 @@ describe("AWK Prototype Pollution Prevention", () => {
               print ${keyword}
             }
           '
-        `);
+        `),
+        );
         expect(result.exitCode).toBe(0);
         expect(result.stdout).toBe("global\n");
       });
@@ -173,7 +192,8 @@ describe("AWK Prototype Pollution Prevention", () => {
 
     it("should handle multiple dangerous parameters", async () => {
       const bash = new Bash();
-      const result = await bash.exec(`
+      const result = toText(
+        await bash.exec(`
         echo "test" | awk '
           function myfunc(constructor, __proto__, prototype) {
             return constructor + __proto__ + prototype
@@ -182,7 +202,8 @@ describe("AWK Prototype Pollution Prevention", () => {
             print myfunc(1, 2, 3)
           }
         '
-      `);
+      `),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("6\n");
     });
@@ -192,25 +213,29 @@ describe("AWK Prototype Pollution Prevention", () => {
     for (const keyword of DANGEROUS_KEYWORDS.slice(0, 3)) {
       it(`should use ${keyword} with getline`, async () => {
         const bash = new Bash();
-        const result = await bash.exec(`
+        const result = toText(
+          await bash.exec(`
           echo -e "line1\\nline2" | awk '{
             if ((getline ${keyword}) > 0) {
               print "got:", ${keyword}
             }
           }'
-        `);
+        `),
+        );
         expect(result.exitCode).toBe(0);
         expect(result.stdout).toBe("got: line2\n");
       });
 
       it(`should use ${keyword} with getline from command`, async () => {
         const bash = new Bash();
-        const result = await bash.exec(`
+        const result = toText(
+          await bash.exec(`
           echo "test" | awk '{
             "echo hello" | getline ${keyword}
             print ${keyword}
           }'
-        `);
+        `),
+        );
         expect(result.exitCode).toBe(0);
         expect(result.stdout).toBe("hello\n");
       });
@@ -221,24 +246,28 @@ describe("AWK Prototype Pollution Prevention", () => {
     for (const keyword of DANGEROUS_KEYWORDS.slice(0, 3)) {
       it(`should split into array named ${keyword}`, async () => {
         const bash = new Bash();
-        const result = await bash.exec(`
+        const result = toText(
+          await bash.exec(`
           echo "a,b,c" | awk '{
             n = split($0, ${keyword}, ",")
             print n, ${keyword}[1], ${keyword}[2], ${keyword}[3]
           }'
-        `);
+        `),
+        );
         expect(result.exitCode).toBe(0);
         expect(result.stdout).toBe("3 a b c\n");
       });
 
       it(`should split with ${keyword} as separator variable`, async () => {
         const bash = new Bash();
-        const result = await bash.exec(`
+        const result = toText(
+          await bash.exec(`
           echo "a:b:c" | awk -v ${keyword}=":" '{
             n = split($0, arr, ${keyword})
             print n, arr[1], arr[2], arr[3]
           }'
-        `);
+        `),
+        );
         expect(result.exitCode).toBe(0);
         expect(result.stdout).toBe("3 a b c\n");
       });
@@ -249,26 +278,30 @@ describe("AWK Prototype Pollution Prevention", () => {
     for (const keyword of DANGEROUS_KEYWORDS.slice(0, 3)) {
       it(`should gsub into ${keyword}`, async () => {
         const bash = new Bash();
-        const result = await bash.exec(`
+        const result = toText(
+          await bash.exec(`
           echo "test" | awk '{
             ${keyword} = "hello world"
             gsub(/o/, "0", ${keyword})
             print ${keyword}
           }'
-        `);
+        `),
+        );
         expect(result.exitCode).toBe(0);
         expect(result.stdout).toBe("hell0 w0rld\n");
       });
 
       it(`should sub into ${keyword}`, async () => {
         const bash = new Bash();
-        const result = await bash.exec(`
+        const result = toText(
+          await bash.exec(`
           echo "test" | awk '{
             ${keyword} = "hello world"
             sub(/o/, "0", ${keyword})
             print ${keyword}
           }'
-        `);
+        `),
+        );
         expect(result.exitCode).toBe(0);
         expect(result.stdout).toBe("hell0 world\n");
       });
@@ -279,27 +312,31 @@ describe("AWK Prototype Pollution Prevention", () => {
     for (const keyword of DANGEROUS_KEYWORDS.slice(0, 3)) {
       it(`should increment ${keyword}`, async () => {
         const bash = new Bash();
-        const result = await bash.exec(`
+        const result = toText(
+          await bash.exec(`
           echo "test" | awk '{
             ${keyword} = 5
             ${keyword}++
             print ${keyword}
           }'
-        `);
+        `),
+        );
         expect(result.exitCode).toBe(0);
         expect(result.stdout).toBe("6\n");
       });
 
       it(`should compound assign to ${keyword}`, async () => {
         const bash = new Bash();
-        const result = await bash.exec(`
+        const result = toText(
+          await bash.exec(`
           echo "test" | awk '{
             ${keyword} = 10
             ${keyword} += 5
             ${keyword} *= 2
             print ${keyword}
           }'
-        `);
+        `),
+        );
         expect(result.exitCode).toBe(0);
         expect(result.stdout).toBe("30\n");
       });

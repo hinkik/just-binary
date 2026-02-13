@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { toText } from "../../test-utils.js";
 
 describe("sed regex patterns", () => {
   describe("POSIX character classes", () => {
@@ -8,7 +9,9 @@ describe("sed regex patterns", () => {
         files: { "/test.txt": "abc123xyz\n" },
         cwd: "/",
       });
-      const result = await env.exec("sed 's/[[:alpha:]]/_/g' /test.txt");
+      const result = toText(
+        await env.exec("sed 's/[[:alpha:]]/_/g' /test.txt"),
+      );
       expect(result.stdout).toBe("___123___\n");
     });
 
@@ -17,7 +20,9 @@ describe("sed regex patterns", () => {
         files: { "/test.txt": "abc123xyz\n" },
         cwd: "/",
       });
-      const result = await env.exec("sed 's/[[:digit:]]/#/g' /test.txt");
+      const result = toText(
+        await env.exec("sed 's/[[:digit:]]/#/g' /test.txt"),
+      );
       expect(result.stdout).toBe("abc###xyz\n");
     });
 
@@ -26,7 +31,9 @@ describe("sed regex patterns", () => {
         files: { "/test.txt": "a1-b2_c3\n" },
         cwd: "/",
       });
-      const result = await env.exec("sed 's/[[:alnum:]]/X/g' /test.txt");
+      const result = toText(
+        await env.exec("sed 's/[[:alnum:]]/X/g' /test.txt"),
+      );
       expect(result.stdout).toBe("XX-XX_XX\n");
     });
 
@@ -35,7 +42,9 @@ describe("sed regex patterns", () => {
         files: { "/test.txt": "a b\tc\n" },
         cwd: "/",
       });
-      const result = await env.exec("sed 's/[[:space:]]/_/g' /test.txt");
+      const result = toText(
+        await env.exec("sed 's/[[:space:]]/_/g' /test.txt"),
+      );
       // Matches space and tab, newline is line terminator
       expect(result.stdout).toBe("a_b_c\n");
     });
@@ -45,7 +54,9 @@ describe("sed regex patterns", () => {
         files: { "/test.txt": "Hello World\n" },
         cwd: "/",
       });
-      const result = await env.exec("sed 's/[[:upper:]]/X/g' /test.txt");
+      const result = toText(
+        await env.exec("sed 's/[[:upper:]]/X/g' /test.txt"),
+      );
       expect(result.stdout).toBe("Xello Xorld\n");
     });
 
@@ -54,7 +65,9 @@ describe("sed regex patterns", () => {
         files: { "/test.txt": "Hello World\n" },
         cwd: "/",
       });
-      const result = await env.exec("sed 's/[[:lower:]]/x/g' /test.txt");
+      const result = toText(
+        await env.exec("sed 's/[[:lower:]]/x/g' /test.txt"),
+      );
       expect(result.stdout).toBe("Hxxxx Wxxxx\n");
     });
 
@@ -63,7 +76,7 @@ describe("sed regex patterns", () => {
         files: { "/test.txt": "Hello, World!\n" },
         cwd: "/",
       });
-      const result = await env.exec("sed 's/[[:punct:]]//g' /test.txt");
+      const result = toText(await env.exec("sed 's/[[:punct:]]//g' /test.txt"));
       expect(result.stdout).toBe("Hello World\n");
     });
 
@@ -72,7 +85,9 @@ describe("sed regex patterns", () => {
         files: { "/test.txt": "a b\tc\n" },
         cwd: "/",
       });
-      const result = await env.exec("sed 's/[[:blank:]]/_/g' /test.txt");
+      const result = toText(
+        await env.exec("sed 's/[[:blank:]]/_/g' /test.txt"),
+      );
       // [:blank:] matches space and tab but not newline
       expect(result.stdout).toBe("a_b_c\n");
     });
@@ -82,7 +97,9 @@ describe("sed regex patterns", () => {
         files: { "/test.txt": "0x1F2a3b\n" },
         cwd: "/",
       });
-      const result = await env.exec("sed 's/[[:xdigit:]]/X/g' /test.txt");
+      const result = toText(
+        await env.exec("sed 's/[[:xdigit:]]/X/g' /test.txt"),
+      );
       // Implementation matches 0-9, a-f, A-F and lowercase hex prefix 'x'
       expect(result.stdout).toBe("XxXXXXXX\n");
     });
@@ -92,7 +109,9 @@ describe("sed regex patterns", () => {
         files: { "/test.txt": "abc123\n" },
         cwd: "/",
       });
-      const result = await env.exec("sed 's/[^[:digit:]]/X/g' /test.txt");
+      const result = toText(
+        await env.exec("sed 's/[^[:digit:]]/X/g' /test.txt"),
+      );
       // Newline is line terminator, not matched by pattern
       expect(result.stdout).toBe("XXX123\n");
     });
@@ -102,7 +121,9 @@ describe("sed regex patterns", () => {
         files: { "/test.txt": "a1-b2_c3\n" },
         cwd: "/",
       });
-      const result = await env.exec("sed 's/[[:digit:]_-]/./g' /test.txt");
+      const result = toText(
+        await env.exec("sed 's/[[:digit:]_-]/./g' /test.txt"),
+      );
       expect(result.stdout).toBe("a..b..c.\n");
     });
   });
@@ -113,7 +134,7 @@ describe("sed regex patterns", () => {
         files: { "/test.txt": "a+b\naab\n" },
         cwd: "/",
       });
-      const result = await env.exec("sed 's/a+b/X/' /test.txt");
+      const result = toText(await env.exec("sed 's/a+b/X/' /test.txt"));
       expect(result.stdout).toBe("X\naab\n");
     });
 
@@ -122,7 +143,7 @@ describe("sed regex patterns", () => {
         files: { "/test.txt": "aab\nab\nb\n" },
         cwd: "/",
       });
-      const result = await env.exec("sed 's/a\\+b/X/' /test.txt");
+      const result = toText(await env.exec("sed 's/a\\+b/X/' /test.txt"));
       expect(result.stdout).toBe("X\nX\nb\n");
     });
 
@@ -131,7 +152,7 @@ describe("sed regex patterns", () => {
         files: { "/test.txt": "a?b\nab\n" },
         cwd: "/",
       });
-      const result = await env.exec("sed 's/a?b/X/' /test.txt");
+      const result = toText(await env.exec("sed 's/a?b/X/' /test.txt"));
       expect(result.stdout).toBe("X\nab\n");
     });
 
@@ -140,7 +161,7 @@ describe("sed regex patterns", () => {
         files: { "/test.txt": "a|b\nab\n" },
         cwd: "/",
       });
-      const result = await env.exec("sed 's/a|b/X/' /test.txt");
+      const result = toText(await env.exec("sed 's/a|b/X/' /test.txt"));
       expect(result.stdout).toBe("X\nab\n");
     });
 
@@ -149,7 +170,7 @@ describe("sed regex patterns", () => {
         files: { "/test.txt": "(foo)\nfoo\n" },
         cwd: "/",
       });
-      const result = await env.exec("sed 's/(foo)/X/' /test.txt");
+      const result = toText(await env.exec("sed 's/(foo)/X/' /test.txt"));
       expect(result.stdout).toBe("X\nfoo\n");
     });
 
@@ -159,7 +180,9 @@ describe("sed regex patterns", () => {
         files: { "/test.txt": "abcabc\n" },
         cwd: "/",
       });
-      const result = await env.exec("sed 's/\\(abc\\)\\1/X/' /test.txt");
+      const result = toText(
+        await env.exec("sed 's/\\(abc\\)\\1/X/' /test.txt"),
+      );
       expect(result.stdout).toBe("X\n");
     });
   });
@@ -170,7 +193,7 @@ describe("sed regex patterns", () => {
         files: { "/test.txt": "aab\nab\nb\n" },
         cwd: "/",
       });
-      const result = await env.exec("sed -E 's/a+b/X/' /test.txt");
+      const result = toText(await env.exec("sed -E 's/a+b/X/' /test.txt"));
       expect(result.stdout).toBe("X\nX\nb\n");
     });
 
@@ -179,7 +202,7 @@ describe("sed regex patterns", () => {
         files: { "/test.txt": "ab\nb\naab\n" },
         cwd: "/",
       });
-      const result = await env.exec("sed -E 's/a?b/X/' /test.txt");
+      const result = toText(await env.exec("sed -E 's/a?b/X/' /test.txt"));
       expect(result.stdout).toBe("X\nX\naX\n");
     });
 
@@ -188,7 +211,7 @@ describe("sed regex patterns", () => {
         files: { "/test.txt": "cat\ndog\nrat\n" },
         cwd: "/",
       });
-      const result = await env.exec("sed -E 's/cat|dog/X/' /test.txt");
+      const result = toText(await env.exec("sed -E 's/cat|dog/X/' /test.txt"));
       expect(result.stdout).toBe("X\nX\nrat\n");
     });
 
@@ -198,7 +221,7 @@ describe("sed regex patterns", () => {
         files: { "/test.txt": "abcabc\n" },
         cwd: "/",
       });
-      const result = await env.exec("sed -E 's/(abc)\\1/X/' /test.txt");
+      const result = toText(await env.exec("sed -E 's/(abc)\\1/X/' /test.txt"));
       expect(result.stdout).toBe("X\n");
     });
 
@@ -207,7 +230,7 @@ describe("sed regex patterns", () => {
         files: { "/test.txt": "aab\nab\n" },
         cwd: "/",
       });
-      const result = await env.exec("sed -r 's/a+b/X/' /test.txt");
+      const result = toText(await env.exec("sed -r 's/a+b/X/' /test.txt"));
       expect(result.stdout).toBe("X\nX\n");
     });
   });
@@ -218,8 +241,8 @@ describe("sed regex patterns", () => {
         files: { "/test.txt": "hello world\n" },
         cwd: "/",
       });
-      const result = await env.exec(
-        "sed 's/\\(hello\\) \\(world\\)/\\2 \\1/' /test.txt",
+      const result = toText(
+        await env.exec("sed 's/\\(hello\\) \\(world\\)/\\2 \\1/' /test.txt"),
       );
       expect(result.stdout).toBe("world hello\n");
     });
@@ -229,7 +252,7 @@ describe("sed regex patterns", () => {
         files: { "/test.txt": "hello\n" },
         cwd: "/",
       });
-      const result = await env.exec("sed 's/hello/[&]/' /test.txt");
+      const result = toText(await env.exec("sed 's/hello/[&]/' /test.txt"));
       expect(result.stdout).toBe("[hello]\n");
     });
 
@@ -238,7 +261,7 @@ describe("sed regex patterns", () => {
         files: { "/test.txt": "hello\n" },
         cwd: "/",
       });
-      const result = await env.exec("sed 's/hello/\\&/' /test.txt");
+      const result = toText(await env.exec("sed 's/hello/\\&/' /test.txt"));
       expect(result.stdout).toBe("&\n");
     });
 
@@ -247,8 +270,8 @@ describe("sed regex patterns", () => {
         files: { "/test.txt": "abc\n" },
         cwd: "/",
       });
-      const result = await env.exec(
-        "sed -E 's/(a)(b)(c)/\\3\\2\\1/' /test.txt",
+      const result = toText(
+        await env.exec("sed -E 's/(a)(b)(c)/\\3\\2\\1/' /test.txt"),
       );
       expect(result.stdout).toBe("cba\n");
     });
@@ -260,7 +283,7 @@ describe("sed regex patterns", () => {
         files: { "/test.txt": "abc\nxabc\n" },
         cwd: "/",
       });
-      const result = await env.exec("sed 's/^a/X/' /test.txt");
+      const result = toText(await env.exec("sed 's/^a/X/' /test.txt"));
       expect(result.stdout).toBe("Xbc\nxabc\n");
     });
 
@@ -269,7 +292,7 @@ describe("sed regex patterns", () => {
         files: { "/test.txt": "abc\nabcx\n" },
         cwd: "/",
       });
-      const result = await env.exec("sed 's/c$/X/' /test.txt");
+      const result = toText(await env.exec("sed 's/c$/X/' /test.txt"));
       expect(result.stdout).toBe("abX\nabcx\n");
     });
 
@@ -278,7 +301,7 @@ describe("sed regex patterns", () => {
         files: { "/test.txt": "a\n\nb\n" },
         cwd: "/",
       });
-      const result = await env.exec("sed 's/^$/EMPTY/' /test.txt");
+      const result = toText(await env.exec("sed 's/^$/EMPTY/' /test.txt"));
       expect(result.stdout).toBe("a\nEMPTY\nb\n");
     });
   });
@@ -289,7 +312,7 @@ describe("sed regex patterns", () => {
         files: { "/test.txt": "a.b\nacb\n" },
         cwd: "/",
       });
-      const result = await env.exec("sed 's/a\\.b/X/' /test.txt");
+      const result = toText(await env.exec("sed 's/a\\.b/X/' /test.txt"));
       expect(result.stdout).toBe("X\nacb\n");
     });
 
@@ -298,7 +321,7 @@ describe("sed regex patterns", () => {
         files: { "/test.txt": "a1b\na2b\n" },
         cwd: "/",
       });
-      const result = await env.exec("sed 's/a.b/X/' /test.txt");
+      const result = toText(await env.exec("sed 's/a.b/X/' /test.txt"));
       expect(result.stdout).toBe("X\nX\n");
     });
 
@@ -307,7 +330,7 @@ describe("sed regex patterns", () => {
         files: { "/test.txt": "a:b\n" },
         cwd: "/",
       });
-      const result = await env.exec("sed 's/:/\\n/' /test.txt");
+      const result = toText(await env.exec("sed 's/:/\\n/' /test.txt"));
       expect(result.stdout).toBe("a\nb\n");
     });
 
@@ -316,7 +339,7 @@ describe("sed regex patterns", () => {
         files: { "/test.txt": "a:b\n" },
         cwd: "/",
       });
-      const result = await env.exec("sed 's/:/\\t/' /test.txt");
+      const result = toText(await env.exec("sed 's/:/\\t/' /test.txt"));
       expect(result.stdout).toBe("a\tb\n");
     });
   });
@@ -327,7 +350,7 @@ describe("sed regex patterns", () => {
         files: { "/test.txt": "b\nab\naab\n" },
         cwd: "/",
       });
-      const result = await env.exec("sed 's/a*/X/' /test.txt");
+      const result = toText(await env.exec("sed 's/a*/X/' /test.txt"));
       expect(result.stdout).toBe("Xb\nXb\nXb\n");
     });
 
@@ -336,7 +359,7 @@ describe("sed regex patterns", () => {
         files: { "/test.txt": "aa\naaa\naaaa\n" },
         cwd: "/",
       });
-      const result = await env.exec("sed 's/a\\{3\\}/X/' /test.txt");
+      const result = toText(await env.exec("sed 's/a\\{3\\}/X/' /test.txt"));
       expect(result.stdout).toBe("aa\nX\nXa\n");
     });
 
@@ -345,7 +368,7 @@ describe("sed regex patterns", () => {
         files: { "/test.txt": "aa\naaa\naaaa\n" },
         cwd: "/",
       });
-      const result = await env.exec("sed -E 's/a{3}/X/' /test.txt");
+      const result = toText(await env.exec("sed -E 's/a{3}/X/' /test.txt"));
       expect(result.stdout).toBe("aa\nX\nXa\n");
     });
 
@@ -354,7 +377,7 @@ describe("sed regex patterns", () => {
         files: { "/test.txt": "a\naa\naaa\naaaa\n" },
         cwd: "/",
       });
-      const result = await env.exec("sed 's/a\\{2,3\\}/X/' /test.txt");
+      const result = toText(await env.exec("sed 's/a\\{2,3\\}/X/' /test.txt"));
       expect(result.stdout).toBe("a\nX\nX\nXa\n");
     });
 
@@ -363,7 +386,7 @@ describe("sed regex patterns", () => {
         files: { "/test.txt": "a\naa\naaa\n" },
         cwd: "/",
       });
-      const result = await env.exec("sed -E 's/a{2,}/X/' /test.txt");
+      const result = toText(await env.exec("sed -E 's/a{2,}/X/' /test.txt"));
       expect(result.stdout).toBe("a\nX\nX\n");
     });
   });
@@ -374,7 +397,7 @@ describe("sed regex patterns", () => {
         files: { "/test.txt": "cat\ncut\ncot\n" },
         cwd: "/",
       });
-      const result = await env.exec("sed 's/c[aou]t/X/' /test.txt");
+      const result = toText(await env.exec("sed 's/c[aou]t/X/' /test.txt"));
       expect(result.stdout).toBe("X\nX\nX\n");
     });
 
@@ -383,7 +406,7 @@ describe("sed regex patterns", () => {
         files: { "/test.txt": "cat\ncbt\ncct\n" },
         cwd: "/",
       });
-      const result = await env.exec("sed 's/c[^a]t/X/' /test.txt");
+      const result = toText(await env.exec("sed 's/c[^a]t/X/' /test.txt"));
       expect(result.stdout).toBe("cat\nX\nX\n");
     });
 
@@ -392,7 +415,7 @@ describe("sed regex patterns", () => {
         files: { "/test.txt": "a1b\na5b\na9b\n" },
         cwd: "/",
       });
-      const result = await env.exec("sed 's/a[0-4]b/X/' /test.txt");
+      const result = toText(await env.exec("sed 's/a[0-4]b/X/' /test.txt"));
       expect(result.stdout).toBe("X\na5b\na9b\n");
     });
 
@@ -401,7 +424,7 @@ describe("sed regex patterns", () => {
         files: { "/test.txt": "a]b\na[b\n" },
         cwd: "/",
       });
-      const result = await env.exec("sed 's/a[][]b/X/' /test.txt");
+      const result = toText(await env.exec("sed 's/a[][]b/X/' /test.txt"));
       expect(result.stdout).toBe("X\nX\n");
     });
   });

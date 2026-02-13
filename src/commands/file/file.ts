@@ -6,6 +6,7 @@
 
 import { fileTypeFromBuffer } from "file-type";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
 const fileHelp = {
@@ -412,8 +413,8 @@ export const fileCommand: Command = {
 
     if (files.length === 0) {
       return {
-        stdout: "",
-        stderr: "Usage: file [-bLi] FILE...\n",
+        stdout: EMPTY,
+        stderr: encode("Usage: file [-bLi] FILE...\n"),
         exitCode: 1,
       };
     }
@@ -444,7 +445,7 @@ export const fileCommand: Command = {
       }
     }
 
-    return { stdout: output, stderr: "", exitCode };
+    return { stdout: encode(output), stderr: EMPTY, exitCode };
   },
 };
 

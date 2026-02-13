@@ -3,6 +3,7 @@
  */
 
 import { Bash } from "../../Bash.js";
+import { decode } from "../../utils/bytes.js";
 import type { JqTestCase } from "./parser.js";
 
 export interface JqTestResult {
@@ -86,10 +87,13 @@ export async function runJqTestCase(
             passed: false,
             skipped: false,
             unexpectedPass: true,
-            actualOutputs: result.stdout
-              ? result.stdout.split("\n").filter((l) => l)
-              : [],
-            actualStderr: result.stderr,
+            actualOutputs:
+              result.stdout.length > 0
+                ? decode(result.stdout)
+                    .split("\n")
+                    .filter((l: string) => l)
+                : [],
+            actualStderr: decode(result.stderr),
             actualStatus: result.exitCode,
             expectedOutputs: testCase.expectedOutputs,
             error: `UNEXPECTED PASS: This test was marked skip (${skipReason}) but now passes. Please remove the skip.`,
@@ -100,7 +104,7 @@ export async function runJqTestCase(
           passed: true,
           skipped: true,
           skipReason: `skip: ${skipReason}`,
-          actualStderr: result.stderr,
+          actualStderr: decode(result.stderr),
           actualStatus: result.exitCode,
         };
       }
@@ -109,16 +113,16 @@ export async function runJqTestCase(
         testCase,
         passed,
         skipped: false,
-        actualStderr: result.stderr,
+        actualStderr: decode(result.stderr),
         actualStatus: result.exitCode,
         error: passed
           ? undefined
-          : `Expected error but got success with output: ${result.stdout}`,
+          : `Expected error but got success with output: ${decode(result.stdout)}`,
       };
     }
 
     // For normal tests, compare outputs
-    const actualOutputs = normalizeOutputs(result.stdout);
+    const actualOutputs = normalizeOutputs(decode(result.stdout));
     const expectedOutputs = testCase.expectedOutputs.map((o) => o.trim());
 
     const passed = arraysEqual(actualOutputs, expectedOutputs);
@@ -132,7 +136,7 @@ export async function runJqTestCase(
           skipped: false,
           unexpectedPass: true,
           actualOutputs,
-          actualStderr: result.stderr,
+          actualStderr: decode(result.stderr),
           actualStatus: result.exitCode,
           expectedOutputs,
           error: `UNEXPECTED PASS: This test was marked skip (${skipReason}) but now passes. Please remove the skip.`,
@@ -144,7 +148,7 @@ export async function runJqTestCase(
         skipped: true,
         skipReason: `skip: ${skipReason}`,
         actualOutputs,
-        actualStderr: result.stderr,
+        actualStderr: decode(result.stderr),
         actualStatus: result.exitCode,
         expectedOutputs,
       };
@@ -155,7 +159,7 @@ export async function runJqTestCase(
       passed,
       skipped: false,
       actualOutputs,
-      actualStderr: result.stderr,
+      actualStderr: decode(result.stderr),
       actualStatus: result.exitCode,
       expectedOutputs,
       error: passed

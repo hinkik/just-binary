@@ -7,6 +7,7 @@
 
 import { isBrowserExcludedCommand } from "../commands/browser-excluded.js";
 import type { CommandContext, ExecResult } from "../types.js";
+import { EMPTY, isEmpty } from "../utils/bytes.js";
 import {
   handleBreak,
   handleCd,
@@ -60,7 +61,7 @@ export type RunCommandFn = (
   commandName: string,
   args: string[],
   quotedArgs: boolean[],
-  stdin: string,
+  stdin: Uint8Array,
   skipFunctions?: boolean,
   useDefaultPath?: boolean,
   stdinSourceFd?: number,
@@ -77,7 +78,7 @@ export type BuildExportedEnvFn = () => Record<string, string>;
 export type ExecuteUserScriptFn = (
   scriptPath: string,
   args: string[],
-  stdin?: string,
+  stdin?: Uint8Array,
 ) => Promise<ExecResult>;
 
 /**
@@ -99,7 +100,7 @@ export async function dispatchBuiltin(
   commandName: string,
   args: string[],
   _quotedArgs: boolean[],
-  stdin: string,
+  stdin: Uint8Array,
   skipFunctions: boolean,
   _useDefaultPath: boolean,
   stdinSourceFd: number,
@@ -263,7 +264,7 @@ export async function dispatchBuiltin(
 async function handleCommandBuiltin(
   dispatchCtx: BuiltinDispatchContext,
   args: string[],
-  stdin: string,
+  stdin: Uint8Array,
 ): Promise<ExecResult> {
   const { ctx, runCommand } = dispatchCtx;
 
@@ -317,7 +318,7 @@ async function handleCommandBuiltin(
 async function handleBuiltinBuiltin(
   dispatchCtx: BuiltinDispatchContext,
   args: string[],
-  stdin: string,
+  stdin: Uint8Array,
 ): Promise<ExecResult> {
   const { runCommand } = dispatchCtx;
 
@@ -352,7 +353,7 @@ export async function executeExternalCommand(
   dispatchCtx: BuiltinDispatchContext,
   commandName: string,
   args: string[],
-  stdin: string,
+  stdin: Uint8Array,
   useDefaultPath: boolean,
 ): Promise<ExecResult> {
   const { ctx, buildExportedEnv, executeUserScript } = dispatchCtx;
@@ -406,7 +407,9 @@ export async function executeExternalCommand(
 
   // Use groupStdin as fallback if no stdin from redirections/pipeline
   // This is needed for commands inside groups/functions that receive stdin via heredoc
-  const effectiveStdin = stdin || ctx.state.groupStdin || "";
+  const effectiveStdin = !isEmpty(stdin)
+    ? stdin
+    : (ctx.state.groupStdin ?? EMPTY);
 
   // Build exported environment for commands that need it (printenv, env, etc.)
   // Most builtins need access to the full env to modify state

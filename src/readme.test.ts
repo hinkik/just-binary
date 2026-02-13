@@ -17,6 +17,7 @@ import {
   getNetworkCommandNames,
   getPythonCommandNames,
 } from "./commands/registry.js";
+import { toText } from "./test-utils.js";
 
 const README_PATH = path.join(import.meta.dirname, "..", "README.md");
 const AGENTS_PATH = path.join(import.meta.dirname, "..", "AGENTS.npm.md");
@@ -507,7 +508,7 @@ describe("AGENTS.npm.md Bash examples", () => {
         // Skip commands that are just comments or empty
         if (!cmd || cmd.startsWith("#")) continue;
 
-        const result = await bash.exec(cmd);
+        const result = toText(await bash.exec(cmd));
 
         // Commands should not have stderr (warnings/errors)
         // Allow exitCode 1 for grep (no matches) but fail on other errors

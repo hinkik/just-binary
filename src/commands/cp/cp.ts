@@ -1,6 +1,7 @@
 import { getErrorMessage } from "../../interpreter/helpers/errors.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
+import { EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const cpHelp = {
@@ -44,8 +45,8 @@ export const cpCommand: Command = {
 
     if (paths.length < 2) {
       return {
-        stdout: "",
-        stderr: "cp: missing destination file operand\n",
+        stdout: EMPTY,
+        stderr: encode("cp: missing destination file operand\n"),
         exitCode: 1,
       };
     }
@@ -70,8 +71,8 @@ export const cpCommand: Command = {
     // If multiple sources, dest must be a directory
     if (sources.length > 1 && !destIsDir) {
       return {
-        stdout: "",
-        stderr: `cp: target '${dest}' is not a directory\n`,
+        stdout: EMPTY,
+        stderr: encode(`cp: target '${dest}' is not a directory\n`),
         exitCode: 1,
       };
     }
@@ -127,7 +128,7 @@ export const cpCommand: Command = {
       }
     }
 
-    return { stdout, stderr, exitCode };
+    return { stdout: encode(stdout), stderr: encode(stderr), exitCode };
   },
 };
 

@@ -1,4 +1,5 @@
 import type { Command, ExecResult } from "../../types.js";
+import { EMPTY, encode } from "../../utils/bytes.js";
 
 /**
  * seq - print a sequence of numbers
@@ -72,8 +73,8 @@ export const seqCommand: Command = {
 
     if (nums.length === 0) {
       return {
-        stdout: "",
-        stderr: "seq: missing operand\n",
+        stdout: EMPTY,
+        stderr: encode("seq: missing operand\n"),
         exitCode: 1,
       };
     }
@@ -97,16 +98,16 @@ export const seqCommand: Command = {
     if (Number.isNaN(first) || Number.isNaN(increment) || Number.isNaN(last)) {
       const invalid = nums.find((n) => Number.isNaN(parseFloat(n)));
       return {
-        stdout: "",
-        stderr: `seq: invalid floating point argument: '${invalid}'\n`,
+        stdout: EMPTY,
+        stderr: encode(`seq: invalid floating point argument: '${invalid}'\n`),
         exitCode: 1,
       };
     }
 
     if (increment === 0) {
       return {
-        stdout: "",
-        stderr: "seq: invalid Zero increment value: '0'\n",
+        stdout: EMPTY,
+        stderr: encode("seq: invalid Zero increment value: '0'\n"),
         exitCode: 1,
       };
     }
@@ -160,8 +161,8 @@ export const seqCommand: Command = {
 
     const output = results.join(separator);
     return {
-      stdout: output ? `${output}\n` : "",
-      stderr: "",
+      stdout: encode(output ? `${output}\n` : ""),
+      stderr: EMPTY,
       exitCode: 0,
     };
   },

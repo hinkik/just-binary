@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { toText } from "../../test-utils.js";
 
 describe("sort with binary content", () => {
   it("should sort lines containing binary-safe content", async () => {
@@ -16,7 +17,7 @@ describe("sort with binary content", () => {
       },
     });
 
-    const result = await env.exec("sort /data.txt");
+    const result = toText(await env.exec("sort /data.txt"));
     expect(result.stdout).toBe("a\nb\nc\n");
     expect(result.exitCode).toBe(0);
   });

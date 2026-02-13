@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../Bash.js";
+import { toText } from "../test-utils.js";
 
 /**
  * Advanced Agent Scenario: Debugging Workflow
@@ -306,7 +307,7 @@ export class OrderController {
 
   it("should extract error messages from logs", async () => {
     const env = createEnv();
-    const result = await env.exec('grep "^Error:" /app/logs/error.log');
+    const result = toText(await env.exec('grep "^Error:" /app/logs/error.log'));
     expect(
       result.stdout,
     ).toBe(`Error: Payment validation failed: Invalid card number
@@ -318,8 +319,10 @@ Error: Inventory check failed: Item out of stock
   it("should find unique error types", async () => {
     const env = createEnv();
     // Field 4 because timestamp has colons: [2024-01-15T10:30:45.123Z] ERROR: message
-    const result = await env.exec(
-      'grep "ERROR:" /app/logs/error.log | cut -d":" -f4 | sort | uniq',
+    const result = toText(
+      await env.exec(
+        'grep "ERROR:" /app/logs/error.log | cut -d":" -f4 | sort | uniq',
+      ),
     );
     expect(result.stdout).toBe(` Database connection timeout
  Failed to process order
@@ -329,8 +332,10 @@ Error: Inventory check failed: Item out of stock
 
   it("should extract file paths from stack traces", async () => {
     const env = createEnv();
-    const result = await env.exec(
-      'grep -o "/app/src/[^)]*" /app/logs/error.log | cut -d":" -f1 | sort | uniq',
+    const result = toText(
+      await env.exec(
+        'grep -o "/app/src/[^)]*" /app/logs/error.log | cut -d":" -f1 | sort | uniq',
+      ),
     );
     expect(result.stdout).toBe(`/app/src/controllers/order.ts
 /app/src/db/pool.ts
@@ -346,8 +351,10 @@ Error: Inventory check failed: Item out of stock
 
   it("should find the most common error location", async () => {
     const env = createEnv();
-    const result = await env.exec(
-      'grep -o "at [A-Za-z.]*" /app/logs/error.log | sort | uniq -c | sort -rn | head -3',
+    const result = toText(
+      await env.exec(
+        'grep -o "at [A-Za-z.]*" /app/logs/error.log | sort | uniq -c | sort -rn | head -3',
+      ),
     );
     expect(result.stdout).toBe(`   2 at OrderService.processOrder
    2 at OrderController.create
@@ -358,8 +365,10 @@ Error: Inventory check failed: Item out of stock
 
   it("should find where PaymentValidator.validate is defined", async () => {
     const env = createEnv();
-    const result = await env.exec(
-      'grep -n "validate(" /app/src/validators/payment.ts | head -1',
+    const result = toText(
+      await env.exec(
+        'grep -n "validate(" /app/src/validators/payment.ts | head -1',
+      ),
     );
     expect(result.stdout).toBe(
       "4:  validate(payment: PaymentInfo): ValidationResult {\n",
@@ -371,16 +380,20 @@ Error: Inventory check failed: Item out of stock
     const env = createEnv();
 
     // Find where validator is called
-    const validatorUsage = await env.exec(
-      'grep -n "validator.validate" /app/src/services/payment.ts',
+    const validatorUsage = toText(
+      await env.exec(
+        'grep -n "validator.validate" /app/src/services/payment.ts',
+      ),
     );
     expect(validatorUsage.stdout).toBe(
       "18:    const validationResult = this.validator.validate(payment);\n",
     );
 
     // Find where PaymentService.charge is called
-    const chargeUsage = await env.exec(
-      'grep -n "paymentService.charge" /app/src/services/order.ts',
+    const chargeUsage = toText(
+      await env.exec(
+        'grep -n "paymentService.charge" /app/src/services/order.ts',
+      ),
     );
     expect(chargeUsage.stdout).toBe(
       "64:      return await this.paymentService.charge(order.payment, order.total);\n",
@@ -390,7 +403,9 @@ Error: Inventory check failed: Item out of stock
 
   it("should find all throw statements in order service", async () => {
     const env = createEnv();
-    const result = await env.exec('grep -n "throw" /app/src/services/order.ts');
+    const result = toText(
+      await env.exec('grep -n "throw" /app/src/services/order.ts'),
+    );
     expect(result.stdout).toBe(`40:      throw error;
 48:      throw new Error('Order must have at least one item');
 56:        throw new Error(\`Inventory check failed: Item out of stock\`);
@@ -401,8 +416,8 @@ Error: Inventory check failed: Item out of stock
 
   it("should find all error logging statements", async () => {
     const env = createEnv();
-    const result = await env.exec(
-      'grep -rn "logger.error" /app/src --include="*.ts"',
+    const result = toText(
+      await env.exec('grep -rn "logger.error" /app/src --include="*.ts"'),
     );
     expect(
       result.stdout,
@@ -416,7 +431,9 @@ Error: Inventory check failed: Item out of stock
 
   it("should find try-catch blocks in services", async () => {
     const env = createEnv();
-    const result = await env.exec('grep -c "try {" /app/src/services/*.ts');
+    const result = toText(
+      await env.exec('grep -c "try {" /app/src/services/*.ts'),
+    );
     expect(result.stdout).toBe(`/app/src/services/inventory.ts:0
 /app/src/services/order.ts:2
 /app/src/services/payment.ts:1
@@ -428,8 +445,10 @@ Error: Inventory check failed: Item out of stock
     const env = createEnv();
 
     // Find all method calls in processOrder
-    const result = await env.exec(
-      'grep -A 30 "async processOrder" /app/src/services/order.ts | grep -E "this\\.|await "',
+    const result = toText(
+      await env.exec(
+        'grep -A 30 "async processOrder" /app/src/services/order.ts | grep -E "this\\.|await "',
+      ),
     );
     expect(result.stdout).toBe(`      this.validateOrder(order);
       await this.reserveItems(order.items);
@@ -442,7 +461,9 @@ Error: Inventory check failed: Item out of stock
 
   it("should find all service dependencies in order service", async () => {
     const env = createEnv();
-    const result = await env.exec('grep "^import" /app/src/services/order.ts');
+    const result = toText(
+      await env.exec('grep "^import" /app/src/services/order.ts'),
+    );
     expect(result.stdout).toBe(`import { PaymentService } from './payment';
 import { InventoryService } from './inventory';
 import { NotificationService } from './notification';
@@ -453,8 +474,8 @@ import { logger } from '../utils/logger';
 
   it("should find validation error messages", async () => {
     const env = createEnv();
-    const result = await env.exec(
-      'grep "error:" /app/src/validators/payment.ts',
+    const result = toText(
+      await env.exec('grep "error:" /app/src/validators/payment.ts'),
     );
     expect(
       result.stdout,
@@ -467,8 +488,10 @@ import { logger } from '../utils/logger';
 
   it("should count total lines in files from stack trace", async () => {
     const env = createEnv();
-    const result = await env.exec(
-      "wc -l /app/src/services/order.ts /app/src/services/payment.ts /app/src/validators/payment.ts",
+    const result = toText(
+      await env.exec(
+        "wc -l /app/src/services/order.ts /app/src/services/payment.ts /app/src/validators/payment.ts",
+      ),
     );
     expect(result.stdout).toBe(` 76 /app/src/services/order.ts
  39 /app/src/services/payment.ts
@@ -480,8 +503,8 @@ import { logger } from '../utils/logger';
 
   it("should find all files that import the order service", async () => {
     const env = createEnv();
-    const result = await env.exec(
-      'grep -rl "OrderService" /app/src --include="*.ts"',
+    const result = toText(
+      await env.exec('grep -rl "OrderService" /app/src --include="*.ts"'),
     );
     expect(result.stdout).toBe(`/app/src/controllers/order.ts
 /app/src/services/order.ts

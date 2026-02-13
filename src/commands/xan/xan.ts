@@ -6,6 +6,7 @@
  */
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 import {
   cmdAgg,
@@ -315,8 +316,8 @@ export const xanCommand: Command = {
     // Check if command is known but not implemented
     if (NOT_IMPLEMENTED.has(subcommand)) {
       return {
-        stdout: "",
-        stderr: `xan ${subcommand}: not yet implemented\n`,
+        stdout: EMPTY,
+        stderr: encode(`xan ${subcommand}: not yet implemented\n`),
         exitCode: 1,
       };
     }
@@ -424,14 +425,16 @@ export const xanCommand: Command = {
         // Check if it's a known command (typo suggestion)
         if (KNOWN_COMMANDS.has(subcommand)) {
           return {
-            stdout: "",
-            stderr: `xan ${subcommand}: not yet implemented\n`,
+            stdout: EMPTY,
+            stderr: encode(`xan ${subcommand}: not yet implemented\n`),
             exitCode: 1,
           };
         }
         return {
-          stdout: "",
-          stderr: `xan: unknown command '${subcommand}'\nRun 'xan --help' for usage.\n`,
+          stdout: EMPTY,
+          stderr: encode(
+            `xan: unknown command '${subcommand}'\nRun 'xan --help' for usage.\n`,
+          ),
           exitCode: 1,
         };
     }

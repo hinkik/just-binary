@@ -12,6 +12,7 @@ import {
   vi,
 } from "vitest";
 import { Bash } from "../../../Bash.js";
+import { toText } from "../../../test-utils.js";
 
 const originalFetch = global.fetch;
 let lastSignal: AbortSignal | null | undefined;
@@ -43,7 +44,9 @@ describe("curl timeouts", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://api.example.com"] },
       });
-      const result = await env.exec("curl -m 5 https://api.example.com/test");
+      const result = toText(
+        await env.exec("curl -m 5 https://api.example.com/test"),
+      );
       expect(result.exitCode).toBe(0);
       // Request was made with an abort signal
       expect(lastSignal).toBeDefined();
@@ -53,8 +56,8 @@ describe("curl timeouts", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://api.example.com"] },
       });
-      const result = await env.exec(
-        "curl --max-time 10 https://api.example.com/test",
+      const result = toText(
+        await env.exec("curl --max-time 10 https://api.example.com/test"),
       );
       expect(result.exitCode).toBe(0);
     });
@@ -63,8 +66,8 @@ describe("curl timeouts", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://api.example.com"] },
       });
-      const result = await env.exec(
-        "curl --max-time=30 https://api.example.com/test",
+      const result = toText(
+        await env.exec("curl --max-time=30 https://api.example.com/test"),
       );
       expect(result.exitCode).toBe(0);
     });
@@ -73,7 +76,9 @@ describe("curl timeouts", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://api.example.com"] },
       });
-      const result = await env.exec("curl -m 0.5 https://api.example.com/test");
+      const result = toText(
+        await env.exec("curl -m 0.5 https://api.example.com/test"),
+      );
       expect(result.exitCode).toBe(0);
     });
   });
@@ -83,8 +88,8 @@ describe("curl timeouts", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://api.example.com"] },
       });
-      const result = await env.exec(
-        "curl --connect-timeout 5 https://api.example.com/test",
+      const result = toText(
+        await env.exec("curl --connect-timeout 5 https://api.example.com/test"),
       );
       expect(result.exitCode).toBe(0);
     });
@@ -93,8 +98,10 @@ describe("curl timeouts", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://api.example.com"] },
       });
-      const result = await env.exec(
-        "curl --connect-timeout=10 https://api.example.com/test",
+      const result = toText(
+        await env.exec(
+          "curl --connect-timeout=10 https://api.example.com/test",
+        ),
       );
       expect(result.exitCode).toBe(0);
     });
@@ -118,7 +125,9 @@ describe("curl timeouts", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://api.example.com"] },
       });
-      const result = await env.exec("curl -m 1 https://api.example.com/slow");
+      const result = toText(
+        await env.exec("curl -m 1 https://api.example.com/slow"),
+      );
 
       expect(result.exitCode).toBe(28); // CURLE_OPERATION_TIMEDOUT
       expect(result.stderr).toContain("aborted");

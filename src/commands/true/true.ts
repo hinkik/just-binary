@@ -1,10 +1,11 @@
 import type { Command, ExecResult } from "../../types.js";
+import { EMPTY } from "../../utils/bytes.js";
 
 export const trueCommand: Command = {
   name: "true",
 
   async execute(): Promise<ExecResult> {
-    return { stdout: "", stderr: "", exitCode: 0 };
+    return { stdout: EMPTY, stderr: EMPTY, exitCode: 0 };
   },
 };
 
@@ -12,7 +13,7 @@ export const falseCommand: Command = {
   name: "false",
 
   async execute(): Promise<ExecResult> {
-    return { stdout: "", stderr: "", exitCode: 1 };
+    return { stdout: EMPTY, stderr: EMPTY, exitCode: 1 };
   },
 };
 

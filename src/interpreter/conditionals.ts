@@ -15,6 +15,7 @@ import { parseArithmeticExpression } from "../parser/arithmetic-parser.js";
 import { Parser } from "../parser/parser.js";
 import { createUserRegex } from "../regex/index.js";
 import type { ExecResult } from "../types.js";
+import { EMPTY } from "../utils/bytes.js";
 import { evaluateArithmetic } from "./arithmetic.js";
 import {
   escapeRegexChars,
@@ -218,7 +219,7 @@ export async function evaluateTestArgs(
   args: string[],
 ): Promise<ExecResult> {
   if (args.length === 0) {
-    return execResult("", "", 1);
+    return execResult(EMPTY, EMPTY, 1);
   }
 
   if (args.length === 1) {
@@ -270,7 +271,7 @@ export async function evaluateTestArgs(
     ) {
       return failure(`test: ${op}: unary operator expected\n`, 2);
     }
-    return execResult("", "", 1);
+    return execResult(EMPTY, EMPTY, 1);
   }
 
   if (args.length === 3) {
@@ -293,7 +294,7 @@ export async function evaluateTestArgs(
       const rightNum = parseNumericDecimal(right);
       // Invalid operand returns exit code 2
       if (!leftNum.valid || !rightNum.valid) {
-        return execResult("", "", 2);
+        return execResult(EMPTY, EMPTY, 2);
       }
       return testResult(compareNumeric(op, leftNum.value, rightNum.value));
     }
@@ -322,7 +323,7 @@ export async function evaluateTestArgs(
     if (left === "!") {
       const negResult = await evaluateTestArgs(ctx, [op, right]);
       return execResult(
-        "",
+        EMPTY,
         negResult.stderr,
         negResult.exitCode === 0
           ? 1
@@ -344,7 +345,7 @@ export async function evaluateTestArgs(
     if (args[0] === "!") {
       const negResult = await evaluateTestArgs(ctx, args.slice(1));
       return execResult(
-        "",
+        EMPTY,
         negResult.stderr,
         negResult.exitCode === 0
           ? 1

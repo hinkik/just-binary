@@ -3,6 +3,7 @@
  */
 
 import type { CommandContext, ExecResult } from "../../types.js";
+import { EMPTY, encode } from "../../utils/bytes.js";
 import { formatCsv, readCsvInput } from "./csv.js";
 
 export async function cmdHeaders(
@@ -20,7 +21,7 @@ export async function cmdHeaders(
     ? `${headers.map((h) => h).join("\n")}\n`
     : `${headers.map((h, i) => `${i}   ${h}`).join("\n")}\n`;
 
-  return { stdout: output, stderr: "", exitCode: 0 };
+  return { stdout: encode(output), stderr: EMPTY, exitCode: 0 };
 }
 
 export async function cmdCount(
@@ -29,7 +30,7 @@ export async function cmdCount(
 ): Promise<ExecResult> {
   const { data, error } = await readCsvInput(args, ctx);
   if (error) return error;
-  return { stdout: `${data.length}\n`, stderr: "", exitCode: 0 };
+  return { stdout: encode(`${data.length}\n`), stderr: EMPTY, exitCode: 0 };
 }
 
 export async function cmdHead(
@@ -50,7 +51,11 @@ export async function cmdHead(
   if (error) return error;
 
   const rows = data.slice(0, n);
-  return { stdout: formatCsv(headers, rows), stderr: "", exitCode: 0 };
+  return {
+    stdout: encode(formatCsv(headers, rows)),
+    stderr: EMPTY,
+    exitCode: 0,
+  };
 }
 
 export async function cmdTail(
@@ -71,7 +76,11 @@ export async function cmdTail(
   if (error) return error;
 
   const rows = data.slice(-n);
-  return { stdout: formatCsv(headers, rows), stderr: "", exitCode: 0 };
+  return {
+    stdout: encode(formatCsv(headers, rows)),
+    stderr: EMPTY,
+    exitCode: 0,
+  };
 }
 
 export async function cmdSlice(
@@ -110,7 +119,11 @@ export async function cmdSlice(
   }
 
   const rows = data.slice(startIdx, endIdx);
-  return { stdout: formatCsv(headers, rows), stderr: "", exitCode: 0 };
+  return {
+    stdout: encode(formatCsv(headers, rows)),
+    stderr: EMPTY,
+    exitCode: 0,
+  };
 }
 
 export async function cmdReverse(
@@ -121,5 +134,9 @@ export async function cmdReverse(
   if (error) return error;
 
   const rows = [...data].reverse();
-  return { stdout: formatCsv(headers, rows), stderr: "", exitCode: 0 };
+  return {
+    stdout: encode(formatCsv(headers, rows)),
+    stderr: EMPTY,
+    exitCode: 0,
+  };
 }

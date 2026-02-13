@@ -1,6 +1,7 @@
 import { getErrorMessage } from "../../interpreter/helpers/errors.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
+import { EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const mvHelp = {
@@ -44,8 +45,8 @@ export const mvCommand: Command = {
 
     if (paths.length < 2) {
       return {
-        stdout: "",
-        stderr: "mv: missing destination file operand\n",
+        stdout: EMPTY,
+        stderr: encode("mv: missing destination file operand\n"),
         exitCode: 1,
       };
     }
@@ -73,8 +74,8 @@ export const mvCommand: Command = {
     // If multiple sources, dest must be a directory
     if (sources.length > 1 && !destIsDir) {
       return {
-        stdout: "",
-        stderr: `mv: target '${dest}' is not a directory\n`,
+        stdout: EMPTY,
+        stderr: encode(`mv: target '${dest}' is not a directory\n`),
         exitCode: 1,
       };
     }
@@ -120,7 +121,7 @@ export const mvCommand: Command = {
       }
     }
 
-    return { stdout, stderr, exitCode };
+    return { stdout: encode(stdout), stderr: encode(stderr), exitCode };
   },
 };
 

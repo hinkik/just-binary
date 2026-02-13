@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { toText } from "../../test-utils.js";
 
 describe("ls -h (human-readable)", () => {
   it("displays bytes for small files", async () => {
@@ -8,7 +9,7 @@ describe("ls -h (human-readable)", () => {
         "/test/small.txt": { content: "a".repeat(100) },
       },
     });
-    const result = await env.exec("ls -lh /test");
+    const result = toText(await env.exec("ls -lh /test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("100");
     expect(result.stdout).toContain("small.txt");
@@ -20,7 +21,7 @@ describe("ls -h (human-readable)", () => {
         "/test/medium.txt": { content: "a".repeat(1536) }, // 1.5K
       },
     });
-    const result = await env.exec("ls -lh /test");
+    const result = toText(await env.exec("ls -lh /test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toMatch(/1\.5K/);
     expect(result.stdout).toContain("medium.txt");
@@ -32,7 +33,7 @@ describe("ls -h (human-readable)", () => {
         "/test/data.txt": { content: "a".repeat(15 * 1024) }, // 15K
       },
     });
-    const result = await env.exec("ls -lh /test");
+    const result = toText(await env.exec("ls -lh /test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toMatch(/15K/);
     expect(result.stdout).toContain("data.txt");
@@ -44,7 +45,7 @@ describe("ls -h (human-readable)", () => {
         "/test/big.txt": { content: "a".repeat(2 * 1024 * 1024) }, // 2M
       },
     });
-    const result = await env.exec("ls -lh /test");
+    const result = toText(await env.exec("ls -lh /test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toMatch(/2\.0M/);
     expect(result.stdout).toContain("big.txt");
@@ -56,7 +57,7 @@ describe("ls -h (human-readable)", () => {
         "/test/file.txt": { content: "a".repeat(2048) }, // 2K
       },
     });
-    const result = await env.exec("ls -l --human-readable /test");
+    const result = toText(await env.exec("ls -l --human-readable /test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toMatch(/2\.0K/);
   });
@@ -67,7 +68,7 @@ describe("ls -h (human-readable)", () => {
         "/test/file.txt": { content: "a".repeat(1536) }, // Would be 1.5K with -h
       },
     });
-    const result = await env.exec("ls -l /test");
+    const result = toText(await env.exec("ls -l /test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("1536");
     expect(result.stdout).not.toMatch(/1\.5K/);
@@ -80,7 +81,7 @@ describe("ls -h (human-readable)", () => {
         "/test/.hidden.txt": { content: "b".repeat(4096) }, // 4K
       },
     });
-    const result = await env.exec("ls -lah /test");
+    const result = toText(await env.exec("ls -lah /test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toMatch(/3\.0K/);
     expect(result.stdout).toMatch(/4\.0K/);

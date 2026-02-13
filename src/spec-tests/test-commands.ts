@@ -7,6 +7,7 @@
 
 import { defineCommand } from "../custom-commands.js";
 import type { Command } from "../types.js";
+import { decode, EMPTY, encode } from "../utils/bytes.js";
 
 // argv.py - prints arguments in Python 2 repr() format: ['arg1', "arg with '"]
 // Python uses single quotes by default, double quotes when string contains single quotes
@@ -60,7 +61,11 @@ export const argvCommand: Command = defineCommand("argv.py", async (args) => {
     escaped = escaped.replace(/'/g, "\\'");
     return `'${escaped}'`;
   });
-  return { stdout: `[${formatted.join(", ")}]\n`, stderr: "", exitCode: 0 };
+  return {
+    stdout: encode(`[${formatted.join(", ")}]\n`),
+    stderr: EMPTY,
+    exitCode: 0,
+  };
 });
 
 // printenv.py - prints environment variable values, one per line
@@ -78,8 +83,8 @@ export const printenvCommand: Command = defineCommand(
       })
       .join("\n");
     return {
-      stdout: output ? `${output}\n` : "",
-      stderr: "",
+      stdout: encode(output ? `${output}\n` : ""),
+      stderr: EMPTY,
       exitCode: 0,
     };
   },
@@ -91,7 +96,7 @@ export const stdoutStderrCommand: Command = defineCommand(
   "stdout_stderr.py",
   async (args) => {
     const stdout = args.length > 0 ? `${args[0]}\n` : "STDOUT\n";
-    return { stdout, stderr: "STDERR\n", exitCode: 0 };
+    return { stdout: encode(stdout), stderr: encode("STDERR\n"), exitCode: 0 };
   },
 );
 
@@ -111,7 +116,7 @@ export const readFromFdCommand: Command = defineCommand(
       let content = "";
       if (fd === 0) {
         // FD 0 is stdin
-        content = ctx.stdin || "";
+        content = ctx.stdin ? decode(ctx.stdin) : "";
       } else if (ctx.fileDescriptors) {
         // Other FDs from the fileDescriptors map
         content = ctx.fileDescriptors.get(fd) || "";
@@ -123,8 +128,8 @@ export const readFromFdCommand: Command = defineCommand(
     }
 
     return {
-      stdout: results.length > 0 ? `${results.join("\n")}\n` : "",
-      stderr: "",
+      stdout: encode(results.length > 0 ? `${results.join("\n")}\n` : ""),
+      stderr: EMPTY,
       exitCode: 0,
     };
   },

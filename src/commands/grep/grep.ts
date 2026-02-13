@@ -1,5 +1,6 @@
 import type { UserRegex } from "../../regex/index.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { decode, EMPTY, encode } from "../../utils/bytes.js";
 import { matchGlob } from "../../utils/glob.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 import { buildRegex, searchContent } from "../search-engine/index.js";
@@ -189,8 +190,8 @@ export const grepCommand: Command = {
 
     if (pattern === null) {
       return {
-        stdout: "",
-        stderr: "grep: missing pattern\n",
+        stdout: EMPTY,
+        stderr: encode("grep: missing pattern\n"),
         exitCode: 2,
       };
     }
@@ -217,15 +218,15 @@ export const grepCommand: Command = {
       kResetGroup = regexResult.kResetGroup;
     } catch {
       return {
-        stdout: "",
-        stderr: `grep: invalid regular expression: ${pattern}\n`,
+        stdout: EMPTY,
+        stderr: encode(`grep: invalid regular expression: ${pattern}\n`),
         exitCode: 2,
       };
     }
 
     // If no files and stdin is provided (including empty string), read from stdin
     if (files.length === 0 && ctx.stdin !== undefined) {
-      const result = searchContent(ctx.stdin, regex, {
+      const result = searchContent(decode(ctx.stdin), regex, {
         invertMatch,
         showLineNumbers,
         countOnly,
@@ -237,19 +238,23 @@ export const grepCommand: Command = {
         kResetGroup,
       });
       if (quietMode) {
-        return { stdout: "", stderr: "", exitCode: result.matched ? 0 : 1 };
+        return {
+          stdout: EMPTY,
+          stderr: EMPTY,
+          exitCode: result.matched ? 0 : 1,
+        };
       }
       return {
-        stdout: result.output,
-        stderr: "",
+        stdout: encode(result.output),
+        stderr: EMPTY,
         exitCode: result.matched ? 0 : 1,
       };
     }
 
     if (files.length === 0) {
       return {
-        stdout: "",
-        stderr: "grep: no input files\n",
+        stdout: EMPTY,
+        stderr: encode("grep: no input files\n"),
         exitCode: 2,
       };
     }
@@ -389,7 +394,7 @@ export const grepCommand: Command = {
           anyMatch = true;
           if (quietMode) {
             // In quiet mode, exit immediately on first match
-            return { stdout: "", stderr: "", exitCode: 0 };
+            return { stdout: EMPTY, stderr: EMPTY, exitCode: 0 };
           }
           if (filesWithMatches) {
             stdout += `${file}\n`;
@@ -419,14 +424,10 @@ export const grepCommand: Command = {
     }
 
     if (quietMode) {
-      return { stdout: "", stderr: "", exitCode };
+      return { stdout: EMPTY, stderr: EMPTY, exitCode };
     }
 
-    return {
-      stdout,
-      stderr,
-      exitCode,
-    };
+    return { stdout: encode(stdout), stderr: encode(stderr), exitCode };
   },
 };
 

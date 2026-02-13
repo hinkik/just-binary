@@ -6,33 +6,34 @@
 
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../../Bash.js";
+import { toText } from "../../../test-utils.js";
 
 describe("curl availability", () => {
   describe("without network configuration", () => {
     it("curl command does not exist", async () => {
       const env = new Bash();
-      const result = await env.exec("curl https://example.com");
+      const result = toText(await env.exec("curl https://example.com"));
       expect(result.exitCode).toBe(127); // Command not found
       expect(result.stderr).toContain("command not found");
     });
 
     it("curl is not in /bin", async () => {
       const env = new Bash();
-      const result = await env.exec("ls /bin/curl");
+      const result = toText(await env.exec("ls /bin/curl"));
       expect(result.exitCode).not.toBe(0);
       expect(result.stderr).toContain("No such file");
     });
 
     it("curl does not appear in ls /bin output", async () => {
       const env = new Bash();
-      const result = await env.exec("ls /bin | grep ^curl$");
+      const result = toText(await env.exec("ls /bin | grep ^curl$"));
       expect(result.stdout).toBe("");
       expect(result.exitCode).toBe(1); // grep returns 1 when no match
     });
 
     it("curl is not listed among available commands", async () => {
       const env = new Bash();
-      const result = await env.exec("ls /bin");
+      const result = toText(await env.exec("ls /bin"));
       expect(result.stdout).not.toContain("curl");
     });
   });
@@ -42,7 +43,7 @@ describe("curl availability", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://example.com"] },
       });
-      const result = await env.exec("curl --help");
+      const result = toText(await env.exec("curl --help"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("curl");
     });
@@ -51,7 +52,7 @@ describe("curl availability", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://example.com"] },
       });
-      const result = await env.exec("ls /bin/curl");
+      const result = toText(await env.exec("ls /bin/curl"));
       expect(result.exitCode).toBe(0);
     });
 
@@ -59,7 +60,7 @@ describe("curl availability", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://example.com"] },
       });
-      const result = await env.exec("curl --help");
+      const result = toText(await env.exec("curl --help"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("transfer a URL");
       expect(result.stdout).toContain("-X");

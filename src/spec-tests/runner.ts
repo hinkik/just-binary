@@ -3,6 +3,7 @@
  */
 
 import { Bash } from "../Bash.js";
+import { decode } from "../utils/bytes.js";
 import {
   getAcceptableStatuses,
   getAcceptableStderrs,
@@ -123,7 +124,7 @@ export async function runTestCase(
     // Use getAcceptableStdouts to handle OK variants (e.g., "## OK bash stdout-json: ...")
     const acceptableStdouts = getAcceptableStdouts(testCase);
     if (acceptableStdouts.length > 0) {
-      const normalizedActual = normalizeOutput(result.stdout);
+      const normalizedActual = normalizeOutput(decode(result.stdout));
       const normalizedAcceptable = acceptableStdouts.map((s) =>
         normalizeOutput(s),
       );
@@ -144,7 +145,7 @@ export async function runTestCase(
     // Use getAcceptableStderrs to handle OK variants (e.g., "## OK bash STDERR: ...")
     const acceptableStderrs = getAcceptableStderrs(testCase);
     if (acceptableStderrs.length > 0) {
-      const normalizedActual = normalizeOutput(result.stderr);
+      const normalizedActual = normalizeOutput(decode(result.stderr));
       const normalizedAcceptable = acceptableStderrs.map((s) =>
         normalizeOutput(s),
       );
@@ -189,8 +190,8 @@ export async function runTestCase(
           passed: false,
           skipped: false,
           unexpectedPass: true,
-          actualStdout: result.stdout,
-          actualStderr: result.stderr,
+          actualStdout: decode(result.stdout),
+          actualStderr: decode(result.stderr),
           actualStatus: result.exitCode,
           expectedStdout,
           expectedStderr,
@@ -205,8 +206,8 @@ export async function runTestCase(
         passed: true,
         skipped: true,
         skipReason: `## SKIP: ${skipReason}`,
-        actualStdout: result.stdout,
-        actualStderr: result.stderr,
+        actualStdout: decode(result.stdout),
+        actualStderr: decode(result.stderr),
         actualStatus: result.exitCode,
         expectedStdout,
         expectedStderr,
@@ -218,8 +219,8 @@ export async function runTestCase(
       testCase,
       passed,
       skipped: false,
-      actualStdout: result.stdout,
-      actualStderr: result.stderr,
+      actualStdout: decode(result.stdout),
+      actualStderr: decode(result.stderr),
       actualStatus: result.exitCode,
       expectedStdout,
       expectedStderr,

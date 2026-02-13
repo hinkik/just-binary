@@ -6,6 +6,7 @@
  */
 
 import type { CommandContext, ExecResult } from "../types.js";
+import { concat, EMPTY, encode } from "./bytes.js";
 import { DEFAULT_BATCH_SIZE } from "./constants.js";
 
 export interface ReadFilesOptions {
@@ -23,7 +24,7 @@ export interface FileContent {
   /** File name (or "-" for stdin, or "" if stdin with no files) */
   filename: string;
   /** File content */
-  content: string;
+  content: Uint8Array;
 }
 
 export interface ReadFilesResult {
@@ -81,18 +82,20 @@ export async function readFiles(
     const batchResults = await Promise.all(
       batch.map(async (file) => {
         if (allowStdinMarker && file === "-") {
-          return { filename: "-", content: ctx.stdin, error: null };
+          return {
+            filename: "-",
+            content: ctx.stdin,
+            error: null,
+          };
         }
         try {
           const filePath = ctx.fs.resolvePath(ctx.cwd, file);
-          // Use binary encoding to preserve all bytes (including non-UTF-8)
-          // This is important for piping binary data through commands like cat
-          const content = await ctx.fs.readFile(filePath, "binary");
+          const content = await ctx.fs.readFileBuffer(filePath);
           return { filename: file, content, error: null };
         } catch {
           return {
             filename: file,
-            content: "",
+            content: EMPTY,
             error: `${cmdName}: ${file}: No such file or directory\n`,
           };
         }
@@ -130,7 +133,9 @@ export async function readAndConcat(
   ctx: CommandContext,
   files: string[],
   options: { cmdName: string; allowStdinMarker?: boolean },
-): Promise<{ ok: true; content: string } | { ok: false; error: ExecResult }> {
+): Promise<
+  { ok: true; content: Uint8Array } | { ok: false; error: ExecResult }
+> {
   const result = await readFiles(ctx, files, {
     ...options,
     stopOnError: true,
@@ -139,10 +144,17 @@ export async function readAndConcat(
   if (result.exitCode !== 0) {
     return {
       ok: false,
-      error: { stdout: "", stderr: result.stderr, exitCode: result.exitCode },
+      error: {
+        stdout: EMPTY,
+        stderr: encode(result.stderr),
+        exitCode: result.exitCode,
+      },
     };
   }
 
-  const content = result.files.map((f) => f.content).join("");
+  const content = result.files.reduce(
+    (acc, f) => concat(acc, f.content),
+    EMPTY as Uint8Array,
+  );
   return { ok: true, content };
 }

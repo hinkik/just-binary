@@ -6,6 +6,7 @@
 
 import { ExecutionLimitError } from "../../interpreter/errors.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { decode, EMPTY, encode } from "../../utils/bytes.js";
 import { readFiles } from "../../utils/file-reader.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 import {
@@ -249,7 +250,7 @@ export const jqCommand: Command = {
     if (nullInput) {
       // No input
     } else if (files.length === 0 || (files.length === 1 && files[0] === "-")) {
-      inputs.push({ source: "stdin", content: ctx.stdin });
+      inputs.push({ source: "stdin", content: decode(ctx.stdin) });
     } else {
       // Read all files in parallel using shared utility
       const result = await readFiles(ctx, files, {
@@ -258,14 +259,14 @@ export const jqCommand: Command = {
       });
       if (result.exitCode !== 0) {
         return {
-          stdout: "",
-          stderr: result.stderr,
+          stdout: EMPTY,
+          stderr: encode(result.stderr),
           exitCode: 2, // jq uses exit code 2 for file errors
         };
       }
       inputs = result.files.map((f) => ({
         source: f.filename || "stdin",
-        content: f.content,
+        content: decode(f.content),
       }));
     }
 
@@ -335,29 +336,29 @@ export const jqCommand: Command = {
           : 0;
 
       return {
-        stdout: output ? (joinOutput ? output : `${output}\n`) : "",
-        stderr: "",
+        stdout: encode(output ? (joinOutput ? output : `${output}\n`) : ""),
+        stderr: EMPTY,
         exitCode,
       };
     } catch (e) {
       if (e instanceof ExecutionLimitError) {
         return {
-          stdout: "",
-          stderr: `jq: ${e.message}\n`,
+          stdout: EMPTY,
+          stderr: encode(`jq: ${e.message}\n`),
           exitCode: ExecutionLimitError.EXIT_CODE,
         };
       }
       const msg = (e as Error).message;
       if (msg.includes("Unknown function")) {
         return {
-          stdout: "",
-          stderr: `jq: error: ${msg}\n`,
+          stdout: EMPTY,
+          stderr: encode(`jq: error: ${msg}\n`),
           exitCode: 3,
         };
       }
       return {
-        stdout: "",
-        stderr: `jq: parse error: ${msg}\n`,
+        stdout: EMPTY,
+        stderr: encode(`jq: parse error: ${msg}\n`),
         exitCode: 5,
       };
     }

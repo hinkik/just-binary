@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { toText } from "../../test-utils.js";
 
 describe("od with binary data", () => {
   describe("binary file dump", () => {
@@ -10,7 +11,7 @@ describe("od with binary data", () => {
         },
       });
 
-      const result = await env.exec("od /binary.bin");
+      const result = toText(await env.exec("od /binary.bin"));
 
       expect(result.exitCode).toBe(0);
       // od outputs octal by default
@@ -25,7 +26,7 @@ describe("od with binary data", () => {
         },
       });
 
-      const result = await env.exec("od -c /nulls.bin");
+      const result = toText(await env.exec("od -c /nulls.bin"));
 
       expect(result.exitCode).toBe(0);
       // od -c shows characters, \0 for null
@@ -43,7 +44,7 @@ describe("od with binary data", () => {
         },
       });
 
-      const result = await env.exec("od /allbytes.bin");
+      const result = toText(await env.exec("od /allbytes.bin"));
 
       expect(result.exitCode).toBe(0);
       expect(result.stdout.length).toBeGreaterThan(0);
@@ -58,7 +59,7 @@ describe("od with binary data", () => {
         },
       });
 
-      const result = await env.exec("cat /binary.bin | od");
+      const result = toText(await env.exec("cat /binary.bin | od"));
 
       expect(result.exitCode).toBe(0);
       expect(result.stdout.length).toBeGreaterThan(0);
@@ -71,7 +72,7 @@ describe("od with binary data", () => {
         },
       });
 
-      const result = await env.exec("cat /binary.bin | od -c");
+      const result = toText(await env.exec("cat /binary.bin | od -c"));
 
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("A");

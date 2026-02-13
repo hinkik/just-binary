@@ -10,6 +10,7 @@
  */
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 import { formatTypeList } from "./file-types.js";
 import { parseArgs } from "./rg-parser.js";
@@ -93,8 +94,8 @@ export const rgCommand: Command = {
 
     if (args.includes("--type-list")) {
       return {
-        stdout: formatTypeList(),
-        stderr: "",
+        stdout: encode(formatTypeList()),
+        stderr: EMPTY,
         exitCode: 0,
       };
     }

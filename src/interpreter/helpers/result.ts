@@ -6,6 +6,7 @@
  */
 
 import type { ExecResult } from "../../types.js";
+import { EMPTY, encode } from "../../utils/bytes.js";
 import { ExecutionLimitError } from "../errors.js";
 
 /**
@@ -13,19 +14,30 @@ import { ExecutionLimitError } from "../errors.js";
  * Use this for commands that succeed silently.
  */
 export const OK: ExecResult = Object.freeze({
-  stdout: "",
-  stderr: "",
+  stdout: EMPTY,
+  stderr: EMPTY,
   exitCode: 0,
 });
 
 /**
- * Create a successful result with optional stdout.
+ * Create a successful result with optional stdout bytes.
  *
- * @param stdout - Output to include (default: "")
+ * @param stdout - Output bytes to include (default: EMPTY)
  * @returns ExecResult with exitCode 0
  */
-export function success(stdout = ""): ExecResult {
-  return { stdout, stderr: "", exitCode: 0 };
+export function success(stdout: Uint8Array = EMPTY): ExecResult {
+  return { stdout, stderr: EMPTY, exitCode: 0 };
+}
+
+/**
+ * Create a successful result from a text string.
+ * Convenience wrapper that encodes the string to UTF-8.
+ *
+ * @param stdout - Text output to include
+ * @returns ExecResult with exitCode 0
+ */
+export function successText(stdout: string): ExecResult {
+  return { stdout: encode(stdout), stderr: EMPTY, exitCode: 0 };
 }
 
 /**
@@ -36,20 +48,20 @@ export function success(stdout = ""): ExecResult {
  * @returns ExecResult with the specified exitCode
  */
 export function failure(stderr: string, exitCode = 1): ExecResult {
-  return { stdout: "", stderr, exitCode };
+  return { stdout: EMPTY, stderr: encode(stderr), exitCode };
 }
 
 /**
  * Create a result with all fields specified.
  *
- * @param stdout - Standard output
- * @param stderr - Standard error
+ * @param stdout - Standard output bytes
+ * @param stderr - Standard error bytes
  * @param exitCode - Exit code
  * @returns ExecResult with all fields
  */
 export function result(
-  stdout: string,
-  stderr: string,
+  stdout: Uint8Array,
+  stderr: Uint8Array,
   exitCode: number,
 ): ExecResult {
   return { stdout, stderr, exitCode };
@@ -63,7 +75,7 @@ export function result(
  * @returns ExecResult with exitCode 0 if passed, 1 otherwise
  */
 export function testResult(passed: boolean): ExecResult {
-  return { stdout: "", stderr: "", exitCode: passed ? 0 : 1 };
+  return { stdout: EMPTY, stderr: EMPTY, exitCode: passed ? 0 : 1 };
 }
 
 /**
@@ -78,8 +90,8 @@ export function testResult(passed: boolean): ExecResult {
 export function throwExecutionLimit(
   message: string,
   limitType: "recursion" | "iterations" | "commands",
-  stdout = "",
-  stderr = "",
+  stdout: Uint8Array = EMPTY,
+  stderr: Uint8Array = EMPTY,
 ): never {
   throw new ExecutionLimitError(message, limitType, stdout, stderr);
 }

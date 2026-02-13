@@ -4,6 +4,7 @@
 
 import Papa from "papaparse";
 import type { CommandContext, ExecResult } from "../../types.js";
+import { decode, EMPTY, encode } from "../../utils/bytes.js";
 
 export interface CsvRow {
   [key: string]: string | number | boolean | null;
@@ -88,7 +89,7 @@ export async function readCsvInput(
   let input: string;
 
   if (!file || file === "-") {
-    input = ctx.stdin;
+    input = decode(ctx.stdin);
   } else {
     try {
       const path = ctx.fs.resolvePath(ctx.cwd, file);
@@ -98,8 +99,8 @@ export async function readCsvInput(
         headers: [],
         data: [],
         error: {
-          stdout: "",
-          stderr: `xan: ${file}: No such file or directory\n`,
+          stdout: EMPTY,
+          stderr: encode(`xan: ${file}: No such file or directory\n`),
           exitCode: 1,
         },
       };

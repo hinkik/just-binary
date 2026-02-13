@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { toText } from "../../test-utils.js";
 
 describe("sed with binary content", () => {
   it("should perform substitution on binary file", async () => {
@@ -16,7 +17,7 @@ describe("sed with binary content", () => {
       },
     });
 
-    const result = await env.exec("sed 's/hello/world/' /data.bin");
+    const result = toText(await env.exec("sed 's/hello/world/' /data.bin"));
     expect(result.stdout).toBe("world\n");
     expect(result.exitCode).toBe(0);
   });

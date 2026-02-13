@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { toText } from "../../test-utils.js";
 
 describe("sleep command", () => {
   describe("basic functionality", () => {
@@ -11,7 +12,7 @@ describe("sleep command", () => {
         },
       });
 
-      const result = await env.exec("sleep 2");
+      const result = toText(await env.exec("sleep 2"));
       expect(result.exitCode).toBe(0);
       expect(sleptMs).toBe(2000);
     });
@@ -24,7 +25,7 @@ describe("sleep command", () => {
         },
       });
 
-      const result = await env.exec("sleep 0.5");
+      const result = toText(await env.exec("sleep 0.5"));
       expect(result.exitCode).toBe(0);
       expect(sleptMs).toBe(500);
     });
@@ -39,7 +40,7 @@ describe("sleep command", () => {
         },
       });
 
-      const result = await env.exec("sleep 3s");
+      const result = toText(await env.exec("sleep 3s"));
       expect(result.exitCode).toBe(0);
       expect(sleptMs).toBe(3000);
     });
@@ -52,7 +53,7 @@ describe("sleep command", () => {
         },
       });
 
-      const result = await env.exec("sleep 2m");
+      const result = toText(await env.exec("sleep 2m"));
       expect(result.exitCode).toBe(0);
       expect(sleptMs).toBe(120000);
     });
@@ -65,7 +66,7 @@ describe("sleep command", () => {
         },
       });
 
-      const result = await env.exec("sleep 1h");
+      const result = toText(await env.exec("sleep 1h"));
       expect(result.exitCode).toBe(0);
       expect(sleptMs).toBe(3600000);
     });
@@ -78,7 +79,7 @@ describe("sleep command", () => {
         },
       });
 
-      const result = await env.exec("sleep 1d");
+      const result = toText(await env.exec("sleep 1d"));
       expect(result.exitCode).toBe(0);
       expect(sleptMs).toBe(86400000);
     });
@@ -91,7 +92,7 @@ describe("sleep command", () => {
         },
       });
 
-      const result = await env.exec("sleep 0.5m");
+      const result = toText(await env.exec("sleep 0.5m"));
       expect(result.exitCode).toBe(0);
       expect(sleptMs).toBe(30000);
     });
@@ -106,7 +107,7 @@ describe("sleep command", () => {
         },
       });
 
-      const result = await env.exec("sleep 1 2 3");
+      const result = toText(await env.exec("sleep 1 2 3"));
       expect(result.exitCode).toBe(0);
       expect(sleptMs).toBe(6000); // 1+2+3 = 6 seconds
     });
@@ -119,7 +120,7 @@ describe("sleep command", () => {
         },
       });
 
-      const result = await env.exec("sleep 1s 1m");
+      const result = toText(await env.exec("sleep 1s 1m"));
       expect(result.exitCode).toBe(0);
       expect(sleptMs).toBe(61000); // 1s + 60s = 61s
     });
@@ -129,7 +130,7 @@ describe("sleep command", () => {
     it("should error on missing operand", async () => {
       const env = new Bash({ sleep: async () => {} });
 
-      const result = await env.exec("sleep");
+      const result = toText(await env.exec("sleep"));
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("missing operand");
     });
@@ -137,7 +138,7 @@ describe("sleep command", () => {
     it("should error on invalid time interval", async () => {
       const env = new Bash({ sleep: async () => {} });
 
-      const result = await env.exec("sleep abc");
+      const result = toText(await env.exec("sleep abc"));
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("invalid time interval");
     });
@@ -145,7 +146,7 @@ describe("sleep command", () => {
     it("should error on invalid suffix", async () => {
       const env = new Bash({ sleep: async () => {} });
 
-      const result = await env.exec("sleep 1x");
+      const result = toText(await env.exec("sleep 1x"));
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("invalid time interval");
     });
@@ -155,7 +156,7 @@ describe("sleep command", () => {
     it("should show help with --help", async () => {
       const env = new Bash({ sleep: async () => {} });
 
-      const result = await env.exec("sleep --help");
+      const result = toText(await env.exec("sleep --help"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("sleep");
       expect(result.stdout).toContain("delay");
@@ -171,7 +172,7 @@ describe("sleep command", () => {
         },
       });
 
-      const result = await env.exec("sleep 0.01"); // 10ms
+      const result = toText(await env.exec("sleep 0.01")); // 10ms
       expect(result.exitCode).toBe(0);
       expect(sleptMs).toBe(10);
     });

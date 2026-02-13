@@ -5,6 +5,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { promisify } from "node:util";
 import { Bash } from "../Bash.js";
+import { decode } from "../utils/bytes.js";
 
 const execAsync: (
   command: string,
@@ -435,7 +436,7 @@ async function compareOutputsInternal(
     realBashExitCode = fixture.exitCode;
   }
 
-  let bashEnvStdout = bashEnvResult.stdout;
+  let bashEnvStdout = decode(bashEnvResult.stdout);
   let expectedStdout = realBashStdout;
 
   if (options?.normalizeWhitespace) {
@@ -447,7 +448,7 @@ async function compareOutputsInternal(
     throw new Error(
       `stdout mismatch for "${command}"\n` +
         `Expected (recorded bash): ${JSON.stringify(realBashStdout)}\n` +
-        `Received (BashEnv):       ${JSON.stringify(bashEnvResult.stdout)}`,
+        `Received (BashEnv):       ${JSON.stringify(bashEnvStdout)}`,
     );
   }
 

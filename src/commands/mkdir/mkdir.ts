@@ -1,6 +1,7 @@
 import { getErrorMessage } from "../../interpreter/helpers/errors.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
+import { EMPTY, encode } from "../../utils/bytes.js";
 
 const argDefs = {
   recursive: { short: "p", long: "parents", type: "boolean" as const },
@@ -20,8 +21,8 @@ export const mkdirCommand: Command = {
 
     if (dirs.length === 0) {
       return {
-        stdout: "",
-        stderr: "mkdir: missing operand\n",
+        stdout: EMPTY,
+        stderr: encode("mkdir: missing operand\n"),
         exitCode: 1,
       };
     }
@@ -53,7 +54,7 @@ export const mkdirCommand: Command = {
       }
     }
 
-    return { stdout, stderr, exitCode };
+    return { stdout: encode(stdout), stderr: encode(stderr), exitCode };
   },
 };
 

@@ -1,6 +1,7 @@
 import { getErrorMessage } from "../../interpreter/helpers/errors.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
+import { decode, EMPTY, encode } from "../../utils/bytes.js";
 
 const USAGE = `Usage: rmdir [-pv] DIRECTORY...
 Remove empty directories.
@@ -23,7 +24,7 @@ export const rmdirCommand: Command = {
     if (!parsed.ok) return parsed.error;
 
     if (parsed.result.flags.help) {
-      return { stdout: `${USAGE}\n`, stderr: "", exitCode: 0 };
+      return { stdout: encode(`${USAGE}\n`), stderr: EMPTY, exitCode: 0 };
     }
 
     const parents = parsed.result.flags.parents;
@@ -32,8 +33,8 @@ export const rmdirCommand: Command = {
 
     if (dirs.length === 0) {
       return {
-        stdout: "",
-        stderr: "rmdir: missing operand\n",
+        stdout: EMPTY,
+        stderr: encode("rmdir: missing operand\n"),
         exitCode: 1,
       };
     }
@@ -44,14 +45,14 @@ export const rmdirCommand: Command = {
 
     for (const dir of dirs) {
       const result = await removeDir(ctx, dir, parents, verbose);
-      stdout += result.stdout;
-      stderr += result.stderr;
+      stdout += decode(result.stdout);
+      stderr += decode(result.stderr);
       if (result.exitCode !== 0) {
         exitCode = result.exitCode;
       }
     }
 
-    return { stdout, stderr, exitCode };
+    return { stdout: encode(stdout), stderr: encode(stderr), exitCode };
   },
 };
 
@@ -69,10 +70,14 @@ async function removeDir(
 
   // First, try to remove the directory itself
   const result = await removeSingleDir(ctx, fullPath, dir, verbose);
-  stdout += result.stdout;
-  stderr += result.stderr;
+  stdout += decode(result.stdout);
+  stderr += decode(result.stderr);
   if (result.exitCode !== 0) {
-    return { stdout, stderr, exitCode: result.exitCode };
+    return {
+      stdout: encode(stdout),
+      stderr: encode(stderr),
+      exitCode: result.exitCode,
+    };
   }
 
   // If -p flag, remove parent directories
@@ -102,7 +107,7 @@ async function removeDir(
         parentDir,
         verbose,
       );
-      stdout += parentResult.stdout;
+      stdout += decode(parentResult.stdout);
 
       // For -p, we stop on first error but don't report it as failure
       // if we've already removed at least one directory
@@ -117,7 +122,7 @@ async function removeDir(
     }
   }
 
-  return { stdout, stderr, exitCode };
+  return { stdout: encode(stdout), stderr: encode(stderr), exitCode };
 }
 
 async function removeSingleDir(
@@ -131,8 +136,10 @@ async function removeSingleDir(
     const exists = await ctx.fs.exists(fullPath);
     if (!exists) {
       return {
-        stdout: "",
-        stderr: `rmdir: failed to remove '${displayPath}': No such file or directory\n`,
+        stdout: EMPTY,
+        stderr: encode(
+          `rmdir: failed to remove '${displayPath}': No such file or directory\n`,
+        ),
         exitCode: 1,
       };
     }
@@ -141,8 +148,10 @@ async function removeSingleDir(
     const stat = await ctx.fs.stat(fullPath);
     if (!stat.isDirectory) {
       return {
-        stdout: "",
-        stderr: `rmdir: failed to remove '${displayPath}': Not a directory\n`,
+        stdout: EMPTY,
+        stderr: encode(
+          `rmdir: failed to remove '${displayPath}': Not a directory\n`,
+        ),
         exitCode: 1,
       };
     }
@@ -151,8 +160,10 @@ async function removeSingleDir(
     const entries = await ctx.fs.readdir(fullPath);
     if (entries.length > 0) {
       return {
-        stdout: "",
-        stderr: `rmdir: failed to remove '${displayPath}': Directory not empty\n`,
+        stdout: EMPTY,
+        stderr: encode(
+          `rmdir: failed to remove '${displayPath}': Directory not empty\n`,
+        ),
         exitCode: 1,
       };
     }
@@ -165,12 +176,12 @@ async function removeSingleDir(
       stdout = `rmdir: removing directory, '${displayPath}'\n`;
     }
 
-    return { stdout, stderr: "", exitCode: 0 };
+    return { stdout: encode(stdout), stderr: EMPTY, exitCode: 0 };
   } catch (error) {
     const message = getErrorMessage(error);
     return {
-      stdout: "",
-      stderr: `rmdir: failed to remove '${displayPath}': ${message}\n`,
+      stdout: EMPTY,
+      stderr: encode(`rmdir: failed to remove '${displayPath}': ${message}\n`),
       exitCode: 1,
     };
   }

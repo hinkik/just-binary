@@ -10,6 +10,7 @@
 
 import { ExecutionLimitError } from "../../interpreter/errors.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { decode, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 import {
   type EvaluateOptions,
@@ -262,8 +263,8 @@ export const yqCommand: Command = {
     // Inplace requires a file
     if (options.inplace && (files.length === 0 || files[0] === "-")) {
       return {
-        stdout: "",
-        stderr: "yq: -i/--inplace requires a file argument\n",
+        stdout: EMPTY,
+        stderr: encode("yq: -i/--inplace requires a file argument\n"),
         exitCode: 1,
       };
     }
@@ -274,15 +275,15 @@ export const yqCommand: Command = {
     if (options.nullInput) {
       input = "";
     } else if (files.length === 0 || (files.length === 1 && files[0] === "-")) {
-      input = ctx.stdin;
+      input = decode(ctx.stdin);
     } else {
       try {
         filePath = ctx.fs.resolvePath(ctx.cwd, files[0]);
         input = await ctx.fs.readFile(filePath);
       } catch {
         return {
-          stdout: "",
-          stderr: `yq: ${files[0]}: No such file or directory\n`,
+          stdout: EMPTY,
+          stderr: encode(`yq: ${files[0]}: No such file or directory\n`),
           exitCode: 2,
         };
       }
@@ -307,8 +308,8 @@ export const yqCommand: Command = {
         const fm = extractFrontMatter(input);
         if (!fm) {
           return {
-            stdout: "",
-            stderr: "yq: no front-matter found\n",
+            stdout: EMPTY,
+            stderr: encode("yq: no front-matter found\n"),
             exitCode: 1,
           };
         }
@@ -341,7 +342,7 @@ export const yqCommand: Command = {
       // Handle inplace mode
       if (options.inplace && filePath) {
         await ctx.fs.writeFile(filePath, finalOutput);
-        return { stdout: "", stderr: "", exitCode: 0 };
+        return { stdout: EMPTY, stderr: EMPTY, exitCode: 0 };
       }
 
       const exitCode =
@@ -352,29 +353,29 @@ export const yqCommand: Command = {
           : 0;
 
       return {
-        stdout: finalOutput,
-        stderr: "",
+        stdout: encode(finalOutput),
+        stderr: EMPTY,
         exitCode,
       };
     } catch (e) {
       if (e instanceof ExecutionLimitError) {
         return {
-          stdout: "",
-          stderr: `yq: ${e.message}\n`,
+          stdout: EMPTY,
+          stderr: encode(`yq: ${e.message}\n`),
           exitCode: ExecutionLimitError.EXIT_CODE,
         };
       }
       const msg = (e as Error).message;
       if (msg.includes("Unknown function")) {
         return {
-          stdout: "",
-          stderr: `yq: error: ${msg}\n`,
+          stdout: EMPTY,
+          stderr: encode(`yq: error: ${msg}\n`),
           exitCode: 3,
         };
       }
       return {
-        stdout: "",
-        stderr: `yq: parse error: ${msg}\n`,
+        stdout: EMPTY,
+        stderr: encode(`yq: parse error: ${msg}\n`),
         exitCode: 5,
       };
     }

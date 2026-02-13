@@ -5,6 +5,7 @@
  */
 
 import { ExecutionLimitError } from "../../../interpreter/errors.js";
+import { encode } from "../../../utils/bytes.js";
 import type { AwkArrayAccess, AwkExpr, AwkStmt, AwkVariable } from "../ast.js";
 import { formatPrintf } from "../builtins.js";
 import type { AwkRuntimeContext } from "./context.js";
@@ -24,7 +25,7 @@ function checkAwkOutputSize(ctx: AwkRuntimeContext): void {
     throw new ExecutionLimitError(
       `awk: output size limit exceeded (${ctx.maxOutputSize} bytes)`,
       "string_length",
-      ctx.output,
+      encode(ctx.output),
     );
   }
 }
@@ -266,7 +267,7 @@ async function executeWhile(
       throw new ExecutionLimitError(
         `awk: while loop exceeded maximum iterations (${ctx.maxIterations})`,
         "iterations",
-        ctx.output,
+        encode(ctx.output),
       );
     }
 
@@ -298,7 +299,7 @@ async function executeDoWhile(
       throw new ExecutionLimitError(
         `awk: do-while loop exceeded maximum iterations (${ctx.maxIterations})`,
         "iterations",
-        ctx.output,
+        encode(ctx.output),
       );
     }
 
@@ -339,7 +340,7 @@ async function executeFor(
       throw new ExecutionLimitError(
         `awk: for loop exceeded maximum iterations (${ctx.maxIterations})`,
         "iterations",
-        ctx.output,
+        encode(ctx.output),
       );
     }
 

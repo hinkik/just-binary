@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { toText } from "../../test-utils.js";
 import type { InterpreterContext, InterpreterState } from "../types.js";
 import { handleComplete } from "./complete.js";
 import { handleCompopt } from "./compopt.js";
@@ -57,17 +58,33 @@ function createMockCtx(): InterpreterContext {
     fs: {} as unknown as InterpreterContext["fs"],
     commands: {} as unknown as InterpreterContext["commands"],
     limits: {} as unknown as InterpreterContext["limits"],
-    execFn: async () => ({ stdout: "", stderr: "", exitCode: 0 }),
-    executeScript: async () => ({ stdout: "", stderr: "", exitCode: 0 }),
-    executeStatement: async () => ({ stdout: "", stderr: "", exitCode: 0 }),
-    executeCommand: async () => ({ stdout: "", stderr: "", exitCode: 0 }),
+    execFn: async () => ({
+      stdout: new Uint8Array(0),
+      stderr: new Uint8Array(0),
+      exitCode: 0,
+    }),
+    executeScript: async () => ({
+      stdout: new Uint8Array(0),
+      stderr: new Uint8Array(0),
+      exitCode: 0,
+    }),
+    executeStatement: async () => ({
+      stdout: new Uint8Array(0),
+      stderr: new Uint8Array(0),
+      exitCode: 0,
+    }),
+    executeCommand: async () => ({
+      stdout: new Uint8Array(0),
+      stderr: new Uint8Array(0),
+      exitCode: 0,
+    }),
   };
 }
 
 describe("compopt builtin", () => {
   test("compopt with invalid option returns exit code 2", () => {
     const ctx = createMockCtx();
-    const result = handleCompopt(ctx, ["-o", "invalid"]);
+    const result = toText(handleCompopt(ctx, ["-o", "invalid"]));
     expect(result.exitCode).toBe(2);
     expect(result.stderr).toContain("invalid");
     expect(result.stderr).toContain("invalid option name");
@@ -75,7 +92,9 @@ describe("compopt builtin", () => {
 
   test("compopt without command name outside completion function returns exit code 1", () => {
     const ctx = createMockCtx();
-    const result = handleCompopt(ctx, ["-o", "filenames", "+o", "nospace"]);
+    const result = toText(
+      handleCompopt(ctx, ["-o", "filenames", "+o", "nospace"]),
+    );
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain(
       "not currently executing completion function",
@@ -184,7 +203,7 @@ describe("compopt builtin", () => {
 
   test("compopt -o without argument returns error", () => {
     const ctx = createMockCtx();
-    const result = handleCompopt(ctx, ["-o"]);
+    const result = toText(handleCompopt(ctx, ["-o"]));
     expect(result.exitCode).toBe(2);
     expect(result.stderr).toContain("-o");
     expect(result.stderr).toContain("option requires an argument");
@@ -192,7 +211,7 @@ describe("compopt builtin", () => {
 
   test("compopt +o without argument returns error", () => {
     const ctx = createMockCtx();
-    const result = handleCompopt(ctx, ["+o"]);
+    const result = toText(handleCompopt(ctx, ["+o"]));
     expect(result.exitCode).toBe(2);
     expect(result.stderr).toContain("+o");
     expect(result.stderr).toContain("option requires an argument");

@@ -1,6 +1,7 @@
 import { getErrorMessage } from "../../interpreter/helpers/errors.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
+import { EMPTY, encode } from "../../utils/bytes.js";
 
 const argDefs = {
   recursive: { short: "r", long: "recursive", type: "boolean" as const },
@@ -24,11 +25,11 @@ export const rmCommand: Command = {
 
     if (paths.length === 0) {
       if (force) {
-        return { stdout: "", stderr: "", exitCode: 0 };
+        return { stdout: EMPTY, stderr: EMPTY, exitCode: 0 };
       }
       return {
-        stdout: "",
-        stderr: "rm: missing operand\n",
+        stdout: EMPTY,
+        stderr: encode("rm: missing operand\n"),
         exitCode: 1,
       };
     }
@@ -68,7 +69,7 @@ export const rmCommand: Command = {
       }
     }
 
-    return { stdout, stderr, exitCode };
+    return { stdout: encode(stdout), stderr: encode(stderr), exitCode };
   },
 };
 

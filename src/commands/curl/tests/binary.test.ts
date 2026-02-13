@@ -12,6 +12,7 @@ import {
   vi,
 } from "vitest";
 import { Bash } from "../../../Bash.js";
+import { toText } from "../../../test-utils.js";
 
 const originalFetch = global.fetch;
 let lastRequest: { url: string; options: RequestInit } | null = null;
@@ -42,7 +43,9 @@ describe("curl binary data", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://api.example.com"] },
       });
-      const result = await env.exec("curl https://api.example.com/binary");
+      const result = toText(
+        await env.exec("curl https://api.example.com/binary"),
+      );
 
       expect(result.stdout).toBe(binaryData);
       expect(result.exitCode).toBe(0);
@@ -79,7 +82,9 @@ describe("curl binary data", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://api.example.com"] },
       });
-      const result = await env.exec("curl https://api.example.com/binary");
+      const result = toText(
+        await env.exec("curl https://api.example.com/binary"),
+      );
 
       expect(result.stdout).toBe(binaryData);
     });

@@ -6,13 +6,9 @@
  */
 
 import type { StatementNode } from "../../ast/types.js";
+import type { ExecResult } from "../../types.js";
+import { concat, EMPTY } from "../../utils/bytes.js";
 import type { InterpreterContext } from "../types.js";
-
-export interface ConditionResult {
-  stdout: string;
-  stderr: string;
-  exitCode: number;
-}
 
 /**
  * Execute condition statements with inCondition flag set.
@@ -25,19 +21,19 @@ export interface ConditionResult {
 export async function executeCondition(
   ctx: InterpreterContext,
   statements: StatementNode[],
-): Promise<ConditionResult> {
+): Promise<ExecResult> {
   const savedInCondition = ctx.state.inCondition;
   ctx.state.inCondition = true;
 
-  let stdout = "";
-  let stderr = "";
+  let stdout: Uint8Array = EMPTY;
+  let stderr: Uint8Array = EMPTY;
   let exitCode = 0;
 
   try {
     for (const stmt of statements) {
       const result = await ctx.executeStatement(stmt);
-      stdout += result.stdout;
-      stderr += result.stderr;
+      stdout = concat(stdout, result.stdout);
+      stderr = concat(stderr, result.stderr);
       exitCode = result.exitCode;
     }
   } finally {

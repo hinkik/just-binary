@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { toText } from "../../test-utils.js";
 
 describe("diff with binary data", () => {
   describe("binary file comparison", () => {
@@ -11,7 +12,7 @@ describe("diff with binary data", () => {
         },
       });
 
-      const result = await env.exec("diff /a.bin /b.bin");
+      const result = toText(await env.exec("diff /a.bin /b.bin"));
 
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("");
@@ -25,7 +26,7 @@ describe("diff with binary data", () => {
         },
       });
 
-      const result = await env.exec("diff /a.bin /b.bin");
+      const result = toText(await env.exec("diff /a.bin /b.bin"));
 
       expect(result.exitCode).toBe(0);
     });
@@ -38,7 +39,7 @@ describe("diff with binary data", () => {
         },
       });
 
-      const result = await env.exec("diff /a.bin /b.bin");
+      const result = toText(await env.exec("diff /a.bin /b.bin"));
 
       expect(result.exitCode).toBe(1);
     });
@@ -52,7 +53,7 @@ describe("diff with binary data", () => {
         },
       });
 
-      const result = await env.exec("diff /a.txt /b.txt");
+      const result = toText(await env.exec("diff /a.txt /b.txt"));
 
       expect(result.exitCode).toBe(1);
     });
@@ -67,7 +68,7 @@ describe("diff with binary data", () => {
         },
       });
 
-      const result = await env.exec("cat /a.bin | diff - /b.bin");
+      const result = toText(await env.exec("cat /a.bin | diff - /b.bin"));
 
       expect(result.exitCode).toBe(1);
     });

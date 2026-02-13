@@ -1,4 +1,5 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { EMPTY, encode } from "../../utils/bytes.js";
 
 // Command categories for organized display
 const CATEGORIES = new Map<string, string[]>([
@@ -89,7 +90,7 @@ export const helpCommand: Command = {
     // Handle --help
     if (args.includes("--help") || args.includes("-h")) {
       return {
-        stdout: `help - display available commands
+        stdout: encode(`help - display available commands
 
 Usage: help [command]
 
@@ -98,8 +99,8 @@ Options:
 
 If a command name is provided, shows help for that command.
 Otherwise, lists all available commands.
-`,
-        stderr: "",
+`),
+        stderr: EMPTY,
         exitCode: 0,
       };
     }
@@ -113,8 +114,8 @@ Otherwise, lists all available commands.
     // List all available commands
     const commands = ctx.getRegisteredCommands?.() ?? [];
     return {
-      stdout: formatHelp(commands),
-      stderr: "",
+      stdout: encode(formatHelp(commands)),
+      stderr: EMPTY,
       exitCode: 0,
     };
   },

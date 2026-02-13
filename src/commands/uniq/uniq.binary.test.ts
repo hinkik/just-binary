@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { toText } from "../../test-utils.js";
 
 describe("uniq with binary content", () => {
   it("should dedupe lines in binary file", async () => {
@@ -16,7 +17,7 @@ describe("uniq with binary content", () => {
       },
     });
 
-    const result = await env.exec("uniq /data.bin");
+    const result = toText(await env.exec("uniq /data.bin"));
     expect(result.stdout).toBe("a\nb\n");
     expect(result.exitCode).toBe(0);
   });

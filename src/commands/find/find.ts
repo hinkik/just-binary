@@ -5,6 +5,7 @@ import type {
   ExecResult,
   TraceCallback,
 } from "../../types.js";
+import { decode, EMPTY, encode } from "../../utils/bytes.js";
 
 // Use a larger batch size for find to maximize parallel I/O
 const FIND_BATCH_SIZE = 500;
@@ -213,7 +214,7 @@ export const findCommand: Command = {
 
     // Return error for unknown predicates
     if (error) {
-      return { stdout: "", stderr: error, exitCode: 1 };
+      return { stdout: EMPTY, stderr: encode(error), exitCode: 1 };
     }
 
     // Check if there's an explicit -print in the expression
@@ -861,8 +862,8 @@ export const findCommand: Command = {
           case "exec":
             if (!ctx.exec) {
               return {
-                stdout: "",
-                stderr: "find: -exec not supported in this context\n",
+                stdout: EMPTY,
+                stderr: encode("find: -exec not supported in this context\n"),
                 exitCode: 1,
               };
             }
@@ -878,8 +879,8 @@ export const findCommand: Command = {
               }
               const cmd = cmdWithFiles.map((p) => `"${p}"`).join(" ");
               const result = await ctx.exec(cmd, { cwd: ctx.cwd });
-              stdout += result.stdout;
-              stderr += result.stderr;
+              stdout += decode(result.stdout);
+              stderr += decode(result.stderr);
               if (result.exitCode !== 0) {
                 exitCode = result.exitCode;
               }
@@ -891,8 +892,8 @@ export const findCommand: Command = {
                 );
                 const cmd = cmdWithFile.map((p) => `"${p}"`).join(" ");
                 const result = await ctx.exec(cmd, { cwd: ctx.cwd });
-                stdout += result.stdout;
-                stderr += result.stderr;
+                stdout += decode(result.stdout);
+                stderr += decode(result.stderr);
                 if (result.exitCode !== 0) {
                   exitCode = result.exitCode;
                 }
@@ -906,7 +907,7 @@ export const findCommand: Command = {
       stdout = results.length > 0 ? `${results.join("\n")}\n` : "";
     }
 
-    return { stdout, stderr, exitCode };
+    return { stdout: encode(stdout), stderr: encode(stderr), exitCode };
   },
 };
 

@@ -1,4 +1,5 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { decode, EMPTY, encode } from "../../utils/bytes.js";
 import { readAndConcat } from "../../utils/file-reader.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
@@ -110,9 +111,10 @@ export const cutCommand: Command = {
 
     if (!fieldSpec && !charSpec) {
       return {
-        stdout: "",
-        stderr:
+        stdout: EMPTY,
+        stderr: encode(
           "cut: you must specify a list of bytes, characters, or fields\n",
+        ),
         exitCode: 1,
       };
     }
@@ -120,7 +122,7 @@ export const cutCommand: Command = {
     // Read from files or stdin
     const readResult = await readAndConcat(ctx, files, { cmdName: "cut" });
     if (!readResult.ok) return readResult.error;
-    const content = readResult.content;
+    const content = decode(readResult.content);
 
     // Split into lines
     const lines = content.split("\n");
@@ -158,7 +160,7 @@ export const cutCommand: Command = {
       }
     }
 
-    return { stdout: output, stderr: "", exitCode: 0 };
+    return { stdout: encode(output), stderr: EMPTY, exitCode: 0 };
   },
 };
 

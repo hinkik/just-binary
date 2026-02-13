@@ -1,4 +1,5 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const basenameHelp = {
@@ -41,8 +42,8 @@ export const basenameCommand: Command = {
 
     if (names.length === 0) {
       return {
-        stdout: "",
-        stderr: "basename: missing operand\n",
+        stdout: EMPTY,
+        stderr: encode("basename: missing operand\n"),
         exitCode: 1,
       };
     }
@@ -64,8 +65,8 @@ export const basenameCommand: Command = {
     }
 
     return {
-      stdout: `${results.join("\n")}\n`,
-      stderr: "",
+      stdout: encode(`${results.join("\n")}\n`),
+      stderr: EMPTY,
       exitCode: 0,
     };
   },

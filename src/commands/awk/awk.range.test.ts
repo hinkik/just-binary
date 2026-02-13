@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { toText } from "../../test-utils.js";
 
 describe("awk pattern ranges", () => {
   it("prints lines between START and END markers", async () => {
@@ -13,7 +14,7 @@ END
 after`,
       },
     });
-    const result = await env.exec("awk '/START/,/END/' /test/data.txt");
+    const result = toText(await env.exec("awk '/START/,/END/' /test/data.txt"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("START\nline1\nline2\nEND\n");
   });
@@ -32,7 +33,7 @@ END
 after`,
       },
     });
-    const result = await env.exec("awk '/BEGIN/,/END/' /test/data.txt");
+    const result = toText(await env.exec("awk '/BEGIN/,/END/' /test/data.txt"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("BEGIN\na\nEND\nBEGIN\nb\nEND\n");
   });
@@ -48,8 +49,8 @@ END
 after`,
       },
     });
-    const result = await env.exec(
-      "awk '/START/,/END/ { print \">> \" $0 }' /test/data.txt",
+    const result = toText(
+      await env.exec("awk '/START/,/END/ { print \">> \" $0 }' /test/data.txt"),
     );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(">> START\n>> line1\n>> line2\n>> END\n");
@@ -63,7 +64,7 @@ START END
 after`,
       },
     });
-    const result = await env.exec("awk '/START/,/END/' /test/data.txt");
+    const result = toText(await env.exec("awk '/START/,/END/' /test/data.txt"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("START END\n");
   });
@@ -77,7 +78,7 @@ line1
 line2`,
       },
     });
-    const result = await env.exec("awk '/START/,/END/' /test/data.txt");
+    const result = toText(await env.exec("awk '/START/,/END/' /test/data.txt"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("START\nline1\nline2\n");
   });
@@ -93,7 +94,9 @@ footer: bar
 line2`,
       },
     });
-    const result = await env.exec("awk '/^header:/,/^footer:/' /test/data.txt");
+    const result = toText(
+      await env.exec("awk '/^header:/,/^footer:/' /test/data.txt"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("header: foo\ndata1\ndata2\nfooter: bar\n");
   });
@@ -109,7 +112,9 @@ line5`,
       },
     });
     // Alternative approach: use regex that matches specific line content
-    const result = await env.exec("awk '/line2/,/line4/' /test/data.txt");
+    const result = toText(
+      await env.exec("awk '/line2/,/line4/' /test/data.txt"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("line2\nline3\nline4\n");
   });

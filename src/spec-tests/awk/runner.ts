@@ -3,6 +3,7 @@
  */
 
 import { Bash } from "../../Bash.js";
+import { decode } from "../../utils/bytes.js";
 import type { AwkTestCase } from "./parser.js";
 
 export interface AwkTestResult {
@@ -106,7 +107,7 @@ export async function runAwkTestCase(
 
     const result = await env.exec(script);
 
-    const actualOutput = normalizeOutput(result.stdout);
+    const actualOutput = normalizeOutput(decode(result.stdout));
     const expectedOutput = normalizeOutput(testCase.expectedOutput);
 
     let passed = actualOutput === expectedOutput;
@@ -125,8 +126,8 @@ export async function runAwkTestCase(
           passed: false,
           skipped: false,
           unexpectedPass: true,
-          actualOutput: result.stdout,
-          actualStderr: result.stderr,
+          actualOutput: decode(result.stdout),
+          actualStderr: decode(result.stderr),
           actualStatus: result.exitCode,
           expectedOutput: testCase.expectedOutput,
           error: `UNEXPECTED PASS: This test was marked skip (${skipReason}) but now passes. Please remove the skip.`,
@@ -138,8 +139,8 @@ export async function runAwkTestCase(
         passed: true,
         skipped: true,
         skipReason: `skip: ${skipReason}`,
-        actualOutput: result.stdout,
-        actualStderr: result.stderr,
+        actualOutput: decode(result.stdout),
+        actualStderr: decode(result.stderr),
         actualStatus: result.exitCode,
         expectedOutput: testCase.expectedOutput,
       };
@@ -149,8 +150,8 @@ export async function runAwkTestCase(
       testCase,
       passed,
       skipped: false,
-      actualOutput: result.stdout,
-      actualStderr: result.stderr,
+      actualOutput: decode(result.stdout),
+      actualStderr: decode(result.stderr),
       actualStatus: result.exitCode,
       expectedOutput: testCase.expectedOutput,
       error: passed

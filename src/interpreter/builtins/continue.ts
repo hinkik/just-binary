@@ -3,6 +3,7 @@
  */
 
 import type { ExecResult } from "../../types.js";
+import { EMPTY, encode } from "../../utils/bytes.js";
 import { ContinueError, ExitError, SubshellExitError } from "../errors.js";
 import { OK } from "../helpers/result.js";
 import type { InterpreterContext } from "../types.js";
@@ -23,7 +24,11 @@ export function handleContinue(
 
   // bash: too many arguments is an error (exit code 1)
   if (args.length > 1) {
-    throw new ExitError(1, "", "bash: continue: too many arguments\n");
+    throw new ExitError(
+      1,
+      EMPTY,
+      encode("bash: continue: too many arguments\n"),
+    );
   }
 
   let levels = 1;
@@ -32,8 +37,8 @@ export function handleContinue(
     if (Number.isNaN(n) || n < 1) {
       throw new ExitError(
         1,
-        "",
-        `bash: continue: ${args[0]}: numeric argument required\n`,
+        EMPTY,
+        encode(`bash: continue: ${args[0]}: numeric argument required\n`),
       );
     }
     levels = n;

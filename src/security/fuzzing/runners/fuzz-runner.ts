@@ -7,6 +7,7 @@
 import { appendFileSync, writeFileSync } from "node:fs";
 import { Bash } from "../../../Bash.js";
 import type { BashExecResult } from "../../../types.js";
+import { decode } from "../../../utils/bytes.js";
 import type { SecurityViolation } from "../../types.js";
 import { DEFAULT_FUZZ_CONFIG, type FuzzingConfig } from "../config.js";
 import {
@@ -185,16 +186,17 @@ export class FuzzRunner {
         result.completed = true;
         result.bashResult = raceResult;
         result.exitCode = raceResult.exitCode;
-        result.stderr = raceResult.stderr;
-        result.stdout = raceResult.stdout;
+        result.stderr = decode(raceResult.stderr);
+        result.stdout = decode(raceResult.stdout);
 
         // Check if execution hit a limit gracefully
+        const stderrStr = result.stderr;
         result.hitLimit =
           raceResult.exitCode === 126 ||
-          raceResult.stderr.includes("maximum") ||
-          raceResult.stderr.includes("limit") ||
-          raceResult.stderr.includes("too many") ||
-          raceResult.stderr.includes("exceeded");
+          stderrStr.includes("maximum") ||
+          stderrStr.includes("limit") ||
+          stderrStr.includes("too many") ||
+          stderrStr.includes("exceeded");
       }
     } catch (error) {
       const endTime = Date.now();

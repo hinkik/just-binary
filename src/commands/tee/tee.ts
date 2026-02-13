@@ -1,5 +1,6 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
+import { decode, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const teeHelp = {
@@ -29,7 +30,7 @@ export const teeCommand: Command = {
 
     const { append } = parsed.result.flags;
     const files = parsed.result.positional;
-    const content = ctx.stdin;
+    const content = decode(ctx.stdin);
     let stderr = "";
     let exitCode = 0;
 
@@ -50,8 +51,8 @@ export const teeCommand: Command = {
 
     // Pass through to stdout
     return {
-      stdout: content,
-      stderr,
+      stdout: encode(content),
+      stderr: encode(stderr),
       exitCode,
     };
   },

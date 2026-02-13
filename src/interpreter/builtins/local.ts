@@ -5,6 +5,7 @@
 import { parseArithmeticExpression } from "../../parser/arithmetic-parser.js";
 import { Parser } from "../../parser/parser.js";
 import type { ExecResult } from "../../types.js";
+import { EMPTY, encode } from "../../utils/bytes.js";
 import { evaluateArithmetic } from "../arithmetic.js";
 import { getArrayIndices } from "../helpers/array.js";
 import { markNameref } from "../helpers/nameref.js";
@@ -68,7 +69,7 @@ export async function handleLocal(
         stdout += `${name}=${value}\n`;
       }
     }
-    return result(stdout, "", 0);
+    return result(encode(stdout), EMPTY, 0);
   }
 
   for (const arg of processedArgs) {
@@ -428,5 +429,5 @@ export async function handleLocal(
     }
   }
 
-  return result("", stderr, exitCode);
+  return result(EMPTY, encode(stderr), exitCode);
 }

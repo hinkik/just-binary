@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { toText } from "../../test-utils.js";
 
 describe("tree command", () => {
   describe("basic usage", () => {
@@ -11,7 +12,7 @@ describe("tree command", () => {
           "/project/README.md": "readme",
         },
       });
-      const result = await env.exec("tree /project");
+      const result = toText(await env.exec("tree /project"));
       expect(result.stdout).toContain("/project");
       expect(result.stdout).toContain("src");
       expect(result.stdout).toContain("main.ts");
@@ -27,7 +28,7 @@ describe("tree command", () => {
           "/dir/subdir/file3.txt": "c",
         },
       });
-      const result = await env.exec("tree /dir");
+      const result = toText(await env.exec("tree /dir"));
       expect(result.stdout).toContain("director");
       expect(result.stdout).toContain("file");
     });
@@ -35,7 +36,7 @@ describe("tree command", () => {
     it("should handle empty directory", async () => {
       const env = new Bash();
       await env.exec("mkdir /empty");
-      const result = await env.exec("tree /empty");
+      const result = toText(await env.exec("tree /empty"));
       expect(result.stdout).toContain("/empty");
       expect(result.stdout).toContain("0 directories");
       expect(result.exitCode).toBe(0);
@@ -43,7 +44,7 @@ describe("tree command", () => {
 
     it("should error on missing directory", async () => {
       const env = new Bash();
-      const result = await env.exec("tree /nonexistent");
+      const result = toText(await env.exec("tree /nonexistent"));
       expect(result.stderr).toContain("No such file or directory");
       expect(result.exitCode).toBe(1);
     });
@@ -57,7 +58,7 @@ describe("tree command", () => {
           "/dir/visible.txt": "visible",
         },
       });
-      const result = await env.exec("tree -a /dir");
+      const result = toText(await env.exec("tree -a /dir"));
       expect(result.stdout).toContain(".hidden");
       expect(result.stdout).toContain("visible.txt");
     });
@@ -69,7 +70,7 @@ describe("tree command", () => {
           "/dir/visible.txt": "visible",
         },
       });
-      const result = await env.exec("tree /dir");
+      const result = toText(await env.exec("tree /dir"));
       expect(result.stdout).not.toContain(".hidden");
       expect(result.stdout).toContain("visible.txt");
     });
@@ -83,7 +84,7 @@ describe("tree command", () => {
           "/project/lib/helper.ts": "helper",
         },
       });
-      const result = await env.exec("tree -d /project");
+      const result = toText(await env.exec("tree -d /project"));
       expect(result.stdout).toContain("src");
       expect(result.stdout).toContain("lib");
       expect(result.stdout).not.toContain("main.ts");
@@ -98,7 +99,7 @@ describe("tree command", () => {
           "/deep/level1/level2/file.txt": "deep",
         },
       });
-      const result = await env.exec("tree -L 1 /deep");
+      const result = toText(await env.exec("tree -L 1 /deep"));
       expect(result.stdout).toContain("level1");
       expect(result.stdout).not.toContain("level2");
     });
@@ -109,7 +110,7 @@ describe("tree command", () => {
           "/deep/level1/level2/level3/file.txt": "deep",
         },
       });
-      const result = await env.exec("tree -L 2 /deep");
+      const result = toText(await env.exec("tree -L 2 /deep"));
       expect(result.stdout).toContain("level1");
       expect(result.stdout).toContain("level2");
       expect(result.stdout).not.toContain("level3");
@@ -123,7 +124,7 @@ describe("tree command", () => {
           "/project/src/main.ts": "code",
         },
       });
-      const result = await env.exec("tree -f /project");
+      const result = toText(await env.exec("tree -f /project"));
       expect(result.stdout).toContain("/project/src");
       expect(result.stdout).toContain("/project/src/main.ts");
     });
@@ -132,7 +133,7 @@ describe("tree command", () => {
   describe("help option", () => {
     it("should show help with --help", async () => {
       const env = new Bash();
-      const result = await env.exec("tree --help");
+      const result = toText(await env.exec("tree --help"));
       expect(result.stdout).toContain("tree");
       expect(result.stdout).toContain("-a");
       expect(result.stdout).toContain("-d");

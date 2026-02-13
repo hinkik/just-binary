@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { toText } from "../test-utils.js";
 import {
   cleanupTestDir,
   createTestDir,
@@ -24,7 +25,7 @@ describe("cd command - Real Bash Comparison", () => {
       });
 
       // Test cd followed by pwd in BashEnv
-      const envResult = await env.exec("cd subdir && pwd");
+      const envResult = toText(await env.exec("cd subdir && pwd"));
       const realResult = await runRealBash("cd subdir && pwd", testDir);
 
       // Both should end with /subdir
@@ -39,7 +40,9 @@ describe("cd command - Real Bash Comparison", () => {
       });
 
       // All commands in same exec (each exec is isolated like a new shell)
-      const envResult = await env.exec("cd parent/child && cd .. && pwd");
+      const envResult = toText(
+        await env.exec("cd parent/child && cd .. && pwd"),
+      );
 
       const realResult = await runRealBash(
         "cd parent/child && cd .. && pwd",
@@ -57,7 +60,7 @@ describe("cd command - Real Bash Comparison", () => {
       });
 
       // All commands in same exec (each exec is isolated like a new shell)
-      const envResult = await env.exec("cd a/b/c && cd ../.. && pwd");
+      const envResult = toText(await env.exec("cd a/b/c && cd ../.. && pwd"));
 
       const realResult = await runRealBash(
         "cd a/b/c && cd ../.. && pwd",
@@ -78,7 +81,9 @@ describe("cd command - Real Bash Comparison", () => {
       });
 
       // All commands in same exec (each exec is isolated like a new shell)
-      const envResult = await env.exec("cd dir1 && cd ../dir2 && cd - && pwd");
+      const envResult = toText(
+        await env.exec("cd dir1 && cd ../dir2 && cd - && pwd"),
+      );
 
       const realResult = await runRealBash(
         "cd dir1 && cd ../dir2 && cd - && pwd",
@@ -95,7 +100,7 @@ describe("cd command - Real Bash Comparison", () => {
     it("should error on non-existent directory", async () => {
       const env = await setupFiles(testDir, {});
 
-      const envResult = await env.exec("cd nonexistent");
+      const envResult = toText(await env.exec("cd nonexistent"));
       const realResult = await runRealBash(
         "cd nonexistent 2>&1; echo $?",
         testDir,
@@ -111,7 +116,7 @@ describe("cd command - Real Bash Comparison", () => {
         "file.txt": "content",
       });
 
-      const envResult = await env.exec("cd file.txt");
+      const envResult = toText(await env.exec("cd file.txt"));
       const realResult = await runRealBash(
         "cd file.txt 2>&1; echo $?",
         testDir,
@@ -129,7 +134,7 @@ describe("cd command - Real Bash Comparison", () => {
         "subdir/file.txt": "",
       });
 
-      const envResult = await env.exec("cd ./subdir && pwd");
+      const envResult = toText(await env.exec("cd ./subdir && pwd"));
       const realResult = await runRealBash("cd ./subdir && pwd", testDir);
 
       expect(envResult.stdout.trim().endsWith("/subdir")).toBe(true);
@@ -142,7 +147,7 @@ describe("cd command - Real Bash Comparison", () => {
       });
 
       // All commands in same exec (each exec is isolated like a new shell)
-      const envResult = await env.exec("pwd; cd .; pwd");
+      const envResult = toText(await env.exec("pwd; cd .; pwd"));
       const lines = envResult.stdout.trim().split("\n");
 
       expect(lines[0]).toBe(lines[1]);

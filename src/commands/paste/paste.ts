@@ -1,5 +1,6 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
+import { decode, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const pasteHelp = {
@@ -52,14 +53,14 @@ export const pasteCommand: Command = {
     // If no files specified, show usage error (matches BSD/macOS behavior)
     if (files.length === 0) {
       return {
-        stdout: "",
-        stderr: "usage: paste [-s] [-d delimiters] file ...\n",
+        stdout: EMPTY,
+        stderr: encode("usage: paste [-s] [-d delimiters] file ...\n"),
         exitCode: 1,
       };
     }
 
     // Parse stdin into lines (will be distributed across multiple `-` args)
-    const stdinLines = ctx.stdin ? ctx.stdin.split("\n") : [""];
+    const stdinLines = ctx.stdin ? decode(ctx.stdin).split("\n") : [""];
     if (stdinLines.length > 0 && stdinLines[stdinLines.length - 1] === "") {
       stdinLines.pop();
     }
@@ -93,8 +94,8 @@ export const pasteCommand: Command = {
           fileContents.push(lines);
         } catch {
           return {
-            stdout: "",
-            stderr: `paste: ${file}: No such file or directory\n`,
+            stdout: EMPTY,
+            stderr: encode(`paste: ${file}: No such file or directory\n`),
             exitCode: 1,
           };
         }
@@ -123,7 +124,7 @@ export const pasteCommand: Command = {
       }
     }
 
-    return { stdout: output, stderr: "", exitCode: 0 };
+    return { stdout: encode(output), stderr: EMPTY, exitCode: 0 };
   },
 };
 

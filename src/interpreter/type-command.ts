@@ -19,6 +19,7 @@ import type {
 } from "../ast/types.js";
 import type { IFileSystem } from "../fs/interface.js";
 import type { CommandRegistry, ExecResult } from "../types.js";
+import { encode } from "../utils/bytes.js";
 import { result } from "./helpers/result.js";
 import { SHELL_BUILTINS, SHELL_KEYWORDS } from "./helpers/shell-constants.js";
 import type { InterpreterState } from "./types.js";
@@ -281,7 +282,7 @@ export async function handleType(
     exitCode = anyNotFound ? 1 : 0;
   }
 
-  return result(stdout, stderr, exitCode);
+  return result(encode(stdout), encode(stderr), exitCode);
 }
 
 /**
@@ -498,7 +499,7 @@ export async function handleCommandV(
     }
   }
 
-  return result(stdout, stderr, exitCode);
+  return result(encode(stdout), encode(stderr), exitCode);
 }
 
 /**

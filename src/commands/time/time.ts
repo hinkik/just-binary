@@ -1,5 +1,6 @@
 import { mapToRecord } from "../../helpers/env.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { concat, EMPTY, encode } from "../../utils/bytes.js";
 
 /**
  * time - time command execution
@@ -42,8 +43,8 @@ export const timeCommand: Command = {
         i++;
         if (i >= args.length) {
           return {
-            stdout: "",
-            stderr: "time: missing argument to '-f'\n",
+            stdout: EMPTY,
+            stderr: encode("time: missing argument to '-f'\n"),
             exitCode: 1,
           };
         }
@@ -53,8 +54,8 @@ export const timeCommand: Command = {
         i++;
         if (i >= args.length) {
           return {
-            stdout: "",
-            stderr: "time: missing argument to '-o'\n",
+            stdout: EMPTY,
+            stderr: encode("time: missing argument to '-o'\n"),
             exitCode: 1,
           };
         }
@@ -89,8 +90,8 @@ export const timeCommand: Command = {
     if (commandArgs.length === 0) {
       // No command specified - just return success (matches GNU time behavior)
       return {
-        stdout: "",
-        stderr: "",
+        stdout: EMPTY,
+        stderr: EMPTY,
         exitCode: 0,
       };
     }
@@ -105,8 +106,8 @@ export const timeCommand: Command = {
     try {
       if (!ctx.exec) {
         return {
-          stdout: "",
-          stderr: "time: exec not available\n",
+          stdout: EMPTY,
+          stderr: encode("time: exec not available\n"),
           exitCode: 1,
         };
       }
@@ -116,8 +117,8 @@ export const timeCommand: Command = {
       });
     } catch (error) {
       result = {
-        stdout: "",
-        stderr: `time: ${(error as Error).message}\n`,
+        stdout: EMPTY,
+        stderr: encode(`time: ${(error as Error).message}\n`),
         exitCode: 127,
       };
     }
@@ -163,9 +164,12 @@ export const timeCommand: Command = {
       } catch (error) {
         return {
           stdout: result.stdout,
-          stderr:
-            result.stderr +
-            `time: cannot write to '${outputFile}': ${(error as Error).message}\n`,
+          stderr: concat(
+            result.stderr,
+            encode(
+              `time: cannot write to '${outputFile}': ${(error as Error).message}\n`,
+            ),
+          ),
           exitCode: result.exitCode,
         };
       }
@@ -173,7 +177,7 @@ export const timeCommand: Command = {
       // Output to stderr (standard behavior for time)
       result = {
         ...result,
-        stderr: result.stderr + timingOutput,
+        stderr: concat(result.stderr, encode(timingOutput)),
       };
     }
 

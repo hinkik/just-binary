@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { toText } from "../../test-utils.js";
 
 describe("find depth options", () => {
   const createEnv = () =>
@@ -19,14 +20,14 @@ describe("find depth options", () => {
   describe("-maxdepth option", () => {
     it("should limit depth to 0 (only starting point)", async () => {
       const env = createEnv();
-      const result = await env.exec("find /project -maxdepth 0");
+      const result = toText(await env.exec("find /project -maxdepth 0"));
       expect(result.stdout).toBe("/project\n");
       expect(result.exitCode).toBe(0);
     });
 
     it("should limit depth to 1 (immediate children)", async () => {
       const env = createEnv();
-      const result = await env.exec("find /project -maxdepth 1");
+      const result = toText(await env.exec("find /project -maxdepth 1"));
       expect(result.stdout).toBe(`/project
 /project/README.md
 /project/package.json
@@ -39,7 +40,9 @@ describe("find depth options", () => {
 
     it("should limit depth to 2", async () => {
       const env = createEnv();
-      const result = await env.exec('find /project -maxdepth 2 -name "*.ts"');
+      const result = toText(
+        await env.exec('find /project -maxdepth 2 -name "*.ts"'),
+      );
       expect(result.stdout).toBe(`/project/src/index.ts
 /project/tests/index.test.ts
 `);
@@ -50,7 +53,9 @@ describe("find depth options", () => {
   describe("-mindepth option", () => {
     it("should skip results at depth 0", async () => {
       const env = createEnv();
-      const result = await env.exec("find /project -mindepth 1 -type d");
+      const result = toText(
+        await env.exec("find /project -mindepth 1 -type d"),
+      );
       expect(result.stdout).toBe(`/project/src
 /project/src/utils
 /project/tests
@@ -60,8 +65,8 @@ describe("find depth options", () => {
 
     it("should skip results at depth 0 and 1", async () => {
       const env = createEnv();
-      const result = await env.exec(
-        'find /project -mindepth 2 -type f -name "*.ts"',
+      const result = toText(
+        await env.exec('find /project -mindepth 2 -type f -name "*.ts"'),
       );
       expect(result.stdout).toBe(`/project/src/index.ts
 /project/src/utils/format.ts
@@ -75,8 +80,8 @@ describe("find depth options", () => {
   describe("combined -maxdepth and -mindepth", () => {
     it("should find only at specific depth", async () => {
       const env = createEnv();
-      const result = await env.exec(
-        "find /project -mindepth 1 -maxdepth 1 -type f",
+      const result = toText(
+        await env.exec("find /project -mindepth 1 -maxdepth 1 -type f"),
       );
       expect(result.stdout).toBe(`/project/README.md
 /project/package.json
@@ -94,7 +99,7 @@ describe("find depth options", () => {
           "/dir/sub/b.txt": "b",
         },
       });
-      const result = await env.exec("find /dir -depth");
+      const result = toText(await env.exec("find /dir -depth"));
       // Files and subdirs should come before their parent directories
       expect(result.stdout).toBe(`/dir/a.txt
 /dir/sub/b.txt
@@ -112,7 +117,7 @@ describe("find depth options", () => {
           "/dir/b/2.txt": "2",
         },
       });
-      const result = await env.exec("find /dir -depth -type f");
+      const result = toText(await env.exec("find /dir -depth -type f"));
       expect(result.stdout).toBe(`/dir/a/1.txt
 /dir/b/2.txt
 `);
@@ -129,7 +134,7 @@ describe("find depth options", () => {
       // With -depth, files are processed before directories, so -delete works
       await env.exec("find /dir/sub -depth -delete");
       // /dir/sub should be deleted (including its contents)
-      const result = await env.exec("ls /dir");
+      const result = toText(await env.exec("ls /dir"));
       expect(result.stdout).toBe("");
       expect(result.stderr).toBe("");
       expect(result.exitCode).toBe(0);
@@ -143,7 +148,7 @@ describe("find depth options", () => {
         },
       });
       // -depth with -prune still works but -prune has no effect in depth-first
-      const result = await env.exec("find /dir -depth -type f");
+      const result = toText(await env.exec("find /dir -depth -type f"));
       expect(result.stdout).toBe(`/dir/keep/visible.txt
 /dir/skip/hidden.txt
 `);

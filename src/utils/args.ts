@@ -11,6 +11,7 @@
 
 import { unknownOption } from "../commands/help.js";
 import type { ExecResult } from "../types.js";
+import { EMPTY, encode } from "./bytes.js";
 
 export type ArgType = "boolean" | "string" | "number";
 
@@ -137,8 +138,10 @@ export function parseArgs<T extends Record<string, ArgDef>>(
             return {
               ok: false,
               error: {
-                stdout: "",
-                stderr: `${cmdName}: option '--${optName}' requires an argument\n`,
+                stdout: EMPTY,
+                stderr: encode(
+                  `${cmdName}: option '--${optName}' requires an argument\n`,
+                ),
                 exitCode: 1,
               },
             };
@@ -175,8 +178,10 @@ export function parseArgs<T extends Record<string, ArgDef>>(
             return {
               ok: false,
               error: {
-                stdout: "",
-                stderr: `${cmdName}: option requires an argument -- '${c}'\n`,
+                stdout: EMPTY,
+                stderr: encode(
+                  `${cmdName}: option requires an argument -- '${c}'\n`,
+                ),
                 exitCode: 1,
               },
             };

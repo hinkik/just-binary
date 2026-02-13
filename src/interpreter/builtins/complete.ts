@@ -14,7 +14,8 @@
  */
 
 import type { ExecResult } from "../../types.js";
-import { failure, result, success } from "../helpers/result.js";
+import { EMPTY, encode } from "../../utils/bytes.js";
+import { failure, result, success, successText } from "../helpers/result.js";
 import type { CompletionSpec, InterpreterContext } from "../types.js";
 
 // Valid completion options for -o flag
@@ -142,13 +143,13 @@ export function handleComplete(
     if (commands.length === 0) {
       // Remove all completion specs
       ctx.state.completionSpecs.clear();
-      return success("");
+      return success();
     }
     // Remove specific completion specs
     for (const cmd of commands) {
       ctx.state.completionSpecs.delete(cmd);
     }
-    return success("");
+    return success();
   }
 
   // Handle print mode (-p)
@@ -196,7 +197,7 @@ export function handleComplete(
     if (options.length > 0) spec.options = options;
     if (actions.length > 0) spec.actions = actions;
     ctx.state.completionSpecs.set("__default__", spec);
-    return success("");
+    return success();
   }
 
   for (const cmd of commands) {
@@ -209,7 +210,7 @@ export function handleComplete(
     ctx.state.completionSpecs.set(cmd, spec);
   }
 
-  return success("");
+  return success(EMPTY);
 }
 
 /**
@@ -227,9 +228,9 @@ function printCompletionSpecs(
       for (const cmd of commands) {
         stderr += `complete: ${cmd}: no completion specification\n`;
       }
-      return result("", stderr, 1);
+      return result(EMPTY, encode(stderr), 1);
     }
-    return success("");
+    return success();
   }
 
   const output: string[] = [];
@@ -243,8 +244,8 @@ function printCompletionSpecs(
       if (commands) {
         // Specifically requested this command but it doesn't exist
         return result(
-          output.join("\n") + (output.length > 0 ? "\n" : ""),
-          `complete: ${cmd}: no completion specification\n`,
+          encode(output.join("\n") + (output.length > 0 ? "\n" : "")),
+          encode(`complete: ${cmd}: no completion specification\n`),
           1,
         );
       }
@@ -294,8 +295,8 @@ function printCompletionSpecs(
   }
 
   if (output.length === 0) {
-    return success("");
+    return success();
   }
 
-  return success(`${output.join("\n")}\n`);
+  return successText(`${output.join("\n")}\n`);
 }

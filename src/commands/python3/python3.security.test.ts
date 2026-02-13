@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { toText } from "../../test-utils.js";
 
 // Note: These tests use Pyodide which downloads ~30MB on first run.
 // The first test will be slow, subsequent tests reuse the cached instance.
@@ -15,7 +16,7 @@ describe("python3 security", () => {
       { timeout: 60000 },
       async () => {
         const env = new Bash({ python: true });
-        const result = await env.exec('python3 -c "import js"');
+        const result = toText(await env.exec('python3 -c "import js"'));
         expect(result.stderr).toContain("ImportError");
         expect(result.stderr).toContain("blocked");
         expect(result.exitCode).toBe(1);
@@ -24,7 +25,9 @@ describe("python3 security", () => {
 
     it("should block import js.globalThis", async () => {
       const env = new Bash({ python: true });
-      const result = await env.exec('python3 -c "from js import globalThis"');
+      const result = toText(
+        await env.exec('python3 -c "from js import globalThis"'),
+      );
       expect(result.stderr).toContain("ImportError");
       expect(result.stderr).toContain("blocked");
       expect(result.exitCode).toBe(1);
@@ -32,7 +35,7 @@ describe("python3 security", () => {
 
     it("should block import pyodide.ffi", async () => {
       const env = new Bash({ python: true });
-      const result = await env.exec('python3 -c "import pyodide.ffi"');
+      const result = toText(await env.exec('python3 -c "import pyodide.ffi"'));
       expect(result.stderr).toContain("ImportError");
       expect(result.stderr).toContain("blocked");
       expect(result.exitCode).toBe(1);
@@ -40,8 +43,8 @@ describe("python3 security", () => {
 
     it("should block from pyodide.ffi import create_proxy", async () => {
       const env = new Bash({ python: true });
-      const result = await env.exec(
-        'python3 -c "from pyodide.ffi import create_proxy"',
+      const result = toText(
+        await env.exec('python3 -c "from pyodide.ffi import create_proxy"'),
       );
       expect(result.stderr).toContain("ImportError");
       expect(result.stderr).toContain("blocked");
@@ -50,7 +53,7 @@ describe("python3 security", () => {
 
     it("should block import pyodide (sandbox escape via ffi)", async () => {
       const env = new Bash({ python: true });
-      const result = await env.exec('python3 -c "import pyodide"');
+      const result = toText(await env.exec('python3 -c "import pyodide"'));
       expect(result.stderr).toContain("ImportError");
       expect(result.stderr).toContain("blocked");
       expect(result.exitCode).toBe(1);
@@ -58,7 +61,7 @@ describe("python3 security", () => {
 
     it("should block import pyodide_js (exposes _original_* via globals)", async () => {
       const env = new Bash({ python: true });
-      const result = await env.exec('python3 -c "import pyodide_js"');
+      const result = toText(await env.exec('python3 -c "import pyodide_js"'));
       expect(result.stderr).toContain("ImportError");
       expect(result.stderr).toContain("blocked");
       expect(result.exitCode).toBe(1);
@@ -81,7 +84,7 @@ except ImportError as e:
     else:
         print(f'ERROR: {e}')
 EOF`);
-      const result = await env.exec("python3 /tmp/test_pyodide_js.py");
+      const result = toText(await env.exec("python3 /tmp/test_pyodide_js.py"));
       expect(result.stdout).toContain("SECURE");
       expect(result.stdout).not.toContain("VULNERABLE");
       expect(result.exitCode).toBe(0);
@@ -99,7 +102,7 @@ try:
 except NameError:
     print('SECURE: _original_import not accessible')
 EOF`);
-      const result = await env.exec("python3 /tmp/test_import.py");
+      const result = toText(await env.exec("python3 /tmp/test_import.py"));
       expect(result.stdout).toContain("SECURE");
       expect(result.stdout).not.toContain("VULNERABLE");
       expect(result.exitCode).toBe(0);
@@ -107,8 +110,10 @@ EOF`);
 
     it("should not expose _jb_original_open on builtins", async () => {
       const env = new Bash({ python: true });
-      const result = await env.exec(
-        "python3 -c \"import builtins; print(hasattr(builtins, '_jb_original_open'))\"",
+      const result = toText(
+        await env.exec(
+          "python3 -c \"import builtins; print(hasattr(builtins, '_jb_original_open'))\"",
+        ),
       );
       expect(result.stdout).toBe("False\n");
       expect(result.exitCode).toBe(0);
@@ -116,8 +121,10 @@ EOF`);
 
     it("should not expose _jb_original_listdir on os", async () => {
       const env = new Bash({ python: true });
-      const result = await env.exec(
-        "python3 -c \"import os; print(hasattr(os, '_jb_original_listdir'))\"",
+      const result = toText(
+        await env.exec(
+          "python3 -c \"import os; print(hasattr(os, '_jb_original_listdir'))\"",
+        ),
       );
       expect(result.stdout).toBe("False\n");
       expect(result.exitCode).toBe(0);
@@ -125,8 +132,10 @@ EOF`);
 
     it("should not expose _jb_original_exists on os.path", async () => {
       const env = new Bash({ python: true });
-      const result = await env.exec(
-        "python3 -c \"import os; print(hasattr(os.path, '_jb_original_exists'))\"",
+      const result = toText(
+        await env.exec(
+          "python3 -c \"import os; print(hasattr(os.path, '_jb_original_exists'))\"",
+        ),
       );
       expect(result.stdout).toBe("False\n");
       expect(result.exitCode).toBe(0);
@@ -134,8 +143,10 @@ EOF`);
 
     it("should not expose _jb_original_stat on os", async () => {
       const env = new Bash({ python: true });
-      const result = await env.exec(
-        "python3 -c \"import os; print(hasattr(os, '_jb_original_stat'))\"",
+      const result = toText(
+        await env.exec(
+          "python3 -c \"import os; print(hasattr(os, '_jb_original_stat'))\"",
+        ),
       );
       expect(result.stdout).toBe("False\n");
       expect(result.exitCode).toBe(0);
@@ -143,8 +154,10 @@ EOF`);
 
     it("should not expose _jb_original_chdir on os", async () => {
       const env = new Bash({ python: true });
-      const result = await env.exec(
-        "python3 -c \"import os; print(hasattr(os, '_jb_original_chdir'))\"",
+      const result = toText(
+        await env.exec(
+          "python3 -c \"import os; print(hasattr(os, '_jb_original_chdir'))\"",
+        ),
       );
       expect(result.stdout).toBe("False\n");
       expect(result.exitCode).toBe(0);
@@ -167,7 +180,7 @@ try:
 except AttributeError as e:
     print(f'SECURE: __kwdefaults__ access blocked')
 EOF`);
-      const result = await env.exec("python3 /tmp/test_kwdefaults.py");
+      const result = toText(await env.exec("python3 /tmp/test_kwdefaults.py"));
       expect(result.stdout).toContain("SECURE");
       expect(result.stdout).not.toContain("VULNERABLE");
       expect(result.exitCode).toBe(0);
@@ -183,7 +196,7 @@ try:
 except AttributeError as e:
     print(f'SECURE: __closure__ access blocked')
 EOF`);
-      const result = await env.exec("python3 /tmp/test_closure.py");
+      const result = toText(await env.exec("python3 /tmp/test_closure.py"));
       expect(result.stdout).toContain("SECURE");
       expect(result.stdout).not.toContain("VULNERABLE");
       expect(result.exitCode).toBe(0);
@@ -199,7 +212,7 @@ try:
 except AttributeError:
     print('SECURE')
 EOF`);
-      const result = await env.exec("python3 /tmp/test_globals.py");
+      const result = toText(await env.exec("python3 /tmp/test_globals.py"));
       expect(result.stdout).toContain("SECURE");
       expect(result.exitCode).toBe(0);
     });
@@ -214,7 +227,9 @@ try:
 except AttributeError:
     print('SECURE: __closure__ blocked')
 EOF`);
-      const result = await env.exec("python3 /tmp/test_open_closure.py");
+      const result = toText(
+        await env.exec("python3 /tmp/test_open_closure.py"),
+      );
       expect(result.stdout).toContain("SECURE");
       expect(result.exitCode).toBe(0);
     });
@@ -229,7 +244,9 @@ try:
 except AttributeError:
     print('SECURE: __closure__ blocked')
 EOF`);
-      const result = await env.exec("python3 /tmp/test_listdir_closure.py");
+      const result = toText(
+        await env.exec("python3 /tmp/test_listdir_closure.py"),
+      );
       expect(result.stdout).toContain("SECURE");
       expect(result.exitCode).toBe(0);
     });
@@ -250,7 +267,7 @@ try:
 except AttributeError:
     print('SECURE: __closure__ blocked')
 EOF`);
-      const result = await env.exec("python3 /tmp/test_shutil.py");
+      const result = toText(await env.exec("python3 /tmp/test_shutil.py"));
       expect(result.stdout).toContain("COPY_OK: shutil test");
       expect(result.stdout).toContain("SECURE");
       expect(result.exitCode).toBe(0);
@@ -285,7 +302,7 @@ tmp = Path('/tmp')
 files = [f.name for f in tmp.iterdir() if f.name.startswith('pathlib')]
 print(f'ITERDIR_OK: {sorted(files)}')
 EOF`);
-      const result = await env.exec("python3 /tmp/test_pathlib.py");
+      const result = toText(await env.exec("python3 /tmp/test_pathlib.py"));
       expect(result.stdout).toContain("READ_OK: pathlib test content");
       expect(result.stdout).toContain("EXISTS_OK");
       expect(result.stdout).toContain("IS_FILE_OK");
@@ -299,11 +316,13 @@ EOF`);
     it("should redirect glob.glob to /host", async () => {
       const env = new Bash({ python: true });
       await env.exec('echo "test content" > /tmp/test_glob.txt');
-      const result = await env.exec(`python3 -c "
+      const result = toText(
+        await env.exec(`python3 -c "
 import glob
 files = glob.glob('/tmp/test_glob.txt')
 print(files)
-"`);
+"`),
+      );
       // The glob should find the file via /host redirection
       expect(result.stdout).toContain("test_glob.txt");
       expect(result.exitCode).toBe(0);
@@ -318,7 +337,7 @@ import os
 for root, dirs, files in os.walk('/tmp/test_walk_dir'):
     print(f'root={root}, files={files}')
 EOF`);
-      const result = await env.exec("python3 /tmp/test_walk.py");
+      const result = toText(await env.exec("python3 /tmp/test_walk.py"));
       expect(result.stdout).toContain("root=/tmp/test_walk_dir");
       expect(result.stdout).toContain("file1.txt");
       expect(result.exitCode).toBe(0);
@@ -328,11 +347,13 @@ EOF`);
       const env = new Bash({ python: true });
       await env.exec("mkdir -p /tmp/test_scandir");
       await env.exec('echo "content" > /tmp/test_scandir/scanfile.txt');
-      const result = await env.exec(`python3 -c "
+      const result = toText(
+        await env.exec(`python3 -c "
 import os
 entries = list(os.scandir('/tmp/test_scandir'))
 print([e.name for e in entries])
-"`);
+"`),
+      );
       expect(result.stdout).toContain("scanfile.txt");
       expect(result.exitCode).toBe(0);
     });
@@ -345,7 +366,7 @@ import io
 with io.open('/tmp/test_io_open.txt', 'r') as f:
     print(f.read())
 EOF`);
-      const result = await env.exec("python3 /tmp/test_io.py");
+      const result = toText(await env.exec("python3 /tmp/test_io.py"));
       expect(result.stdout).toContain("io.open test content");
       expect(result.exitCode).toBe(0);
     });
@@ -359,15 +380,17 @@ EOF`);
 with open('/tmp/allowed_file.txt', 'r') as f:
     print(f.read())
 EOF`);
-      const result = await env.exec("python3 /tmp/test_read.py");
+      const result = toText(await env.exec("python3 /tmp/test_read.py"));
       expect(result.stdout).toContain("allowed content");
       expect(result.exitCode).toBe(0);
     });
 
     it("should allow normal imports", async () => {
       const env = new Bash({ python: true });
-      const result = await env.exec(
-        "python3 -c \"import json; print(json.dumps({'a': 1}))\"",
+      const result = toText(
+        await env.exec(
+          "python3 -c \"import json; print(json.dumps({'a': 1}))\"",
+        ),
       );
       expect(result.stdout).toBe('{"a": 1}\n');
       expect(result.exitCode).toBe(0);
@@ -375,8 +398,8 @@ EOF`);
 
     it("should allow list comprehensions and lambdas", async () => {
       const env = new Bash({ python: true });
-      const result = await env.exec(
-        'python3 -c "print(list(map(lambda x: x*2, [1,2,3])))"',
+      const result = toText(
+        await env.exec('python3 -c "print(list(map(lambda x: x*2, [1,2,3])))"'),
       );
       expect(result.stdout).toBe("[2, 4, 6]\n");
       expect(result.exitCode).toBe(0);
@@ -385,11 +408,13 @@ EOF`);
     it("should allow os.getcwd and os.chdir", async () => {
       const env = new Bash({ python: true });
       await env.exec("mkdir -p /tmp/test_chdir_dir");
-      const result = await env.exec(`python3 -c "
+      const result = toText(
+        await env.exec(`python3 -c "
 import os
 os.chdir('/tmp/test_chdir_dir')
 print(os.getcwd())
-"`);
+"`),
+      );
       expect(result.stdout).toBe("/tmp/test_chdir_dir\n");
       expect(result.exitCode).toBe(0);
     });

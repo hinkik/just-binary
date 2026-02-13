@@ -3,6 +3,7 @@
  */
 
 import type { CommandContext, ExecResult } from "../../types.js";
+import { EMPTY, encode } from "../../utils/bytes.js";
 import { parseColumnSpec } from "./column-selection.js";
 import {
   type CsvRow,
@@ -31,8 +32,8 @@ export async function cmdSelect(
 
   if (!colSpec) {
     return {
-      stdout: "",
-      stderr: "xan select: no columns specified\n",
+      stdout: EMPTY,
+      stderr: encode("xan select: no columns specified\n"),
       exitCode: 1,
     };
   }
@@ -50,7 +51,11 @@ export async function cmdSelect(
     return newRow;
   });
 
-  return { stdout: formatCsv(newHeaders, newData), stderr: "", exitCode: 0 };
+  return {
+    stdout: encode(formatCsv(newHeaders, newData)),
+    stderr: EMPTY,
+    exitCode: 0,
+  };
 }
 
 export async function cmdDrop(
@@ -72,8 +77,8 @@ export async function cmdDrop(
 
   if (!colSpec) {
     return {
-      stdout: "",
-      stderr: "xan drop: no columns specified\n",
+      stdout: EMPTY,
+      stderr: encode("xan drop: no columns specified\n"),
       exitCode: 1,
     };
   }
@@ -92,7 +97,11 @@ export async function cmdDrop(
     return newRow;
   });
 
-  return { stdout: formatCsv(newHeaders, newData), stderr: "", exitCode: 0 };
+  return {
+    stdout: encode(formatCsv(newHeaders, newData)),
+    stderr: EMPTY,
+    exitCode: 0,
+  };
 }
 
 export async function cmdRename(
@@ -121,8 +130,8 @@ export async function cmdRename(
 
   if (!newNames) {
     return {
-      stdout: "",
-      stderr: "xan rename: no new name(s) specified\n",
+      stdout: EMPTY,
+      stderr: encode("xan rename: no new name(s) specified\n"),
       exitCode: 1,
     };
   }
@@ -156,7 +165,11 @@ export async function cmdRename(
     return newRow;
   });
 
-  return { stdout: formatCsv(newHeaders, newData), stderr: "", exitCode: 0 };
+  return {
+    stdout: encode(formatCsv(newHeaders, newData)),
+    stderr: EMPTY,
+    exitCode: 0,
+  };
 }
 
 export async function cmdEnum(
@@ -187,5 +200,9 @@ export async function cmdEnum(
     return newRow;
   });
 
-  return { stdout: formatCsv(newHeaders, newData), stderr: "", exitCode: 0 };
+  return {
+    stdout: encode(formatCsv(newHeaders, newData)),
+    stderr: EMPTY,
+    exitCode: 0,
+  };
 }

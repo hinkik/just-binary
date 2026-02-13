@@ -26,6 +26,7 @@ import {
   parseArithNumber,
 } from "../parser/arithmetic-parser.js";
 import { Parser } from "../parser/parser.js";
+import { decode, EMPTY, trimTrailingNewlines } from "../utils/bytes.js";
 import { ArithmeticError, NounsetError } from "./errors.js";
 import { getArrayElements, getVariable } from "./expansion.js";
 import type { InterpreterContext } from "./types.js";
@@ -264,8 +265,8 @@ async function evaluateArithValue(
     const errorToken = unparsed.split(/\s+/)[0] || unparsed;
     throw new ArithmeticError(
       `syntax error in expression (error token is "${errorToken}")`,
-      "",
-      "",
+      EMPTY,
+      EMPTY,
     );
   }
   return await evaluateArithmetic(ctx, expr);
@@ -457,11 +458,11 @@ export async function evaluateArithmetic(
       if (ctx.execFn) {
         const result = await ctx.execFn(expr.command);
         // Command substitution stderr should go to the shell's stderr at expansion time
-        if (result.stderr) {
+        if (result.stderr.length > 0) {
           ctx.state.expansionStderr =
-            (ctx.state.expansionStderr || "") + result.stderr;
+            (ctx.state.expansionStderr || "") + decode(result.stderr);
         }
-        const output = result.stdout.trim();
+        const output = decode(trimTrailingNewlines(result.stdout)).trim();
         return Number.parseInt(output, 10) || 0;
       }
       return 0;
@@ -585,7 +586,7 @@ export async function evaluateArithmetic(
 
     case "ArithDoubleSubscript": {
       // Double subscript like a[1][1] is not valid - fail silently with exit code 1
-      throw new ArithmeticError("double subscript", "", "");
+      throw new ArithmeticError("double subscript", EMPTY, EMPTY);
     }
 
     case "ArithNumberSubscript": {
@@ -598,7 +599,7 @@ export async function evaluateArithmetic(
     case "ArithSyntaxError": {
       // Syntax error node - throw at evaluation time so script can parse successfully
       // These are fatal errors (like missing operand) that should abort the script
-      throw new ArithmeticError(expr.message, "", "", true);
+      throw new ArithmeticError(expr.message, EMPTY, EMPTY, true);
     }
 
     case "ArithSingleQuote": {
@@ -970,7 +971,7 @@ async function evalConcatPartToStringAsync(
     case "ArithCommandSubst": {
       if (ctx.execFn) {
         const result = await ctx.execFn(expr.command);
-        return result.stdout.trim();
+        return decode(trimTrailingNewlines(result.stdout)).trim();
       }
       return "0";
     }

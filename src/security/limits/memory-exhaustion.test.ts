@@ -10,6 +10,7 @@
 
 import { beforeEach, describe, expect, it } from "vitest";
 import { Bash } from "../../index.js";
+import { toText } from "../../test-utils.js";
 
 describe("Memory Exhaustion Prevention", () => {
   let bash: Bash;
@@ -25,8 +26,8 @@ describe("Memory Exhaustion Prevention", () => {
       });
 
       // Generate a string that exceeds the limit via command substitution
-      const result = await limitedBash.exec(
-        'x=$(printf "%200s" " "); echo "done"',
+      const result = toText(
+        await limitedBash.exec('x=$(printf "%200s" " "); echo "done"'),
       );
       expect(result.exitCode).toBe(126);
       expect(result.stderr).toContain("limit exceeded");
@@ -37,13 +38,15 @@ describe("Memory Exhaustion Prevention", () => {
         executionLimits: { maxStringLength: 100, maxLoopIterations: 1000 },
       });
 
-      const result = await limitedBash.exec(`
+      const result = toText(
+        await limitedBash.exec(`
         x=""
         for i in {1..100}; do
           x="\${x}AAAAAAAAAA"
         done
         echo "done"
-      `);
+      `),
+      );
       expect(result.exitCode).toBe(126);
       expect(result.stderr).toContain("string length limit exceeded");
     });
@@ -53,7 +56,7 @@ describe("Memory Exhaustion Prevention", () => {
         executionLimits: { maxStringLength: 1000 },
       });
 
-      const result = await limitedBash.exec('echo "hello world"');
+      const result = toText(await limitedBash.exec('echo "hello world"'));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("hello world\n");
     });
@@ -64,10 +67,12 @@ describe("Memory Exhaustion Prevention", () => {
       });
 
       // Create a long string via command substitution for here-string
-      const result = await limitedBash.exec(`
+      const result = toText(
+        await limitedBash.exec(`
         longvar=$(printf "%100s" "x")
         cat <<< "$longvar"
-      `);
+      `),
+      );
       expect(result.exitCode).toBe(126);
       expect(result.stderr).toContain("limit exceeded");
     });
@@ -78,8 +83,8 @@ describe("Memory Exhaustion Prevention", () => {
       });
 
       // Printf output is limited when captured via command substitution
-      const result = await limitedBash.exec(
-        'x=$(printf "%200s" "a"); echo "done"',
+      const result = toText(
+        await limitedBash.exec('x=$(printf "%200s" "a"); echo "done"'),
       );
       expect(result.exitCode).toBe(126);
       expect(result.stderr).toContain("limit exceeded");
@@ -92,7 +97,8 @@ describe("Memory Exhaustion Prevention", () => {
         executionLimits: { maxArrayElements: 5 },
       });
 
-      const result = await limitedBash.exec(`
+      const result = toText(
+        await limitedBash.exec(`
         set -e
         mapfile -t arr <<'LINES'
 1
@@ -107,7 +113,8 @@ describe("Memory Exhaustion Prevention", () => {
 10
 LINES
         echo "count: \${#arr[@]}"
-      `);
+      `),
+      );
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("array element limit exceeded");
     });
@@ -117,24 +124,28 @@ LINES
         executionLimits: { maxArrayElements: 5 },
       });
 
-      const result = await limitedBash.exec(`
+      const result = toText(
+        await limitedBash.exec(`
         set -e
         echo "1 2 3 4 5 6 7 8 9 10" | {
           read -a arr
           echo "count: \${#arr[@]}"
         }
-      `);
+      `),
+      );
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("array element limit exceeded");
     });
 
     it("should handle sparse array index", async () => {
       // Sparse array with large index - should not crash
-      const result = await bash.exec(`
+      const result = toText(
+        await bash.exec(`
         arr=()
         arr[1000]=value
         echo "done: \${arr[1000]}"
-      `);
+      `),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("done: value\n");
     });
@@ -144,10 +155,12 @@ LINES
         executionLimits: { maxArrayElements: 100 },
       });
 
-      const result = await limitedBash.exec(`
+      const result = toText(
+        await limitedBash.exec(`
         arr=(1 2 3 4 5)
         echo "count: \${#arr[@]}"
-      `);
+      `),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("count: 5\n");
     });
@@ -156,12 +169,14 @@ LINES
   describe("Heredoc Size", () => {
     it("should allow heredocs within limit", async () => {
       // Note: Heredoc limit is currently a hardcoded 10MB constant in the lexer
-      const result = await bash.exec(`
+      const result = toText(
+        await bash.exec(`
         cat <<EOF
 This is a normal heredoc
 with multiple lines
 EOF
-      `);
+      `),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("This is a normal heredoc");
     });
@@ -170,12 +185,14 @@ EOF
       // The heredoc limit is enforced at parse time with a 10MB constant
       // This test documents that behavior - we can't easily test it
       // because creating a 10MB+ string would be slow/memory-intensive
-      const result = await bash.exec(`
+      const result = toText(
+        await bash.exec(`
         cat <<EOF
 This is a reasonably sized heredoc
 that should work fine
 EOF
-      `);
+      `),
+      );
       expect(result.exitCode).toBe(0);
     });
   });
@@ -193,7 +210,7 @@ EOF
         touch /tmp/globtest/a /tmp/globtest/b /tmp/globtest/c /tmp/globtest/d
       `);
 
-      const result = await limitedBash.exec("echo /tmp/globtest/*");
+      const result = toText(await limitedBash.exec("echo /tmp/globtest/*"));
       expect(result.exitCode).toBe(126);
       expect(result.stderr).toContain("Glob operation limit exceeded");
     });
@@ -208,7 +225,7 @@ EOF
         touch /tmp/smallglob/a.txt /tmp/smallglob/b.txt
       `);
 
-      const result = await limitedBash.exec("echo /tmp/smallglob/*");
+      const result = toText(await limitedBash.exec("echo /tmp/smallglob/*"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("/tmp/smallglob/a.txt");
     });
@@ -224,13 +241,15 @@ EOF
       });
 
       // Exponential growth: doubles each iteration
-      const result = await limitedBash.exec(`
+      const result = toText(
+        await limitedBash.exec(`
         x="A"
         for i in {1..20}; do
           x="$x$x"
         done
         echo "done"
-      `);
+      `),
+      );
       expect(result.exitCode).toBe(126);
       expect(result.stderr).toContain("string length limit exceeded");
     });
@@ -243,11 +262,13 @@ EOF
         },
       });
 
-      const result = await limitedBash.exec(`
+      const result = toText(
+        await limitedBash.exec(`
         x=$(printf '%50s' 'a')
         y=$(echo "$x$x$x")
         echo "length: \${#y}"
-      `);
+      `),
+      );
       expect(result.exitCode).toBe(126);
       expect(result.stderr).toContain("limit");
     });
@@ -259,11 +280,13 @@ EOF
         executionLimits: { maxStringLength: 100 },
       });
 
-      const result = await limitedBash.exec(`
+      const result = toText(
+        await limitedBash.exec(`
         x="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
         y="\${x//a/REPLACED}"
         echo "length: \${#y}"
-      `);
+      `),
+      );
       expect(result.exitCode).toBe(126);
       expect(result.stderr).toContain("string length limit exceeded");
     });
@@ -273,10 +296,12 @@ EOF
         executionLimits: { maxStringLength: 100 },
       });
 
-      const result = await limitedBash.exec(`
+      const result = toText(
+        await limitedBash.exec(`
         x=$(printf '%200s' 'a')
         echo "\${x^^}"
-      `);
+      `),
+      );
       expect(result.exitCode).toBe(126);
       expect(result.stderr).toContain("limit exceeded");
     });
@@ -287,14 +312,16 @@ EOF
       const defaultBash = new Bash();
 
       // Normal script should work with defaults
-      const result = await defaultBash.exec(`
+      const result = toText(
+        await defaultBash.exec(`
         # Create a moderate sized array
         arr=()
         for i in {1..100}; do
           arr+=("item$i")
         done
         echo "count: \${#arr[@]}"
-      `);
+      `),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("count: 100\n");
     });
@@ -310,7 +337,8 @@ EOF
       // Use exponential string growth: x becomes x+x each iteration
       // After 5 iterations: 100 -> 200 -> 400 -> 800 -> 1600 -> 3200...
       // This hits limits in just a few iterations instead of 10000 loops
-      const result = await limitedBash.exec(`
+      const result = toText(
+        await limitedBash.exec(`
         x=$(printf '%100s' 'x')
         x="$x$x"
         x="$x$x"
@@ -319,7 +347,8 @@ EOF
         x="$x$x"
         x="$x$x"
         x="$x$x"
-      `);
+      `),
+      );
       // 100 * 2^7 = 12800 > 10000 limit
       expect(result.exitCode).toBe(126);
       expect(result.stderr).toContain("limit");

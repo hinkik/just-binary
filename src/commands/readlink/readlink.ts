@@ -1,4 +1,5 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const readlinkHelp = {
@@ -33,8 +34,8 @@ export const readlinkCommand: Command = {
         break;
       } else {
         return {
-          stdout: "",
-          stderr: `readlink: invalid option -- '${arg.slice(1)}'\n`,
+          stdout: EMPTY,
+          stderr: encode(`readlink: invalid option -- '${arg.slice(1)}'\n`),
           exitCode: 1,
         };
       }
@@ -43,7 +44,11 @@ export const readlinkCommand: Command = {
     const files = args.slice(argIdx);
 
     if (files.length === 0) {
-      return { stdout: "", stderr: "readlink: missing operand\n", exitCode: 1 };
+      return {
+        stdout: EMPTY,
+        stderr: encode("readlink: missing operand\n"),
+        exitCode: 1,
+      };
     }
 
     let stdout = "";
@@ -97,7 +102,11 @@ export const readlinkCommand: Command = {
       }
     }
 
-    return { stdout, stderr: "", exitCode: anyError ? 1 : 0 };
+    return {
+      stdout: encode(stdout),
+      stderr: EMPTY,
+      exitCode: anyError ? 1 : 0,
+    };
   },
 };
 

@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Bash } from "../Bash.js";
+import { toText } from "../test-utils.js";
 
 /**
  * Comparison tests for parse errors
@@ -43,7 +44,7 @@ describe("Parse Errors - Comparison Tests", () => {
     files: Record<string, string> = {},
   ): Promise<{ stdout: string; stderr: string; exitCode: number }> => {
     const env = new Bash({ files, cwd: "/" });
-    return env.exec(command);
+    return toText(await env.exec(command));
   };
 
   beforeEach(() => {

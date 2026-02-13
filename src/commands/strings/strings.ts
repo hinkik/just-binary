@@ -8,6 +8,7 @@
  */
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { decode, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
 const stringsHelp = {
@@ -130,8 +131,10 @@ export const strings: Command = {
         if (Number.isNaN(min) || min < 1) {
           return {
             exitCode: 1,
-            stdout: "",
-            stderr: `strings: invalid minimum string length: '${args[i + 1]}'\n`,
+            stdout: EMPTY,
+            stderr: encode(
+              `strings: invalid minimum string length: '${args[i + 1]}'\n`,
+            ),
           };
         }
         options.minLength = min;
@@ -141,8 +144,10 @@ export const strings: Command = {
         if (Number.isNaN(min) || min < 1) {
           return {
             exitCode: 1,
-            stdout: "",
-            stderr: `strings: invalid minimum string length: '${arg.slice(2)}'\n`,
+            stdout: EMPTY,
+            stderr: encode(
+              `strings: invalid minimum string length: '${arg.slice(2)}'\n`,
+            ),
           };
         }
         options.minLength = min;
@@ -153,8 +158,10 @@ export const strings: Command = {
         if (Number.isNaN(min) || min < 1) {
           return {
             exitCode: 1,
-            stdout: "",
-            stderr: `strings: invalid minimum string length: '${arg.slice(1)}'\n`,
+            stdout: EMPTY,
+            stderr: encode(
+              `strings: invalid minimum string length: '${arg.slice(1)}'\n`,
+            ),
           };
         }
         options.minLength = min;
@@ -164,8 +171,8 @@ export const strings: Command = {
         if (format !== "o" && format !== "x" && format !== "d") {
           return {
             exitCode: 1,
-            stdout: "",
-            stderr: `strings: invalid radix: '${format}'\n`,
+            stdout: EMPTY,
+            stderr: encode(`strings: invalid radix: '${format}'\n`),
           };
         }
         options.offsetFormat = format;
@@ -175,8 +182,8 @@ export const strings: Command = {
         if (format !== "o" && format !== "x" && format !== "d") {
           return {
             exitCode: 1,
-            stdout: "",
-            stderr: `strings: invalid radix: '${format}'\n`,
+            stdout: EMPTY,
+            stderr: encode(`strings: invalid radix: '${format}'\n`),
           };
         }
         options.offsetFormat = format as OffsetFormat;
@@ -194,8 +201,8 @@ export const strings: Command = {
         if (encoding !== "s" && encoding !== "S") {
           return {
             exitCode: 1,
-            stdout: "",
-            stderr: `strings: invalid encoding: '${encoding}'\n`,
+            stdout: EMPTY,
+            stderr: encode(`strings: invalid encoding: '${encoding}'\n`),
           };
         }
         // We treat both the same for simplicity
@@ -205,8 +212,8 @@ export const strings: Command = {
         if (encoding !== "s" && encoding !== "S") {
           return {
             exitCode: 1,
-            stdout: "",
-            stderr: `strings: invalid encoding: '${encoding}'\n`,
+            stdout: EMPTY,
+            stderr: encode(`strings: invalid encoding: '${encoding}'\n`),
           };
         }
         i++;
@@ -225,7 +232,7 @@ export const strings: Command = {
 
     if (files.length === 0) {
       // Read from stdin
-      const input = ctx.stdin ?? "";
+      const input = decode(ctx.stdin);
       const strings = extractStrings(input, options);
       output = strings.length > 0 ? `${strings.join("\n")}\n` : "";
     } else {
@@ -233,15 +240,15 @@ export const strings: Command = {
       for (const file of files) {
         let content: string | null;
         if (file === "-") {
-          content = ctx.stdin ?? "";
+          content = decode(ctx.stdin);
         } else {
           const filePath = ctx.fs.resolvePath(ctx.cwd, file);
           content = await ctx.fs.readFile(filePath);
           if (content === null) {
             return {
               exitCode: 1,
-              stdout: output,
-              stderr: `strings: ${file}: No such file or directory\n`,
+              stdout: encode(output),
+              stderr: encode(`strings: ${file}: No such file or directory\n`),
             };
           }
         }
@@ -254,8 +261,8 @@ export const strings: Command = {
 
     return {
       exitCode: 0,
-      stdout: output,
-      stderr: "",
+      stdout: encode(output),
+      stderr: EMPTY,
     };
   },
 };

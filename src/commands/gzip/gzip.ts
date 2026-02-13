@@ -7,6 +7,7 @@
 import { constants, gunzipSync, gzipSync } from "node:zlib";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
+import { concat, decode, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const gzipHelp = {
@@ -238,7 +239,7 @@ function isGzip(data: Uint8Array): boolean {
 }
 
 interface GzipResult {
-  stdout: string;
+  stdout: Uint8Array;
   stderr: string;
   exitCode: number;
 }
@@ -258,30 +259,29 @@ async function processFile(
 
   // Handle stdin
   if (file === "-" || file === "") {
-    inputData = Uint8Array.from(ctx.stdin, (c) => c.charCodeAt(0));
+    inputData = ctx.stdin;
     if (decompress) {
       if (!isGzip(inputData)) {
         if (!flags.quiet) {
           return {
-            stdout: "",
+            stdout: EMPTY,
             stderr: `${cmdName}: stdin: not in gzip format\n`,
             exitCode: 1,
           };
         }
-        return { stdout: "", stderr: "", exitCode: 1 };
+        return { stdout: EMPTY, stderr: "", exitCode: 1 };
       }
       try {
         const decompressed = gunzipSync(inputData);
-        // Use binary string (latin1) to preserve bytes
         return {
-          stdout: String.fromCharCode(...decompressed),
+          stdout: decompressed as Uint8Array,
           stderr: "",
           exitCode: 0,
         };
       } catch (e) {
         const msg = e instanceof Error ? e.message : "unknown error";
         return {
-          stdout: "",
+          stdout: EMPTY,
           stderr: `${cmdName}: stdin: ${msg}\n`,
           exitCode: 1,
         };
@@ -290,10 +290,8 @@ async function processFile(
       // Compress stdin
       const level = getCompressionLevel(flags);
       const compressed = gzipSync(inputData, { level });
-      // Output raw bytes as binary - this is tricky since stdout is string
-      // We'll use latin1 encoding to preserve bytes
       return {
-        stdout: String.fromCharCode(...compressed),
+        stdout: compressed as Uint8Array,
         stderr: "",
         exitCode: 0,
       };
@@ -320,16 +318,16 @@ async function processFile(
       }
       if (!flags.quiet) {
         return {
-          stdout: "",
+          stdout: EMPTY,
           stderr: `${cmdName}: ${file}: is a directory -- ignored\n`,
           exitCode: 1,
         };
       }
-      return { stdout: "", stderr: "", exitCode: 1 };
+      return { stdout: EMPTY, stderr: "", exitCode: 1 };
     }
   } catch {
     return {
-      stdout: "",
+      stdout: EMPTY,
       stderr: `${cmdName}: ${file}: No such file or directory\n`,
       exitCode: 1,
     };
@@ -340,7 +338,7 @@ async function processFile(
     inputData = await ctx.fs.readFileBuffer(inputPath);
   } catch {
     return {
-      stdout: "",
+      stdout: EMPTY,
       stderr: `${cmdName}: ${file}: No such file or directory\n`,
       exitCode: 1,
     };
@@ -351,23 +349,23 @@ async function processFile(
     if (!file.endsWith(suffix)) {
       if (!flags.quiet) {
         return {
-          stdout: "",
+          stdout: EMPTY,
           stderr: `${cmdName}: ${file}: unknown suffix -- ignored\n`,
           exitCode: 1,
         };
       }
-      return { stdout: "", stderr: "", exitCode: 1 };
+      return { stdout: EMPTY, stderr: "", exitCode: 1 };
     }
 
     if (!isGzip(inputData)) {
       if (!flags.quiet) {
         return {
-          stdout: "",
+          stdout: EMPTY,
           stderr: `${cmdName}: ${file}: not in gzip format\n`,
           exitCode: 1,
         };
       }
-      return { stdout: "", stderr: "", exitCode: 1 };
+      return { stdout: EMPTY, stderr: "", exitCode: 1 };
     }
 
     let decompressed: Uint8Array;
@@ -376,16 +374,15 @@ async function processFile(
     } catch (e) {
       const msg = e instanceof Error ? e.message : "unknown error";
       return {
-        stdout: "",
+        stdout: EMPTY,
         stderr: `${cmdName}: ${file}: ${msg}\n`,
         exitCode: 1,
       };
     }
 
     if (toStdout) {
-      // Output to stdout using binary string (latin1) to preserve bytes
       return {
-        stdout: String.fromCharCode(...decompressed),
+        stdout: decompressed as Uint8Array,
         stderr: "",
         exitCode: 0,
       };
@@ -408,7 +405,7 @@ async function processFile(
       try {
         await ctx.fs.stat(outputPath);
         return {
-          stdout: "",
+          stdout: EMPTY,
           stderr: `${cmdName}: ${outputPath} already exists; not overwritten\n`,
           exitCode: 1,
         };
@@ -431,24 +428,24 @@ async function processFile(
           ? ((1 - inputData.length / decompressed.length) * 100).toFixed(1)
           : "0.0";
       return {
-        stdout: "",
+        stdout: EMPTY,
         stderr: `${file}:\t${ratio}% -- replaced with ${outputPath.split("/").pop()}\n`,
         exitCode: 0,
       };
     }
 
-    return { stdout: "", stderr: "", exitCode: 0 };
+    return { stdout: EMPTY, stderr: "", exitCode: 0 };
   } else {
     // Compression
     if (file.endsWith(suffix)) {
       if (!flags.quiet) {
         return {
-          stdout: "",
+          stdout: EMPTY,
           stderr: `${cmdName}: ${file} already has ${suffix} suffix -- unchanged\n`,
           exitCode: 1,
         };
       }
-      return { stdout: "", stderr: "", exitCode: 1 };
+      return { stdout: EMPTY, stderr: "", exitCode: 1 };
     }
 
     const level = getCompressionLevel(flags);
@@ -459,16 +456,15 @@ async function processFile(
     } catch (e) {
       const msg = e instanceof Error ? e.message : "unknown error";
       return {
-        stdout: "",
+        stdout: EMPTY,
         stderr: `${cmdName}: ${file}: ${msg}\n`,
         exitCode: 1,
       };
     }
 
     if (toStdout) {
-      // Output to stdout as binary
       return {
-        stdout: String.fromCharCode(...compressed),
+        stdout: compressed as Uint8Array,
         stderr: "",
         exitCode: 0,
       };
@@ -481,7 +477,7 @@ async function processFile(
       try {
         await ctx.fs.stat(outputPath);
         return {
-          stdout: "",
+          stdout: EMPTY,
           stderr: `${cmdName}: ${outputPath} already exists; not overwritten\n`,
           exitCode: 1,
         };
@@ -504,13 +500,13 @@ async function processFile(
           ? ((1 - compressed.length / inputData.length) * 100).toFixed(1)
           : "0.0";
       return {
-        stdout: "",
+        stdout: EMPTY,
         stderr: `${file}:\t${ratio}% -- replaced with ${outputPath.split("/").pop()}\n`,
         exitCode: 0,
       };
     }
 
-    return { stdout: "", stderr: "", exitCode: 0 };
+    return { stdout: EMPTY, stderr: "", exitCode: 0 };
   }
 }
 
@@ -523,7 +519,7 @@ async function processDirectory(
   toStdout: boolean,
 ): Promise<GzipResult> {
   const entries = await ctx.fs.readdir(dirPath);
-  let stdout = "";
+  let stdout: Uint8Array = EMPTY;
   let stderr = "";
   let exitCode = 0;
 
@@ -540,7 +536,7 @@ async function processDirectory(
         decompress,
         toStdout,
       );
-      stdout += result.stdout;
+      stdout = concat(stdout, result.stdout);
       stderr += result.stderr;
       if (result.exitCode !== 0) exitCode = result.exitCode;
     } else if (stat.isFile) {
@@ -561,7 +557,7 @@ async function processDirectory(
         decompress,
         toStdout,
       );
-      stdout += result.stdout;
+      stdout = concat(stdout, result.stdout);
       stderr += result.stderr;
       if (result.exitCode !== 0) exitCode = result.exitCode;
     }
@@ -579,14 +575,14 @@ async function listFile(
   let inputData: Uint8Array;
 
   if (file === "-" || file === "") {
-    inputData = Uint8Array.from(ctx.stdin, (c) => c.charCodeAt(0));
+    inputData = ctx.stdin;
   } else {
     const inputPath = ctx.fs.resolvePath(ctx.cwd, file);
     try {
       inputData = await ctx.fs.readFileBuffer(inputPath);
     } catch {
       return {
-        stdout: "",
+        stdout: EMPTY,
         stderr: `${cmdName}: ${file}: No such file or directory\n`,
         exitCode: 1,
       };
@@ -596,12 +592,12 @@ async function listFile(
   if (!isGzip(inputData)) {
     if (!flags.quiet) {
       return {
-        stdout: "",
+        stdout: EMPTY,
         stderr: `${cmdName}: ${file}: not in gzip format\n`,
         exitCode: 1,
       };
     }
-    return { stdout: "", stderr: "", exitCode: 1 };
+    return { stdout: EMPTY, stderr: "", exitCode: 1 };
   }
 
   const compressed = inputData.length;
@@ -618,7 +614,7 @@ async function listFile(
   // Format: compressed uncompressed ratio uncompressed_name
   const line = `${compressed.toString().padStart(10)} ${uncompressed.toString().padStart(10)} ${ratio.padStart(5)}% ${name}\n`;
 
-  return { stdout: line, stderr: "", exitCode: 0 };
+  return { stdout: encode(line), stderr: "", exitCode: 0 };
 }
 
 async function testFile(
@@ -630,14 +626,14 @@ async function testFile(
   let inputData: Uint8Array;
 
   if (file === "-" || file === "") {
-    inputData = Uint8Array.from(ctx.stdin, (c) => c.charCodeAt(0));
+    inputData = ctx.stdin;
   } else {
     const inputPath = ctx.fs.resolvePath(ctx.cwd, file);
     try {
       inputData = await ctx.fs.readFileBuffer(inputPath);
     } catch {
       return {
-        stdout: "",
+        stdout: EMPTY,
         stderr: `${cmdName}: ${file}: No such file or directory\n`,
         exitCode: 1,
       };
@@ -647,24 +643,24 @@ async function testFile(
   if (!isGzip(inputData)) {
     if (!flags.quiet) {
       return {
-        stdout: "",
+        stdout: EMPTY,
         stderr: `${cmdName}: ${file}: not in gzip format\n`,
         exitCode: 1,
       };
     }
-    return { stdout: "", stderr: "", exitCode: 1 };
+    return { stdout: EMPTY, stderr: "", exitCode: 1 };
   }
 
   try {
     gunzipSync(inputData);
     if (flags.verbose) {
-      return { stdout: "", stderr: `${file}:\tOK\n`, exitCode: 0 };
+      return { stdout: EMPTY, stderr: `${file}:\tOK\n`, exitCode: 0 };
     }
-    return { stdout: "", stderr: "", exitCode: 0 };
+    return { stdout: EMPTY, stderr: "", exitCode: 0 };
   } catch (e) {
     const msg = e instanceof Error ? e.message : "invalid";
     return {
-      stdout: "",
+      stdout: EMPTY,
       stderr: `${cmdName}: ${file}: ${msg}\n`,
       exitCode: 1,
     };
@@ -691,7 +687,7 @@ async function executeGzip(
   const parsed = parseArgs(cmdName, args, argDefs);
   if (!parsed.ok) {
     // Check if it's an unknown option error
-    if (parsed.error.stderr.includes("unrecognized option")) {
+    if (decode(parsed.error.stderr).includes("unrecognized option")) {
       return parsed.error;
     }
     return parsed.error;
@@ -712,36 +708,38 @@ async function executeGzip(
   if (flags.list) {
     if (files.length === 0) files = ["-"];
 
-    let stdout = "  compressed uncompressed  ratio uncompressed_name\n";
+    let stdout: Uint8Array = encode(
+      "  compressed uncompressed  ratio uncompressed_name\n",
+    );
     let stderr = "";
     let exitCode = 0;
 
     for (const file of files) {
       const result = await listFile(ctx, file, flags, cmdName);
-      stdout += result.stdout;
+      stdout = concat(stdout, result.stdout);
       stderr += result.stderr;
       if (result.exitCode !== 0) exitCode = result.exitCode;
     }
 
-    return { stdout, stderr, exitCode };
+    return { stdout, stderr: encode(stderr), exitCode };
   }
 
   // Handle -t (test)
   if (flags.test) {
     if (files.length === 0) files = ["-"];
 
-    let stdout = "";
+    let stdout: Uint8Array = EMPTY;
     let stderr = "";
     let exitCode = 0;
 
     for (const file of files) {
       const result = await testFile(ctx, file, flags, cmdName);
-      stdout += result.stdout;
+      stdout = concat(stdout, result.stdout);
       stderr += result.stderr;
       if (result.exitCode !== 0) exitCode = result.exitCode;
     }
 
-    return { stdout, stderr, exitCode };
+    return { stdout, stderr: encode(stderr), exitCode };
   }
 
   // No files specified - use stdin
@@ -749,7 +747,7 @@ async function executeGzip(
     files = ["-"];
   }
 
-  let stdout = "";
+  let stdout: Uint8Array = EMPTY;
   let stderr = "";
   let exitCode = 0;
 
@@ -762,12 +760,12 @@ async function executeGzip(
       decompress,
       toStdout,
     );
-    stdout += result.stdout;
+    stdout = concat(stdout, result.stdout);
     stderr += result.stderr;
     if (result.exitCode !== 0) exitCode = result.exitCode;
   }
 
-  return { stdout, stderr, exitCode };
+  return { stdout, stderr: encode(stderr), exitCode };
 }
 
 export const gzipCommand: Command = {

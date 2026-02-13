@@ -5,13 +5,16 @@
 
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { toText } from "../../test-utils.js";
 
 describe("xan agg", () => {
   it("count() counts all rows", async () => {
     const bash = new Bash({
       files: { "/data.csv": "n\n1\n2\n3\n4\n" },
     });
-    const result = await bash.exec("xan agg 'count() as count' /data.csv");
+    const result = toText(
+      await bash.exec("xan agg 'count() as count' /data.csv"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("count\n4\n");
   });
@@ -20,7 +23,9 @@ describe("xan agg", () => {
     const bash = new Bash({
       files: { "/data.csv": "n\n1\n2\n3\n4\n" },
     });
-    const result = await bash.exec("xan agg 'count(n > 2) as count' /data.csv");
+    const result = toText(
+      await bash.exec("xan agg 'count(n > 2) as count' /data.csv"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("count\n2\n");
   });
@@ -29,7 +34,7 @@ describe("xan agg", () => {
     const bash = new Bash({
       files: { "/data.csv": "n\n1\n2\n3\n4\n" },
     });
-    const result = await bash.exec("xan agg 'sum(n) as sum' /data.csv");
+    const result = toText(await bash.exec("xan agg 'sum(n) as sum' /data.csv"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("sum\n10\n");
   });
@@ -38,7 +43,9 @@ describe("xan agg", () => {
     const bash = new Bash({
       files: { "/data.csv": "n\n1\n2\n3\n4\n" },
     });
-    const result = await bash.exec("xan agg 'mean(n) as mean' /data.csv");
+    const result = toText(
+      await bash.exec("xan agg 'mean(n) as mean' /data.csv"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("mean\n2.5\n");
   });
@@ -47,7 +54,9 @@ describe("xan agg", () => {
     const bash = new Bash({
       files: { "/data.csv": "n\n1\n2\n3\n4\n" },
     });
-    const result = await bash.exec("xan agg 'avg(n) as mean' /data.csv");
+    const result = toText(
+      await bash.exec("xan agg 'avg(n) as mean' /data.csv"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("mean\n2.5\n");
   });
@@ -56,7 +65,7 @@ describe("xan agg", () => {
     const bash = new Bash({
       files: { "/data.csv": "n\n1\n2\n3\n4\n" },
     });
-    const result = await bash.exec("xan agg 'min(n) as min' /data.csv");
+    const result = toText(await bash.exec("xan agg 'min(n) as min' /data.csv"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("min\n1\n");
   });
@@ -65,7 +74,7 @@ describe("xan agg", () => {
     const bash = new Bash({
       files: { "/data.csv": "n\n1\n2\n3\n4\n" },
     });
-    const result = await bash.exec("xan agg 'max(n) as max' /data.csv");
+    const result = toText(await bash.exec("xan agg 'max(n) as max' /data.csv"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("max\n4\n");
   });
@@ -74,7 +83,9 @@ describe("xan agg", () => {
     const bash = new Bash({
       files: { "/data.csv": "n\n1\n2\n3\n4\n" },
     });
-    const result = await bash.exec("xan agg 'first(n) as first' /data.csv");
+    const result = toText(
+      await bash.exec("xan agg 'first(n) as first' /data.csv"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("first\n1\n");
   });
@@ -83,7 +94,9 @@ describe("xan agg", () => {
     const bash = new Bash({
       files: { "/data.csv": "n\n1\n2\n3\n4\n" },
     });
-    const result = await bash.exec("xan agg 'last(n) as last' /data.csv");
+    const result = toText(
+      await bash.exec("xan agg 'last(n) as last' /data.csv"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("last\n4\n");
   });
@@ -92,7 +105,9 @@ describe("xan agg", () => {
     const bash = new Bash({
       files: { "/data.csv": "n\n1\n2\n3\n4\n" },
     });
-    const result = await bash.exec("xan agg 'median(n) as median' /data.csv");
+    const result = toText(
+      await bash.exec("xan agg 'median(n) as median' /data.csv"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("median\n2.5\n");
   });
@@ -101,8 +116,8 @@ describe("xan agg", () => {
     const bash = new Bash({
       files: { "/data.csv": "n\n1\n2\n3\n4\n" },
     });
-    const result = await bash.exec(
-      "xan agg 'count() as count, sum(n) as sum' /data.csv",
+    const result = toText(
+      await bash.exec("xan agg 'count() as count, sum(n) as sum' /data.csv"),
     );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("count,sum\n4,10\n");
@@ -112,11 +127,13 @@ describe("xan agg", () => {
     const bash = new Bash({
       files: { "/data.csv": "n\n1\n2\n3\n4\n" },
     });
-    let result = await bash.exec("xan agg 'all(n >= 1) as all' /data.csv");
+    let result = toText(
+      await bash.exec("xan agg 'all(n >= 1) as all' /data.csv"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("all\ntrue\n");
 
-    result = await bash.exec("xan agg 'all(n >= 2) as all' /data.csv");
+    result = toText(await bash.exec("xan agg 'all(n >= 2) as all' /data.csv"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("all\nfalse\n");
   });
@@ -125,11 +142,13 @@ describe("xan agg", () => {
     const bash = new Bash({
       files: { "/data.csv": "n\n1\n2\n3\n4\n" },
     });
-    let result = await bash.exec("xan agg 'any(n >= 1) as any' /data.csv");
+    let result = toText(
+      await bash.exec("xan agg 'any(n >= 1) as any' /data.csv"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("any\ntrue\n");
 
-    result = await bash.exec("xan agg 'any(n >= 5) as any' /data.csv");
+    result = toText(await bash.exec("xan agg 'any(n >= 5) as any' /data.csv"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("any\nfalse\n");
   });
@@ -138,7 +157,9 @@ describe("xan agg", () => {
     const bash = new Bash({
       files: { "/data.csv": "color\nred\nblue\nyellow\nred\n" },
     });
-    const result = await bash.exec("xan agg 'mode(color) as mode' /data.csv");
+    const result = toText(
+      await bash.exec("xan agg 'mode(color) as mode' /data.csv"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("mode\nred\n");
   });
@@ -147,8 +168,8 @@ describe("xan agg", () => {
     const bash = new Bash({
       files: { "/data.csv": "color\nred\nblue\nyellow\nred\n" },
     });
-    const result = await bash.exec(
-      "xan agg 'cardinality(color) as cardinality' /data.csv",
+    const result = toText(
+      await bash.exec("xan agg 'cardinality(color) as cardinality' /data.csv"),
     );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("cardinality\n3\n");
@@ -158,7 +179,9 @@ describe("xan agg", () => {
     const bash = new Bash({
       files: { "/data.csv": "name\nJohn\nMary\nLucas\n" },
     });
-    const result = await bash.exec("xan agg 'values(name) as V' /data.csv");
+    const result = toText(
+      await bash.exec("xan agg 'values(name) as V' /data.csv"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("V\nJohn|Mary|Lucas\n");
   });
@@ -167,8 +190,8 @@ describe("xan agg", () => {
     const bash = new Bash({
       files: { "/data.csv": "name\nJohn\nMary\nLucas\nMary\nLucas\n" },
     });
-    const result = await bash.exec(
-      "xan agg 'distinct_values(name) as V' /data.csv",
+    const result = toText(
+      await bash.exec("xan agg 'distinct_values(name) as V' /data.csv"),
     );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("V\nJohn|Lucas|Mary\n");
@@ -180,8 +203,8 @@ describe("xan agg with expressions", () => {
     const bash = new Bash({
       files: { "/data.csv": "a,b\n1,2\n2,0\n3,6\n4,2\n" },
     });
-    const result = await bash.exec(
-      "xan agg 'sum(add(a, b + 1)) as sum' /data.csv",
+    const result = toText(
+      await bash.exec("xan agg 'sum(add(a, b + 1)) as sum' /data.csv"),
     );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("sum\n24\n");

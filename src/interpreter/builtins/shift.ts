@@ -12,6 +12,7 @@
  */
 
 import type { ExecResult } from "../../types.js";
+import { EMPTY, encode } from "../../utils/bytes.js";
 import { PosixFatalError } from "../errors.js";
 import { failure, OK } from "../helpers/result.js";
 import type { InterpreterContext } from "../types.js";
@@ -29,7 +30,7 @@ export function handleShift(
       const errorMsg = `bash: shift: ${args[0]}: numeric argument required\n`;
       // In POSIX mode, this error is fatal
       if (ctx.state.options.posix) {
-        throw new PosixFatalError(1, "", errorMsg);
+        throw new PosixFatalError(1, EMPTY, encode(errorMsg));
       }
       return failure(errorMsg);
     }
@@ -44,7 +45,7 @@ export function handleShift(
     const errorMsg = "bash: shift: shift count out of range\n";
     // In POSIX mode, this error is fatal
     if (ctx.state.options.posix) {
-      throw new PosixFatalError(1, "", errorMsg);
+      throw new PosixFatalError(1, EMPTY, encode(errorMsg));
     }
     return failure(errorMsg);
   }

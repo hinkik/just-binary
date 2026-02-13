@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { toText } from "../../test-utils.js";
 
 // Note: These tests use Pyodide which downloads ~30MB on first run.
 // The first test will be slow, subsequent tests reuse the cached instance.
@@ -11,7 +12,7 @@ describe("python3 script files", () => {
       await env.exec(`cat > /tmp/script.py << 'EOF'
 print("Hello from script")
 EOF`);
-      const result = await env.exec("python3 /tmp/script.py");
+      const result = toText(await env.exec("python3 /tmp/script.py"));
       expect(result.stdout).toBe("Hello from script\n");
       expect(result.exitCode).toBe(0);
     });
@@ -22,7 +23,7 @@ EOF`);
 import sys
 print(f"Args: {sys.argv[1:]}")
 EOF`);
-      const result = await env.exec("python3 /tmp/args.py foo bar baz");
+      const result = toText(await env.exec("python3 /tmp/args.py foo bar baz"));
       expect(result.stdout).toBe("Args: ['foo', 'bar', 'baz']\n");
       expect(result.exitCode).toBe(0);
     });
@@ -33,14 +34,14 @@ EOF`);
 import sys
 print(sys.argv[0])
 EOF`);
-      const result = await env.exec("python3 /tmp/argv0.py");
+      const result = toText(await env.exec("python3 /tmp/argv0.py"));
       expect(result.stdout).toBe("/tmp/argv0.py\n");
       expect(result.exitCode).toBe(0);
     });
 
     it("should error on missing script file", async () => {
       const env = new Bash({ python: true });
-      const result = await env.exec("python3 /tmp/nonexistent.py");
+      const result = toText(await env.exec("python3 /tmp/nonexistent.py"));
       expect(result.stderr).toContain("can't open file");
       expect(result.exitCode).toBe(2);
     });
@@ -54,7 +55,7 @@ def greet(name):
 result = greet("World")
 print(result)
 EOF`);
-      const result = await env.exec("python3 /tmp/multiline.py");
+      const result = toText(await env.exec("python3 /tmp/multiline.py"));
       expect(result.stdout).toBe("Hello, World!\n");
       expect(result.exitCode).toBe(0);
     });
@@ -68,7 +69,7 @@ import math
 data = {"pi": math.pi}
 print(json.dumps(data))
 EOF`);
-      const result = await env.exec("python3 /tmp/imports.py");
+      const result = toText(await env.exec("python3 /tmp/imports.py"));
       const parsed = JSON.parse(result.stdout.trim());
       expect(parsed.pi).toBeCloseTo(Math.PI, 5);
       expect(result.exitCode).toBe(0);
@@ -79,7 +80,7 @@ EOF`);
       await env.exec(`cat > /tmp/syntax_error.py << 'EOF'
 print("hello"
 EOF`);
-      const result = await env.exec("python3 /tmp/syntax_error.py");
+      const result = toText(await env.exec("python3 /tmp/syntax_error.py"));
       expect(result.stderr).toContain("SyntaxError");
       expect(result.exitCode).toBe(1);
     });
@@ -89,7 +90,7 @@ EOF`);
       await env.exec(`cat > /tmp/runtime_error.py << 'EOF'
 x = 1 / 0
 EOF`);
-      const result = await env.exec("python3 /tmp/runtime_error.py");
+      const result = toText(await env.exec("python3 /tmp/runtime_error.py"));
       expect(result.stderr).toContain("ZeroDivisionError");
       expect(result.exitCode).toBe(1);
     });
@@ -101,8 +102,10 @@ describe("python3 file I/O", () => {
     it("should read files created by bash", async () => {
       const env = new Bash({ python: true });
       await env.exec('echo "content from bash" > /tmp/bashfile.txt');
-      const result = await env.exec(
-        `python3 -c "with open('/tmp/bashfile.txt') as f: print(f.read().strip())"`,
+      const result = toText(
+        await env.exec(
+          `python3 -c "with open('/tmp/bashfile.txt') as f: print(f.read().strip())"`,
+        ),
       );
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("content from bash\n");
@@ -111,12 +114,14 @@ describe("python3 file I/O", () => {
 
     it("should write files readable by bash", async () => {
       const env = new Bash({ python: true });
-      const pyResult = await env.exec(
-        `python3 -c "with open('/tmp/pyfile.txt', 'w') as f: f.write('content from python')"`,
+      const pyResult = toText(
+        await env.exec(
+          `python3 -c "with open('/tmp/pyfile.txt', 'w') as f: f.write('content from python')"`,
+        ),
       );
       expect(pyResult.stderr).toBe("");
       expect(pyResult.exitCode).toBe(0);
-      const result = await env.exec("cat /tmp/pyfile.txt");
+      const result = toText(await env.exec("cat /tmp/pyfile.txt"));
       expect(result.stdout).toBe("content from python");
       expect(result.exitCode).toBe(0);
     });
@@ -124,12 +129,14 @@ describe("python3 file I/O", () => {
     it("should append to files", async () => {
       const env = new Bash({ python: true });
       await env.exec('echo "line1" > /tmp/append.txt');
-      const pyResult = await env.exec(
-        `python3 -c "with open('/tmp/append.txt', 'a') as f: f.write('line2\\n')"`,
+      const pyResult = toText(
+        await env.exec(
+          `python3 -c "with open('/tmp/append.txt', 'a') as f: f.write('line2\\n')"`,
+        ),
       );
       expect(pyResult.stderr).toBe("");
       expect(pyResult.exitCode).toBe(0);
-      const result = await env.exec("cat /tmp/append.txt");
+      const result = toText(await env.exec("cat /tmp/append.txt"));
       expect(result.stdout).toBe("line1\nline2\n");
       expect(result.exitCode).toBe(0);
     });
@@ -140,11 +147,13 @@ describe("python3 file I/O", () => {
       const env = new Bash({ python: true });
       await env.exec("mkdir -p /tmp/testdir");
       await env.exec("touch /tmp/testdir/a.txt /tmp/testdir/b.txt");
-      const result = await env.exec(`python3 -c "
+      const result = toText(
+        await env.exec(`python3 -c "
 import os
 files = sorted(os.listdir('/tmp/testdir'))
 print(files)
-"`);
+"`),
+      );
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("['a.txt', 'b.txt']\n");
       expect(result.exitCode).toBe(0);
@@ -152,12 +161,14 @@ print(files)
 
     it("should create directories", async () => {
       const env = new Bash({ python: true });
-      const pyResult = await env.exec(
-        "python3 -c \"import os; os.makedirs('/tmp/newdir/subdir', exist_ok=True)\"",
+      const pyResult = toText(
+        await env.exec(
+          "python3 -c \"import os; os.makedirs('/tmp/newdir/subdir', exist_ok=True)\"",
+        ),
       );
       expect(pyResult.stderr).toBe("");
       expect(pyResult.exitCode).toBe(0);
-      const result = await env.exec("ls -d /tmp/newdir/subdir");
+      const result = toText(await env.exec("ls -d /tmp/newdir/subdir"));
       expect(result.stdout).toBe("/tmp/newdir/subdir\n");
       expect(result.exitCode).toBe(0);
     });
@@ -179,7 +190,7 @@ sys.path.insert(0, '/host/tmp')
 import mymodule
 print(mymodule.greet("World"))
 EOF`);
-      const result = await env.exec("python3 /tmp/main.py");
+      const result = toText(await env.exec("python3 /tmp/main.py"));
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("Hello, World!\n");
       expect(result.exitCode).toBe(0);

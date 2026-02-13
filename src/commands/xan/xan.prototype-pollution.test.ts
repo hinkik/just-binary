@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { toText } from "../../test-utils.js";
 
 /**
  * Tests for xan (CSV processing) prototype pollution defense.
@@ -29,8 +30,10 @@ describe("xan prototype pollution defense", () => {
     for (const keyword of DANGEROUS_KEYWORDS) {
       it(`should handle CSV header '${keyword}' in select`, async () => {
         const env = new Bash();
-        const result = await env.exec(
-          `echo '${keyword},value\ntest,data' | xan select ${keyword}`,
+        const result = toText(
+          await env.exec(
+            `echo '${keyword},value\ntest,data' | xan select ${keyword}`,
+          ),
         );
         expect(result.exitCode).toBe(0);
         expect(result.stdout).toContain(keyword);
@@ -43,8 +46,10 @@ describe("xan prototype pollution defense", () => {
     for (const keyword of DANGEROUS_KEYWORDS.slice(0, 4)) {
       it(`should handle CSV header '${keyword}' in drop`, async () => {
         const env = new Bash();
-        const result = await env.exec(
-          `echo '${keyword},value,normal\ntest,data,keep' | xan drop ${keyword}`,
+        const result = toText(
+          await env.exec(
+            `echo '${keyword},value,normal\ntest,data,keep' | xan drop ${keyword}`,
+          ),
         );
         expect(result.exitCode).toBe(0);
         expect(result.stdout).toContain("value");
@@ -57,11 +62,13 @@ describe("xan prototype pollution defense", () => {
     for (const keyword of DANGEROUS_KEYWORDS.slice(0, 4)) {
       it(`should sort by column named '${keyword}'`, async () => {
         const env = new Bash();
-        const result = await env.exec(`
+        const result = toText(
+          await env.exec(`
           echo '${keyword},data
 z,1
 a,2' | xan sort -s ${keyword}
-        `);
+        `),
+        );
         expect(result.exitCode).toBe(0);
         const lines = result.stdout.trim().split("\n");
         expect(lines[1]).toContain("a");
@@ -74,9 +81,11 @@ a,2' | xan sort -s ${keyword}
     it("should show headers including all dangerous keywords", async () => {
       const env = new Bash();
       const testHeaders = DANGEROUS_KEYWORDS.slice(0, 5).join(",");
-      const result = await env.exec(`
+      const result = toText(
+        await env.exec(`
         echo '${testHeaders}' | xan headers
-      `);
+      `),
+      );
       expect(result.exitCode).toBe(0);
       for (const keyword of DANGEROUS_KEYWORDS.slice(0, 5)) {
         expect(result.stdout).toContain(keyword);
@@ -87,10 +96,12 @@ a,2' | xan sort -s ${keyword}
   describe("xan explode with dangerous keyword columns", () => {
     it("should explode column named constructor", async () => {
       const env = new Bash();
-      const result = await env.exec(`
+      const result = toText(
+        await env.exec(`
         echo 'constructor,value
 a|b,1' | xan explode constructor
-      `);
+      `),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("constructor");
       const lines = result.stdout.trim().split("\n");
@@ -101,10 +112,12 @@ a|b,1' | xan explode constructor
   describe("xan transpose with dangerous keyword columns", () => {
     it("should transpose with dangerous keyword headers", async () => {
       const env = new Bash();
-      const result = await env.exec(`
+      const result = toText(
+        await env.exec(`
         echo 'constructor,a,b
 prototype,1,2' | xan transpose
-      `);
+      `),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("constructor");
       expect(result.stdout).toContain("prototype");
@@ -114,11 +127,13 @@ prototype,1,2' | xan transpose
   describe("xan enum with dangerous keyword column name", () => {
     it("should add index column named constructor", async () => {
       const env = new Bash();
-      const result = await env.exec(`
+      const result = toText(
+        await env.exec(`
         echo 'value
 a
 b' | xan enum -c constructor
-      `);
+      `),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("constructor");
       expect(result.stdout).toContain("0");
