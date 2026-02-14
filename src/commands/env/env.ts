@@ -1,12 +1,5 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import {
-  decode,
-  decodeArgs,
-  EMPTY,
-  encode,
-  envGet,
-  envSet,
-} from "../../utils/bytes.js";
+import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
 const envHelp = {

@@ -15,15 +15,7 @@ import type {
 import { Parser } from "../parser/parser.js";
 import type { ParseException } from "../parser/types.js";
 import type { ExecResult } from "../types.js";
-import {
-  concat,
-  decode,
-  EMPTY,
-  encode,
-  envGet,
-  envSet,
-  isEmpty,
-} from "../utils/bytes.js";
+import { concat, EMPTY, encode, envSet, isEmpty } from "../utils/bytes.js";
 import {
   BreakError,
   ContinueError,

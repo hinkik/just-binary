@@ -66,7 +66,8 @@ export async function handleLocal(
     for (const name of localNames) {
       const value = ctx.state.env.get(name);
       if (value !== undefined) {
-        stdout += `${name}=${value}\n`;
+        const decoded = decode(value);
+        stdout += `${name}=${decoded}\n`;
       }
     }
     return result(encode(stdout), EMPTY, 0);
@@ -217,7 +218,7 @@ export async function handleLocal(
       }
 
       // Append to existing value (or set if not defined)
-      const existing = ctx.state.env.get(name) ?? "";
+      const existing = envGet(ctx.state.env, name);
       envSet(ctx.state.env, name, existing + appendValue);
 
       // Track local variable depth for bash-specific unset scoping

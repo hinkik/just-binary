@@ -29,7 +29,6 @@ import { Parser } from "../parser/parser.js";
 import {
   decode,
   EMPTY,
-  encode,
   envGet,
   envSet,
   trimTrailingNewlines,

@@ -59,7 +59,7 @@ import type {
   FeatureCoverageWriter,
   TraceCallback,
 } from "./types.js";
-import { decode, EMPTY, encode, envGet, envSet } from "./utils/bytes.js";
+import { decode, EMPTY, encode, envSet } from "./utils/bytes.js";
 
 export type { ExecutionLimits } from "./limits.js";
 

@@ -19,7 +19,7 @@ import type {
   WordNode,
   WordPart,
 } from "../../ast/types.js";
-import { decode, encode, envGet, envSet } from "../../utils/bytes.js";
+import { envGet, envSet } from "../../utils/bytes.js";
 import { evaluateArithmetic } from "../arithmetic.js";
 import { ArithmeticError } from "../errors.js";
 import { getIfsSeparator } from "../helpers/ifs.js";

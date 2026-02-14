@@ -7,15 +7,7 @@
 
 import { isBrowserExcludedCommand } from "../commands/browser-excluded.js";
 import type { CommandContext, ExecResult } from "../types.js";
-import {
-  decode,
-  decodeArgs,
-  EMPTY,
-  encode,
-  envGet,
-  envSet,
-  isEmpty,
-} from "../utils/bytes.js";
+import { decode, decodeArgs, EMPTY, encode, isEmpty } from "../utils/bytes.js";
 import {
   handleBreak,
   handleCd,

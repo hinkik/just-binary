@@ -21,7 +21,7 @@ import type {
 } from "../../ast/types.js";
 import { createUserRegex } from "../../regex/index.js";
 import { GlobExpander } from "../../shell/glob.js";
-import { decode, encode, envGet, envSet } from "../../utils/bytes.js";
+import { envGet } from "../../utils/bytes.js";
 import { GlobError } from "../errors.js";
 import {
   getIfs,

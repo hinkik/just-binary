@@ -15,7 +15,7 @@ import type {
   WordPart,
 } from "../../ast/types.js";
 import { createUserRegex } from "../../regex/index.js";
-import { decode, encode, envGet, envSet } from "../../utils/bytes.js";
+import { envGet } from "../../utils/bytes.js";
 import { getIfsSeparator } from "../helpers/ifs.js";
 import { escapeRegex } from "../helpers/regex.js";
 import type { InterpreterContext } from "../types.js";

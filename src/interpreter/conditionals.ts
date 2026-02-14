@@ -15,7 +15,7 @@ import { parseArithmeticExpression } from "../parser/arithmetic-parser.js";
 import { Parser } from "../parser/parser.js";
 import { createUserRegex } from "../regex/index.js";
 import type { ExecResult } from "../types.js";
-import { decode, EMPTY, encode, envGet, envSet } from "../utils/bytes.js";
+import { EMPTY, envSet } from "../utils/bytes.js";
 import { evaluateArithmetic } from "./arithmetic.js";
 import {
   escapeRegexChars,

@@ -7,7 +7,7 @@
  */
 
 import type { ExecResult } from "../../types.js";
-import { decode, encode, envGet, envSet } from "../../utils/bytes.js";
+import { envGet, envSet } from "../../utils/bytes.js";
 import { failure, OK, successText } from "../helpers/result.js";
 import type { InterpreterContext } from "../types.js";
 

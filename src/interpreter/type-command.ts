@@ -19,7 +19,7 @@ import type {
 } from "../ast/types.js";
 import type { IFileSystem } from "../fs/interface.js";
 import type { CommandRegistry, ExecResult } from "../types.js";
-import { decode, encode, envGet, envSet } from "../utils/bytes.js";
+import { decode, encode, envGet } from "../utils/bytes.js";
 import { result } from "./helpers/result.js";
 import { SHELL_BUILTINS, SHELL_KEYWORDS } from "./helpers/shell-constants.js";
 import type { InterpreterState } from "./types.js";
@@ -152,7 +152,7 @@ export async function handleType(
       } else if (typeOnly) {
         stdout += "alias\n";
       } else {
-        stdout += `${name} is aliased to \`${alias}'\n`;
+        stdout += `${name} is aliased to \`${decode(alias)}'\n`;
       }
       foundAny = true;
       if (!showAll) {
@@ -411,9 +411,9 @@ export async function handleCommandV(
     const alias = ctx.state.env.get(`BASH_ALIAS_${name}`);
     if (alias !== undefined) {
       if (verboseDescribe) {
-        stdout += `${name} is an alias for "${alias}"\n`;
+        stdout += `${name} is an alias for "${decode(alias)}"\n`;
       } else {
-        stdout += `alias ${name}='${alias}'\n`;
+        stdout += `alias ${name}='${decode(alias)}'\n`;
       }
     } else if (SHELL_KEYWORDS.has(name)) {
       if (verboseDescribe) {

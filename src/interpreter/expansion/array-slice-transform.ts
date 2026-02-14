@@ -7,7 +7,7 @@
  */
 
 import type { SubstringOp, WordPart } from "../../ast/types.js";
-import { decode, EMPTY, encode, envGet, envSet } from "../../utils/bytes.js";
+import { EMPTY, encode, envGet } from "../../utils/bytes.js";
 import { ArithmeticError, ExitError } from "../errors.js";
 import { getIfsSeparator } from "../helpers/ifs.js";
 import type { InterpreterContext } from "../types.js";

@@ -6,7 +6,7 @@
  */
 
 import type { WordPart } from "../../ast/types.js";
-import { decodeLatin1 } from "../../utils/bytes.js";
+import { decode } from "../../utils/bytes.js";
 
 /**
  * Get the literal string value from a word part.
@@ -22,7 +22,7 @@ export function getLiteralValue(part: WordPart): string | null {
     case "Escaped":
       return part.value;
     case "Bytes":
-      return decodeLatin1(part.value);
+      return decode(part.value);
     default:
       return null;
   }

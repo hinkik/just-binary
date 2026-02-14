@@ -22,14 +22,7 @@ import type {
   WordNode,
 } from "../ast/types.js";
 import type { ExecResult } from "../types.js";
-import {
-  concat,
-  decode,
-  EMPTY,
-  encode,
-  envGet,
-  envSet,
-} from "../utils/bytes.js";
+import { concat, EMPTY, encode, envGet, envSet } from "../utils/bytes.js";
 import { evaluateArithmetic } from "./arithmetic.js";
 import { matchPattern } from "./conditionals.js";
 import { BreakError, ContinueError, GlobError } from "./errors.js";

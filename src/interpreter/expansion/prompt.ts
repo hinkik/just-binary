@@ -4,7 +4,7 @@
  * Handles prompt escape sequences for ${var@P} transformation and PS1/PS2/PS3/PS4.
  */
 
-import { decode, encode, envGet, envSet } from "../../utils/bytes.js";
+import { envGet } from "../../utils/bytes.js";
 import type { InterpreterContext } from "../types.js";
 
 /**

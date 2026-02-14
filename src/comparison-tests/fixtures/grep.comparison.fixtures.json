@@ -221,6 +221,17 @@
     "stderr": "",
     "exitCode": 0
   },
+  "b10a919451dd9dee": {
+    "command": "grep -r hello dir | sort",
+    "files": {
+      "dir/file1.txt": "hello from file1\n",
+      "dir/file2.txt": "goodbye from file2\n",
+      "dir/sub/file3.txt": "hello from file3\n"
+    },
+    "stdout": "dir/file1.txt:hello from file1\ndir/sub/file3.txt:hello from file3\n",
+    "stderr": "",
+    "exitCode": 0
+  },
   "b83506e9397f4339": {
     "command": "grep -F \"[test]\" test.txt",
     "files": {

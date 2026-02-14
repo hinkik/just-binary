@@ -634,12 +634,12 @@ export function wordToString(_p: Parser, word: WordNode): string {
       case "Literal":
         result += part.value;
         break;
-      case "Bytes":
-        // Bytes from $'...' ANSI-C quoting: decode each byte as Latin-1
-        for (let bi = 0; bi < part.value.length; bi++) {
-          result += String.fromCharCode(part.value[bi]);
-        }
+      case "Bytes": {
+        // Bytes from $'...' ANSI-C quoting: decode UTF-8 bytes to string
+        const td = new TextDecoder();
+        result += td.decode(part.value);
         break;
+      }
       case "SingleQuoted":
         // Preserve single quotes so empty strings like '' are not lost
         result += `'${part.value}'`;

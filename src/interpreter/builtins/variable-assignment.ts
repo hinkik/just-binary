@@ -5,7 +5,7 @@
 import { parseArithmeticExpression } from "../../parser/arithmetic-parser.js";
 import { Parser } from "../../parser/parser.js";
 import type { ExecResult } from "../../types.js";
-import { decode, encode, envGet, envSet } from "../../utils/bytes.js";
+import { envGet, envSet } from "../../utils/bytes.js";
 import { evaluateArithmetic } from "../arithmetic.js";
 import { checkReadonlyError, markReadonly } from "../helpers/readonly.js";
 import type { InterpreterContext } from "../types.js";

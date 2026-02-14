@@ -115,7 +115,7 @@ describe("grep command - Real Bash Comparison", () => {
         "dir/file2.txt": "goodbye from file2\n",
         "dir/sub/file3.txt": "hello from file3\n",
       });
-      await compareOutputs(env, testDir, "grep -r hello dir");
+      await compareOutputs(env, testDir, "grep -r hello dir | sort");
     });
 
     it("should match -rl (recursive files only)", async () => {

@@ -743,7 +743,7 @@ export async function handleDeclare(
         appendValue = applyCaseTransform(ctx, name, appendValue);
 
         // Append to existing value (or set if not defined)
-        const existing = ctx.state.env.get(name) ?? "";
+        const existing = envGet(ctx.state.env, name);
         envSet(ctx.state.env, name, existing + appendValue);
       }
 
@@ -1085,7 +1085,7 @@ export async function handleReadonly(
       if (error) return error;
 
       // Append to existing value (or set if not defined)
-      const existing = ctx.state.env.get(name) ?? "";
+      const existing = envGet(ctx.state.env, name);
       envSet(ctx.state.env, name, existing + appendValue);
       markReadonly(ctx, name);
       continue;

@@ -11,7 +11,7 @@
  */
 
 import type { WordPart } from "../../ast/types.js";
-import { decode, encode, envGet, envSet } from "../../utils/bytes.js";
+import { envGet } from "../../utils/bytes.js";
 import { getNamerefTarget, isNameref } from "../helpers/nameref.js";
 import type { InterpreterContext } from "../types.js";
 import { getArrayElements } from "./variable.js";

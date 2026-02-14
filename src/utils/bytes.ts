@@ -40,15 +40,6 @@ export function concat(a: Uint8Array, b: Uint8Array): Uint8Array {
   return result as Uint8Array;
 }
 
-/** Decode Latin-1 bytes to a string: each byte maps to the same char code */
-export function decodeLatin1(bytes: Uint8Array): string {
-  let result = "";
-  for (let i = 0; i < bytes.length; i++) {
-    result += String.fromCharCode(bytes[i]);
-  }
-  return result;
-}
-
 /** Check if a byte array is empty (zero length) */
 export function isEmpty(bytes: Uint8Array): boolean {
   return bytes.length === 0;

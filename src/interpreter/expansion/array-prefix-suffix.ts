@@ -15,7 +15,7 @@ import type {
   WordPart,
 } from "../../ast/types.js";
 import { createUserRegex } from "../../regex/index.js";
-import { decode, encode, envGet, envSet } from "../../utils/bytes.js";
+import { decode, envGet } from "../../utils/bytes.js";
 import { getIfsSeparator } from "../helpers/ifs.js";
 import { escapeRegex } from "../helpers/regex.js";
 import type { InterpreterContext } from "../types.js";
@@ -444,7 +444,7 @@ export async function handleArrayWithPrefixSuffix(
     const scalarValue = ctx.state.env.get(arrayName);
     if (scalarValue !== undefined) {
       // Scalar treated as single-element array
-      return { values: [prefix + scalarValue + suffix], quoted: true };
+      return { values: [prefix + decode(scalarValue) + suffix], quoted: true };
     }
     // Variable is unset or empty array
     if (isStar) {

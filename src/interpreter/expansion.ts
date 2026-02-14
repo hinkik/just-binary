@@ -18,14 +18,7 @@ import type {
 import { parseArithmeticExpression } from "../parser/arithmetic-parser.js";
 import { Parser } from "../parser/parser.js";
 import { GlobExpander } from "../shell/glob.js";
-import {
-  decode,
-  decodeLatin1,
-  encode,
-  envGet,
-  envSet,
-  isEmpty,
-} from "../utils/bytes.js";
+import { decode, envGet, envSet, isEmpty } from "../utils/bytes.js";
 import { evaluateArithmetic } from "./arithmetic.js";
 import {
   BadSubstitutionError,
@@ -261,7 +254,7 @@ export async function expandWordForPattern(
       parts.push(escapeGlobChars(part.value));
     } else if (part.type === "Bytes") {
       // Bytes from $'...' ANSI-C quoting should be escaped for literal matching
-      parts.push(escapeGlobChars(decodeLatin1(part.value)));
+      parts.push(escapeGlobChars(decode(part.value)));
     } else if (part.type === "DoubleQuoted") {
       // Double-quoted: expand contents and escape for literal matching
       const expanded = await expandWordPartsAsync(ctx, part.parts);
@@ -291,7 +284,7 @@ async function expandWordForGlobbing(
       parts.push(escapeGlobChars(part.value));
     } else if (part.type === "Bytes") {
       // Bytes from $'...' ANSI-C quoting: escape glob metacharacters for literal matching
-      parts.push(escapeGlobChars(decodeLatin1(part.value)));
+      parts.push(escapeGlobChars(decode(part.value)));
     } else if (part.type === "Escaped") {
       // Escaped character: escape if it's a glob metacharacter
       const ch = part.value;

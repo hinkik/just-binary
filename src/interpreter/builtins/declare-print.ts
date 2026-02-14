@@ -5,7 +5,7 @@
  */
 
 import type { ExecResult } from "../../types.js";
-import { decode, encode, envGet, envSet } from "../../utils/bytes.js";
+import { encode, envGet } from "../../utils/bytes.js";
 import { getArrayIndices, getAssocArrayKeys } from "../helpers/array.js";
 import { isNameref } from "../helpers/nameref.js";
 import {

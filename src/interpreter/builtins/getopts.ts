@@ -15,7 +15,7 @@
  */
 
 import type { ExecResult } from "../../types.js";
-import { decode, EMPTY, encode, envGet, envSet } from "../../utils/bytes.js";
+import { EMPTY, encode, envGet, envSet } from "../../utils/bytes.js";
 import { failure } from "../helpers/result.js";
 import type { InterpreterContext } from "../types.js";
 

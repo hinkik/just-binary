@@ -13,7 +13,7 @@ import type {
   WordNode,
 } from "../ast/types.js";
 import type { ExecResult } from "../types.js";
-import { decode, EMPTY, encode, envGet, envSet } from "../utils/bytes.js";
+import { EMPTY, encode, envGet, envSet } from "../utils/bytes.js";
 import { clearLocalVarStackForScope } from "./builtins/variable-assignment.js";
 import { ExitError, ReturnError } from "./errors.js";
 import { expandWord } from "./expansion.js";

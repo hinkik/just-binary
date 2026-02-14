@@ -147,6 +147,30 @@ const BANNED_PATTERNS = [
     ],
   },
   {
+    name: "Uint8Array in string context",
+    // Match: `.env.get(` result used in template literal or string concatenation
+    // This catches `${env.get(...)}` and `env.get(...) + ` and `+ env.get(...)`
+    // Also catches `?? ""` fallback which suggests string expectation from env.get
+    pattern:
+      /(?:\.env\.get\s*\([^)]*\)\s*\?\?\s*["'`]|\.env\.get\s*\([^)]*\)\s*\+\s*["'`a-zA-Z]|["'`a-zA-Z_]\s*\+\s*\w*\.env\.get\s*\()/,
+    message:
+      "env.get() returns Uint8Array. Using it in string context (template literals,\n" +
+      "concatenation, ?? fallback) silently calls .toString() producing garbage like '53,53,53'.",
+    solutions: [
+      "Use envGet(env, key) for decoded string with empty-string fallback",
+      "Use decode(env.get(key)) for explicit UTF-8 decoding",
+      "Store the Uint8Array value and only decode when string is needed",
+    ],
+  },
+  {
+    name: "decodeLatin1 usage",
+    pattern: /decodeLatin1/,
+    message:
+      "decodeLatin1() was removed. It decoded UTF-8 bytes as Latin-1, producing\n" +
+      "mojibake (e.g. μ → Î¼). All byte decoding should use decode() (UTF-8).",
+    solutions: ["Use decode() from utils/bytes.ts instead"],
+  },
+  {
     name: "Unsafe bracket notation on Record<string, T>",
     // Match: (x as Record<string, T>)[variable] where variable is not a string/number literal
     // This catches patterns like: (obj as Record<string, unknown>)[key]

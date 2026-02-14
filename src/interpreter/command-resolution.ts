@@ -6,7 +6,7 @@
 
 import type { IFileSystem } from "../fs/interface.js";
 import type { Command, CommandRegistry } from "../types.js";
-import { decode, encode, envGet, envSet } from "../utils/bytes.js";
+import { envGet } from "../utils/bytes.js";
 import type { InterpreterState } from "./types.js";
 
 /**

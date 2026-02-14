@@ -112,7 +112,7 @@ export function handleExport(
     if (value !== undefined) {
       if (isAppend) {
         // Append to existing value (or set if not defined)
-        const existing = ctx.state.env.get(name) ?? "";
+        const existing = envGet(ctx.state.env, name);
         envSet(ctx.state.env, name, existing + value);
       } else {
         envSet(ctx.state.env, name, value);

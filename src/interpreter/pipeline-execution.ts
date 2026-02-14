@@ -6,14 +6,7 @@
 
 import type { CommandNode, PipelineNode } from "../ast/types.js";
 import type { ExecResult } from "../types.js";
-import {
-  concat,
-  decode,
-  EMPTY,
-  encode,
-  envGet,
-  envSet,
-} from "../utils/bytes.js";
+import { concat, EMPTY, encode, envSet } from "../utils/bytes.js";
 import { BadSubstitutionError, ErrexitError, ExitError } from "./errors.js";
 import { OK } from "./helpers/result.js";
 import type { InterpreterContext } from "./types.js";

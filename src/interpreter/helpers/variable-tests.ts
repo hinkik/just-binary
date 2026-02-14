@@ -1,6 +1,6 @@
 import { parseArithmeticExpression } from "../../parser/arithmetic-parser.js";
 import { Parser } from "../../parser/parser.js";
-import { decode, encode, envGet, envSet } from "../../utils/bytes.js";
+import { envGet } from "../../utils/bytes.js";
 import { evaluateArithmetic } from "../arithmetic.js";
 import type { InterpreterContext } from "../types.js";
 import { getArrayIndices, getAssocArrayKeys } from "./array.js";

@@ -5,7 +5,7 @@
  * When a nameref is accessed, it transparently dereferences to the target variable.
  */
 
-import { decode, encode, envGet, envSet } from "../../utils/bytes.js";
+import { envGet } from "../../utils/bytes.js";
 import type { InterpreterContext } from "../types.js";
 
 /**

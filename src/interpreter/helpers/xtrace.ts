@@ -7,7 +7,7 @@
  */
 
 import { Parser } from "../../parser/parser.js";
-import { decode, encode, envGet, envSet } from "../../utils/bytes.js";
+import { decode } from "../../utils/bytes.js";
 import { expandWord } from "../expansion.js";
 import type { InterpreterContext } from "../types.js";
 

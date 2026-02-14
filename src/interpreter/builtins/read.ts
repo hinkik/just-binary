@@ -3,7 +3,7 @@
  */
 
 import type { ExecResult } from "../../types.js";
-import { decode, EMPTY, encode, envGet, envSet } from "../../utils/bytes.js";
+import { decode, EMPTY, encode, envSet } from "../../utils/bytes.js";
 import { clearArray } from "../helpers/array.js";
 import {
   getIfs,

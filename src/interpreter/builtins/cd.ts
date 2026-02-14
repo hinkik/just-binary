@@ -3,7 +3,7 @@
  */
 
 import type { ExecResult } from "../../types.js";
-import { decode, EMPTY, encode, envGet, envSet } from "../../utils/bytes.js";
+import { decode, EMPTY, envGet, envSet } from "../../utils/bytes.js";
 import { failure, success, successText } from "../helpers/result.js";
 import type { InterpreterContext } from "../types.js";
 

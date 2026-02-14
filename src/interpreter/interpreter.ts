@@ -36,7 +36,6 @@ import type {
 } from "../types.js";
 import {
   concat,
-  decode,
   decodeArgs,
   EMPTY,
   encode,

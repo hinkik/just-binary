@@ -5,7 +5,7 @@
  * BASHOPTS is a colon-separated list of enabled bash-specific options from `shopt`.
  */
 
-import { decode, encode, envGet, envSet } from "../../utils/bytes.js";
+import { envSet } from "../../utils/bytes.js";
 import type {
   InterpreterContext,
   ShellOptions,

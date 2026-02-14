@@ -15,7 +15,7 @@ import type {
   WordPart,
 } from "../../ast/types.js";
 import { GlobExpander } from "../../shell/glob.js";
-import { decode, encode, envGet, envSet } from "../../utils/bytes.js";
+import { envGet } from "../../utils/bytes.js";
 import { GlobError } from "../errors.js";
 import {
   getIfs,
