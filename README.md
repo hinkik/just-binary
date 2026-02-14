@@ -1,12 +1,12 @@
-# just-bash
+# just-binary
+
+> Fork of [just-bash](https://github.com/vercel-labs/just-bash) by Vercel, with `Uint8Array`-based I/O instead of strings for proper binary data support through pipelines.
 
 A simulated bash environment with an in-memory virtual filesystem, written in TypeScript.
 
 Designed for AI agents that need a secure, sandboxed bash environment.
 
 Supports optional network access via `curl` with secure-by-default URL filtering.
-
-**Note**: This is beta software. Use at your own risk and please provide feedback.
 
 ## Table of Contents
 

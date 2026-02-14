@@ -47,6 +47,7 @@
     "access": "public"
   },
   "scripts": {
+    "prepare": "pnpm build",
     "build": "rm -rf dist && tsc && pnpm build:lib && pnpm build:browser && pnpm build:cli && pnpm build:shell && pnpm build:worker && pnpm build:clean && sed '1,/^-->/d' AGENTS.npm.md > dist/AGENTS.md",
     "build:clean": "find dist -name '*.test.js' -delete && find dist -name '*.test.d.ts' -delete",
     "build:worker": "esbuild src/commands/python3/worker.ts --bundle --platform=node --format=esm --outfile=src/commands/python3/worker.js --external:pyodide && cp src/commands/python3/worker.js dist/commands/python3/worker.js && mkdir -p dist/bin/chunks && cp src/commands/python3/worker.js dist/bin/chunks/worker.js && mkdir -p dist/bundle/chunks && cp src/commands/python3/worker.js dist/bundle/chunks/worker.js",
