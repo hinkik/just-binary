@@ -9,6 +9,7 @@ dist
 /coverage
 debug-*.ts
 test-*.ts
+!src/test-utils.ts
 profile-*.mjs
 *.cpuprofile
 bench-*.mjs
