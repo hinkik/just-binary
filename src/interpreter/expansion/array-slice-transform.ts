@@ -7,7 +7,7 @@
  */
 
 import type { SubstringOp, WordPart } from "../../ast/types.js";
-import { EMPTY, encode } from "../../utils/bytes.js";
+import { decode, EMPTY, encode, envGet, envSet } from "../../utils/bytes.js";
 import { ArithmeticError, ExitError } from "../errors.js";
 import { getIfsSeparator } from "../helpers/ifs.js";
 import type { InterpreterContext } from "../types.js";
@@ -189,8 +189,8 @@ export function handleArrayTransform(
 
   // If no elements, check for scalar (treat as single-element array)
   if (elements.length === 0) {
-    const scalarValue = ctx.state.env.get(arrayName);
-    if (scalarValue !== undefined) {
+    if (ctx.state.env.has(arrayName)) {
+      const scalarValue = envGet(ctx.state.env, arrayName);
       // Scalar variable - return based on operator
       let resultValue: string;
       switch (operation.operator) {

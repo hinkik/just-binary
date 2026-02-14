@@ -1,5 +1,5 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const sleepHelp = {
@@ -43,12 +43,13 @@ function parseDuration(arg: string): number | null {
 export const sleepCommand: Command = {
   name: "sleep",
 
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
-    if (hasHelpFlag(args)) {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) {
       return showHelp(sleepHelp);
     }
 
-    if (args.length === 0) {
+    if (a.length === 0) {
       return {
         stdout: EMPTY,
         stderr: encode("sleep: missing operand\n"),
@@ -58,7 +59,7 @@ export const sleepCommand: Command = {
 
     // Parse all arguments and sum durations (like GNU sleep)
     let totalMs = 0;
-    for (const arg of args) {
+    for (const arg of a) {
       const ms = parseDuration(arg);
       if (ms === null) {
         return {

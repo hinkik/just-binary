@@ -12,7 +12,7 @@
  */
 
 import type { ExecResult } from "../../types.js";
-import { EMPTY, encode } from "../../utils/bytes.js";
+import { decode, EMPTY, encode, envGet, envSet } from "../../utils/bytes.js";
 import { PosixFatalError } from "../errors.js";
 import { failure, OK } from "../helpers/result.js";
 import type { InterpreterContext } from "../types.js";
@@ -38,7 +38,7 @@ export function handleShift(
   }
 
   // Get current positional parameter count
-  const currentCount = Number.parseInt(ctx.state.env.get("#") || "0", 10);
+  const currentCount = Number.parseInt(envGet(ctx.state.env, "#", "0"), 10);
 
   // Check if shift count exceeds available parameters
   if (n > currentCount) {
@@ -58,7 +58,7 @@ export function handleShift(
   // Get current positional parameters
   const params: string[] = [];
   for (let i = 1; i <= currentCount; i++) {
-    params.push(ctx.state.env.get(String(i)) || "");
+    params.push(envGet(ctx.state.env, String(i)) || "");
   }
 
   // Remove first n parameters
@@ -71,12 +71,12 @@ export function handleShift(
 
   // Set new positional parameters
   for (let i = 0; i < newParams.length; i++) {
-    ctx.state.env.set(String(i + 1), newParams[i]);
+    envSet(ctx.state.env, String(i + 1), newParams[i]);
   }
 
   // Update $# and $@
-  ctx.state.env.set("#", String(newParams.length));
-  ctx.state.env.set("@", newParams.join(" "));
+  envSet(ctx.state.env, "#", String(newParams.length));
+  envSet(ctx.state.env, "@", newParams.join(" "));
 
   return OK;
 }

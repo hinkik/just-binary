@@ -4,6 +4,7 @@
  * Functions for handling tilde (~) expansion in word expansion.
  */
 
+import { envGet } from "../../utils/bytes.js";
 import type { InterpreterContext } from "../types.js";
 
 /**
@@ -21,10 +22,9 @@ export function applyTildeExpansion(
   ctx.coverage?.hit("bash:expansion:tilde");
 
   // Use HOME if set (even if empty), otherwise fall back to /home/user
-  const home =
-    ctx.state.env.get("HOME") !== undefined
-      ? ctx.state.env.get("HOME")
-      : "/home/user";
+  const home = ctx.state.env.has("HOME")
+    ? envGet(ctx.state.env, "HOME")
+    : "/home/user";
 
   // ~/ or just ~
   if (value === "~" || value.startsWith("~/")) {

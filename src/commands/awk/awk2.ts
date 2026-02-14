@@ -8,7 +8,7 @@ import { mapToRecord } from "../../helpers/env.js";
 import { ExecutionLimitError } from "../../interpreter/errors.js";
 import { ConstantRegex, createUserRegex } from "../../regex/index.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decode, EMPTY, encode } from "../../utils/bytes.js";
+import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 import type { AwkProgram } from "./ast.js";
 import {
@@ -32,8 +32,9 @@ const awkHelp = {
 export const awkCommand2: Command = {
   name: "awk",
 
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
-    if (hasHelpFlag(args)) {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) {
       return showHelp(awkHelp);
     }
 
@@ -46,18 +47,18 @@ export const awkCommand2: Command = {
     let programIdx = 0;
 
     // Parse options
-    for (let i = 0; i < args.length; i++) {
-      const arg = args[i];
-      if (arg === "-F" && i + 1 < args.length) {
-        fieldSepStr = processEscapes(args[++i]);
+    for (let i = 0; i < a.length; i++) {
+      const arg = a[i];
+      if (arg === "-F" && i + 1 < a.length) {
+        fieldSepStr = processEscapes(a[++i]);
         fieldSep = createFieldSepRegex(fieldSepStr);
         programIdx = i + 1;
       } else if (arg.startsWith("-F")) {
         fieldSepStr = processEscapes(arg.slice(2));
         fieldSep = createFieldSepRegex(fieldSepStr);
         programIdx = i + 1;
-      } else if (arg === "-v" && i + 1 < args.length) {
-        const assignment = args[++i];
+      } else if (arg === "-v" && i + 1 < a.length) {
+        const assignment = a[++i];
         const eqIdx = assignment.indexOf("=");
         if (eqIdx > 0) {
           const varName = assignment.slice(0, eqIdx);
@@ -79,7 +80,7 @@ export const awkCommand2: Command = {
       }
     }
 
-    if (programIdx >= args.length) {
+    if (programIdx >= a.length) {
       return {
         stdout: EMPTY,
         stderr: encode("awk: missing program\n"),
@@ -87,8 +88,8 @@ export const awkCommand2: Command = {
       };
     }
 
-    const program = args[programIdx];
-    const files = args.slice(programIdx + 1);
+    const program = a[programIdx];
+    const files = a.slice(programIdx + 1);
 
     // Parse program
     const parser = new AwkParser();

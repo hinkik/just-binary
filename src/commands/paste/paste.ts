@@ -1,6 +1,6 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
-import { decode, EMPTY, encode } from "../../utils/bytes.js";
+import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const pasteHelp = {
@@ -38,12 +38,13 @@ const argDefs = {
 
 export const pasteCommand: Command = {
   name: "paste",
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
-    if (hasHelpFlag(args)) {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) {
       return showHelp(pasteHelp);
     }
 
-    const parsed = parseArgs("paste", args, argDefs);
+    const parsed = parseArgs("paste", a, argDefs);
     if (!parsed.ok) return parsed.error;
 
     const delimiter = parsed.result.flags.delimiter;

@@ -5,8 +5,10 @@
  * when converting environment variable Maps to Records.
  */
 
+import { decode } from "../utils/bytes.js";
+
 /**
- * Convert a Map<string, string> to a null-prototype Record<string, string>.
+ * Convert a Map<string, Uint8Array> to a null-prototype Record<string, string>.
  *
  * This prevents prototype pollution attacks where user-controlled keys like
  * "__proto__", "constructor", or "hasOwnProperty" could access or modify
@@ -15,12 +17,22 @@
  * @param env - The environment Map to convert
  * @returns A null-prototype object with the same key-value pairs
  */
-export function mapToRecord(env: Map<string, string>): Record<string, string> {
-  return Object.assign(Object.create(null), Object.fromEntries(env));
+export function mapToRecord(
+  env: Map<string, Uint8Array>,
+): Record<string, string>;
+export function mapToRecord(env: Map<string, string>): Record<string, string>;
+export function mapToRecord(
+  env: Map<string, Uint8Array | string>,
+): Record<string, string> {
+  const result: Record<string, string> = Object.create(null);
+  for (const [key, value] of env) {
+    result[key] = typeof value === "string" ? value : decode(value);
+  }
+  return result;
 }
 
 /**
- * Convert a Map<string, string> to a null-prototype Record, with optional
+ * Convert a Map<string, Uint8Array> to a null-prototype Record, with optional
  * additional properties to merge.
  *
  * @param env - The environment Map to convert
@@ -28,10 +40,17 @@ export function mapToRecord(env: Map<string, string>): Record<string, string> {
  * @returns A null-prototype object with the combined key-value pairs
  */
 export function mapToRecordWithExtras(
-  env: Map<string, string>,
+  env: Map<string, Uint8Array | string>,
   extra?: Record<string, string>,
 ): Record<string, string> {
-  return Object.assign(Object.create(null), Object.fromEntries(env), extra);
+  const result: Record<string, string> = Object.create(null);
+  for (const [key, value] of env) {
+    result[key] = typeof value === "string" ? value : decode(value);
+  }
+  if (extra) {
+    Object.assign(result, extra);
+  }
+  return result;
 }
 
 /**

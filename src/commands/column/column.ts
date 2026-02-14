@@ -8,7 +8,7 @@
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
-import { decode, EMPTY, encode } from "../../utils/bytes.js";
+import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const columnHelp = {
@@ -152,12 +152,16 @@ function formatFill(items: string[], width: number, outputSep: string): string {
 
 export const column: Command = {
   name: "column",
-  execute: async (args: string[], ctx: CommandContext): Promise<ExecResult> => {
-    if (hasHelpFlag(args)) {
+  execute: async (
+    args: Uint8Array[],
+    ctx: CommandContext,
+  ): Promise<ExecResult> => {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) {
       return showHelp(columnHelp);
     }
 
-    const parsed = parseArgs("column", args, argDefs);
+    const parsed = parseArgs("column", a, argDefs);
     if (!parsed.ok) return parsed.error;
 
     const { table, separator, outputSep, width, noMerge } = parsed.result.flags;

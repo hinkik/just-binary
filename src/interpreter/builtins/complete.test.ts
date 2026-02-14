@@ -16,7 +16,7 @@ function createMockCtx(): InterpreterContext {
     sourceDepth: 0,
     commandCount: 0,
     lastExitCode: 0,
-    lastArg: "",
+    lastArg: EMPTY,
     startTime: Date.now(),
     lastBackgroundPid: 0,
     bashPid: 1,

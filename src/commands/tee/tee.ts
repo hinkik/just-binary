@@ -1,6 +1,6 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
-import { decode, encode } from "../../utils/bytes.js";
+import { decode, decodeArgs, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const teeHelp = {
@@ -20,12 +20,13 @@ const argDefs = {
 export const teeCommand: Command = {
   name: "tee",
 
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
-    if (hasHelpFlag(args)) {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) {
       return showHelp(teeHelp);
     }
 
-    const parsed = parseArgs("tee", args, argDefs);
+    const parsed = parseArgs("tee", a, argDefs);
     if (!parsed.ok) return parsed.error;
 
     const { append } = parsed.result.flags;

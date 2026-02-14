@@ -14,7 +14,7 @@
  */
 
 import type { ExecResult } from "../../types.js";
-import { decode, EMPTY, encode } from "../../utils/bytes.js";
+import { decode, EMPTY, encode, envGet, envSet } from "../../utils/bytes.js";
 import { clearArray } from "../helpers/array.js";
 import { result } from "../helpers/result.js";
 import type { InterpreterContext } from "../types.js";
@@ -152,16 +152,17 @@ export function handleMapfile(
   }
 
   for (let j = 0; j < lines.length; j++) {
-    ctx.state.env.set(`${arrayName}_${origin + j}`, lines[j]);
+    envSet(ctx.state.env, `${arrayName}_${origin + j}`, lines[j]);
   }
 
   // Set array length metadata to be the max of existing length and new end position
   const existingLength = parseInt(
-    ctx.state.env.get(`${arrayName}__length`) || "0",
+    envGet(ctx.state.env, `${arrayName}__length`, "0"),
     10,
   );
   const newEndIndex = origin + lines.length;
-  ctx.state.env.set(
+  envSet(
+    ctx.state.env,
     `${arrayName}__length`,
     String(Math.max(existingLength, newEndIndex)),
   );

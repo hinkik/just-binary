@@ -1,14 +1,15 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 
 export const pwdCommand: Command = {
   name: "pwd",
 
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
     // Parse options
     let usePhysical = false;
 
-    for (const arg of args) {
+    for (const arg of a) {
       if (arg === "-P") {
         usePhysical = true;
       } else if (arg === "-L") {

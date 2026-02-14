@@ -7,7 +7,7 @@
 
 import { getErrorMessage } from "../../interpreter/helpers/errors.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 import { nullPrototypeCopy } from "../query-engine/safe-object.js";
 import { generateMultipartBody } from "./form.js";
@@ -178,13 +178,14 @@ function buildOutput(
 export const curlCommand: Command = {
   name: "curl",
 
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
-    if (hasHelpFlag(args)) {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) {
       return showHelp(curlHelp);
     }
 
     // Parse options first to report option errors before network check
-    const parseResult = parseOptions(args);
+    const parseResult = parseOptions(a);
     if ("exitCode" in parseResult) {
       return parseResult;
     }

@@ -1,5 +1,5 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decode, EMPTY, encode } from "../../utils/bytes.js";
+import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 import { readAndConcat } from "../../utils/file-reader.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
@@ -60,8 +60,9 @@ function extractByRanges(items: string[], ranges: CutRange[]): string[] {
 
 export const cutCommand: Command = {
   name: "cut",
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
-    if (hasHelpFlag(args)) {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) {
       return showHelp(cutHelp);
     }
 
@@ -72,18 +73,18 @@ export const cutCommand: Command = {
     const files: string[] = [];
 
     // Parse arguments
-    for (let i = 0; i < args.length; i++) {
-      const arg = args[i];
+    for (let i = 0; i < a.length; i++) {
+      const arg = a[i];
       if (arg === "-d") {
-        delimiter = args[++i] || "\t";
+        delimiter = a[++i] || "\t";
       } else if (arg.startsWith("-d")) {
         delimiter = arg.slice(2);
       } else if (arg === "-f") {
-        fieldSpec = args[++i];
+        fieldSpec = a[++i];
       } else if (arg.startsWith("-f")) {
         fieldSpec = arg.slice(2);
       } else if (arg === "-c") {
-        charSpec = args[++i];
+        charSpec = a[++i];
       } else if (arg.startsWith("-c")) {
         charSpec = arg.slice(2);
       } else if (arg === "-s" || arg === "--only-delimited") {

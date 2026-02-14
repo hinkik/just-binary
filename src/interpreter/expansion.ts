@@ -18,7 +18,14 @@ import type {
 import { parseArithmeticExpression } from "../parser/arithmetic-parser.js";
 import { Parser } from "../parser/parser.js";
 import { GlobExpander } from "../shell/glob.js";
-import { decode, isEmpty } from "../utils/bytes.js";
+import {
+  decode,
+  decodeLatin1,
+  encode,
+  envGet,
+  envSet,
+  isEmpty,
+} from "../utils/bytes.js";
 import { evaluateArithmetic } from "./arithmetic.js";
 import {
   BadSubstitutionError,
@@ -153,7 +160,7 @@ function expandSimplePart(
   part: WordPart,
   inDoubleQuotes = false,
 ): string | null {
-  // Handle literal parts (Literal, SingleQuoted, Escaped)
+  // Handle literal parts (Literal, SingleQuoted, Escaped, Bytes)
   const literal = getLiteralValue(part);
   if (literal !== null) return literal;
 
@@ -166,7 +173,8 @@ function expandSimplePart(
       ctx.coverage?.hit("bash:expansion:tilde");
       if (part.user === null) {
         // Use HOME if set (even if empty), otherwise fall back to /home/user
-        return ctx.state.env.get("HOME") ?? "/home/user";
+        const homeBytes = ctx.state.env.get("HOME");
+        return homeBytes !== undefined ? decode(homeBytes) : "/home/user";
       }
       // ~username only expands if user exists
       // In sandboxed environment, we can only verify 'root' exists universally
@@ -251,6 +259,9 @@ export async function expandWordForPattern(
     } else if (part.type === "SingleQuoted") {
       // Single-quoted content should be escaped for literal matching
       parts.push(escapeGlobChars(part.value));
+    } else if (part.type === "Bytes") {
+      // Bytes from $'...' ANSI-C quoting should be escaped for literal matching
+      parts.push(escapeGlobChars(decodeLatin1(part.value)));
     } else if (part.type === "DoubleQuoted") {
       // Double-quoted: expand contents and escape for literal matching
       const expanded = await expandWordPartsAsync(ctx, part.parts);
@@ -278,6 +289,9 @@ async function expandWordForGlobbing(
     if (part.type === "SingleQuoted") {
       // Single-quoted content: escape glob metacharacters for literal matching
       parts.push(escapeGlobChars(part.value));
+    } else if (part.type === "Bytes") {
+      // Bytes from $'...' ANSI-C quoting: escape glob metacharacters for literal matching
+      parts.push(escapeGlobChars(decodeLatin1(part.value)));
     } else if (part.type === "Escaped") {
       // Escaped character: escape if it's a glob metacharacter
       const ch = part.value;
@@ -513,7 +527,7 @@ export function hasQuotedMultiValueAt(
   ctx: InterpreterContext,
   word: WordNode,
 ): boolean {
-  const numParams = Number.parseInt(ctx.state.env.get("#") || "0", 10);
+  const numParams = Number.parseInt(envGet(ctx.state.env, "#", "0"), 10);
   // Only a problem if there are 2+ positional parameters
   if (numParams < 2) return false;
 
@@ -725,7 +739,7 @@ async function expandPart(
           // Read the file
           const content = await ctx.fs.readFile(resolvedPath);
           ctx.state.lastExitCode = 0;
-          ctx.state.env.set("?", "0");
+          envSet(ctx.state.env, "?", "0");
           // Strip trailing newlines (like command substitution does)
           const result = content.replace(/\n+$/, "");
           // Check string length limit
@@ -742,7 +756,7 @@ async function expandPart(
           }
           // File not found or read error - return empty string, set exit code
           ctx.state.lastExitCode = 1;
-          ctx.state.env.set("?", "1");
+          envSet(ctx.state.env, "?", "1");
           return "";
         }
       }
@@ -783,7 +797,7 @@ async function expandPart(
         ctx.state.suppressVerbose = savedSuppressVerbose;
         // Store the exit code for $?
         ctx.state.lastExitCode = exitCode;
-        ctx.state.env.set("?", String(exitCode));
+        envSet(ctx.state.env, "?", String(exitCode));
         // Command substitution stderr should go to the shell's stderr at expansion time,
         // NOT be affected by later redirections on the outer command
         if (!isEmpty(result.stderr)) {
@@ -814,7 +828,7 @@ async function expandPart(
         if (error instanceof ExitError) {
           // Catch exit in command substitution - return output so far
           ctx.state.lastExitCode = error.exitCode;
-          ctx.state.env.set("?", String(error.exitCode));
+          envSet(ctx.state.env, "?", String(error.exitCode));
           // Also forward stderr from the exit
           if (!isEmpty(error.stderr)) {
             ctx.state.expansionStderr =

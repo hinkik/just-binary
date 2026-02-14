@@ -8,7 +8,7 @@
  */
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decode, EMPTY, encode } from "../../utils/bytes.js";
+import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
 const splitHelp = {
@@ -187,8 +187,12 @@ function splitIntoChunks(
 
 export const split: Command = {
   name: "split",
-  execute: async (args: string[], ctx: CommandContext): Promise<ExecResult> => {
-    if (hasHelpFlag(args)) {
+  execute: async (
+    args: Uint8Array[],
+    ctx: CommandContext,
+  ): Promise<ExecResult> => {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) {
       return showHelp(splitHelp);
     }
 
@@ -205,18 +209,16 @@ export const split: Command = {
     const positionalArgs: string[] = [];
     let i = 0;
 
-    while (i < args.length) {
-      const arg = args[i];
+    while (i < a.length) {
+      const arg = a[i];
 
-      if (arg === "-l" && i + 1 < args.length) {
-        const lines = Number.parseInt(args[i + 1], 10);
+      if (arg === "-l" && i + 1 < a.length) {
+        const lines = Number.parseInt(a[i + 1], 10);
         if (Number.isNaN(lines) || lines < 1) {
           return {
             exitCode: 1,
             stdout: EMPTY,
-            stderr: encode(
-              `split: invalid number of lines: '${args[i + 1]}'\n`,
-            ),
+            stderr: encode(`split: invalid number of lines: '${a[i + 1]}'\n`),
           };
         }
         options.mode = "lines";
@@ -236,15 +238,13 @@ export const split: Command = {
         options.mode = "lines";
         options.lines = lines;
         i++;
-      } else if (arg === "-b" && i + 1 < args.length) {
-        const bytes = parseSize(args[i + 1]);
+      } else if (arg === "-b" && i + 1 < a.length) {
+        const bytes = parseSize(a[i + 1]);
         if (bytes === null) {
           return {
             exitCode: 1,
             stdout: EMPTY,
-            stderr: encode(
-              `split: invalid number of bytes: '${args[i + 1]}'\n`,
-            ),
+            stderr: encode(`split: invalid number of bytes: '${a[i + 1]}'\n`),
           };
         }
         options.mode = "bytes";
@@ -264,15 +264,13 @@ export const split: Command = {
         options.mode = "bytes";
         options.bytes = bytes;
         i++;
-      } else if (arg === "-n" && i + 1 < args.length) {
-        const chunks = Number.parseInt(args[i + 1], 10);
+      } else if (arg === "-n" && i + 1 < a.length) {
+        const chunks = Number.parseInt(a[i + 1], 10);
         if (Number.isNaN(chunks) || chunks < 1) {
           return {
             exitCode: 1,
             stdout: EMPTY,
-            stderr: encode(
-              `split: invalid number of chunks: '${args[i + 1]}'\n`,
-            ),
+            stderr: encode(`split: invalid number of chunks: '${a[i + 1]}'\n`),
           };
         }
         options.mode = "chunks";
@@ -292,13 +290,13 @@ export const split: Command = {
         options.mode = "chunks";
         options.chunks = chunks;
         i++;
-      } else if (arg === "-a" && i + 1 < args.length) {
-        const len = Number.parseInt(args[i + 1], 10);
+      } else if (arg === "-a" && i + 1 < a.length) {
+        const len = Number.parseInt(a[i + 1], 10);
         if (Number.isNaN(len) || len < 1) {
           return {
             exitCode: 1,
             stdout: EMPTY,
-            stderr: encode(`split: invalid suffix length: '${args[i + 1]}'\n`),
+            stderr: encode(`split: invalid suffix length: '${a[i + 1]}'\n`),
           };
         }
         options.suffixLength = len;
@@ -320,11 +318,11 @@ export const split: Command = {
       } else if (arg.startsWith("--additional-suffix=")) {
         options.additionalSuffix = arg.slice("--additional-suffix=".length);
         i++;
-      } else if (arg === "--additional-suffix" && i + 1 < args.length) {
-        options.additionalSuffix = args[i + 1];
+      } else if (arg === "--additional-suffix" && i + 1 < a.length) {
+        options.additionalSuffix = a[i + 1];
         i += 2;
       } else if (arg === "--") {
-        positionalArgs.push(...args.slice(i + 1));
+        positionalArgs.push(...a.slice(i + 1));
         break;
       } else if (arg.startsWith("-") && arg !== "-") {
         return unknownOption("split", arg);

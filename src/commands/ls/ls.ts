@@ -1,7 +1,7 @@
 import { minimatch } from "minimatch";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
-import { decode, EMPTY, encode } from "../../utils/bytes.js";
+import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 import { DEFAULT_BATCH_SIZE } from "../../utils/constants.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
@@ -90,12 +90,13 @@ const argDefs = {
 export const lsCommand: Command = {
   name: "ls",
 
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
-    if (hasHelpFlag(args)) {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) {
       return showHelp(lsHelp);
     }
 
-    const parsed = parseArgs("ls", args, argDefs);
+    const parsed = parseArgs("ls", a, argDefs);
     if (!parsed.ok) return parsed.error;
 
     const showAll = parsed.result.flags.showAll;

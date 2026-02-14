@@ -5,6 +5,15 @@
  */
 
 import type { Command, CommandContext, ExecResult } from "./types.js";
+import { createStringEnvAdapter, decodeArgs } from "./utils/bytes.js";
+
+/**
+ * User-facing CommandContext with string-typed env for ergonomics.
+ * Internal commands use Map<string, Uint8Array>, but custom commands get Map<string, string>.
+ */
+export interface CustomCommandContext extends Omit<CommandContext, "env"> {
+  env: Map<string, string>;
+}
 
 /**
  * A custom command - either a Command object or a lazy loader.
@@ -43,9 +52,21 @@ export function isLazyCommand(cmd: CustomCommand): cmd is LazyCommand {
  */
 export function defineCommand(
   name: string,
-  execute: (args: string[], ctx: CommandContext) => Promise<ExecResult>,
+  execute: (args: string[], ctx: CustomCommandContext) => Promise<ExecResult>,
 ): Command {
-  return { name, execute };
+  return {
+    name,
+    async execute(
+      rawArgs: Uint8Array[],
+      ctx: CommandContext,
+    ): Promise<ExecResult> {
+      const stringCtx: CustomCommandContext = {
+        ...ctx,
+        env: createStringEnvAdapter(ctx.env),
+      };
+      return execute(decodeArgs(rawArgs), stringCtx);
+    },
+  };
 }
 
 /**
@@ -56,7 +77,10 @@ export function createLazyCustomCommand(lazy: LazyCommand): Command {
   let cached: Command | null = null;
   return {
     name: lazy.name,
-    async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
+    async execute(
+      args: Uint8Array[],
+      ctx: CommandContext,
+    ): Promise<ExecResult> {
       if (!cached) {
         cached = await lazy.load();
       }

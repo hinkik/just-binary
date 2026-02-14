@@ -6,7 +6,7 @@ import type {
   ExecResult,
   FeatureCoverageWriter,
 } from "../../types.js";
-import { decode, EMPTY, encode } from "../../utils/bytes.js";
+import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 import {
   createInitialState,
@@ -311,8 +311,9 @@ async function processContent(
 
 export const sedCommand: Command = {
   name: "sed",
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
-    if (hasHelpFlag(args)) {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) {
       return showHelp(sedHelp);
     }
 
@@ -324,8 +325,8 @@ export const sedCommand: Command = {
     const files: string[] = [];
 
     // Parse arguments
-    for (let i = 0; i < args.length; i++) {
-      const arg = args[i];
+    for (let i = 0; i < a.length; i++) {
+      const arg = a[i];
       if (arg === "-n" || arg === "--quiet" || arg === "--silent") {
         silent = true;
       } else if (arg === "-i" || arg === "--in-place") {
@@ -335,12 +336,12 @@ export const sedCommand: Command = {
       } else if (arg === "-E" || arg === "-r" || arg === "--regexp-extended") {
         extendedRegex = true;
       } else if (arg === "-e") {
-        if (i + 1 < args.length) {
-          scripts.push(args[++i]);
+        if (i + 1 < a.length) {
+          scripts.push(a[++i]);
         }
       } else if (arg === "-f") {
-        if (i + 1 < args.length) {
-          scriptFiles.push(args[++i]);
+        if (i + 1 < a.length) {
+          scriptFiles.push(a[++i]);
         }
       } else if (arg.startsWith("--")) {
         return unknownOption("sed", arg);
@@ -364,13 +365,13 @@ export const sedCommand: Command = {
         if (arg.includes("i")) inPlace = true;
         if (arg.includes("E") || arg.includes("r")) extendedRegex = true;
         if (arg.includes("e") && !arg.includes("n") && !arg.includes("i")) {
-          if (i + 1 < args.length) {
-            scripts.push(args[++i]);
+          if (i + 1 < a.length) {
+            scripts.push(a[++i]);
           }
         }
         if (arg.includes("f") && !arg.includes("e")) {
-          if (i + 1 < args.length) {
-            scriptFiles.push(args[++i]);
+          if (i + 1 < a.length) {
+            scriptFiles.push(a[++i]);
           }
         }
       } else if (

@@ -8,7 +8,7 @@
  */
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decode, EMPTY, encode } from "../../utils/bytes.js";
+import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
 const nlHelp = {
@@ -128,8 +128,12 @@ function processContent(
 
 export const nl: Command = {
   name: "nl",
-  execute: async (args: string[], ctx: CommandContext): Promise<ExecResult> => {
-    if (hasHelpFlag(args)) {
+  execute: async (
+    args: Uint8Array[],
+    ctx: CommandContext,
+  ): Promise<ExecResult> => {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) {
       return showHelp(nlHelp);
     }
 
@@ -145,11 +149,11 @@ export const nl: Command = {
     const files: string[] = [];
     let i = 0;
 
-    while (i < args.length) {
-      const arg = args[i];
+    while (i < a.length) {
+      const arg = a[i];
 
-      if (arg === "-b" && i + 1 < args.length) {
-        const style = args[i + 1];
+      if (arg === "-b" && i + 1 < a.length) {
+        const style = a[i + 1];
         if (style !== "a" && style !== "t" && style !== "n") {
           return {
             exitCode: 1,
@@ -170,8 +174,8 @@ export const nl: Command = {
         }
         options.bodyStyle = style;
         i++;
-      } else if (arg === "-n" && i + 1 < args.length) {
-        const format = args[i + 1];
+      } else if (arg === "-n" && i + 1 < a.length) {
+        const format = a[i + 1];
         if (format !== "ln" && format !== "rn" && format !== "rz") {
           return {
             exitCode: 1,
@@ -192,14 +196,14 @@ export const nl: Command = {
         }
         options.numberFormat = format;
         i++;
-      } else if (arg === "-w" && i + 1 < args.length) {
-        const width = parseInt(args[i + 1], 10);
+      } else if (arg === "-w" && i + 1 < a.length) {
+        const width = parseInt(a[i + 1], 10);
         if (Number.isNaN(width) || width < 1) {
           return {
             exitCode: 1,
             stdout: EMPTY,
             stderr: encode(
-              `nl: invalid line number field width: '${args[i + 1]}'\n`,
+              `nl: invalid line number field width: '${a[i + 1]}'\n`,
             ),
           };
         }
@@ -218,21 +222,19 @@ export const nl: Command = {
         }
         options.width = width;
         i++;
-      } else if (arg === "-s" && i + 1 < args.length) {
-        options.separator = args[i + 1];
+      } else if (arg === "-s" && i + 1 < a.length) {
+        options.separator = a[i + 1];
         i += 2;
       } else if (arg.startsWith("-s")) {
         options.separator = arg.slice(2);
         i++;
-      } else if (arg === "-v" && i + 1 < args.length) {
-        const start = parseInt(args[i + 1], 10);
+      } else if (arg === "-v" && i + 1 < a.length) {
+        const start = parseInt(a[i + 1], 10);
         if (Number.isNaN(start)) {
           return {
             exitCode: 1,
             stdout: EMPTY,
-            stderr: encode(
-              `nl: invalid starting line number: '${args[i + 1]}'\n`,
-            ),
+            stderr: encode(`nl: invalid starting line number: '${a[i + 1]}'\n`),
           };
         }
         options.startNumber = start;
@@ -250,14 +252,14 @@ export const nl: Command = {
         }
         options.startNumber = start;
         i++;
-      } else if (arg === "-i" && i + 1 < args.length) {
-        const incr = parseInt(args[i + 1], 10);
+      } else if (arg === "-i" && i + 1 < a.length) {
+        const incr = parseInt(a[i + 1], 10);
         if (Number.isNaN(incr)) {
           return {
             exitCode: 1,
             stdout: EMPTY,
             stderr: encode(
-              `nl: invalid line number increment: '${args[i + 1]}'\n`,
+              `nl: invalid line number increment: '${a[i + 1]}'\n`,
             ),
           };
         }
@@ -277,7 +279,7 @@ export const nl: Command = {
         options.increment = incr;
         i++;
       } else if (arg === "--") {
-        files.push(...args.slice(i + 1));
+        files.push(...a.slice(i + 1));
         break;
       } else if (arg.startsWith("-") && arg !== "-") {
         return unknownOption("nl", arg);

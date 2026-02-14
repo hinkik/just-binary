@@ -7,7 +7,13 @@
 import { constants, gunzipSync, gzipSync } from "node:zlib";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
-import { concat, decode, EMPTY, encode } from "../../utils/bytes.js";
+import {
+  concat,
+  decode,
+  decodeArgs,
+  EMPTY,
+  encode,
+} from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const gzipHelp = {
@@ -668,10 +674,11 @@ async function testFile(
 }
 
 async function executeGzip(
-  args: string[],
+  args: Uint8Array[],
   ctx: CommandContext,
   cmdName: "gzip" | "gunzip" | "zcat",
 ): Promise<ExecResult> {
+  const a = decodeArgs(args);
   // Determine help based on command name
   const help =
     cmdName === "zcat"
@@ -680,11 +687,11 @@ async function executeGzip(
         ? gunzipHelp
         : gzipHelp;
 
-  if (hasHelpFlag(args)) {
+  if (hasHelpFlag(a)) {
     return showHelp(help);
   }
 
-  const parsed = parseArgs(cmdName, args, argDefs);
+  const parsed = parseArgs(cmdName, a, argDefs);
   if (!parsed.ok) {
     // Check if it's an unknown option error
     if (decode(parsed.error.stderr).includes("unrecognized option")) {
@@ -770,21 +777,21 @@ async function executeGzip(
 
 export const gzipCommand: Command = {
   name: "gzip",
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
     return executeGzip(args, ctx, "gzip");
   },
 };
 
 export const gunzipCommand: Command = {
   name: "gunzip",
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
     return executeGzip(args, ctx, "gunzip");
   },
 };
 
 export const zcatCommand: Command = {
   name: "zcat",
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
     return executeGzip(args, ctx, "zcat");
   },
 };

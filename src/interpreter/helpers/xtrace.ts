@@ -7,6 +7,7 @@
  */
 
 import { Parser } from "../../parser/parser.js";
+import { decode, encode, envGet, envSet } from "../../utils/bytes.js";
 import { expandWord } from "../expansion.js";
 import type { InterpreterContext } from "../types.js";
 
@@ -21,12 +22,14 @@ const DEFAULT_PS4 = "+ ";
  * If PS4 expansion fails, falls back to default "+ ".
  */
 async function getXtracePrefix(ctx: InterpreterContext): Promise<string> {
-  const ps4 = ctx.state.env.get("PS4");
+  const ps4Raw = ctx.state.env.get("PS4");
 
   // If PS4 is not set, return default
-  if (ps4 === undefined) {
+  if (ps4Raw === undefined) {
     return DEFAULT_PS4;
   }
+
+  const ps4 = decode(ps4Raw);
 
   // If PS4 is empty string (explicitly unset), bash uses no prefix
   // Actually, bash outputs nothing for trace lines when PS4 is empty

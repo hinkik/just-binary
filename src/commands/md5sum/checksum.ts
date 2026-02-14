@@ -4,7 +4,7 @@
  */
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decode, EMPTY, encode } from "../../utils/bytes.js";
+import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
 export type HashAlgorithm = "md5" | "sha1" | "sha256";
@@ -144,13 +144,17 @@ export function createChecksumCommand(
 
   return {
     name,
-    async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
-      if (hasHelpFlag(args)) return showHelp(help);
+    async execute(
+      args: Uint8Array[],
+      ctx: CommandContext,
+    ): Promise<ExecResult> {
+      const a = decodeArgs(args);
+      if (hasHelpFlag(a)) return showHelp(help);
 
       let check = false;
       const files: string[] = [];
 
-      for (const arg of args) {
+      for (const arg of a) {
         if (arg === "-c" || arg === "--check") check = true;
         else if (
           arg === "-b" ||

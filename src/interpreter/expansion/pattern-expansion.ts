@@ -7,7 +7,7 @@
 
 import type { ScriptNode } from "../../ast/types.js";
 import { Parser } from "../../parser/parser.js";
-import { decode, isEmpty } from "../../utils/bytes.js";
+import { decode, envGet, envSet, isEmpty } from "../../utils/bytes.js";
 import { ExecutionLimitError, ExitError } from "../errors.js";
 import type { InterpreterContext } from "../types.js";
 import { escapeGlobChars } from "./glob-escape.js";
@@ -131,7 +131,7 @@ async function executeCommandSubstitutionFromString(
     ctx.state.cwd = savedCwd;
     ctx.state.suppressVerbose = savedSuppressVerbose;
     ctx.state.lastExitCode = exitCode;
-    ctx.state.env.set("?", String(exitCode));
+    envSet(ctx.state.env, "?", String(exitCode));
     if (!isEmpty(result.stderr)) {
       ctx.state.expansionStderr =
         (ctx.state.expansionStderr || "") + decode(result.stderr);
@@ -148,7 +148,7 @@ async function executeCommandSubstitutionFromString(
     }
     if (error instanceof ExitError) {
       ctx.state.lastExitCode = error.exitCode;
-      ctx.state.env.set("?", String(error.exitCode));
+      envSet(ctx.state.env, "?", String(error.exitCode));
       return error.stdout ? decode(error.stdout).replace(/\n+$/, "") : "";
     }
     return "";
@@ -221,7 +221,7 @@ export function expandVariablesInPattern(
           if (closeIdx !== -1) {
             const varName = pattern.slice(i + 2, closeIdx);
             // Simple variable expansion (no complex operations)
-            result += ctx.state.env.get(varName) ?? "";
+            result += envGet(ctx.state.env, varName);
             i = closeIdx + 1;
             continue;
           }
@@ -232,7 +232,7 @@ export function expandVariablesInPattern(
             end++;
           }
           const varName = pattern.slice(i + 1, end);
-          result += ctx.state.env.get(varName) ?? "";
+          result += envGet(ctx.state.env, varName);
           i = end;
           continue;
         }
@@ -292,7 +292,7 @@ function expandVariablesInDoubleQuotedPattern(
           const closeIdx = content.indexOf("}", i + 2);
           if (closeIdx !== -1) {
             const varName = content.slice(i + 2, closeIdx);
-            result += ctx.state.env.get(varName) ?? "";
+            result += envGet(ctx.state.env, varName);
             i = closeIdx + 1;
             continue;
           }
@@ -303,7 +303,7 @@ function expandVariablesInDoubleQuotedPattern(
             end++;
           }
           const varName = content.slice(i + 1, end);
-          result += ctx.state.env.get(varName) ?? "";
+          result += envGet(ctx.state.env, varName);
           i = end;
           continue;
         }
@@ -416,7 +416,7 @@ export async function expandVariablesInPatternAsync(
           if (closeIdx !== -1) {
             const varName = pattern.slice(i + 2, closeIdx);
             // Simple variable expansion (no complex operations)
-            result += ctx.state.env.get(varName) ?? "";
+            result += envGet(ctx.state.env, varName);
             i = closeIdx + 1;
             continue;
           }
@@ -427,7 +427,7 @@ export async function expandVariablesInPatternAsync(
             end++;
           }
           const varName = pattern.slice(i + 1, end);
-          result += ctx.state.env.get(varName) ?? "";
+          result += envGet(ctx.state.env, varName);
           i = end;
           continue;
         }
@@ -516,7 +516,7 @@ async function expandVariablesInDoubleQuotedPatternAsync(
           const closeIdx = content.indexOf("}", i + 2);
           if (closeIdx !== -1) {
             const varName = content.slice(i + 2, closeIdx);
-            result += ctx.state.env.get(varName) ?? "";
+            result += envGet(ctx.state.env, varName);
             i = closeIdx + 1;
             continue;
           }
@@ -527,7 +527,7 @@ async function expandVariablesInDoubleQuotedPatternAsync(
             end++;
           }
           const varName = content.slice(i + 1, end);
-          result += ctx.state.env.get(varName) ?? "";
+          result += envGet(ctx.state.env, varName);
           i = end;
           continue;
         }

@@ -1,7 +1,7 @@
 import { getErrorMessage } from "../../interpreter/helpers/errors.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
-import { EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 
 const argDefs = {
   recursive: { short: "p", long: "parents", type: "boolean" as const },
@@ -11,8 +11,9 @@ const argDefs = {
 export const mkdirCommand: Command = {
   name: "mkdir",
 
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
-    const parsed = parseArgs("mkdir", args, argDefs);
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
+    const parsed = parseArgs("mkdir", a, argDefs);
     if (!parsed.ok) return parsed.error;
 
     const recursive = parsed.result.flags.recursive;

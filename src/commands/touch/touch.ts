@@ -1,6 +1,6 @@
 import { getErrorMessage } from "../../interpreter/helpers/errors.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 import { unknownOption } from "../help.js";
 
 /**
@@ -60,29 +60,30 @@ function parseDateString(dateStr: string): Date | null {
 export const touchCommand: Command = {
   name: "touch",
 
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
     const files: string[] = [];
     let dateStr: string | null = null;
     let noCreate = false;
 
     // Parse arguments
-    for (let i = 0; i < args.length; i++) {
-      const arg = args[i];
+    for (let i = 0; i < a.length; i++) {
+      const arg = a[i];
 
       if (arg === "--") {
         // Rest are files
-        files.push(...args.slice(i + 1));
+        files.push(...a.slice(i + 1));
         break;
       } else if (arg === "-d" || arg === "--date") {
         // -d DATE or --date=DATE
-        if (i + 1 >= args.length) {
+        if (i + 1 >= a.length) {
           return {
             stdout: EMPTY,
             stderr: encode("touch: option requires an argument -- 'd'\n"),
             exitCode: 1,
           };
         }
-        dateStr = args[++i];
+        dateStr = a[++i];
       } else if (arg.startsWith("--date=")) {
         dateStr = arg.slice("--date=".length);
       } else if (arg === "-c" || arg === "--no-create") {
@@ -106,14 +107,14 @@ export const touchCommand: Command = {
             // Silently ignore
           } else if (char === "d") {
             // -d requires next argument
-            if (i + 1 >= args.length) {
+            if (i + 1 >= a.length) {
               return {
                 stdout: EMPTY,
                 stderr: encode("touch: option requires an argument -- 'd'\n"),
                 exitCode: 1,
               };
             }
-            dateStr = args[++i];
+            dateStr = a[++i];
             skipNext = true;
             break;
           } else if (char === "r" || char === "t") {

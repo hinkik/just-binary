@@ -7,19 +7,18 @@
  */
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decode, EMPTY, encode } from "../../utils/bytes.js";
+import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 
 async function tacExecute(
-  args: string[],
+  args: Uint8Array[],
   ctx: CommandContext,
 ): Promise<ExecResult> {
+  const a = decodeArgs(args);
   // For now, just handle stdin (no file support)
   // TODO: Add file support
-  if (args.length > 0 && args[0] !== "-") {
+  if (a.length > 0 && a[0] !== "-") {
     // Try to read from file
-    const filePath = args[0].startsWith("/")
-      ? args[0]
-      : `${ctx.cwd}/${args[0]}`;
+    const filePath = a[0].startsWith("/") ? a[0] : `${ctx.cwd}/${a[0]}`;
     try {
       const content = await ctx.fs.readFile(filePath);
       const lines = content.split("\n");
@@ -35,7 +34,7 @@ async function tacExecute(
     } catch {
       return {
         stdout: EMPTY,
-        stderr: encode(`tac: ${args[0]}: No such file or directory\n`),
+        stderr: encode(`tac: ${a[0]}: No such file or directory\n`),
         exitCode: 1,
       };
     }

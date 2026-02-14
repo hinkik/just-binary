@@ -157,7 +157,7 @@ export interface VariableAttributeState {
  */
 export interface LocalScopingState {
   /** Stack of local variable scopes (one Map per function call) */
-  localScopes: Map<string, string | undefined>[];
+  localScopes: Map<string, Uint8Array | undefined>[];
   /**
    * Tracks at which call depth each local variable was declared.
    * Used for bash-specific unset scoping behavior:
@@ -173,7 +173,7 @@ export interface LocalScopingState {
    */
   localVarStack?: Map<
     string,
-    Array<{ value: string | undefined; scopeIndex: number }>
+    Array<{ value: Uint8Array | undefined; scopeIndex: number }>
   >;
   /**
    * Map of variable names to scope index where they were fully unset.
@@ -188,7 +188,7 @@ export interface LocalScopingState {
    * tempenv binding, the unset should reveal the underlying value, not completely
    * remove the variable.
    */
-  tempEnvBindings?: Map<string, string | undefined>[];
+  tempEnvBindings?: Map<string, Uint8Array | undefined>[];
   /**
    * Set of tempenv variable names that have been explicitly written to within
    * the current function context (after the prefix assignment, before local).
@@ -352,7 +352,7 @@ export interface InterpreterState
     ExpansionState {
   // ---- Core Environment ----
   /** Environment variables (exported to commands) - uses Map to prevent prototype pollution */
-  env: Map<string, string>;
+  env: Map<string, Uint8Array>;
   /** Current working directory */
   cwd: string;
   /** Previous directory (for `cd -`) */
@@ -362,7 +362,7 @@ export interface InterpreterState
   /** Exit code of last executed command */
   lastExitCode: number;
   /** Last argument of previous command, for $_ expansion */
-  lastArg: string;
+  lastArg: Uint8Array;
   /** Current line number being executed (for $LINENO) */
   currentLine: number;
 

@@ -6,6 +6,7 @@
 
 import type { IFileSystem } from "../fs/interface.js";
 import type { Command, CommandRegistry } from "../types.js";
+import { decode, encode, envGet, envSet } from "../utils/bytes.js";
 import type { InterpreterState } from "./types.js";
 
 /**
@@ -104,7 +105,8 @@ export async function resolveCommand(
   }
 
   // Search PATH directories (use override if provided, for command -p)
-  const pathEnv = pathOverride ?? ctx.state.env.get("PATH") ?? "/usr/bin:/bin";
+  const pathEnv =
+    pathOverride ?? envGet(ctx.state.env, "PATH", "/usr/bin:/bin");
   const pathDirs = pathEnv.split(":");
 
   for (const dir of pathDirs) {
@@ -195,7 +197,7 @@ export async function findCommandInPath(
     return paths;
   }
 
-  const pathEnv = ctx.state.env.get("PATH") || "/usr/bin:/bin";
+  const pathEnv = envGet(ctx.state.env, "PATH", "/usr/bin:/bin");
   const pathDirs = pathEnv.split(":");
 
   for (const dir of pathDirs) {

@@ -5,7 +5,7 @@
  */
 
 import type { ExecResult } from "../../types.js";
-import { encode } from "../../utils/bytes.js";
+import { decode, encode, envGet, envSet } from "../../utils/bytes.js";
 import { getArrayIndices, getAssocArrayKeys } from "../helpers/array.js";
 import { isNameref } from "../helpers/nameref.js";
 import {
@@ -104,7 +104,7 @@ export function printSpecificVariables(
         stdout += `declare -A ${name}=()\n`;
       } else {
         const elements = keys.map((key) => {
-          const value = ctx.state.env.get(`${name}_${key}`) ?? "";
+          const value = envGet(ctx.state.env, `${name}_${key}`, "");
           // Format: ['key']=value (single quotes around key)
           const formattedValue = formatAssocValue(value);
           return `['${key}']=${formattedValue}`;
@@ -118,7 +118,7 @@ export function printSpecificVariables(
     const arrayIndices = getArrayIndices(ctx, name);
     if (arrayIndices.length > 0) {
       const elements = arrayIndices.map((index) => {
-        const value = ctx.state.env.get(`${name}_${index}`) ?? "";
+        const value = envGet(ctx.state.env, `${name}_${index}`, "");
         return `[${index}]=${quoteArrayValue(value)}`;
       });
       stdout += `declare -a ${name}=(${elements.join(" ")})\n`;
@@ -132,8 +132,8 @@ export function printSpecificVariables(
     }
 
     // Regular scalar variable
-    const value = ctx.state.env.get(name);
-    if (value !== undefined) {
+    if (ctx.state.env.has(name)) {
+      const value = envGet(ctx.state.env, name);
       // Use $'...' quoting for control characters, double quotes otherwise
       stdout += `declare ${flags} ${name}=${quoteDeclareValue(value)}\n`;
     } else {
@@ -258,7 +258,7 @@ export function printAllVariables(
         stdout += `declare -A ${name}=()\n`;
       } else {
         const elements = keys.map((key) => {
-          const value = ctx.state.env.get(`${name}_${key}`) ?? "";
+          const value = envGet(ctx.state.env, `${name}_${key}`, "");
           // Format: ['key']=value (single quotes around key)
           const formattedValue = formatAssocValue(value);
           return `['${key}']=${formattedValue}`;
@@ -271,7 +271,7 @@ export function printAllVariables(
     // Check if this is an indexed array
     if (arrayIndices.length > 0) {
       const elements = arrayIndices.map((index) => {
-        const value = ctx.state.env.get(`${name}_${index}`) ?? "";
+        const value = envGet(ctx.state.env, `${name}_${index}`, "");
         return `[${index}]=${quoteArrayValue(value)}`;
       });
       stdout += `declare -a ${name}=(${elements.join(" ")})\n`;
@@ -285,8 +285,8 @@ export function printAllVariables(
     }
 
     // Regular scalar variable
-    const value = ctx.state.env.get(name);
-    if (value !== undefined) {
+    if (ctx.state.env.has(name)) {
+      const value = envGet(ctx.state.env, name);
       stdout += `declare ${flags} ${name}=${quoteDeclareValue(value)}\n`;
     }
   }
@@ -312,7 +312,7 @@ export function listAssociativeArrays(ctx: InterpreterContext): ExecResult {
     } else {
       // Non-empty associative array: format as (['key']=value ...)
       const elements = keys.map((key) => {
-        const value = ctx.state.env.get(`${name}_${key}`) ?? "";
+        const value = envGet(ctx.state.env, `${name}_${key}`, "");
         // Format: ['key']=value (single quotes around key)
         const formattedValue = formatAssocValue(value);
         return `['${key}']=${formattedValue}`;
@@ -369,7 +369,7 @@ export function listIndexedArrays(ctx: InterpreterContext): ExecResult {
     } else {
       // Non-empty array: format as ([index]="value" ...)
       const elements = indices.map((index) => {
-        const value = ctx.state.env.get(`${name}_${index}`) ?? "";
+        const value = envGet(ctx.state.env, `${name}_${index}`, "");
         return `[${index}]=${quoteArrayValue(value)}`;
       });
       stdout += `declare -a ${name}=(${elements.join(" ")})\n`;
@@ -427,9 +427,8 @@ export function listAllVariables(ctx: InterpreterContext): ExecResult {
     }
 
     // Regular scalar variable - output as name=value
-    const value = ctx.state.env.get(name);
-    if (value !== undefined) {
-      stdout += `${name}=${quoteValue(value)}\n`;
+    if (ctx.state.env.has(name)) {
+      stdout += `${name}=${quoteValue(envGet(ctx.state.env, name))}\n`;
     }
   }
 

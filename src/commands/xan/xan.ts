@@ -6,7 +6,7 @@
  */
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 import {
   cmdAgg,
@@ -296,13 +296,14 @@ const subHelps: Record<
 export const xanCommand: Command = {
   name: "xan",
 
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
-    if (args.length === 0 || hasHelpFlag(args)) {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
+    if (a.length === 0 || hasHelpFlag(a)) {
       return showHelp(xanHelp);
     }
 
-    const subcommand = args[0];
-    const subArgs = args.slice(1);
+    const subcommand = a[0];
+    const subArgs = a.slice(1);
 
     // Check for subcommand --help
     if (hasHelpFlag(subArgs)) {

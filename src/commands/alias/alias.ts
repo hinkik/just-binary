@@ -1,5 +1,11 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { EMPTY, encode } from "../../utils/bytes.js";
+import {
+  decodeArgs,
+  EMPTY,
+  encode,
+  envGet,
+  envSet,
+} from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const aliasHelp = {
@@ -16,18 +22,19 @@ const ALIAS_PREFIX = "BASH_ALIAS_";
 export const aliasCommand: Command = {
   name: "alias",
 
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
-    if (hasHelpFlag(args)) {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) {
       return showHelp(aliasHelp);
     }
 
     // No arguments: list all aliases
-    if (args.length === 0) {
+    if (a.length === 0) {
       let stdout = "";
-      for (const [key, value] of ctx.env) {
+      for (const key of ctx.env.keys()) {
         if (key.startsWith(ALIAS_PREFIX)) {
           const name = key.slice(ALIAS_PREFIX.length);
-          stdout += `alias ${name}='${value}'\n`;
+          stdout += `alias ${name}='${envGet(ctx.env, key)}'\n`;
         }
       }
       return { stdout: encode(stdout), stderr: EMPTY, exitCode: 0 };
@@ -35,7 +42,7 @@ export const aliasCommand: Command = {
 
     // Process alias definitions
     // Skip "--" option separator (POSIX standard)
-    const processArgs = args[0] === "--" ? args.slice(1) : args;
+    const processArgs = a[0] === "--" ? a.slice(1) : a;
     for (const arg of processArgs) {
       const eqIdx = arg.indexOf("=");
       if (eqIdx === -1) {
@@ -43,7 +50,7 @@ export const aliasCommand: Command = {
         const key = ALIAS_PREFIX + arg;
         if (ctx.env.get(key)) {
           return {
-            stdout: encode(`alias ${arg}='${ctx.env.get(key)}'\n`),
+            stdout: encode(`alias ${arg}='${envGet(ctx.env, key)}'\n`),
             stderr: EMPTY,
             exitCode: 0,
           };
@@ -65,7 +72,7 @@ export const aliasCommand: Command = {
         ) {
           value = value.slice(1, -1);
         }
-        ctx.env.set(ALIAS_PREFIX + name, value);
+        envSet(ctx.env, ALIAS_PREFIX + name, value);
       }
     }
 
@@ -76,8 +83,9 @@ export const aliasCommand: Command = {
 export const unaliasCommand: Command = {
   name: "unalias",
 
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
-    if (hasHelpFlag(args)) {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) {
       return showHelp({
         name: "unalias",
         summary: "remove alias definitions",
@@ -89,7 +97,7 @@ export const unaliasCommand: Command = {
       });
     }
 
-    if (args.length === 0) {
+    if (a.length === 0) {
       return {
         stdout: EMPTY,
         stderr: encode("unalias: usage: unalias [-a] name [name ...]\n"),
@@ -98,7 +106,7 @@ export const unaliasCommand: Command = {
     }
 
     // Handle -a to remove all aliases
-    if (args[0] === "-a") {
+    if (a[0] === "-a") {
       for (const key of ctx.env.keys()) {
         if (key.startsWith(ALIAS_PREFIX)) {
           ctx.env.delete(key);
@@ -108,7 +116,7 @@ export const unaliasCommand: Command = {
     }
 
     // Skip "--" option separator (POSIX standard)
-    const processArgs = args[0] === "--" ? args.slice(1) : args;
+    const processArgs = a[0] === "--" ? a.slice(1) : a;
 
     let anyError = false;
     let stderr = "";

@@ -1,6 +1,6 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
-import { encode } from "../../utils/bytes.js";
+import { decodeArgs, encode } from "../../utils/bytes.js";
 import { DEFAULT_BATCH_SIZE } from "../../utils/constants.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
@@ -34,12 +34,13 @@ interface TreeOptions {
 export const treeCommand: Command = {
   name: "tree",
 
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
-    if (hasHelpFlag(args)) {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) {
       return showHelp(treeHelp);
     }
 
-    const parsed = parseArgs("tree", args, argDefs);
+    const parsed = parseArgs("tree", a, argDefs);
     if (!parsed.ok) return parsed.error;
 
     const options: TreeOptions = {

@@ -12,6 +12,7 @@
 import { parseArithmeticExpression } from "../../parser/arithmetic-parser.js";
 import { Parser } from "../../parser/parser.js";
 import { BASH_VERSION, getProcessInfo } from "../../shell-metadata.js";
+import { decode } from "../../utils/bytes.js";
 import { evaluateArithmetic } from "../arithmetic.js";
 import { BadSubstitutionError, NounsetError } from "../errors.js";
 import {
@@ -23,6 +24,11 @@ import { getIfsSeparator } from "../helpers/ifs.js";
 import { isNameref, resolveNameref } from "../helpers/nameref.js";
 import type { InterpreterContext } from "../types.js";
 
+/** Decode a Uint8Array env value to string, returning fallback if undefined */
+function ev(v: Uint8Array | undefined, fallback = ""): string {
+  return v !== undefined ? decode(v) : fallback;
+}
+
 /**
  * Expand simple variable references in a subscript string.
  * This handles patterns like $var and ${var} but not complex expansions.
@@ -33,14 +39,12 @@ function expandSimpleVarsInSubscript(
   subscript: string,
 ): string {
   // Replace ${varname} patterns
-  let result = subscript.replace(
-    /\$\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g,
-    (_, name) => ctx.state.env.get(name) ?? "",
+  let result = subscript.replace(/\$\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g, (_, name) =>
+    ev(ctx.state.env.get(name)),
   );
   // Replace $varname patterns (must be careful not to match ${})
-  result = result.replace(
-    /\$([a-zA-Z_][a-zA-Z0-9_]*)/g,
-    (_, name) => ctx.state.env.get(name) ?? "",
+  result = result.replace(/\$([a-zA-Z_][a-zA-Z0-9_]*)/g, (_, name) =>
+    ev(ctx.state.env.get(name)),
   );
   return result;
 }
@@ -76,7 +80,7 @@ export function getArrayElements(
     const keys = getAssocArrayKeys(ctx, arrayName);
     return keys.map((key) => [
       key,
-      ctx.state.env.get(`${arrayName}_${key}`) ?? "",
+      ev(ctx.state.env.get(`${arrayName}_${key}`)),
     ]);
   }
 
@@ -84,7 +88,7 @@ export function getArrayElements(
   const indices = getArrayIndices(ctx, arrayName);
   return indices.map((index) => [
     index,
-    ctx.state.env.get(`${arrayName}_${index}`) ?? "",
+    ev(ctx.state.env.get(`${arrayName}_${index}`)),
   ]);
 }
 
@@ -129,12 +133,12 @@ export async function getVariable(
     case "$":
       return String(process.pid);
     case "#":
-      return ctx.state.env.get("#") || "0";
+      return ev(ctx.state.env.get("#"), "0");
     case "@":
-      return ctx.state.env.get("@") || "";
+      return ev(ctx.state.env.get("@"));
     case "_":
       // $_ is the last argument of the previous command
-      return ctx.state.lastArg;
+      return decode(ctx.state.lastArg);
     case "-": {
       // $- returns current shell option flags
       // Bash always includes h (hashall) and B (braceexpand) by default
@@ -159,22 +163,22 @@ export async function getVariable(
       // $* uses first character of IFS as separator when inside double quotes
       // When IFS is empty string, no separator is used
       // When IFS is unset, space is used (default behavior)
-      const numParams = Number.parseInt(ctx.state.env.get("#") || "0", 10);
+      const numParams = Number.parseInt(ev(ctx.state.env.get("#"), "0"), 10);
       if (numParams === 0) return "";
       const params: string[] = [];
       for (let i = 1; i <= numParams; i++) {
-        params.push(ctx.state.env.get(String(i)) || "");
+        params.push(ev(ctx.state.env.get(String(i))));
       }
       return params.join(getIfsSeparator(ctx.state.env));
     }
     case "0":
-      return ctx.state.env.get("0") || "bash";
+      return ev(ctx.state.env.get("0"), "bash");
     case "PWD":
       // Check if PWD is in env (might have been unset)
-      return ctx.state.env.get("PWD") ?? "";
+      return ctx.state.env.has("PWD") ? ev(ctx.state.env.get("PWD")) : "";
     case "OLDPWD":
       // Check if OLDPWD is in env (might have been unset)
-      return ctx.state.env.get("OLDPWD") ?? "";
+      return ctx.state.env.has("OLDPWD") ? ev(ctx.state.env.get("OLDPWD")) : "";
     case "PPID": {
       // Parent process ID (from shared metadata)
       const { ppid } = getProcessInfo();
@@ -282,7 +286,7 @@ export async function getVariable(
       // ${s[@]} where s='abc' returns 'abc'
       const scalarValue = ctx.state.env.get(arrayName);
       if (scalarValue !== undefined) {
-        return scalarValue;
+        return decode(scalarValue);
       }
       return "";
     }
@@ -323,7 +327,7 @@ export async function getVariable(
       if (value === undefined && checkNounset && ctx.state.options.nounset) {
         throw new NounsetError(`${arrayName}[${subscript}]`);
       }
-      return value || "";
+      return ev(value);
     }
 
     // Evaluate subscript as arithmetic expression for indexed arrays
@@ -341,7 +345,7 @@ export async function getVariable(
       } catch {
         // Fall back to simple variable lookup for backwards compatibility
         const evalValue = ctx.state.env.get(subscript);
-        index = evalValue ? Number.parseInt(evalValue, 10) : 0;
+        index = evalValue ? Number.parseInt(decode(evalValue), 10) : 0;
         if (Number.isNaN(index)) index = 0;
       }
     }
@@ -372,20 +376,19 @@ export async function getVariable(
         return "";
       }
       // Look up by actual index, not position
-      const value = ctx.state.env.get(`${arrayName}_${actualIdx}`);
-      return value || "";
+      return ev(ctx.state.env.get(`${arrayName}_${actualIdx}`));
     }
 
     const value = ctx.state.env.get(`${arrayName}_${index}`);
     if (value !== undefined) {
-      return value;
+      return decode(value);
     }
     // If array element doesn't exist, check if it's a scalar variable accessed as c[0]
     // In bash, c[0] for scalar c returns the value of c
     if (index === 0) {
       const scalarValue = ctx.state.env.get(arrayName);
       if (scalarValue !== undefined) {
-        return scalarValue;
+        return decode(scalarValue);
       }
     }
     if (checkNounset && ctx.state.options.nounset) {
@@ -400,7 +403,7 @@ export async function getVariable(
     if (value === undefined && checkNounset && ctx.state.options.nounset) {
       throw new NounsetError(name);
     }
-    return value || "";
+    return ev(value);
   }
 
   // Check if this is a nameref - resolve and get target's value
@@ -422,15 +425,16 @@ export async function getVariable(
     }
     // Nameref points to empty/invalid target
     const value = ctx.state.env.get(name);
+    const valueStr = ev(value);
     // Empty nameref (no target) should trigger nounset error
     if (
-      (value === undefined || value === "") &&
+      (value === undefined || valueStr === "") &&
       checkNounset &&
       ctx.state.options.nounset
     ) {
       throw new NounsetError(name);
     }
-    return value || "";
+    return valueStr;
   }
 
   // Regular variables - check nounset
@@ -445,7 +449,7 @@ export async function getVariable(
       ctx.state.accessedTempEnvVars.add(name);
     }
     // Scalar value exists - return it
-    return value;
+    return decode(value);
   }
 
   // Check if plain variable name refers to an array (no scalar exists)
@@ -454,7 +458,7 @@ export async function getVariable(
     // Return the first element (index 0)
     const firstValue = ctx.state.env.get(`${name}_0`);
     if (firstValue !== undefined) {
-      return firstValue;
+      return decode(firstValue);
     }
     // Array exists but no element at index 0 - return empty string
     return "";
@@ -502,7 +506,7 @@ export async function isVariableSet(
 
   // $@ and $* are considered "set" only if there are positional parameters
   if (name === "@" || name === "*") {
-    const numParams = Number.parseInt(ctx.state.env.get("#") || "0", 10);
+    const numParams = Number.parseInt(ev(ctx.state.env.get("#"), "0"), 10);
     return numParams > 0;
   }
 
@@ -560,7 +564,7 @@ export async function isVariableSet(
         index = await evaluateArithmetic(ctx, arithAst.expression);
       } catch {
         const evalValue = ctx.state.env.get(subscript);
-        index = evalValue ? Number.parseInt(evalValue, 10) : 0;
+        index = evalValue ? Number.parseInt(decode(evalValue), 10) : 0;
         if (Number.isNaN(index)) index = 0;
       }
     }

@@ -11,6 +11,7 @@
 import type { IFileSystem } from "../fs/interface.js";
 import { ExecutionLimitError } from "../interpreter/errors.js";
 import { createUserRegex, type RegexLike } from "../regex/index.js";
+import { decode } from "../utils/bytes.js";
 import { DEFAULT_BATCH_SIZE } from "../utils/constants.js";
 import {
   findMatchingParen,
@@ -46,7 +47,7 @@ export class GlobExpander {
   constructor(
     private fs: IFileSystem,
     private cwd: string,
-    env?: Map<string, string>,
+    env?: Map<string, Uint8Array>,
     options?: GlobOptions | boolean, // boolean for backwards compatibility (globstar)
   ) {
     if (typeof options === "boolean") {
@@ -64,10 +65,13 @@ export class GlobExpander {
       this.maxOps = 100000;
     }
     // Parse GLOBIGNORE if set
-    const globignore = env?.get("GLOBIGNORE");
-    if (globignore !== undefined && globignore !== "") {
-      this.hasGlobignore = true;
-      this.globignorePatterns = splitGlobignorePatterns(globignore);
+    const globignoreRaw = env?.get("GLOBIGNORE");
+    if (globignoreRaw !== undefined) {
+      const globignore = decode(globignoreRaw);
+      if (globignore !== "") {
+        this.hasGlobignore = true;
+        this.globignorePatterns = splitGlobignorePatterns(globignore);
+      }
     }
   }
 

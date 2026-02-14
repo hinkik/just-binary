@@ -5,7 +5,7 @@
 import * as Diff from "diff";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
-import { decode, EMPTY, encode } from "../../utils/bytes.js";
+import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const diffHelp = {
@@ -35,10 +35,11 @@ const argDefs = {
 export const diffCommand: Command = {
   name: "diff",
 
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
-    if (hasHelpFlag(args)) return showHelp(diffHelp);
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) return showHelp(diffHelp);
 
-    const parsed = parseArgs("diff", args, argDefs);
+    const parsed = parseArgs("diff", a, argDefs);
     if (!parsed.ok) return parsed.error;
 
     const brief = parsed.result.flags.brief;

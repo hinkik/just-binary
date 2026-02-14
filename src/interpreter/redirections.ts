@@ -12,7 +12,14 @@
 
 import type { RedirectionNode, WordNode } from "../ast/types.js";
 import type { ExecResult } from "../types.js";
-import { concat, EMPTY, encode } from "../utils/bytes.js";
+import {
+  concat,
+  decode,
+  EMPTY,
+  encode,
+  envGet,
+  envSet,
+} from "../utils/bytes.js";
 import {
   expandRedirectTarget,
   expandWord,
@@ -169,9 +176,11 @@ export async function processFdVariableRedirections(
       const target = await expandWord(ctx, redir.target as WordNode);
       if (target === "-") {
         // Close operation - look up the FD from the variable and close it
-        const existingFd = ctx.state.env.get(redir.fdVariable);
-        if (existingFd !== undefined) {
-          const fdNum = Number.parseInt(existingFd, 10);
+        if (ctx.state.env.has(redir.fdVariable)) {
+          const fdNum = Number.parseInt(
+            envGet(ctx.state.env, redir.fdVariable),
+            10,
+          );
           if (!Number.isNaN(fdNum)) {
             ctx.state.fileDescriptors.delete(fdNum);
           }
@@ -185,7 +194,7 @@ export async function processFdVariableRedirections(
     const fd = allocateFd(ctx);
 
     // Set the variable to the allocated FD number
-    ctx.state.env.set(redir.fdVariable, String(fd));
+    envSet(ctx.state.env, redir.fdVariable, String(fd));
 
     // For file redirections, store the file path mapping
     if (redir.target.type === "Word") {

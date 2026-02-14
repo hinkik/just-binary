@@ -4,7 +4,7 @@
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
-import { EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const base64Help = {
@@ -77,12 +77,13 @@ async function readBinary(
 export const base64Command: Command = {
   name: "base64",
 
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
-    if (hasHelpFlag(args)) {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) {
       return showHelp(base64Help);
     }
 
-    const parsed = parseArgs("base64", args, argDefs);
+    const parsed = parseArgs("base64", a, argDefs);
     if (!parsed.ok) return parsed.error;
 
     const decode = parsed.result.flags.decode;

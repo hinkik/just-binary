@@ -11,7 +11,7 @@ import type { SimpleCommandNode, WordNode } from "../ast/types.js";
 import { parseArithmeticExpression } from "../parser/arithmetic-parser.js";
 import { Parser } from "../parser/parser.js";
 import type { ExecResult } from "../types.js";
-import { EMPTY, encode } from "../utils/bytes.js";
+import { decode, EMPTY, encode, envGet, envSet } from "../utils/bytes.js";
 import { evaluateArithmetic } from "./arithmetic.js";
 import {
   applyCaseTransform,
@@ -49,7 +49,7 @@ export interface AssignmentResult {
   /** Accumulated xtrace output for assignments */
   xtraceOutput: string;
   /** Temporary assignments for prefix bindings (FOO=bar cmd) */
-  tempAssignments: Map<string, string | undefined>;
+  tempAssignments: Map<string, Uint8Array | undefined>;
   /** Error result if assignment failed */
   error?: ExecResult;
 }
@@ -62,7 +62,7 @@ export async function processAssignments(
   ctx: InterpreterContext,
   node: SimpleCommandNode,
 ): Promise<AssignmentResult> {
-  const tempAssignments = new Map<string, string | undefined>();
+  const tempAssignments = new Map<string, Uint8Array | undefined>();
   let xtraceOutput = "";
 
   for (const assignment of node.assignments) {
@@ -176,7 +176,7 @@ async function processArrayAssignment(
   name: string,
   array: WordNode[],
   append: boolean,
-  tempAssignments: Map<string, string | undefined>,
+  tempAssignments: Map<string, Uint8Array | undefined>,
 ): Promise<SingleAssignmentResult> {
   let xtraceOutput = "";
 
@@ -269,7 +269,7 @@ async function processArrayAssignment(
     tempAssignments.set(name, ctx.state.env.get(name));
     const elements = array.map((el) => wordToLiteralString(el));
     const stringified = `(${elements.join(" ")})`;
-    ctx.state.env.set(name, stringified);
+    envSet(ctx.state.env, name, stringified);
   }
 
   return { continueToNext: true, xtraceOutput };
@@ -368,10 +368,14 @@ async function processAssociativeArrayAssignment(
   for (const pending of pendingElements) {
     if (pending.type === "keyed") {
       if (pending.append) {
-        const existing = ctx.state.env.get(`${name}_${pending.key}`) ?? "";
-        ctx.state.env.set(`${name}_${pending.key}`, existing + pending.value);
+        const existing = envGet(ctx.state.env, `${name}_${pending.key}`, "");
+        envSet(
+          ctx.state.env,
+          `${name}_${pending.key}`,
+          existing + pending.value,
+        );
       } else {
-        ctx.state.env.set(`${name}_${pending.key}`, pending.value);
+        envSet(ctx.state.env, `${name}_${pending.key}`, pending.value);
       }
     } else {
       const lineNum = node.line ?? ctx.state.currentLine ?? 1;
@@ -447,21 +451,21 @@ async function processIndexedArrayWithKeysAssignment(
         if (/^-?\d+$/.test(pending.indexExpr)) {
           index = Number.parseInt(pending.indexExpr, 10);
         } else {
-          const varValue = ctx.state.env.get(pending.indexExpr);
+          const varValue = envGet(ctx.state.env, pending.indexExpr);
           index = varValue ? Number.parseInt(varValue, 10) : 0;
           if (Number.isNaN(index)) index = 0;
         }
       }
       if (pending.append) {
-        const existing = ctx.state.env.get(`${name}_${index}`) ?? "";
-        ctx.state.env.set(`${name}_${index}`, existing + pending.value);
+        const existing = envGet(ctx.state.env, `${name}_${index}`, "");
+        envSet(ctx.state.env, `${name}_${index}`, existing + pending.value);
       } else {
-        ctx.state.env.set(`${name}_${index}`, pending.value);
+        envSet(ctx.state.env, `${name}_${index}`, pending.value);
       }
       currentIndex = index + 1;
     } else {
       for (const val of pending.values) {
-        ctx.state.env.set(`${name}_${currentIndex++}`, val);
+        envSet(ctx.state.env, `${name}_${currentIndex++}`, val);
       }
     }
   }
@@ -504,10 +508,10 @@ async function processSimpleArrayAssignment(
   }
 
   for (let i = 0; i < allElements.length; i++) {
-    ctx.state.env.set(`${name}_${startIndex + i}`, allElements[i]);
+    envSet(ctx.state.env, `${name}_${startIndex + i}`, allElements[i]);
   }
   if (!append) {
-    ctx.state.env.set(`${name}__length`, String(allElements.length));
+    envSet(ctx.state.env, `${name}__length`, String(allElements.length));
   }
 }
 
@@ -521,7 +525,7 @@ async function processSubscriptAssignment(
   subscriptExpr: string,
   value: string,
   append: boolean,
-  tempAssignments: Map<string, string | undefined>,
+  tempAssignments: Map<string, Uint8Array | undefined>,
 ): Promise<SingleAssignmentResult> {
   let resolvedArrayName = arrayName;
 
@@ -576,11 +580,11 @@ async function processSubscriptAssignment(
     envKey = `${resolvedArrayName}_${indexResult.index}`;
   }
 
-  const finalValue = append ? (ctx.state.env.get(envKey) || "") + value : value;
+  const finalValue = append ? envGet(ctx.state.env, envKey) + value : value;
 
   if (node.name) {
     tempAssignments.set(envKey, ctx.state.env.get(envKey));
-    ctx.state.env.set(envKey, finalValue);
+    envSet(ctx.state.env, envKey, finalValue);
   } else {
     const localDepth = getLocalVarDepth(ctx, resolvedArrayName);
     if (
@@ -594,7 +598,7 @@ async function processSubscriptAssignment(
         currentScope.set(envKey, ctx.state.env.get(envKey));
       }
     }
-    ctx.state.env.set(envKey, finalValue);
+    envSet(ctx.state.env, envKey, finalValue);
   }
 
   return { continueToNext: true, xtraceOutput: "" };
@@ -660,7 +664,7 @@ async function computeIndexedArrayIndex(
         }
         return { index: 0, error: failure(errorMsg) };
       }
-      const varValue = ctx.state.env.get(subscriptExpr);
+      const varValue = envGet(ctx.state.env, subscriptExpr);
       index = varValue ? Number.parseInt(varValue, 10) : 0;
     }
     if (Number.isNaN(index)) index = 0;
@@ -705,7 +709,7 @@ async function processScalarAssignment(
   name: string,
   value: string,
   append: boolean,
-  tempAssignments: Map<string, string | undefined>,
+  tempAssignments: Map<string, Uint8Array | undefined>,
 ): Promise<SingleAssignmentResult> {
   let xtraceOutput = "";
 
@@ -758,7 +762,7 @@ async function processScalarAssignment(
     try {
       const parser = new Parser();
       if (append) {
-        const currentVal = ctx.state.env.get(targetName) || "0";
+        const currentVal = envGet(ctx.state.env, targetName, "0");
         const expr = `(${currentVal}) + (${value})`;
         const arithAst = parseArithmeticExpression(parser, expr);
         finalValue = String(await evaluateArithmetic(ctx, arithAst.expression));
@@ -772,7 +776,7 @@ async function processScalarAssignment(
   } else {
     const { isArray } = await import("./expansion.js");
     const appendKey = isArray(ctx, targetName) ? `${targetName}_0` : targetName;
-    finalValue = append ? (ctx.state.env.get(appendKey) || "") + value : value;
+    finalValue = append ? envGet(ctx.state.env, appendKey) + value : value;
   }
 
   finalValue = applyCaseTransform(ctx, targetName, finalValue);
@@ -792,9 +796,9 @@ async function processScalarAssignment(
 
   if (node.name) {
     tempAssignments.set(actualEnvKey, ctx.state.env.get(actualEnvKey));
-    ctx.state.env.set(actualEnvKey, finalValue);
+    envSet(ctx.state.env, actualEnvKey, finalValue);
   } else {
-    ctx.state.env.set(actualEnvKey, finalValue);
+    envSet(ctx.state.env, actualEnvKey, finalValue);
     if (ctx.state.options.allexport) {
       ctx.state.exportedVars = ctx.state.exportedVars || new Set();
       ctx.state.exportedVars.add(targetName);
@@ -831,7 +835,7 @@ async function computeNamerefArrayEnvKey(
       const arithAst = parseArithmeticExpression(parser, subscriptExpr);
       index = await evaluateArithmetic(ctx, arithAst.expression, false);
     } catch {
-      const varValue = ctx.state.env.get(subscriptExpr);
+      const varValue = envGet(ctx.state.env, subscriptExpr);
       index = varValue ? Number.parseInt(varValue, 10) : 0;
     }
     if (Number.isNaN(index)) index = 0;

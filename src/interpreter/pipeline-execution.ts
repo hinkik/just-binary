@@ -6,7 +6,14 @@
 
 import type { CommandNode, PipelineNode } from "../ast/types.js";
 import type { ExecResult } from "../types.js";
-import { concat, EMPTY, encode } from "../utils/bytes.js";
+import {
+  concat,
+  decode,
+  EMPTY,
+  encode,
+  envGet,
+  envSet,
+} from "../utils/bytes.js";
 import { BadSubstitutionError, ErrexitError, ExitError } from "./errors.js";
 import { OK } from "./helpers/result.js";
 import type { InterpreterContext } from "./types.js";
@@ -50,7 +57,7 @@ export async function executePipeline(
     // where $_ starts empty (subshells don't inherit $_ from parent in same way)
     if (isMultiCommandPipeline) {
       // Clear $_ for each pipeline command - they each get fresh subshell context
-      ctx.state.lastArg = "";
+      ctx.state.lastArg = encode("");
 
       // After the first command, clear groupStdin so subsequent commands
       // only see stdin from the pipeline (even if empty), not the original groupStdin
@@ -165,9 +172,13 @@ export async function executePipeline(
     }
     // Set new PIPESTATUS entries
     for (let i = 0; i < pipestatusExitCodes.length; i++) {
-      ctx.state.env.set(`PIPESTATUS_${i}`, String(pipestatusExitCodes[i]));
+      envSet(ctx.state.env, `PIPESTATUS_${i}`, String(pipestatusExitCodes[i]));
     }
-    ctx.state.env.set("PIPESTATUS__length", String(pipestatusExitCodes.length));
+    envSet(
+      ctx.state.env,
+      "PIPESTATUS__length",
+      String(pipestatusExitCodes.length),
+    );
   }
 
   // If pipefail is enabled, use the rightmost failing exit code

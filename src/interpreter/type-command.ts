@@ -19,7 +19,7 @@ import type {
 } from "../ast/types.js";
 import type { IFileSystem } from "../fs/interface.js";
 import type { CommandRegistry, ExecResult } from "../types.js";
-import { encode } from "../utils/bytes.js";
+import { decode, encode, envGet, envSet } from "../utils/bytes.js";
 import { result } from "./helpers/result.js";
 import { SHELL_BUILTINS, SHELL_KEYWORDS } from "./helpers/shell-constants.js";
 import type { InterpreterState } from "./types.js";
@@ -465,7 +465,7 @@ export async function handleCommandV(
       }
     } else if (ctx.commands.has(name)) {
       // Search PATH for the command file (registered commands exist in both /usr/bin and /bin)
-      const pathEnv = ctx.state.env.get("PATH") ?? "/usr/bin:/bin";
+      const pathEnv = envGet(ctx.state.env, "PATH", "/usr/bin:/bin");
       const pathDirs = pathEnv.split(":");
       let foundPath: string | null = null;
       for (const dir of pathDirs) {
@@ -537,7 +537,7 @@ export async function findFirstInPath(
   }
 
   // Search PATH directories
-  const pathEnv = ctx.state.env.get("PATH") ?? "/usr/bin:/bin";
+  const pathEnv = envGet(ctx.state.env, "PATH", "/usr/bin:/bin");
   const pathDirs = pathEnv.split(":");
 
   for (const dir of pathDirs) {

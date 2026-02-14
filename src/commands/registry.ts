@@ -521,7 +521,10 @@ const cache = new Map<string, Command>();
 function createLazyCommand(def: LazyCommandDef): Command {
   return {
     name: def.name,
-    async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
+    async execute(
+      args: Uint8Array[],
+      ctx: CommandContext,
+    ): Promise<ExecResult> {
       let cmd = cache.get(def.name);
 
       if (!cmd) {
@@ -535,7 +538,8 @@ function createLazyCommand(def: LazyCommandDef): Command {
         (typeof __BROWSER__ === "undefined" || !__BROWSER__)
       ) {
         const { emitFlagCoverage } = await import("./flag-coverage.js");
-        emitFlagCoverage(ctx.coverage, def.name, args);
+        const { decodeArgs } = await import("../utils/bytes.js");
+        emitFlagCoverage(ctx.coverage, def.name, decodeArgs(args));
       }
 
       return cmd.execute(args, ctx);

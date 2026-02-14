@@ -1,5 +1,6 @@
 import { parseArithmeticExpression } from "../../parser/arithmetic-parser.js";
 import { Parser } from "../../parser/parser.js";
+import { decode, encode, envGet, envSet } from "../../utils/bytes.js";
 import { evaluateArithmetic } from "../arithmetic.js";
 import type { InterpreterContext } from "../types.js";
 import { getArrayIndices, getAssocArrayKeys } from "./array.js";
@@ -37,7 +38,7 @@ export async function evaluateVariableTest(
       }
       // Expand variables in key
       key = key.replace(/\$([a-zA-Z_][a-zA-Z0-9_]*)/g, (_, varName) => {
-        return ctx.state.env.get(varName) || "";
+        return envGet(ctx.state.env, varName);
       });
       return ctx.state.env.has(`${arrayName}_${key}`);
     }
@@ -54,7 +55,7 @@ export async function evaluateVariableTest(
         index = Number.parseInt(indexExpr, 10);
       } else {
         // Last resort: try looking up as variable
-        const varValue = ctx.state.env.get(indexExpr);
+        const varValue = envGet(ctx.state.env, indexExpr);
         index = varValue ? Number.parseInt(varValue, 10) : 0;
       }
     }

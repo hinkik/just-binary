@@ -40,83 +40,11 @@ export function concat(a: Uint8Array, b: Uint8Array): Uint8Array {
   return result as Uint8Array;
 }
 
-/**
- * Encode a string as Latin-1 (ISO 8859-1) bytes: charCode → byte, 1:1.
- * Use this when the string was built with String.fromCharCode() for raw byte
- * values (e.g. echo/printf \xHH escapes) and must NOT be re-encoded as UTF-8.
- */
-function encodeLatin1(s: string): Uint8Array {
-  const bytes = new Uint8Array(s.length);
-  for (let i = 0; i < s.length; i++) {
-    bytes[i] = s.charCodeAt(i) & 0xff;
-  }
-  return bytes;
-}
-
-/**
- * Encode a mixed string containing both raw byte values (0x80-0xFF from
- * String.fromCharCode, e.g. \xHH / \0NNN escapes) and true Unicode characters
- * (code points > 0xFF from String.fromCodePoint, e.g. \u / \U escapes).
- *
- * - Code points 0x00-0x7F: emitted as a single byte (ASCII)
- * - Code points 0x80-0xFF: emitted as a single byte (raw, not UTF-8 encoded)
- * - Code points > 0xFF: UTF-8 encoded (true Unicode characters)
- */
-export function encodeMixed(s: string): Uint8Array {
-  // Fast path: if all chars are <= 0xFF, use Latin-1 encoding
-  let allLatin1 = true;
-  for (let i = 0; i < s.length; i++) {
-    if (s.charCodeAt(i) > 0xff) {
-      allLatin1 = false;
-      break;
-    }
-  }
-  if (allLatin1) {
-    return encodeLatin1(s);
-  }
-
-  // Mixed path: combine raw bytes and UTF-8 encoded segments
-  const parts: Uint8Array[] = [];
-  let utf8Start = -1; // start index of a segment needing UTF-8 encoding
-
-  for (let i = 0; i < s.length; i++) {
-    const code = s.charCodeAt(i);
-    if (code <= 0xff) {
-      // Flush any pending UTF-8 segment
-      if (utf8Start >= 0) {
-        parts.push(encoder.encode(s.slice(utf8Start, i)) as Uint8Array);
-        utf8Start = -1;
-      }
-      // Emit raw byte
-      parts.push(new Uint8Array([code]));
-    } else {
-      // This char needs UTF-8 encoding; accumulate in a segment
-      // Handle surrogate pairs (emoji etc.)
-      if (code >= 0xd800 && code <= 0xdbff && i + 1 < s.length) {
-        const next = s.charCodeAt(i + 1);
-        if (next >= 0xdc00 && next <= 0xdfff) {
-          // Surrogate pair - keep both in the UTF-8 segment
-          if (utf8Start < 0) utf8Start = i;
-          i++; // skip the low surrogate
-          continue;
-        }
-      }
-      if (utf8Start < 0) utf8Start = i;
-    }
-  }
-
-  // Flush any remaining UTF-8 segment
-  if (utf8Start >= 0) {
-    parts.push(encoder.encode(s.slice(utf8Start)) as Uint8Array);
-  }
-
-  // Concatenate all parts
-  const totalLen = parts.reduce((sum, p) => sum + p.length, 0);
-  const result = new Uint8Array(totalLen);
-  let offset = 0;
-  for (const part of parts) {
-    result.set(part, offset);
-    offset += part.length;
+/** Decode Latin-1 bytes to a string: each byte maps to the same char code */
+export function decodeLatin1(bytes: Uint8Array): string {
+  let result = "";
+  for (let i = 0; i < bytes.length; i++) {
+    result += String.fromCharCode(bytes[i]);
   }
   return result;
 }
@@ -124,6 +52,97 @@ export function encodeMixed(s: string): Uint8Array {
 /** Check if a byte array is empty (zero length) */
 export function isEmpty(bytes: Uint8Array): boolean {
   return bytes.length === 0;
+}
+
+/** Convenience: decode an array of Uint8Array args to string[] via UTF-8 */
+export function decodeArgs(args: Uint8Array[]): string[] {
+  return args.map((a) => decoder.decode(a));
+}
+
+// ============================================================================
+// Env Map Helpers
+// ============================================================================
+// Convenience wrappers for working with Map<string, Uint8Array> environments.
+// Variable *names* are always strings; only *values* are Uint8Array.
+
+/** Get an env value as a decoded string, or return the fallback (default "") */
+export function envGet(
+  env: Map<string, Uint8Array>,
+  key: string,
+  fallback = "",
+): string {
+  const v = env.get(key);
+  return v !== undefined ? decoder.decode(v) : fallback;
+}
+
+/** Set an env value from a string (encodes to UTF-8) */
+export function envSet(
+  env: Map<string, Uint8Array>,
+  key: string,
+  value: string,
+): void {
+  env.set(key, encoder.encode(value) as Uint8Array);
+}
+
+/**
+ * Create a Map<string, string> adapter over a Map<string, Uint8Array>.
+ * Decodes on read and encodes on write, so mutations propagate to the backing store.
+ * Used at the boundary between the Uint8Array-based interpreter env and the
+ * string-based Command interface (until Phase 4 migrates commands).
+ */
+export function createStringEnvAdapter(
+  backing: Map<string, Uint8Array>,
+): Map<string, string> {
+  return {
+    get(key: string): string | undefined {
+      const v = backing.get(key);
+      return v !== undefined ? decoder.decode(v) : undefined;
+    },
+    set(key: string, value: string): Map<string, string> {
+      backing.set(key, encoder.encode(value) as Uint8Array);
+      return this;
+    },
+    has(key: string): boolean {
+      return backing.has(key);
+    },
+    delete(key: string): boolean {
+      return backing.delete(key);
+    },
+    get size(): number {
+      return backing.size;
+    },
+    clear(): void {
+      backing.clear();
+    },
+    keys(): MapIterator<string> {
+      return backing.keys();
+    },
+    *values(): MapIterator<string> {
+      for (const v of backing.values()) {
+        yield decoder.decode(v);
+      }
+    },
+    *entries(): MapIterator<[string, string]> {
+      for (const [k, v] of backing.entries()) {
+        yield [k, decoder.decode(v)];
+      }
+    },
+    forEach(
+      callbackfn: (
+        value: string,
+        key: string,
+        map: Map<string, string>,
+      ) => void,
+    ): void {
+      for (const [k, v] of backing) {
+        callbackfn(decoder.decode(v), k, this);
+      }
+    },
+    [Symbol.iterator](): MapIterator<[string, string]> {
+      return this.entries();
+    },
+    [Symbol.toStringTag]: "StringEnvAdapter",
+  } as Map<string, string>;
 }
 
 /** Remove trailing newline bytes (0x0A) from the end */

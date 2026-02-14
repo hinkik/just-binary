@@ -9,6 +9,7 @@
 
 import type { WordNode, WordPart } from "../../ast/types.js";
 import { createUserRegex } from "../../regex/index.js";
+import { decode, encode, envGet, envSet } from "../../utils/bytes.js";
 import { getIfsSeparator } from "../helpers/ifs.js";
 import { escapeRegex } from "../helpers/regex.js";
 import type { InterpreterContext } from "../types.js";
@@ -103,9 +104,8 @@ export async function handleArrayPatternReplacement(
 
   // If no elements, check for scalar (treat as single-element array)
   if (elements.length === 0) {
-    const scalarValue = ctx.state.env.get(arrayName);
-    if (scalarValue !== undefined) {
-      values.push(scalarValue);
+    if (ctx.state.env.has(arrayName)) {
+      values.push(envGet(ctx.state.env, arrayName));
     }
   }
 
@@ -204,9 +204,8 @@ export async function handleArrayPatternRemoval(
 
   // If no elements, check for scalar (treat as single-element array)
   if (elements.length === 0) {
-    const scalarValue = ctx.state.env.get(arrayName);
-    if (scalarValue !== undefined) {
-      values.push(scalarValue);
+    if (ctx.state.env.has(arrayName)) {
+      values.push(envGet(ctx.state.env, arrayName));
     }
   }
 

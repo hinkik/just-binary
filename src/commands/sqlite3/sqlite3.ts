@@ -17,7 +17,7 @@ import { fileURLToPath } from "node:url";
 import { Worker } from "node:worker_threads";
 import initSqlJs from "sql.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decode, EMPTY, encode } from "../../utils/bytes.js";
+import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 import {
   type FormatOptions,
@@ -297,12 +297,12 @@ async function executeInWorker(
 export const sqlite3Command: Command = {
   name: "sqlite3",
 
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
     // Real sqlite3 accepts both -help and --help
-    if (hasHelpFlag(args) || args.includes("-help"))
-      return showHelp(sqlite3Help);
+    if (hasHelpFlag(a) || a.includes("-help")) return showHelp(sqlite3Help);
 
-    const parsed = parseArgs(args);
+    const parsed = parseArgs(a);
     if ("exitCode" in parsed) return parsed;
 
     const { options, database, sql: sqlArg, showVersion } = parsed;

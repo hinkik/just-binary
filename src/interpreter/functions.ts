@@ -13,7 +13,7 @@ import type {
   WordNode,
 } from "../ast/types.js";
 import type { ExecResult } from "../types.js";
-import { EMPTY, encode } from "../utils/bytes.js";
+import { decode, EMPTY, encode, envGet, envSet } from "../utils/bytes.js";
 import { clearLocalVarStackForScope } from "./builtins/variable-assignment.js";
 import { ExitError, ReturnError } from "./errors.js";
 import { expandWord } from "./expansion.js";
@@ -132,13 +132,13 @@ export async function callFunction(
 
   const savedPositional = new Map<string, string | undefined>();
   for (let i = 0; i < args.length; i++) {
-    savedPositional.set(String(i + 1), ctx.state.env.get(String(i + 1)));
-    ctx.state.env.set(String(i + 1), args[i]);
+    savedPositional.set(String(i + 1), envGet(ctx.state.env, String(i + 1)));
+    envSet(ctx.state.env, String(i + 1), args[i]);
   }
-  savedPositional.set("@", ctx.state.env.get("@"));
-  savedPositional.set("#", ctx.state.env.get("#"));
-  ctx.state.env.set("@", args.join(" "));
-  ctx.state.env.set("#", String(args.length));
+  savedPositional.set("@", envGet(ctx.state.env, "@"));
+  savedPositional.set("#", envGet(ctx.state.env, "#"));
+  envSet(ctx.state.env, "@", args.join(" "));
+  envSet(ctx.state.env, "#", String(args.length));
 
   const cleanup = (): void => {
     // Get the scope index before popping (for localVarStack cleanup)
@@ -183,7 +183,7 @@ export async function callFunction(
       if (value === undefined) {
         ctx.state.env.delete(key);
       } else {
-        ctx.state.env.set(key, value);
+        envSet(ctx.state.env, key, value);
       }
     }
 

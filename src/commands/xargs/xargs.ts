@@ -1,5 +1,5 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decode, EMPTY, encode } from "../../utils/bytes.js";
+import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
 const xargsHelp = {
@@ -21,8 +21,9 @@ const xargsHelp = {
 export const xargsCommand: Command = {
   name: "xargs",
 
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
-    if (hasHelpFlag(args)) {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) {
       return showHelp(xargsHelp);
     }
 
@@ -36,14 +37,14 @@ export const xargsCommand: Command = {
     let commandStart = 0;
 
     // Parse xargs options
-    for (let i = 0; i < args.length; i++) {
-      const arg = args[i];
-      if (arg === "-I" && i + 1 < args.length) {
-        replaceStr = args[++i];
+    for (let i = 0; i < a.length; i++) {
+      const arg = a[i];
+      if (arg === "-I" && i + 1 < a.length) {
+        replaceStr = a[++i];
         commandStart = i + 1;
-      } else if (arg === "-d" && i + 1 < args.length) {
+      } else if (arg === "-d" && i + 1 < a.length) {
         // Parse delimiter - handle escape sequences like \n, \t
-        const delimArg = args[++i];
+        const delimArg = a[++i];
         delimiter = delimArg
           .replace(/\\n/g, "\n")
           .replace(/\\t/g, "\t")
@@ -51,11 +52,11 @@ export const xargsCommand: Command = {
           .replace(/\\0/g, "\0")
           .replace(/\\\\/g, "\\");
         commandStart = i + 1;
-      } else if (arg === "-n" && i + 1 < args.length) {
-        maxArgs = parseInt(args[++i], 10);
+      } else if (arg === "-n" && i + 1 < a.length) {
+        maxArgs = parseInt(a[++i], 10);
         commandStart = i + 1;
-      } else if (arg === "-P" && i + 1 < args.length) {
-        maxProcs = parseInt(args[++i], 10);
+      } else if (arg === "-P" && i + 1 < a.length) {
+        maxProcs = parseInt(a[++i], 10);
         commandStart = i + 1;
       } else if (arg === "-0" || arg === "--null") {
         nullSeparator = true;
@@ -87,7 +88,7 @@ export const xargsCommand: Command = {
     }
 
     // Get command and initial args
-    const command = args.slice(commandStart);
+    const command = a.slice(commandStart);
     if (command.length === 0) {
       command.push("echo");
     }

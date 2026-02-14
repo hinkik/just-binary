@@ -24,7 +24,7 @@
 
 import { type ParseException, Parser, parse } from "../../parser/parser.js";
 import type { ExecResult } from "../../types.js";
-import { decode, EMPTY, encode } from "../../utils/bytes.js";
+import { decode, EMPTY, encode, envGet, envSet } from "../../utils/bytes.js";
 import { matchPattern } from "../conditionals.js";
 import { expandWord, getArrayElements } from "../expansion.js";
 import { callFunction } from "../functions.js";
@@ -437,21 +437,21 @@ export async function handleCompgen(
       // Save and set COMP_WORDS (empty array - no elements)
       savedEnv.set(
         "COMP_WORDS__length",
-        ctx.state.env.get("COMP_WORDS__length"),
+        envGet(ctx.state.env, "COMP_WORDS__length"),
       );
-      ctx.state.env.set("COMP_WORDS__length", "0");
+      envSet(ctx.state.env, "COMP_WORDS__length", "0");
 
       // Save and set COMP_CWORD
-      savedEnv.set("COMP_CWORD", ctx.state.env.get("COMP_CWORD"));
-      ctx.state.env.set("COMP_CWORD", "-1");
+      savedEnv.set("COMP_CWORD", envGet(ctx.state.env, "COMP_CWORD"));
+      envSet(ctx.state.env, "COMP_CWORD", "-1");
 
       // Save and set COMP_LINE
-      savedEnv.set("COMP_LINE", ctx.state.env.get("COMP_LINE"));
-      ctx.state.env.set("COMP_LINE", "");
+      savedEnv.set("COMP_LINE", envGet(ctx.state.env, "COMP_LINE"));
+      envSet(ctx.state.env, "COMP_LINE", "");
 
       // Save and set COMP_POINT
-      savedEnv.set("COMP_POINT", ctx.state.env.get("COMP_POINT"));
-      ctx.state.env.set("COMP_POINT", "0");
+      savedEnv.set("COMP_POINT", envGet(ctx.state.env, "COMP_POINT"));
+      envSet(ctx.state.env, "COMP_POINT", "0");
 
       // Clear any existing COMPREPLY
       const savedCompreply = new Map<string, string | undefined>();
@@ -461,7 +461,7 @@ export async function handleCompgen(
           key.startsWith("COMPREPLY_") ||
           key === "COMPREPLY__length"
         ) {
-          savedCompreply.set(key, ctx.state.env.get(key));
+          savedCompreply.set(key, envGet(ctx.state.env, key));
           ctx.state.env.delete(key);
         }
       }
@@ -901,7 +901,7 @@ async function getCommandCompletions(
   }
 
   // Add external commands from PATH
-  const path = ctx.state.env.get("PATH") ?? "/usr/bin:/bin";
+  const path = envGet(ctx.state.env, "PATH", "/usr/bin:/bin");
   for (const dir of path.split(":")) {
     if (!dir) continue;
     try {
@@ -945,7 +945,7 @@ async function expandWordlistString(
  * Backslash-escaped IFS characters are treated as literal characters, not delimiters
  */
 function splitWordlist(ctx: InterpreterContext, wordlist: string): string[] {
-  const ifs = ctx.state.env.get("IFS") ?? " \t\n";
+  const ifs = envGet(ctx.state.env, "IFS", " \t\n");
 
   if (ifs.length === 0) {
     return [wordlist];
@@ -1000,7 +1000,7 @@ function restoreEnv(
     if (value === undefined) {
       ctx.state.env.delete(key);
     } else {
-      ctx.state.env.set(key, value);
+      envSet(ctx.state.env, key, value);
     }
   }
 }
@@ -1025,9 +1025,8 @@ function getCompreplyValues(ctx: InterpreterContext): string[] {
     }
   } else {
     // Check if it's a scalar value
-    const scalarValue = ctx.state.env.get("COMPREPLY");
-    if (scalarValue !== undefined) {
-      values.push(scalarValue);
+    if (ctx.state.env.has("COMPREPLY")) {
+      values.push(envGet(ctx.state.env, "COMPREPLY"));
     }
   }
 

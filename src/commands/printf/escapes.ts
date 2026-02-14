@@ -3,6 +3,15 @@
  * Used by printf command and find -printf
  */
 
+const te = new TextEncoder();
+
+/** Push bytes from a Uint8Array into a number array */
+function pushBytesArr(arr: number[], bytes: Uint8Array): void {
+  for (let k = 0; k < bytes.length; k++) {
+    arr.push(bytes[k]);
+  }
+}
+
 /**
  * Apply width and alignment to a string value
  * Supports: width (right-justify), -width (left-justify), .precision (truncate)
@@ -80,6 +89,164 @@ export function parseWidthPrecision(
   }
 
   return [width, precision, i - startIndex];
+}
+
+/**
+ * Process escape sequences producing Uint8Array directly.
+ * \xHH and \0NNN push raw bytes; \uHHHH/\UHHHHHHHH push UTF-8 encoded bytes;
+ * regular characters are UTF-8 encoded.
+ */
+export function processEscapesBytes(str: string): Uint8Array {
+  const bytes: number[] = [];
+  let i = 0;
+
+  while (i < str.length) {
+    if (str[i] === "\\" && i + 1 < str.length) {
+      const next = str[i + 1];
+      switch (next) {
+        case "n":
+          bytes.push(0x0a);
+          i += 2;
+          break;
+        case "t":
+          bytes.push(0x09);
+          i += 2;
+          break;
+        case "r":
+          bytes.push(0x0d);
+          i += 2;
+          break;
+        case "\\":
+          bytes.push(0x5c);
+          i += 2;
+          break;
+        case "a":
+          bytes.push(0x07);
+          i += 2;
+          break;
+        case "b":
+          bytes.push(0x08);
+          i += 2;
+          break;
+        case "f":
+          bytes.push(0x0c);
+          i += 2;
+          break;
+        case "v":
+          bytes.push(0x0b);
+          i += 2;
+          break;
+        case "e":
+        case "E":
+          bytes.push(0x1b);
+          i += 2;
+          break;
+        case "0":
+        case "1":
+        case "2":
+        case "3":
+        case "4":
+        case "5":
+        case "6":
+        case "7": {
+          // Octal escape sequence - push raw byte
+          let octal = "";
+          let j = i + 1;
+          while (j < str.length && j < i + 4 && /[0-7]/.test(str[j])) {
+            octal += str[j];
+            j++;
+          }
+          bytes.push(parseInt(octal, 8) & 0xff);
+          i = j;
+          break;
+        }
+        case "x": {
+          // Hex escape sequence \xHH - push raw bytes
+          // Collect consecutive \xHH escapes
+          let j = i;
+          let found = false;
+          while (
+            j + 3 < str.length &&
+            str[j] === "\\" &&
+            str[j + 1] === "x" &&
+            /[0-9a-fA-F]{2}/.test(str.slice(j + 2, j + 4))
+          ) {
+            bytes.push(parseInt(str.slice(j + 2, j + 4), 16));
+            j += 4;
+            found = true;
+          }
+
+          if (found) {
+            i = j;
+          } else {
+            // No valid hex escape, keep the backslash
+            pushBytesArr(bytes, te.encode(str[i]));
+            i++;
+          }
+          break;
+        }
+        case "u": {
+          // Unicode escape \uHHHH - push UTF-8 encoded bytes
+          let hex = "";
+          let j = i + 2;
+          while (j < str.length && j < i + 6 && /[0-9a-fA-F]/.test(str[j])) {
+            hex += str[j];
+            j++;
+          }
+          if (hex) {
+            pushBytesArr(
+              bytes,
+              te.encode(String.fromCodePoint(parseInt(hex, 16))),
+            );
+            i = j;
+          } else {
+            pushBytesArr(bytes, te.encode("\\u"));
+            i += 2;
+          }
+          break;
+        }
+        case "U": {
+          // Unicode escape \UHHHHHHHH - push UTF-8 encoded bytes
+          let hex = "";
+          let j = i + 2;
+          while (j < str.length && j < i + 10 && /[0-9a-fA-F]/.test(str[j])) {
+            hex += str[j];
+            j++;
+          }
+          if (hex) {
+            pushBytesArr(
+              bytes,
+              te.encode(String.fromCodePoint(parseInt(hex, 16))),
+            );
+            i = j;
+          } else {
+            pushBytesArr(bytes, te.encode("\\U"));
+            i += 2;
+          }
+          break;
+        }
+        default:
+          pushBytesArr(bytes, te.encode(str[i]));
+          i++;
+      }
+    } else {
+      // Regular character - UTF-8 encode
+      const code = str.charCodeAt(i);
+      if (code < 0x80) {
+        bytes.push(code);
+        i++;
+      } else {
+        const char =
+          code >= 0xd800 && code <= 0xdbff && i + 1 < str.length
+            ? str.slice(i, i + 2)
+            : str[i];
+        pushBytesArr(bytes, te.encode(char));
+        i += char.length;
+      }
+    }
+  }
+
+  return new Uint8Array(bytes);
 }
 
 /**

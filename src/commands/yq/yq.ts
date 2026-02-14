@@ -10,7 +10,13 @@
 
 import { ExecutionLimitError } from "../../interpreter/errors.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decode, EMPTY, encode } from "../../utils/bytes.js";
+import {
+  createStringEnvAdapter,
+  decode,
+  decodeArgs,
+  EMPTY,
+  encode,
+} from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 import {
   type EvaluateOptions,
@@ -244,10 +250,11 @@ function parseArgs(args: string[]): ParsedArgs | ExecResult {
 export const yqCommand: Command = {
   name: "yq",
 
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
-    if (hasHelpFlag(args)) return showHelp(yqHelp);
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) return showHelp(yqHelp);
 
-    const parsed = parseArgs(args);
+    const parsed = parseArgs(a);
     if ("exitCode" in parsed) return parsed;
 
     const { options, filter, files, inputFormatExplicit } = parsed;
@@ -297,7 +304,7 @@ export const yqCommand: Command = {
         limits: ctx.limits
           ? { maxIterations: ctx.limits.maxJqIterations }
           : undefined,
-        env: ctx.env,
+        env: createStringEnvAdapter(ctx.env),
         coverage: ctx.coverage,
       };
 

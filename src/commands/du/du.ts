@@ -1,6 +1,6 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
-import { encode } from "../../utils/bytes.js";
+import { decodeArgs, encode } from "../../utils/bytes.js";
 import { DEFAULT_BATCH_SIZE } from "../../utils/constants.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
@@ -37,12 +37,13 @@ interface DuOptions {
 export const duCommand: Command = {
   name: "du",
 
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
-    if (hasHelpFlag(args)) {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) {
       return showHelp(duHelp);
     }
 
-    const parsed = parseArgs("du", args, argDefs);
+    const parsed = parseArgs("du", a, argDefs);
     if (!parsed.ok) return parsed.error;
 
     const options: DuOptions = {

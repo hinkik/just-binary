@@ -7,7 +7,15 @@
 
 import { isBrowserExcludedCommand } from "../commands/browser-excluded.js";
 import type { CommandContext, ExecResult } from "../types.js";
-import { EMPTY, isEmpty } from "../utils/bytes.js";
+import {
+  decode,
+  decodeArgs,
+  EMPTY,
+  encode,
+  envGet,
+  envSet,
+  isEmpty,
+} from "../utils/bytes.js";
 import {
   handleBreak,
   handleCd,
@@ -59,7 +67,7 @@ import type { InterpreterContext } from "./types.js";
  */
 export type RunCommandFn = (
   commandName: string,
-  args: string[],
+  args: Uint8Array[],
   quotedArgs: boolean[],
   stdin: Uint8Array,
   skipFunctions?: boolean,
@@ -77,7 +85,7 @@ export type BuildExportedEnvFn = () => Record<string, string>;
  */
 export type ExecuteUserScriptFn = (
   scriptPath: string,
-  args: string[],
+  args: Uint8Array[],
   stdin?: Uint8Array,
 ) => Promise<ExecResult>;
 
@@ -98,7 +106,7 @@ export interface BuiltinDispatchContext {
 export async function dispatchBuiltin(
   dispatchCtx: BuiltinDispatchContext,
   commandName: string,
-  args: string[],
+  args: Uint8Array[],
   _quotedArgs: boolean[],
   stdin: Uint8Array,
   skipFunctions: boolean,
@@ -106,6 +114,8 @@ export async function dispatchBuiltin(
   stdinSourceFd: number,
 ): Promise<ExecResult | null> {
   const { ctx, runCommand } = dispatchCtx;
+  // Decode args to strings for builtins that work with text
+  const strArgs = decodeArgs(args);
 
   // Coverage tracking for builtins (lightweight: only fires when coverage is enabled)
   if (ctx.coverage && SHELL_BUILTINS.has(commandName)) {
@@ -114,88 +124,88 @@ export async function dispatchBuiltin(
 
   // Built-in commands (special builtins that cannot be overridden by functions)
   if (commandName === "export") {
-    return handleExport(ctx, args);
+    return handleExport(ctx, strArgs);
   }
   if (commandName === "unset") {
-    return handleUnset(ctx, args);
+    return handleUnset(ctx, strArgs);
   }
   if (commandName === "exit") {
-    return handleExit(ctx, args);
+    return handleExit(ctx, strArgs);
   }
   if (commandName === "local") {
-    return handleLocal(ctx, args);
+    return handleLocal(ctx, strArgs);
   }
   if (commandName === "set") {
-    return handleSet(ctx, args);
+    return handleSet(ctx, strArgs);
   }
   if (commandName === "break") {
-    return handleBreak(ctx, args);
+    return handleBreak(ctx, strArgs);
   }
   if (commandName === "continue") {
-    return handleContinue(ctx, args);
+    return handleContinue(ctx, strArgs);
   }
   if (commandName === "return") {
-    return handleReturn(ctx, args);
+    return handleReturn(ctx, strArgs);
   }
   // In POSIX mode, eval is a special builtin that cannot be overridden by functions
   // In non-POSIX mode (bash default), functions can override eval
   if (commandName === "eval" && ctx.state.options.posix) {
-    return handleEval(ctx, args, stdin);
+    return handleEval(ctx, strArgs, stdin);
   }
   if (commandName === "shift") {
-    return handleShift(ctx, args);
+    return handleShift(ctx, strArgs);
   }
   if (commandName === "getopts") {
-    return handleGetopts(ctx, args);
+    return handleGetopts(ctx, strArgs);
   }
   if (commandName === "compgen") {
-    return handleCompgen(ctx, args);
+    return handleCompgen(ctx, strArgs);
   }
   if (commandName === "complete") {
-    return handleComplete(ctx, args);
+    return handleComplete(ctx, strArgs);
   }
   if (commandName === "compopt") {
-    return handleCompopt(ctx, args);
+    return handleCompopt(ctx, strArgs);
   }
   if (commandName === "pushd") {
-    return await handlePushd(ctx, args);
+    return await handlePushd(ctx, strArgs);
   }
   if (commandName === "popd") {
-    return handlePopd(ctx, args);
+    return handlePopd(ctx, strArgs);
   }
   if (commandName === "dirs") {
-    return handleDirs(ctx, args);
+    return handleDirs(ctx, strArgs);
   }
   if (commandName === "source" || commandName === ".") {
-    return handleSource(ctx, args);
+    return handleSource(ctx, strArgs);
   }
   if (commandName === "read") {
-    return handleRead(ctx, args, stdin, stdinSourceFd);
+    return handleRead(ctx, strArgs, stdin, stdinSourceFd);
   }
   if (commandName === "mapfile" || commandName === "readarray") {
-    return handleMapfile(ctx, args, stdin);
+    return handleMapfile(ctx, strArgs, stdin);
   }
   if (commandName === "declare" || commandName === "typeset") {
-    return handleDeclare(ctx, args);
+    return handleDeclare(ctx, strArgs);
   }
   if (commandName === "readonly") {
-    return handleReadonly(ctx, args);
+    return handleReadonly(ctx, strArgs);
   }
   // User-defined functions override most builtins (except special ones above)
   // This needs to happen before true/false/let which are regular builtins
   if (!skipFunctions) {
     const func = ctx.state.functions.get(commandName);
     if (func) {
-      return callFunction(ctx, func, args, stdin);
+      return callFunction(ctx, func, strArgs, stdin);
     }
   }
   // Simple builtins (can be overridden by functions)
   // eval: In non-POSIX mode, functions can override eval (handled above for POSIX mode)
   if (commandName === "eval") {
-    return handleEval(ctx, args, stdin);
+    return handleEval(ctx, strArgs, stdin);
   }
   if (commandName === "cd") {
-    return await handleCd(ctx, args);
+    return await handleCd(ctx, strArgs);
   }
   if (commandName === ":" || commandName === "true") {
     return OK;
@@ -204,16 +214,16 @@ export async function dispatchBuiltin(
     return testResult(false);
   }
   if (commandName === "let") {
-    return handleLet(ctx, args);
+    return handleLet(ctx, strArgs);
   }
   if (commandName === "command") {
-    return handleCommandBuiltin(dispatchCtx, args, stdin);
+    return handleCommandBuiltin(dispatchCtx, strArgs, stdin);
   }
   if (commandName === "builtin") {
-    return handleBuiltinBuiltin(dispatchCtx, args, stdin);
+    return handleBuiltinBuiltin(dispatchCtx, strArgs, stdin);
   }
   if (commandName === "shopt") {
-    return handleShopt(ctx, args);
+    return handleShopt(ctx, strArgs);
   }
   if (commandName === "exec") {
     // exec - replace shell with command (stub: just run the command)
@@ -221,7 +231,7 @@ export async function dispatchBuiltin(
       return OK;
     }
     const [cmd, ...rest] = args;
-    return runCommand(cmd, rest, [], stdin, false, false, -1);
+    return runCommand(decode(cmd), rest, [], stdin, false, false, -1);
   }
   if (commandName === "wait") {
     // wait - wait for background jobs (stub: no-op in this context)
@@ -230,26 +240,26 @@ export async function dispatchBuiltin(
   if (commandName === "type") {
     return await handleTypeHelper(
       ctx,
-      args,
+      strArgs,
       (name) => findFirstInPathHelper(ctx, name),
       (name) => findCommandInPathHelper(ctx, name),
     );
   }
   if (commandName === "hash") {
-    return handleHash(ctx, args);
+    return handleHash(ctx, strArgs);
   }
   if (commandName === "help") {
-    return handleHelp(ctx, args);
+    return handleHelp(ctx, strArgs);
   }
   // Test commands
   // Note: [[ is NOT handled here because it's a keyword, not a command.
   if (commandName === "[" || commandName === "test") {
-    let testArgs = args;
+    let testArgs = strArgs;
     if (commandName === "[") {
-      if (args[args.length - 1] !== "]") {
+      if (strArgs[strArgs.length - 1] !== "]") {
         return failure("[: missing `]'\n", 2);
       }
-      testArgs = args.slice(0, -1);
+      testArgs = strArgs.slice(0, -1);
     }
     return evaluateTestArgs(ctx, testArgs);
   }
@@ -309,7 +319,15 @@ async function handleCommandBuiltin(
   // Run command without checking functions, but builtins are still available
   // Pass useDefaultPath to use /usr/bin:/bin instead of $PATH
   const [cmd, ...rest] = cmdArgs;
-  return runCommand(cmd, rest, [], stdin, true, useDefaultPath, -1);
+  return runCommand(
+    cmd,
+    rest.map((a) => encode(a)),
+    [],
+    stdin,
+    true,
+    useDefaultPath,
+    -1,
+  );
 }
 
 /**
@@ -342,7 +360,15 @@ async function handleBuiltinBuiltin(
   }
   const [, ...rest] = cmdArgs;
   // Run as builtin (recursive call, skip function lookup)
-  return runCommand(cmd, rest, [], stdin, true, false, -1);
+  return runCommand(
+    cmd,
+    rest.map((a) => encode(a)),
+    [],
+    stdin,
+    true,
+    false,
+    -1,
+  );
 }
 
 /**
@@ -352,7 +378,7 @@ async function handleBuiltinBuiltin(
 export async function executeExternalCommand(
   dispatchCtx: BuiltinDispatchContext,
   commandName: string,
-  args: string[],
+  args: Uint8Array[],
   stdin: Uint8Array,
   useDefaultPath: boolean,
 ): Promise<ExecResult> {

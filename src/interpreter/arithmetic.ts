@@ -26,7 +26,14 @@ import {
   parseArithNumber,
 } from "../parser/arithmetic-parser.js";
 import { Parser } from "../parser/parser.js";
-import { decode, EMPTY, trimTrailingNewlines } from "../utils/bytes.js";
+import {
+  decode,
+  EMPTY,
+  encode,
+  envGet,
+  envSet,
+  trimTrailingNewlines,
+} from "../utils/bytes.js";
 import { ArithmeticError, NounsetError } from "./errors.js";
 import { getArrayElements, getVariable } from "./expansion.js";
 import type { InterpreterContext } from "./types.js";
@@ -157,12 +164,12 @@ async function getArithVariable(
   // First try to get the direct variable value
   const directValue = ctx.state.env.get(name);
   if (directValue !== undefined) {
-    return directValue;
+    return decode(directValue);
   }
   // Array decay: if varName_0 exists, the variable is an array and we use element 0
   const arrayZeroValue = ctx.state.env.get(`${name}_0`);
   if (arrayZeroValue !== undefined) {
-    return arrayZeroValue;
+    return decode(arrayZeroValue);
   }
   // Fall back to getVariable for special variables
   return await getVariable(ctx, name);
@@ -349,15 +356,15 @@ async function expandBracedContent(
       return String(elements.length);
     }
     // Regular ${#var} - string length
-    const value = ctx.state.env.get(varName) || "";
+    const value = envGet(ctx.state.env, varName);
     return String(value.length);
   }
 
   // Handle ${!var} - indirection
   if (content.startsWith("!")) {
     const varName = content.slice(1);
-    const indirect = ctx.state.env.get(varName) || "";
-    return ctx.state.env.get(indirect) || "";
+    const indirect = envGet(ctx.state.env, varName);
+    return envGet(ctx.state.env, indirect);
   }
 
   // Find operator position
@@ -379,43 +386,44 @@ async function expandBracedContent(
 
   const varName = content.slice(0, opIndex);
   const defaultValue = content.slice(opIndex + op.length);
-  const value = ctx.state.env.get(varName);
-  const isUnset = value === undefined;
-  const isEmpty = value === "";
+  const rawValue = ctx.state.env.get(varName);
+  const isUnset = rawValue === undefined;
+  const valueStr = rawValue !== undefined ? decode(rawValue) : "";
+  const isEmptyStr = valueStr === "";
   const checkEmpty = op.startsWith(":");
 
   switch (op) {
     case ":-":
     case "-": {
-      const useDefault = isUnset || (checkEmpty && isEmpty);
-      return useDefault ? defaultValue : value || "";
+      const useDefault = isUnset || (checkEmpty && isEmptyStr);
+      return useDefault ? defaultValue : valueStr;
     }
     case ":=":
     case "=": {
-      const useDefault = isUnset || (checkEmpty && isEmpty);
+      const useDefault = isUnset || (checkEmpty && isEmptyStr);
       if (useDefault) {
-        ctx.state.env.set(varName, defaultValue);
+        envSet(ctx.state.env, varName, defaultValue);
         return defaultValue;
       }
-      return value || "";
+      return valueStr;
     }
     case ":+":
     case "+": {
-      const useAlternative = !(isUnset || (checkEmpty && isEmpty));
+      const useAlternative = !(isUnset || (checkEmpty && isEmptyStr));
       return useAlternative ? defaultValue : "";
     }
     case ":?":
     case "?": {
-      const shouldError = isUnset || (checkEmpty && isEmpty);
+      const shouldError = isUnset || (checkEmpty && isEmptyStr);
       if (shouldError) {
         throw new Error(
           defaultValue || `${varName}: parameter null or not set`,
         );
       }
-      return value || "";
+      return valueStr;
     }
     default:
-      return value || "";
+      return valueStr;
   }
 }
 
@@ -496,7 +504,7 @@ export async function evaluateArithmetic(
       const lookupArrayValue = async (envKey: string): Promise<number> => {
         const arrayValue = ctx.state.env.get(envKey);
         if (arrayValue !== undefined) {
-          return await evaluateArithValue(ctx, arrayValue);
+          return await evaluateArithValue(ctx, decode(arrayValue));
         }
         return 0;
       };
@@ -559,13 +567,13 @@ export async function evaluateArithmetic(
         const envKey = `${expr.array}_${index}`;
         const arrayValue = ctx.state.env.get(envKey);
         if (arrayValue !== undefined) {
-          return evaluateArithValue(ctx, arrayValue);
+          return evaluateArithValue(ctx, decode(arrayValue));
         }
         // Scalar decay: s[0] returns scalar value s
         if (index === 0) {
           const scalarValue = ctx.state.env.get(expr.array);
           if (scalarValue !== undefined) {
-            return evaluateArithValue(ctx, scalarValue);
+            return evaluateArithValue(ctx, decode(scalarValue));
           }
         }
         // Check nounset
@@ -662,7 +670,7 @@ export async function evaluateArithmetic(
           const current =
             Number.parseInt(await getVariable(ctx, name), 10) || 0;
           const newValue = expr.operator === "++" ? current + 1 : current - 1;
-          ctx.state.env.set(name, String(newValue));
+          envSet(ctx.state.env, name, String(newValue));
           return expr.prefix ? newValue : current;
         }
         if (expr.operand.type === "ArithArrayElement") {
@@ -700,9 +708,9 @@ export async function evaluateArithmetic(
           }
 
           const current =
-            Number.parseInt(ctx.state.env.get(envKey) || "0", 10) || 0;
+            Number.parseInt(envGet(ctx.state.env, envKey, "0"), 10) || 0;
           const newValue = expr.operator === "++" ? current + 1 : current - 1;
-          ctx.state.env.set(envKey, String(newValue));
+          envSet(ctx.state.env, envKey, String(newValue));
           return expr.prefix ? newValue : current;
         }
         if (expr.operand.type === "ArithConcat") {
@@ -717,9 +725,9 @@ export async function evaluateArithmetic(
           }
           if (varName && /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(varName)) {
             const current =
-              Number.parseInt(ctx.state.env.get(varName) || "0", 10) || 0;
+              Number.parseInt(envGet(ctx.state.env, varName, "0"), 10) || 0;
             const newValue = expr.operator === "++" ? current + 1 : current - 1;
-            ctx.state.env.set(varName, String(newValue));
+            envSet(ctx.state.env, varName, String(newValue));
             return expr.prefix ? newValue : current;
           }
         }
@@ -747,9 +755,9 @@ export async function evaluateArithmetic(
             );
             const envKey = `${varName}_${index}`;
             const current =
-              Number.parseInt(ctx.state.env.get(envKey) || "0", 10) || 0;
+              Number.parseInt(envGet(ctx.state.env, envKey, "0"), 10) || 0;
             const newValue = expr.operator === "++" ? current + 1 : current - 1;
-            ctx.state.env.set(envKey, String(newValue));
+            envSet(ctx.state.env, envKey, String(newValue));
             return expr.prefix ? newValue : current;
           }
         }
@@ -828,14 +836,14 @@ export async function evaluateArithmetic(
       }
 
       const current =
-        Number.parseInt(ctx.state.env.get(envKey) || "0", 10) || 0;
+        Number.parseInt(envGet(ctx.state.env, envKey, "0"), 10) || 0;
       const value = await evaluateArithmetic(
         ctx,
         expr.value,
         isExpansionContext,
       );
       const newValue = applyAssignmentOp(current, value, expr.operator);
-      ctx.state.env.set(envKey, String(newValue));
+      envSet(ctx.state.env, envKey, String(newValue));
       return newValue;
     }
 
@@ -892,14 +900,14 @@ export async function evaluateArithmetic(
         envKey = `${varName}_${index}`;
       }
       const current =
-        Number.parseInt(ctx.state.env.get(envKey) || "0", 10) || 0;
+        Number.parseInt(envGet(ctx.state.env, envKey, "0"), 10) || 0;
       const value = await evaluateArithmetic(
         ctx,
         expr.value,
         isExpansionContext,
       );
       const newValue = applyAssignmentOp(current, value, expr.operator);
-      ctx.state.env.set(envKey, String(newValue));
+      envSet(ctx.state.env, envKey, String(newValue));
       return newValue;
     }
 
@@ -928,9 +936,9 @@ export async function evaluateArithmetic(
         isExpansionContext,
       );
       const envKey = `${varName}_${index}`;
-      const value = ctx.state.env.get(envKey);
-      if (value !== undefined) {
-        return parseArithValue(value);
+      const rawVal = ctx.state.env.get(envKey);
+      if (rawVal !== undefined) {
+        return parseArithValue(decode(rawVal));
       }
       return 0;
     }

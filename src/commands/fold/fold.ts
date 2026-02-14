@@ -8,7 +8,7 @@
  */
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decode, EMPTY, encode } from "../../utils/bytes.js";
+import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
 const foldHelp = {
@@ -134,8 +134,12 @@ function processContent(content: string, options: FoldOptions): string {
 
 export const fold: Command = {
   name: "fold",
-  execute: async (args: string[], ctx: CommandContext): Promise<ExecResult> => {
-    if (hasHelpFlag(args)) {
+  execute: async (
+    args: Uint8Array[],
+    ctx: CommandContext,
+  ): Promise<ExecResult> => {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) {
       return showHelp(foldHelp);
     }
 
@@ -148,18 +152,16 @@ export const fold: Command = {
     const files: string[] = [];
     let i = 0;
 
-    while (i < args.length) {
-      const arg = args[i];
+    while (i < a.length) {
+      const arg = a[i];
 
-      if (arg === "-w" && i + 1 < args.length) {
-        const width = parseInt(args[i + 1], 10);
+      if (arg === "-w" && i + 1 < a.length) {
+        const width = parseInt(a[i + 1], 10);
         if (Number.isNaN(width) || width < 1) {
           return {
             exitCode: 1,
             stdout: EMPTY,
-            stderr: encode(
-              `fold: invalid number of columns: '${args[i + 1]}'\n`,
-            ),
+            stderr: encode(`fold: invalid number of columns: '${a[i + 1]}'\n`),
           };
         }
         options.width = width;
@@ -202,24 +204,22 @@ export const fold: Command = {
         }
         options.width = width;
         i++;
-      } else if (arg.match(/^-[sb]+w$/) && i + 1 < args.length) {
+      } else if (arg.match(/^-[sb]+w$/) && i + 1 < a.length) {
         // Handle combined flags like -sw 10 (with width as next arg)
         if (arg.includes("s")) options.breakAtSpaces = true;
         if (arg.includes("b")) options.countBytes = true;
-        const width = parseInt(args[i + 1], 10);
+        const width = parseInt(a[i + 1], 10);
         if (Number.isNaN(width) || width < 1) {
           return {
             exitCode: 1,
             stdout: EMPTY,
-            stderr: encode(
-              `fold: invalid number of columns: '${args[i + 1]}'\n`,
-            ),
+            stderr: encode(`fold: invalid number of columns: '${a[i + 1]}'\n`),
           };
         }
         options.width = width;
         i += 2;
       } else if (arg === "--") {
-        files.push(...args.slice(i + 1));
+        files.push(...a.slice(i + 1));
         break;
       } else if (arg.startsWith("-") && arg !== "-") {
         // Check for combined short flags like -sb

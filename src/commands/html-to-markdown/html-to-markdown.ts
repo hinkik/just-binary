@@ -6,7 +6,7 @@
 
 import TurndownService from "turndown";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decode, EMPTY, encode } from "../../utils/bytes.js";
+import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
 const htmlToMarkdownHelp = {
@@ -52,8 +52,9 @@ const htmlToMarkdownHelp = {
 export const htmlToMarkdownCommand: Command = {
   name: "html-to-markdown",
 
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
-    if (hasHelpFlag(args)) {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) {
       return showHelp(htmlToMarkdownHelp);
     }
 
@@ -63,18 +64,18 @@ export const htmlToMarkdownCommand: Command = {
     let headingStyle: "setext" | "atx" = "atx";
     const files: string[] = [];
 
-    for (let i = 0; i < args.length; i++) {
-      const arg = args[i];
+    for (let i = 0; i < a.length; i++) {
+      const arg = a[i];
       if (arg === "-b" || arg === "--bullet") {
-        bullet = args[++i] ?? "-";
+        bullet = a[++i] ?? "-";
       } else if (arg.startsWith("--bullet=")) {
         bullet = arg.slice(9);
       } else if (arg === "-c" || arg === "--code") {
-        codeFence = args[++i] ?? "```";
+        codeFence = a[++i] ?? "```";
       } else if (arg.startsWith("--code=")) {
         codeFence = arg.slice(7);
       } else if (arg === "-r" || arg === "--hr") {
-        hr = args[++i] ?? "---";
+        hr = a[++i] ?? "---";
       } else if (arg.startsWith("--hr=")) {
         hr = arg.slice(5);
       } else if (arg.startsWith("--heading-style=")) {

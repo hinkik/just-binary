@@ -8,28 +8,29 @@
  */
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 
 type OutputFormat = "octal" | "hex" | "char";
 
 async function odExecute(
-  args: string[],
+  args: Uint8Array[],
   ctx: CommandContext,
 ): Promise<ExecResult> {
+  const a = decodeArgs(args);
   // Parse options
   let addressMode: "octal" | "none" = "octal";
   const outputFormats: OutputFormat[] = [];
   const fileArgs: string[] = [];
 
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
+  for (let i = 0; i < a.length; i++) {
+    const arg = a[i];
     if (arg === "-c") {
       outputFormats.push("char");
-    } else if (arg === "-An" || (arg === "-A" && args[i + 1] === "n")) {
+    } else if (arg === "-An" || (arg === "-A" && a[i + 1] === "n")) {
       addressMode = "none";
       if (arg === "-A") i++; // Skip the "n" argument
-    } else if (arg === "-t" && args[i + 1]) {
-      const format = args[++i];
+    } else if (arg === "-t" && a[i + 1]) {
+      const format = a[++i];
       if (format === "x1") {
         outputFormats.push("hex");
       } else if (format === "c") {

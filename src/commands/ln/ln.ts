@@ -1,5 +1,5 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const lnHelp = {
@@ -18,8 +18,9 @@ const lnHelp = {
 export const lnCommand: Command = {
   name: "ln",
 
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
-    if (hasHelpFlag(args)) {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) {
       return showHelp(lnHelp);
     }
 
@@ -29,8 +30,8 @@ export const lnCommand: Command = {
     let argIdx = 0;
 
     // Parse options
-    while (argIdx < args.length && args[argIdx].startsWith("-")) {
-      const arg = args[argIdx];
+    while (argIdx < a.length && a[argIdx].startsWith("-")) {
+      const arg = a[argIdx];
       if (arg === "-s" || arg === "--symbolic") {
         symbolic = true;
         argIdx++;
@@ -62,7 +63,7 @@ export const lnCommand: Command = {
       }
     }
 
-    const remaining = args.slice(argIdx);
+    const remaining = a.slice(argIdx);
 
     if (remaining.length < 2) {
       return {

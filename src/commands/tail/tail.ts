@@ -1,4 +1,5 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { decodeArgs } from "../../utils/bytes.js";
 import {
   getTail,
   parseHeadTailArgs,
@@ -23,12 +24,13 @@ const tailHelp = {
 export const tailCommand: Command = {
   name: "tail",
 
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
-    if (hasHelpFlag(args)) {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) {
       return showHelp(tailHelp);
     }
 
-    const parsed = parseHeadTailArgs(args, "tail");
+    const parsed = parseHeadTailArgs(a, "tail");
     if (!parsed.ok) {
       return parsed.error;
     }

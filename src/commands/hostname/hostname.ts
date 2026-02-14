@@ -10,7 +10,7 @@ import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { EMPTY, encode } from "../../utils/bytes.js";
 
 async function hostnameExecute(
-  _args: string[],
+  _args: Uint8Array[],
   _ctx: CommandContext,
 ): Promise<ExecResult> {
   // In sandboxed environment, always return "localhost"

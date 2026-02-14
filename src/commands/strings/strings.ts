@@ -8,7 +8,7 @@
  */
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decode, EMPTY, encode } from "../../utils/bytes.js";
+import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
 const stringsHelp = {
@@ -110,8 +110,12 @@ function extractStrings(
 
 export const strings: Command = {
   name: "strings",
-  execute: async (args: string[], ctx: CommandContext): Promise<ExecResult> => {
-    if (hasHelpFlag(args)) {
+  execute: async (
+    args: Uint8Array[],
+    ctx: CommandContext,
+  ): Promise<ExecResult> => {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) {
       return showHelp(stringsHelp);
     }
 
@@ -123,17 +127,17 @@ export const strings: Command = {
     const files: string[] = [];
     let i = 0;
 
-    while (i < args.length) {
-      const arg = args[i];
+    while (i < a.length) {
+      const arg = a[i];
 
-      if (arg === "-n" && i + 1 < args.length) {
-        const min = Number.parseInt(args[i + 1], 10);
+      if (arg === "-n" && i + 1 < a.length) {
+        const min = Number.parseInt(a[i + 1], 10);
         if (Number.isNaN(min) || min < 1) {
           return {
             exitCode: 1,
             stdout: EMPTY,
             stderr: encode(
-              `strings: invalid minimum string length: '${args[i + 1]}'\n`,
+              `strings: invalid minimum string length: '${a[i + 1]}'\n`,
             ),
           };
         }
@@ -166,8 +170,8 @@ export const strings: Command = {
         }
         options.minLength = min;
         i++;
-      } else if (arg === "-t" && i + 1 < args.length) {
-        const format = args[i + 1];
+      } else if (arg === "-t" && i + 1 < a.length) {
+        const format = a[i + 1];
         if (format !== "o" && format !== "x" && format !== "d") {
           return {
             exitCode: 1,
@@ -195,9 +199,9 @@ export const strings: Command = {
           files.push(arg);
         }
         i++;
-      } else if (arg === "-e" && i + 1 < args.length) {
+      } else if (arg === "-e" && i + 1 < a.length) {
         // Encoding option - we only support s (7-bit) and S (8-bit) which are similar for ASCII
-        const encoding = args[i + 1];
+        const encoding = a[i + 1];
         if (encoding !== "s" && encoding !== "S") {
           return {
             exitCode: 1,
@@ -218,7 +222,7 @@ export const strings: Command = {
         }
         i++;
       } else if (arg === "--") {
-        files.push(...args.slice(i + 1));
+        files.push(...a.slice(i + 1));
         break;
       } else if (arg.startsWith("-") && arg !== "-") {
         return unknownOption("strings", arg);

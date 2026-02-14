@@ -5,6 +5,7 @@
 import { parseArithmeticExpression } from "../../parser/arithmetic-parser.js";
 import { Parser } from "../../parser/parser.js";
 import type { ExecResult } from "../../types.js";
+import { decode, encode, envGet, envSet } from "../../utils/bytes.js";
 import { evaluateArithmetic } from "../arithmetic.js";
 import { checkReadonlyError, markReadonly } from "../helpers/readonly.js";
 import type { InterpreterContext } from "../types.js";
@@ -112,24 +113,24 @@ export async function setVariable(
   if (isArray && arrayElements) {
     // Set array elements
     for (let i = 0; i < arrayElements.length; i++) {
-      ctx.state.env.set(`${name}_${i}`, arrayElements[i]);
+      envSet(ctx.state.env, `${name}_${i}`, arrayElements[i]);
     }
-    ctx.state.env.set(`${name}__length`, String(arrayElements.length));
+    envSet(ctx.state.env, `${name}__length`, String(arrayElements.length));
   } else if (arrayIndex !== undefined && value !== undefined) {
     // Array index assignment: a[index]=value
     const index = await evaluateArrayIndex(ctx, arrayIndex);
-    ctx.state.env.set(`${name}_${index}`, value);
+    envSet(ctx.state.env, `${name}_${index}`, value);
     // Update array length if needed (sparse arrays may have gaps)
     const currentLength = parseInt(
-      ctx.state.env.get(`${name}__length`) ?? "0",
+      envGet(ctx.state.env, `${name}__length`, "0"),
       10,
     );
     if (index >= currentLength) {
-      ctx.state.env.set(`${name}__length`, String(index + 1));
+      envSet(ctx.state.env, `${name}__length`, String(index + 1));
     }
   } else if (value !== undefined) {
     // Set scalar value
-    ctx.state.env.set(name, value);
+    envSet(ctx.state.env, name, value);
   }
 
   // Mark as readonly if requested
@@ -179,7 +180,7 @@ export function clearLocalVarDepth(
 export function pushLocalVarStack(
   ctx: InterpreterContext,
   name: string,
-  currentValue: string | undefined,
+  currentValue: Uint8Array | undefined,
 ): void {
   ctx.state.localVarStack = ctx.state.localVarStack || new Map();
   const stack = ctx.state.localVarStack.get(name) || [];
@@ -197,7 +198,7 @@ export function pushLocalVarStack(
 export function popLocalVarStack(
   ctx: InterpreterContext,
   name: string,
-): { value: string | undefined; scopeIndex: number } | undefined {
+): { value: Uint8Array | undefined; scopeIndex: number } | undefined {
   const stack = ctx.state.localVarStack?.get(name);
   if (!stack || stack.length === 0) {
     return undefined;

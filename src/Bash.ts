@@ -59,7 +59,7 @@ import type {
   FeatureCoverageWriter,
   TraceCallback,
 } from "./types.js";
-import { decode, EMPTY, encode } from "./utils/bytes.js";
+import { decode, EMPTY, encode, envGet, envSet } from "./utils/bytes.js";
 
 export type { ExecutionLimits } from "./limits.js";
 
@@ -229,7 +229,8 @@ export class Bash {
     this.useDefaultLayout = !options.cwd && !options.files;
     const cwd = options.cwd || (this.useDefaultLayout ? "/home/user" : "/");
     // Use Map for env to prevent prototype pollution attacks
-    const env = new Map<string, string>([
+    const env = new Map<string, Uint8Array>();
+    const defaultVars: [string, string][] = [
       ["HOME", this.useDefaultLayout ? "/home/user" : "/"],
       ["PATH", "/usr/bin:/bin"],
       ["IFS", " \t\n"],
@@ -240,9 +241,14 @@ export class Bash {
       ["PWD", cwd],
       ["OLDPWD", cwd],
       ["OPTIND", "1"], // getopts option index
-      // Add user-provided env vars
-      ...Object.entries(options.env ?? {}),
-    ]);
+    ];
+    for (const [key, value] of defaultVars) {
+      envSet(env, key, value);
+    }
+    // Add user-provided env vars
+    for (const [key, value] of Object.entries(options.env ?? {})) {
+      envSet(env, key, value);
+    }
 
     // Resolve limits: new executionLimits takes precedence, then deprecated individual options
     this.limits = resolveLimits({
@@ -290,7 +296,7 @@ export class Bash {
       sourceDepth: 0,
       commandCount: 0,
       lastExitCode: 0,
-      lastArg: "", // $_ is initially empty (or could be shell name)
+      lastArg: EMPTY, // $_ is initially empty (or could be shell name)
       startTime: Date.now(),
       lastBackgroundPid: 0,
       bashPid: process.pid, // BASHPID starts as the main process PID
@@ -342,9 +348,9 @@ export class Bash {
     };
 
     // Initialize SHELLOPTS to reflect current shell options (initially empty string since all are false)
-    this.state.env.set("SHELLOPTS", buildShellopts(this.state.options));
+    envSet(this.state.env, "SHELLOPTS", buildShellopts(this.state.options));
     // Initialize BASHOPTS to reflect current shopt options
-    this.state.env.set("BASHOPTS", buildBashopts(this.state.shoptOptions));
+    envSet(this.state.env, "BASHOPTS", buildBashopts(this.state.shoptOptions));
 
     // Initialize filesystem with standard directories and device files
     // Only applies to InMemoryFs - other filesystems use real directories
@@ -494,12 +500,12 @@ export class Bash {
     // Merge in options.env
     if (options?.env) {
       for (const [key, value] of Object.entries(options.env)) {
-        execEnv.set(key, value);
+        envSet(execEnv, key, value);
       }
     }
     // Update PWD when cwd option is provided
     if (newPwd !== undefined) {
-      execEnv.set("PWD", newPwd);
+      envSet(execEnv, "PWD", newPwd);
     }
 
     const execState: InterpreterState = {

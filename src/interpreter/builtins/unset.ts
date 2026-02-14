@@ -15,7 +15,7 @@
 import { parseArithmeticExpression } from "../../parser/arithmetic-parser.js";
 import { Parser } from "../../parser/parser.js";
 import type { ExecResult } from "../../types.js";
-import { EMPTY, encode } from "../../utils/bytes.js";
+import { decode, EMPTY, encode, envGet, envSet } from "../../utils/bytes.js";
 import { evaluateArithmetic } from "../arithmetic.js";
 import { isArray } from "../expansion/variable.js";
 import { expandWord, getArrayElements } from "../expansion.js";

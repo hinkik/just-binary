@@ -1,6 +1,6 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
-import { decode, EMPTY, encode } from "../../utils/bytes.js";
+import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const trHelp = {
@@ -122,12 +122,13 @@ const argDefs = {
 
 export const trCommand: Command = {
   name: "tr",
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
-    if (hasHelpFlag(args)) {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) {
       return showHelp(trHelp);
     }
 
-    const parsed = parseArgs("tr", args, argDefs);
+    const parsed = parseArgs("tr", a, argDefs);
     if (!parsed.ok) return parsed.error;
 
     // -c and -C both enable complement mode

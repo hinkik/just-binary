@@ -8,7 +8,7 @@
  */
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decode, EMPTY, encode } from "../../utils/bytes.js";
+import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
 const commHelp = {
@@ -26,15 +26,16 @@ const commHelp = {
 export const commCommand: Command = {
   name: "comm",
 
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
-    if (hasHelpFlag(args)) return showHelp(commHelp);
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) return showHelp(commHelp);
 
     let suppress1 = false;
     let suppress2 = false;
     let suppress3 = false;
     const files: string[] = [];
 
-    for (const arg of args) {
+    for (const arg of a) {
       if (arg === "-1") suppress1 = true;
       else if (arg === "-2") suppress2 = true;
       else if (arg === "-3") suppress3 = true;

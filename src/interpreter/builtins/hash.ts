@@ -16,7 +16,7 @@
  */
 
 import type { ExecResult } from "../../types.js";
-import { encode } from "../../utils/bytes.js";
+import { decode, encode, envGet, envSet } from "../../utils/bytes.js";
 import { failure, OK, successText } from "../helpers/result.js";
 import type { InterpreterContext } from "../types.js";
 
@@ -188,7 +188,7 @@ export async function handleHash(
   // Add names to hash table (look up in PATH)
   let hasError = false;
   let stderr = "";
-  const pathEnv = ctx.state.env.get("PATH") || "/usr/bin:/bin";
+  const pathEnv = envGet(ctx.state.env, "PATH", "/usr/bin:/bin");
   const pathDirs = pathEnv.split(":");
 
   for (const name of names) {

@@ -52,7 +52,11 @@ function hasQuotedOperationWord(part: ParameterExpansionPart): boolean {
   if (!wordParts) return false;
 
   for (const p of wordParts) {
-    if (p.type === "DoubleQuoted" || p.type === "SingleQuoted") {
+    if (
+      p.type === "DoubleQuoted" ||
+      p.type === "SingleQuoted" ||
+      p.type === "Bytes"
+    ) {
       return true;
     }
   }
@@ -90,7 +94,11 @@ export function isOperationWordEntirelyQuoted(
 
   // Check if ALL parts are quoted (DoubleQuoted or SingleQuoted)
   for (const p of wordParts) {
-    if (p.type !== "DoubleQuoted" && p.type !== "SingleQuoted") {
+    if (
+      p.type !== "DoubleQuoted" &&
+      p.type !== "SingleQuoted" &&
+      p.type !== "Bytes"
+    ) {
       return false; // Found an unquoted part
     }
   }
@@ -123,7 +131,11 @@ export function analyzeWordParts(parts: WordPart[]): WordPartsAnalysis {
   let hasIndirection = false;
 
   for (const part of parts) {
-    if (part.type === "SingleQuoted" || part.type === "DoubleQuoted") {
+    if (
+      part.type === "SingleQuoted" ||
+      part.type === "DoubleQuoted" ||
+      part.type === "Bytes"
+    ) {
       hasQuoted = true;
       // Check for "${a[@]}" inside double quotes
       // BUT NOT if there's an operation like ${#a[@]} (Length) or other operations

@@ -6,7 +6,7 @@
 
 import { fileTypeFromBuffer } from "file-type";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
 const fileHelp = {
@@ -383,14 +383,15 @@ async function detectFileType(
 export const fileCommand: Command = {
   name: "file",
 
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
-    if (hasHelpFlag(args)) return showHelp(fileHelp);
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) return showHelp(fileHelp);
 
     let brief = false;
     let mimeMode = false;
     const files: string[] = [];
 
-    for (const arg of args) {
+    for (const arg of a) {
       if (arg.startsWith("--")) {
         if (arg === "--brief") brief = true;
         else if (arg === "--mime" || arg === "--mime-type") mimeMode = true;

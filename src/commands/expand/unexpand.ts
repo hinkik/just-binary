@@ -8,7 +8,7 @@
  */
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decode, EMPTY, encode } from "../../utils/bytes.js";
+import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
 const unexpandHelp = {
@@ -181,8 +181,12 @@ function processContent(content: string, options: UnexpandOptions): string {
 
 export const unexpand: Command = {
   name: "unexpand",
-  execute: async (args: string[], ctx: CommandContext): Promise<ExecResult> => {
-    if (hasHelpFlag(args)) {
+  execute: async (
+    args: Uint8Array[],
+    ctx: CommandContext,
+  ): Promise<ExecResult> => {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) {
       return showHelp(unexpandHelp);
     }
 
@@ -194,16 +198,16 @@ export const unexpand: Command = {
     const files: string[] = [];
     let i = 0;
 
-    while (i < args.length) {
-      const arg = args[i];
+    while (i < a.length) {
+      const arg = a[i];
 
-      if (arg === "-t" && i + 1 < args.length) {
-        const stops = parseTabStops(args[i + 1]);
+      if (arg === "-t" && i + 1 < a.length) {
+        const stops = parseTabStops(a[i + 1]);
         if (!stops) {
           return {
             exitCode: 1,
             stdout: EMPTY,
-            stderr: encode(`unexpand: invalid tab size: '${args[i + 1]}'\n`),
+            stderr: encode(`unexpand: invalid tab size: '${a[i + 1]}'\n`),
           };
         }
         options.tabStops = stops;
@@ -219,13 +223,13 @@ export const unexpand: Command = {
         }
         options.tabStops = stops;
         i++;
-      } else if (arg === "--tabs" && i + 1 < args.length) {
-        const stops = parseTabStops(args[i + 1]);
+      } else if (arg === "--tabs" && i + 1 < a.length) {
+        const stops = parseTabStops(a[i + 1]);
         if (!stops) {
           return {
             exitCode: 1,
             stdout: EMPTY,
-            stderr: encode(`unexpand: invalid tab size: '${args[i + 1]}'\n`),
+            stderr: encode(`unexpand: invalid tab size: '${a[i + 1]}'\n`),
           };
         }
         options.tabStops = stops;
@@ -245,7 +249,7 @@ export const unexpand: Command = {
         options.allBlanks = true;
         i++;
       } else if (arg === "--") {
-        files.push(...args.slice(i + 1));
+        files.push(...a.slice(i + 1));
         break;
       } else if (arg.startsWith("-") && arg !== "-") {
         return unknownOption("unexpand", arg);

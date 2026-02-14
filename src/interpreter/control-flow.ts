@@ -22,7 +22,14 @@ import type {
   WordNode,
 } from "../ast/types.js";
 import type { ExecResult } from "../types.js";
-import { concat, EMPTY, encode } from "../utils/bytes.js";
+import {
+  concat,
+  decode,
+  EMPTY,
+  encode,
+  envGet,
+  envSet,
+} from "../utils/bytes.js";
 import { evaluateArithmetic } from "./arithmetic.js";
 import { matchPattern } from "./conditionals.js";
 import { BreakError, ContinueError, GlobError } from "./errors.js";
@@ -88,7 +95,7 @@ export async function executeFor(
 
   let words: string[] = [];
   if (node.words === null) {
-    words = (ctx.state.env.get("@") || "").split(" ").filter(Boolean);
+    words = envGet(ctx.state.env, "@", "").split(" ").filter(Boolean);
   } else if (node.words.length === 0) {
     words = [];
   } else {
@@ -119,7 +126,7 @@ export async function executeFor(
         );
       }
 
-      ctx.state.env.set(node.variable, value);
+      envSet(ctx.state.env, node.variable, value);
 
       try {
         for (const stmt of node.body) {

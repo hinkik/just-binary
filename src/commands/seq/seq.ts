@@ -1,5 +1,5 @@
 import type { Command, ExecResult } from "../../types.js";
-import { EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 
 /**
  * seq - print a sequence of numbers
@@ -16,18 +16,19 @@ import { EMPTY, encode } from "../../utils/bytes.js";
 export const seqCommand: Command = {
   name: "seq",
 
-  async execute(args: string[]): Promise<ExecResult> {
+  async execute(args: Uint8Array[]): Promise<ExecResult> {
+    const a = decodeArgs(args);
     let separator = "\n";
     let equalizeWidth = false;
     const nums: string[] = [];
 
     // Parse arguments
     let i = 0;
-    while (i < args.length) {
-      const arg = args[i];
+    while (i < a.length) {
+      const arg = a[i];
 
-      if (arg === "-s" && i + 1 < args.length) {
-        separator = args[i + 1];
+      if (arg === "-s" && i + 1 < a.length) {
+        separator = a[i + 1];
         i += 2;
         continue;
       }
@@ -52,8 +53,8 @@ export const seqCommand: Command = {
         }
         if (arg === "-ws" || arg === "-sw") {
           equalizeWidth = true;
-          if (i + 1 < args.length) {
-            separator = args[i + 1];
+          if (i + 1 < a.length) {
+            separator = a[i + 1];
             i += 2;
             continue;
           }
@@ -66,8 +67,8 @@ export const seqCommand: Command = {
     }
 
     // Collect remaining args as numbers
-    while (i < args.length) {
-      nums.push(args[i]);
+    while (i < a.length) {
+      nums.push(a[i]);
       i++;
     }
 

@@ -1,7 +1,7 @@
 import { getErrorMessage } from "../../interpreter/helpers/errors.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
-import { EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const mvHelp = {
@@ -25,12 +25,13 @@ const argDefs = {
 export const mvCommand: Command = {
   name: "mv",
 
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
-    if (hasHelpFlag(args)) {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) {
       return showHelp(mvHelp);
     }
 
-    const parsed = parseArgs("mv", args, argDefs);
+    const parsed = parseArgs("mv", a, argDefs);
     if (!parsed.ok) return parsed.error;
 
     let force = parsed.result.flags.force;

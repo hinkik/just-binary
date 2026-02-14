@@ -9,7 +9,7 @@
  */
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decode, EMPTY, encode } from "../../utils/bytes.js";
+import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
 const revHelp = {
@@ -34,17 +34,21 @@ function reverseString(str: string): string {
 
 export const rev: Command = {
   name: "rev",
-  execute: async (args: string[], ctx: CommandContext): Promise<ExecResult> => {
-    if (hasHelpFlag(args)) {
+  execute: async (
+    args: Uint8Array[],
+    ctx: CommandContext,
+  ): Promise<ExecResult> => {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) {
       return showHelp(revHelp);
     }
 
     const files: string[] = [];
-    for (const arg of args) {
+    for (const arg of a) {
       if (arg === "--") {
         // Everything after -- is a file
-        const idx = args.indexOf(arg);
-        files.push(...args.slice(idx + 1));
+        const idx = a.indexOf(arg);
+        files.push(...a.slice(idx + 1));
         break;
       } else if (arg.startsWith("-") && arg !== "-") {
         return unknownOption("rev", arg);

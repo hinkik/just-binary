@@ -1,6 +1,6 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
-import { decode, EMPTY, encode } from "../../utils/bytes.js";
+import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 import { readAndConcat } from "../../utils/file-reader.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
@@ -26,12 +26,13 @@ const argDefs = {
 
 export const uniqCommand: Command = {
   name: "uniq",
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
-    if (hasHelpFlag(args)) {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) {
       return showHelp(uniqHelp);
     }
 
-    const parsed = parseArgs("uniq", args, argDefs);
+    const parsed = parseArgs("uniq", a, argDefs);
     if (!parsed.ok) return parsed.error;
 
     const { count, duplicatesOnly, uniqueOnly, ignoreCase } =

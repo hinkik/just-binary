@@ -1,6 +1,6 @@
 import { mapToRecord } from "../../helpers/env.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { concat, EMPTY, encode } from "../../utils/bytes.js";
+import { concat, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 
 /**
  * time - time command execution
@@ -28,7 +28,8 @@ import { concat, EMPTY, encode } from "../../utils/bytes.js";
 export const timeCommand: Command = {
   name: "time",
 
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
     // Parse options
     let format = "%e %M"; // Default format
     let outputFile: string | null = null;
@@ -36,30 +37,30 @@ export const timeCommand: Command = {
     let posixFormat = false;
     let i = 0;
 
-    while (i < args.length) {
-      const arg = args[i];
+    while (i < a.length) {
+      const arg = a[i];
 
       if (arg === "-f" || arg === "--format") {
         i++;
-        if (i >= args.length) {
+        if (i >= a.length) {
           return {
             stdout: EMPTY,
             stderr: encode("time: missing argument to '-f'\n"),
             exitCode: 1,
           };
         }
-        format = args[i];
+        format = a[i];
         i++;
       } else if (arg === "-o" || arg === "--output") {
         i++;
-        if (i >= args.length) {
+        if (i >= a.length) {
           return {
             stdout: EMPTY,
             stderr: encode("time: missing argument to '-o'\n"),
             exitCode: 1,
           };
         }
-        outputFile = args[i];
+        outputFile = a[i];
         i++;
       } else if (arg === "-a" || arg === "--append") {
         appendMode = true;
@@ -85,7 +86,7 @@ export const timeCommand: Command = {
     }
 
     // Get the command to time
-    const commandArgs = args.slice(i);
+    const commandArgs = a.slice(i);
 
     if (commandArgs.length === 0) {
       // No command specified - just return success (matches GNU time behavior)

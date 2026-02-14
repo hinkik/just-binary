@@ -4,6 +4,7 @@
  * Handles prompt escape sequences for ${var@P} transformation and PS1/PS2/PS3/PS4.
  */
 
+import { decode, encode, envGet, envSet } from "../../utils/bytes.js";
 import type { InterpreterContext } from "../types.js";
 
 /**
@@ -141,12 +142,13 @@ export function expandPrompt(ctx: InterpreterContext, value: string): string {
   let i = 0;
 
   // Get environment values for prompt escapes
-  const user =
-    ctx.state.env.get("USER") || ctx.state.env.get("LOGNAME") || "user";
-  const hostname = ctx.state.env.get("HOSTNAME") || "localhost";
+  const user = ctx.state.env.has("USER")
+    ? envGet(ctx.state.env, "USER")
+    : envGet(ctx.state.env, "LOGNAME", "user");
+  const hostname = envGet(ctx.state.env, "HOSTNAME", "localhost");
   const shortHost = hostname.split(".")[0];
-  const pwd = ctx.state.env.get("PWD") || "/";
-  const home = ctx.state.env.get("HOME") || "/";
+  const pwd = envGet(ctx.state.env, "PWD", "/");
+  const home = envGet(ctx.state.env, "HOME", "/");
 
   // Replace $HOME with ~ in pwd for \w
   const tildeExpanded = pwd.startsWith(home)
@@ -173,7 +175,7 @@ export function expandPrompt(ctx: InterpreterContext, value: string): string {
   ];
 
   // Command number (we'll use a simple counter from the state if available)
-  const cmdNum = ctx.state.env.get("__COMMAND_NUMBER") || "1";
+  const cmdNum = envGet(ctx.state.env, "__COMMAND_NUMBER", "1");
 
   while (i < value.length) {
     const char = value[i];

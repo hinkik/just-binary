@@ -11,6 +11,7 @@
  */
 
 import type { WordPart } from "../../ast/types.js";
+import { decode, encode, envGet, envSet } from "../../utils/bytes.js";
 import { getNamerefTarget, isNameref } from "../helpers/nameref.js";
 import type { InterpreterContext } from "../types.js";
 import { getArrayElements } from "./variable.js";
@@ -91,9 +92,8 @@ export function handleSimpleArrayExpansion(
   // No array elements - check for scalar variable
   // ${s[@]} where s='abc' should return 'abc' (treat scalar as single-element array)
   // But NOT if the scalar value is actually from a nameref to array[@]
-  const scalarValue = ctx.state.env.get(arrayName);
-  if (scalarValue !== undefined) {
-    return { values: [scalarValue], quoted: true };
+  if (ctx.state.env.has(arrayName)) {
+    return { values: [envGet(ctx.state.env, arrayName)], quoted: true };
   }
 
   // Variable is unset - return empty
@@ -148,9 +148,8 @@ export function handleNamerefArrayExpansion(
   }
 
   // No array elements - check for scalar variable
-  const scalarValue = ctx.state.env.get(arrayName);
-  if (scalarValue !== undefined) {
-    return { values: [scalarValue], quoted: true };
+  if (ctx.state.env.has(arrayName)) {
+    return { values: [envGet(ctx.state.env, arrayName)], quoted: true };
   }
 
   // Variable is unset - return empty

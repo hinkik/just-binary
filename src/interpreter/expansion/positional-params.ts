@@ -15,6 +15,7 @@ import type {
   WordPart,
 } from "../../ast/types.js";
 import { createUserRegex } from "../../regex/index.js";
+import { decode, encode, envGet, envSet } from "../../utils/bytes.js";
 import { getIfsSeparator } from "../helpers/ifs.js";
 import { escapeRegex } from "../helpers/regex.js";
 import type { InterpreterContext } from "../types.js";
@@ -61,10 +62,10 @@ export type ExpandWordPartsAsyncFn = (
  * Get positional parameters from context
  */
 function getPositionalParams(ctx: InterpreterContext): string[] {
-  const numParams = Number.parseInt(ctx.state.env.get("#") || "0", 10);
+  const numParams = Number.parseInt(envGet(ctx.state.env, "#", "0"), 10);
   const params: string[] = [];
   for (let i = 1; i <= numParams; i++) {
-    params.push(ctx.state.env.get(String(i)) || "");
+    params.push(envGet(ctx.state.env, String(i)) || "");
   }
   return params;
 }
@@ -117,13 +118,13 @@ export async function handlePositionalSlicing(
     : undefined;
 
   // Get positional parameters
-  const numParams = Number.parseInt(ctx.state.env.get("#") || "0", 10);
+  const numParams = Number.parseInt(envGet(ctx.state.env, "#", "0"), 10);
   const allParams: string[] = [];
   for (let i = 1; i <= numParams; i++) {
-    allParams.push(ctx.state.env.get(String(i)) || "");
+    allParams.push(envGet(ctx.state.env, String(i)) || "");
   }
 
-  const shellName = ctx.state.env.get("0") || "bash";
+  const shellName = envGet(ctx.state.env, "0", "bash");
 
   // Build sliced params array
   let slicedParams: string[];
@@ -511,7 +512,7 @@ export async function handleSimplePositionalExpansion(
   }
 
   // Get positional parameters
-  const numParams = Number.parseInt(ctx.state.env.get("#") || "0", 10);
+  const numParams = Number.parseInt(envGet(ctx.state.env, "#", "0"), 10);
 
   // Expand prefix (parts before $@/$*)
   let prefix = "";
@@ -538,7 +539,7 @@ export async function handleSimplePositionalExpansion(
   // Get individual positional parameters
   const params: string[] = [];
   for (let i = 1; i <= numParams; i++) {
-    params.push(ctx.state.env.get(String(i)) || "");
+    params.push(envGet(ctx.state.env, String(i)) || "");
   }
 
   if (isStar) {

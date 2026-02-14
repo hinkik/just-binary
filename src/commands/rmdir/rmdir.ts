@@ -1,7 +1,7 @@
 import { getErrorMessage } from "../../interpreter/helpers/errors.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
-import { decode, EMPTY, encode } from "../../utils/bytes.js";
+import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 
 const USAGE = `Usage: rmdir [-pv] DIRECTORY...
 Remove empty directories.
@@ -19,8 +19,9 @@ const argDefs = {
 export const rmdirCommand: Command = {
   name: "rmdir",
 
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
-    const parsed = parseArgs("rmdir", args, argDefs);
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
+    const parsed = parseArgs("rmdir", a, argDefs);
     if (!parsed.ok) return parsed.error;
 
     if (parsed.result.flags.help) {

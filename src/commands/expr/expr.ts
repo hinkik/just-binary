@@ -1,6 +1,6 @@
 import { createUserRegex } from "../../regex/index.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 
 /**
  * expr - evaluate expressions
@@ -10,8 +10,9 @@ import { EMPTY, encode } from "../../utils/bytes.js";
 export const exprCommand: Command = {
   name: "expr",
 
-  async execute(args: string[], _ctx: CommandContext): Promise<ExecResult> {
-    if (args.length === 0) {
+  async execute(args: Uint8Array[], _ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
+    if (a.length === 0) {
       return {
         stdout: EMPTY,
         stderr: encode("expr: missing operand\n"),
@@ -20,7 +21,7 @@ export const exprCommand: Command = {
     }
 
     try {
-      const result = evaluateExpr(args);
+      const result = evaluateExpr(a);
       // expr returns 1 if result is 0 or empty, 0 otherwise
       const exitCode = result === "0" || result === "" ? 1 : 0;
       return {

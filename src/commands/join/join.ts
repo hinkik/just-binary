@@ -8,7 +8,7 @@
  */
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decode, EMPTY, encode } from "../../utils/bytes.js";
+import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
 const joinHelp = {
@@ -163,8 +163,12 @@ function parseOutputFormat(
 
 export const join: Command = {
   name: "join",
-  execute: async (args: string[], ctx: CommandContext): Promise<ExecResult> => {
-    if (hasHelpFlag(args)) {
+  execute: async (
+    args: Uint8Array[],
+    ctx: CommandContext,
+  ): Promise<ExecResult> => {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) {
       return showHelp(joinHelp);
     }
 
@@ -182,47 +186,47 @@ export const join: Command = {
     const files: string[] = [];
     let i = 0;
 
-    while (i < args.length) {
-      const arg = args[i];
+    while (i < a.length) {
+      const arg = a[i];
 
-      if (arg === "-1" && i + 1 < args.length) {
-        const field = Number.parseInt(args[i + 1], 10);
+      if (arg === "-1" && i + 1 < a.length) {
+        const field = Number.parseInt(a[i + 1], 10);
         if (Number.isNaN(field) || field < 1) {
           return {
             exitCode: 1,
             stdout: EMPTY,
-            stderr: encode(`join: invalid field number: '${args[i + 1]}'\n`),
+            stderr: encode(`join: invalid field number: '${a[i + 1]}'\n`),
           };
         }
         options.field1 = field;
         i += 2;
-      } else if (arg === "-2" && i + 1 < args.length) {
-        const field = Number.parseInt(args[i + 1], 10);
+      } else if (arg === "-2" && i + 1 < a.length) {
+        const field = Number.parseInt(a[i + 1], 10);
         if (Number.isNaN(field) || field < 1) {
           return {
             exitCode: 1,
             stdout: EMPTY,
-            stderr: encode(`join: invalid field number: '${args[i + 1]}'\n`),
+            stderr: encode(`join: invalid field number: '${a[i + 1]}'\n`),
           };
         }
         options.field2 = field;
         i += 2;
       } else if (
         (arg === "-t" || arg === "--field-separator") &&
-        i + 1 < args.length
+        i + 1 < a.length
       ) {
-        options.separator = args[i + 1];
+        options.separator = a[i + 1];
         i += 2;
       } else if (arg.startsWith("-t") && arg.length > 2) {
         options.separator = arg.slice(2);
         i++;
-      } else if (arg === "-a" && i + 1 < args.length) {
-        const fileNum = Number.parseInt(args[i + 1], 10);
+      } else if (arg === "-a" && i + 1 < a.length) {
+        const fileNum = Number.parseInt(a[i + 1], 10);
         if (fileNum !== 1 && fileNum !== 2) {
           return {
             exitCode: 1,
             stdout: EMPTY,
-            stderr: encode(`join: invalid file number: '${args[i + 1]}'\n`),
+            stderr: encode(`join: invalid file number: '${a[i + 1]}'\n`),
           };
         }
         options.printUnpairable.add(fileNum);
@@ -230,13 +234,13 @@ export const join: Command = {
       } else if (arg.match(/^-a[12]$/)) {
         options.printUnpairable.add(Number.parseInt(arg[2], 10));
         i++;
-      } else if (arg === "-v" && i + 1 < args.length) {
-        const fileNum = Number.parseInt(args[i + 1], 10);
+      } else if (arg === "-v" && i + 1 < a.length) {
+        const fileNum = Number.parseInt(a[i + 1], 10);
         if (fileNum !== 1 && fileNum !== 2) {
           return {
             exitCode: 1,
             stdout: EMPTY,
-            stderr: encode(`join: invalid file number: '${args[i + 1]}'\n`),
+            stderr: encode(`join: invalid file number: '${a[i + 1]}'\n`),
           };
         }
         options.onlyUnpairable.add(fileNum);
@@ -244,16 +248,16 @@ export const join: Command = {
       } else if (arg.match(/^-v[12]$/)) {
         options.onlyUnpairable.add(Number.parseInt(arg[2], 10));
         i++;
-      } else if (arg === "-e" && i + 1 < args.length) {
-        options.emptyString = args[i + 1];
+      } else if (arg === "-e" && i + 1 < a.length) {
+        options.emptyString = a[i + 1];
         i += 2;
-      } else if (arg === "-o" && i + 1 < args.length) {
-        const format = parseOutputFormat(args[i + 1]);
+      } else if (arg === "-o" && i + 1 < a.length) {
+        const format = parseOutputFormat(a[i + 1]);
         if (!format) {
           return {
             exitCode: 1,
             stdout: EMPTY,
-            stderr: encode(`join: invalid field spec: '${args[i + 1]}'\n`),
+            stderr: encode(`join: invalid field spec: '${a[i + 1]}'\n`),
           };
         }
         options.outputFormat = format;
@@ -262,7 +266,7 @@ export const join: Command = {
         options.ignoreCase = true;
         i++;
       } else if (arg === "--") {
-        files.push(...args.slice(i + 1));
+        files.push(...a.slice(i + 1));
         break;
       } else if (arg.startsWith("-") && arg !== "-") {
         return unknownOption("join", arg);

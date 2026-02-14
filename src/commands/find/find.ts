@@ -5,7 +5,7 @@ import type {
   ExecResult,
   TraceCallback,
 } from "../../types.js";
-import { decode, EMPTY, encode } from "../../utils/bytes.js";
+import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 
 // Use a larger batch size for find to maximize parallel I/O
 const FIND_BATCH_SIZE = 500;
@@ -144,8 +144,9 @@ const PREDICATES_WITH_ARGS_SET = new Set([
 
 export const findCommand: Command = {
   name: "find",
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
-    if (hasHelpFlag(args)) {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) {
       return showHelp(findHelp);
     }
 
@@ -157,14 +158,14 @@ export const findCommand: Command = {
     // Find all path arguments and parse -maxdepth/-mindepth/-depth
     // Paths come before any predicates (arguments starting with -)
     let expressionsStarted = false;
-    for (let i = 0; i < args.length; i++) {
-      const arg = args[i];
-      if (arg === "-maxdepth" && i + 1 < args.length) {
+    for (let i = 0; i < a.length; i++) {
+      const arg = a[i];
+      if (arg === "-maxdepth" && i + 1 < a.length) {
         expressionsStarted = true;
-        maxDepth = parseInt(args[++i], 10);
-      } else if (arg === "-mindepth" && i + 1 < args.length) {
+        maxDepth = parseInt(a[++i], 10);
+      } else if (arg === "-mindepth" && i + 1 < a.length) {
         expressionsStarted = true;
-        minDepth = parseInt(args[++i], 10);
+        minDepth = parseInt(a[++i], 10);
       } else if (arg === "-depth") {
         expressionsStarted = true;
         depthFirst = true;
@@ -172,7 +173,7 @@ export const findCommand: Command = {
         expressionsStarted = true;
         // Skip -exec and all arguments until terminator (; or +)
         i++;
-        while (i < args.length && args[i] !== ";" && args[i] !== "+") {
+        while (i < a.length && a[i] !== ";" && a[i] !== "+") {
           i++;
         }
         // i now points to the terminator, loop will increment past it
@@ -210,7 +211,7 @@ export const findCommand: Command = {
     }
 
     // Parse expressions
-    const { expr, error, actions } = parseExpressions(args, 0);
+    const { expr, error, actions } = parseExpressions(a, 0);
 
     // Return error for unknown predicates
     if (error) {

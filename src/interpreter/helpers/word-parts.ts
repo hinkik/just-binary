@@ -6,10 +6,11 @@
  */
 
 import type { WordPart } from "../../ast/types.js";
+import { decodeLatin1 } from "../../utils/bytes.js";
 
 /**
  * Get the literal string value from a word part.
- * Returns the value for Literal, SingleQuoted, and Escaped parts.
+ * Returns the value for Literal, SingleQuoted, Escaped, and Bytes parts.
  * Returns null for complex parts that require expansion.
  */
 export function getLiteralValue(part: WordPart): string | null {
@@ -20,6 +21,8 @@ export function getLiteralValue(part: WordPart): string | null {
       return part.value;
     case "Escaped":
       return part.value;
+    case "Bytes":
+      return decodeLatin1(part.value);
     default:
       return null;
   }
@@ -31,6 +34,7 @@ export function getLiteralValue(part: WordPart): string | null {
  * - SingleQuoted
  * - Escaped
  * - DoubleQuoted (entirely quoted)
+ * - Bytes (from $'...' ANSI-C quoting)
  * - Literal with empty value (doesn't affect quoting)
  */
 export function isQuotedPart(part: WordPart): boolean {
@@ -38,6 +42,7 @@ export function isQuotedPart(part: WordPart): boolean {
     case "SingleQuoted":
     case "Escaped":
     case "DoubleQuoted":
+    case "Bytes":
       return true;
     case "Literal":
       // Empty literals don't affect quoting

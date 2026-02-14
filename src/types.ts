@@ -81,7 +81,7 @@ export interface CommandContext {
   /** Current working directory */
   cwd: string;
   /** Environment variables - uses Map to prevent prototype pollution */
-  env: Map<string, string>;
+  env: Map<string, Uint8Array>;
   /**
    * Exported environment variables only.
    * Used by commands like printenv and env that should only show exported vars.
@@ -150,7 +150,7 @@ export interface CommandContext {
 
 export interface Command {
   name: string;
-  execute(args: string[], ctx: CommandContext): Promise<ExecResult>;
+  execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult>;
 }
 
 export type CommandRegistry = Map<string, Command>;

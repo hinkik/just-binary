@@ -7,7 +7,7 @@
 
 import { createUserRegex } from "../../regex/index.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 import {
   createArchive,
@@ -992,12 +992,13 @@ async function listTarArchive(
 
 export const tarCommand: Command = {
   name: "tar",
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
-    if (hasHelpFlag(args)) {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) {
       return showHelp(tarHelp);
     }
 
-    const parsed = parseOptions(args);
+    const parsed = parseOptions(a);
     if (!parsed.ok) {
       return parsed.error;
     }

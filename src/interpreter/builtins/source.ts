@@ -4,7 +4,7 @@
 
 import { type ParseException, parse } from "../../parser/parser.js";
 import type { ExecResult } from "../../types.js";
-import { EMPTY, encode } from "../../utils/bytes.js";
+import { decode, EMPTY, encode, envGet, envSet } from "../../utils/bytes.js";
 import { ExitError, ReturnError } from "../errors.js";
 import { failure, result } from "../helpers/result.js";
 import type { InterpreterContext } from "../types.js";
@@ -42,7 +42,7 @@ export async function handleSource(
     }
   } else {
     // Filename doesn't contain '/' - search in PATH first, then current directory
-    const pathEnv = ctx.state.env.get("PATH") || "";
+    const pathEnv = envGet(ctx.state.env, "PATH", "");
     const pathDirs = pathEnv.split(":").filter((d) => d);
 
     for (const dir of pathDirs) {
@@ -82,17 +82,17 @@ export async function handleSource(
   if (sourceArgs.length > 1) {
     // Save current positional parameters
     for (let i = 1; i <= 9; i++) {
-      savedPositional.set(String(i), ctx.state.env.get(String(i)));
+      savedPositional.set(String(i), envGet(ctx.state.env, String(i)));
     }
-    savedPositional.set("#", ctx.state.env.get("#"));
-    savedPositional.set("@", ctx.state.env.get("@"));
+    savedPositional.set("#", envGet(ctx.state.env, "#"));
+    savedPositional.set("@", envGet(ctx.state.env, "@"));
 
     // Set new positional parameters
     const scriptArgs = sourceArgs.slice(1);
-    ctx.state.env.set("#", String(scriptArgs.length));
-    ctx.state.env.set("@", scriptArgs.join(" "));
+    envSet(ctx.state.env, "#", String(scriptArgs.length));
+    envSet(ctx.state.env, "@", scriptArgs.join(" "));
     for (let i = 0; i < scriptArgs.length && i < 9; i++) {
-      ctx.state.env.set(String(i + 1), scriptArgs[i]);
+      envSet(ctx.state.env, String(i + 1), scriptArgs[i]);
     }
     // Clear any remaining positional parameters
     for (let i = scriptArgs.length + 1; i <= 9; i++) {
@@ -112,7 +112,7 @@ export async function handleSource(
         if (value === undefined) {
           ctx.state.env.delete(key);
         } else {
-          ctx.state.env.set(key, value);
+          envSet(ctx.state.env, key, value);
         }
       }
     }

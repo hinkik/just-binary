@@ -6,7 +6,13 @@
 
 import { ExecutionLimitError } from "../../interpreter/errors.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decode, EMPTY, encode } from "../../utils/bytes.js";
+import {
+  createStringEnvAdapter,
+  decode,
+  decodeArgs,
+  EMPTY,
+  encode,
+} from "../../utils/bytes.js";
 import { readFiles } from "../../utils/file-reader.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 import {
@@ -187,8 +193,9 @@ function formatValue(
 export const jqCommand: Command = {
   name: "jq",
 
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
-    if (hasHelpFlag(args)) return showHelp(jqHelp);
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) return showHelp(jqHelp);
 
     let raw = false;
     let compact = false;
@@ -202,26 +209,26 @@ export const jqCommand: Command = {
     let filterSet = false;
     const files: string[] = [];
 
-    for (let i = 0; i < args.length; i++) {
-      const a = args[i];
-      if (a === "-r" || a === "--raw-output") raw = true;
-      else if (a === "-c" || a === "--compact-output") compact = true;
-      else if (a === "-e" || a === "--exit-status") exitStatus = true;
-      else if (a === "-s" || a === "--slurp") slurp = true;
-      else if (a === "-n" || a === "--null-input") nullInput = true;
-      else if (a === "-j" || a === "--join-output") joinOutput = true;
-      else if (a === "-a" || a === "--ascii") {
+    for (let i = 0; i < a.length; i++) {
+      const arg = a[i];
+      if (arg === "-r" || arg === "--raw-output") raw = true;
+      else if (arg === "-c" || arg === "--compact-output") compact = true;
+      else if (arg === "-e" || arg === "--exit-status") exitStatus = true;
+      else if (arg === "-s" || arg === "--slurp") slurp = true;
+      else if (arg === "-n" || arg === "--null-input") nullInput = true;
+      else if (arg === "-j" || arg === "--join-output") joinOutput = true;
+      else if (arg === "-a" || arg === "--ascii") {
         /* ignored */
-      } else if (a === "-S" || a === "--sort-keys") sortKeys = true;
-      else if (a === "-C" || a === "--color") {
+      } else if (arg === "-S" || arg === "--sort-keys") sortKeys = true;
+      else if (arg === "-C" || arg === "--color") {
         /* ignored */
-      } else if (a === "-M" || a === "--monochrome") {
+      } else if (arg === "-M" || arg === "--monochrome") {
         /* ignored */
-      } else if (a === "--tab") useTab = true;
-      else if (a === "-") files.push("-");
-      else if (a.startsWith("--")) return unknownOption("jq", a);
-      else if (a.startsWith("-")) {
-        for (const c of a.slice(1)) {
+      } else if (arg === "--tab") useTab = true;
+      else if (arg === "-") files.push("-");
+      else if (arg.startsWith("--")) return unknownOption("jq", arg);
+      else if (arg.startsWith("-")) {
+        for (const c of arg.slice(1)) {
           if (c === "r") raw = true;
           else if (c === "c") compact = true;
           else if (c === "e") exitStatus = true;
@@ -238,10 +245,10 @@ export const jqCommand: Command = {
           } else return unknownOption("jq", `-${c}`);
         }
       } else if (!filterSet) {
-        filter = a;
+        filter = arg;
         filterSet = true;
       } else {
-        files.push(a);
+        files.push(arg);
       }
     }
 
@@ -278,7 +285,7 @@ export const jqCommand: Command = {
         limits: ctx.limits
           ? { maxIterations: ctx.limits.maxJqIterations }
           : undefined,
-        env: ctx.env,
+        env: createStringEnvAdapter(ctx.env),
         coverage: ctx.coverage,
       };
 

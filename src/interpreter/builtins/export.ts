@@ -11,7 +11,7 @@
  */
 
 import type { ExecResult } from "../../types.js";
-import { EMPTY, encode } from "../../utils/bytes.js";
+import { decode, EMPTY, encode, envGet, envSet } from "../../utils/bytes.js";
 import { markExported, unmarkExported } from "../helpers/readonly.js";
 import { OK, result, successText } from "../helpers/result.js";
 import { expandTildesInValue } from "../helpers/tilde.js";
@@ -46,7 +46,9 @@ export function handleExport(
       const value = ctx.state.env.get(name);
       if (value !== undefined) {
         // Quote the value with double quotes, escaping backslashes and double quotes
-        const escapedValue = value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+        const escapedValue = decode(value ?? EMPTY)
+          .replace(/\\/g, "\\\\")
+          .replace(/"/g, '\\"');
         stdout += `declare -x ${name}="${escapedValue}"\n`;
       }
     }
@@ -65,7 +67,7 @@ export function handleExport(
         name = arg.slice(0, eqIdx);
         value = expandTildesInValue(ctx, arg.slice(eqIdx + 1));
         // Set the value
-        ctx.state.env.set(name, value);
+        envSet(ctx.state.env, name, value);
       } else {
         name = arg;
       }
@@ -111,14 +113,14 @@ export function handleExport(
       if (isAppend) {
         // Append to existing value (or set if not defined)
         const existing = ctx.state.env.get(name) ?? "";
-        ctx.state.env.set(name, existing + value);
+        envSet(ctx.state.env, name, existing + value);
       } else {
-        ctx.state.env.set(name, value);
+        envSet(ctx.state.env, name, value);
       }
     } else {
       // If variable doesn't exist, create it as empty
       if (!ctx.state.env.has(name)) {
-        ctx.state.env.set(name, "");
+        envSet(ctx.state.env, name, "");
       }
     }
     // Mark the variable as exported

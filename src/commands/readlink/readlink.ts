@@ -1,5 +1,5 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const readlinkHelp = {
@@ -15,8 +15,9 @@ const readlinkHelp = {
 export const readlinkCommand: Command = {
   name: "readlink",
 
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
-    if (hasHelpFlag(args)) {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) {
       return showHelp(readlinkHelp);
     }
 
@@ -24,8 +25,8 @@ export const readlinkCommand: Command = {
     let argIdx = 0;
 
     // Parse options
-    while (argIdx < args.length && args[argIdx].startsWith("-")) {
-      const arg = args[argIdx];
+    while (argIdx < a.length && a[argIdx].startsWith("-")) {
+      const arg = a[argIdx];
       if (arg === "-f" || arg === "--canonicalize") {
         canonicalize = true;
         argIdx++;
@@ -41,7 +42,7 @@ export const readlinkCommand: Command = {
       }
     }
 
-    const files = args.slice(argIdx);
+    const files = a.slice(argIdx);
 
     if (files.length === 0) {
       return {

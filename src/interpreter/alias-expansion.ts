@@ -13,6 +13,7 @@
 import type { ScriptNode, SimpleCommandNode, WordNode } from "../ast/types.js";
 import { Parser } from "../parser/parser.js";
 import { ParseException } from "../parser/types.js";
+import { decode } from "../utils/bytes.js";
 
 /**
  * Alias prefix used in environment variables
@@ -23,7 +24,7 @@ const ALIAS_PREFIX = "BASH_ALIAS_";
  * Context needed for alias expansion operations
  */
 export interface AliasExpansionContext {
-  env: Map<string, string>;
+  env: Map<string, Uint8Array>;
 }
 
 /**
@@ -57,7 +58,8 @@ function getAlias(
   ctx: AliasExpansionContext,
   name: string,
 ): string | undefined {
-  return ctx.env.get(`${ALIAS_PREFIX}${name}`);
+  const raw = ctx.env.get(`${ALIAS_PREFIX}${name}`);
+  return raw !== undefined ? decode(raw) : undefined;
 }
 
 /**

@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 import { Worker } from "node:worker_threads";
 import { mapToRecord } from "../../helpers/env.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decode, EMPTY, encode } from "../../utils/bytes.js";
+import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 import { FsBridgeHandler } from "./fs-bridge-handler.js";
 import { createSharedBuffer } from "./protocol.js";
@@ -59,7 +59,7 @@ interface ParsedArgs {
   scriptArgs: string[];
 }
 
-function parseArgs(args: string[]): ParsedArgs | ExecResult {
+function parsePythonArgs(args: string[]): ParsedArgs | ExecResult {
   const result: ParsedArgs = {
     code: null,
     module: null,
@@ -297,12 +297,13 @@ async function executePython(
 export const python3Command: Command = {
   name: "python3",
 
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
-    if (hasHelpFlag(args)) {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) {
       return showHelp(python3Help);
     }
 
-    const parsed = parseArgs(args);
+    const parsed = parsePythonArgs(a);
     if ("exitCode" in parsed) return parsed;
 
     if (parsed.showVersion) {
@@ -367,7 +368,7 @@ export const python3Command: Command = {
 export const pythonCommand: Command = {
   name: "python",
 
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
     return python3Command.execute(args, ctx);
   },
 };

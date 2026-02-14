@@ -15,7 +15,15 @@ import type {
 import { Parser } from "../parser/parser.js";
 import type { ParseException } from "../parser/types.js";
 import type { ExecResult } from "../types.js";
-import { concat, EMPTY, encode, isEmpty } from "../utils/bytes.js";
+import {
+  concat,
+  decode,
+  EMPTY,
+  encode,
+  envGet,
+  envSet,
+  isEmpty,
+} from "../utils/bytes.js";
 import {
   BreakError,
   ContinueError,
@@ -373,12 +381,12 @@ export async function executeUserScript(
 
   // Set positional parameters ($1, $2, etc.) from args
   // $0 should be the script path
-  ctx.state.env.set("0", scriptPath);
-  ctx.state.env.set("#", String(args.length));
-  ctx.state.env.set("@", args.join(" "));
-  ctx.state.env.set("*", args.join(" "));
+  envSet(ctx.state.env, "0", scriptPath);
+  envSet(ctx.state.env, "#", String(args.length));
+  envSet(ctx.state.env, "@", args.join(" "));
+  envSet(ctx.state.env, "*", args.join(" "));
   for (let i = 0; i < args.length && i < 9; i++) {
-    ctx.state.env.set(String(i + 1), args[i]);
+    envSet(ctx.state.env, String(i + 1), args[i]);
   }
   // Clear any remaining positional parameters
   for (let i = args.length + 1; i <= 9; i++) {

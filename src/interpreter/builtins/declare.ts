@@ -17,7 +17,7 @@
 import { parseArithmeticExpression } from "../../parser/arithmetic-parser.js";
 import { Parser } from "../../parser/parser.js";
 import type { ExecResult } from "../../types.js";
-import { EMPTY, encode } from "../../utils/bytes.js";
+import { decode, EMPTY, encode, envGet, envSet } from "../../utils/bytes.js";
 import { evaluateArithmetic } from "../arithmetic.js";
 import { clearArray, getArrayIndices } from "../helpers/array.js";
 import {
@@ -475,7 +475,7 @@ export async function handleDeclare(
         for (const [key, rawValue] of entries) {
           // Apply tilde expansion to the value
           const value = expandTildesInValue(ctx, rawValue);
-          ctx.state.env.set(`${name}_${key}`, value);
+          envSet(ctx.state.env, `${name}_${key}`, value);
         }
       } else if (declareAssoc) {
         // For associative arrays without [key]=value syntax,
@@ -488,7 +488,7 @@ export async function handleDeclare(
             i + 1 < elements.length
               ? expandTildesInValue(ctx, elements[i + 1])
               : "";
-          ctx.state.env.set(`${name}_${key}`, value);
+          envSet(ctx.state.env, `${name}_${key}`, value);
         }
       } else {
         // Parse as indexed array elements
@@ -521,22 +521,22 @@ export async function handleDeclare(
                   index = 0;
                 }
               }
-              ctx.state.env.set(`${name}_${index}`, value);
+              envSet(ctx.state.env, `${name}_${index}`, value);
               currentIndex = index + 1;
             } else {
               // Non-keyed element: use currentIndex and increment
               const value = expandTildesInValue(ctx, element);
-              ctx.state.env.set(`${name}_${currentIndex}`, value);
+              envSet(ctx.state.env, `${name}_${currentIndex}`, value);
               currentIndex++;
             }
           }
         } else {
           // Simple sequential assignment
           for (let i = 0; i < elements.length; i++) {
-            ctx.state.env.set(`${name}_${i}`, elements[i]);
+            envSet(ctx.state.env, `${name}_${i}`, elements[i]);
           }
           // Store array length marker
-          ctx.state.env.set(`${name}__length`, String(elements.length));
+          envSet(ctx.state.env, `${name}__length`, String(elements.length));
         }
       }
 
@@ -599,15 +599,15 @@ export async function handleDeclare(
       }
 
       // Set the array element
-      ctx.state.env.set(`${name}_${index}`, value);
+      envSet(ctx.state.env, `${name}_${index}`, value);
 
       // Update array length if needed
       const currentLength = parseInt(
-        ctx.state.env.get(`${name}__length`) ?? "0",
+        envGet(ctx.state.env, `${name}__length`, "0"),
         10,
       );
       if (index >= currentLength) {
-        ctx.state.env.set(`${name}__length`, String(index + 1));
+        envSet(ctx.state.env, `${name}__length`, String(index + 1));
       }
 
       // Mark as local if inside a function
@@ -646,7 +646,7 @@ export async function handleDeclare(
         const entries = parseAssocArrayLiteral(content);
         for (const [key, rawValue] of entries) {
           const value = expandTildesInValue(ctx, rawValue);
-          ctx.state.env.set(`${name}_${key}`, value);
+          envSet(ctx.state.env, `${name}_${key}`, value);
         }
       } else {
         // For indexed arrays, get current highest index and append
@@ -667,7 +667,8 @@ export async function handleDeclare(
 
         // Append new elements
         for (let i = 0; i < newElements.length; i++) {
-          ctx.state.env.set(
+          envSet(
+            ctx.state.env,
             `${name}_${startIndex + i}`,
             expandTildesInValue(ctx, newElements[i]),
           );
@@ -675,7 +676,7 @@ export async function handleDeclare(
 
         // Update length marker
         const newLength = startIndex + newElements.length;
-        ctx.state.env.set(`${name}__length`, String(newLength));
+        envSet(ctx.state.env, `${name}__length`, String(newLength));
       }
 
       // Mark as local if inside a function
@@ -725,25 +726,25 @@ export async function handleDeclare(
 
       // If variable has integer attribute, evaluate as arithmetic and add
       if (isInteger(ctx, name)) {
-        const existing = ctx.state.env.get(name) ?? "0";
+        const existing = envGet(ctx.state.env, name, "0");
         const existingNum = parseInt(existing, 10) || 0;
         const appendNum =
           parseInt(await evaluateIntegerValue(ctx, appendValue), 10) || 0;
         appendValue = String(existingNum + appendNum);
-        ctx.state.env.set(name, appendValue);
+        envSet(ctx.state.env, name, appendValue);
       } else if (isArray) {
         // For arrays, append to element 0 (bash behavior)
         appendValue = applyCaseTransform(ctx, name, appendValue);
         const element0Key = `${name}_0`;
-        const existing = ctx.state.env.get(element0Key) ?? "";
-        ctx.state.env.set(element0Key, existing + appendValue);
+        const existing = envGet(ctx.state.env, element0Key);
+        envSet(ctx.state.env, element0Key, existing + appendValue);
       } else {
         // Apply case transformation
         appendValue = applyCaseTransform(ctx, name, appendValue);
 
         // Append to existing value (or set if not defined)
         const existing = ctx.state.env.get(name) ?? "";
-        ctx.state.env.set(name, existing + appendValue);
+        envSet(ctx.state.env, name, existing + appendValue);
       }
 
       // Mark as local if inside a function
@@ -794,7 +795,7 @@ export async function handleDeclare(
           exitCode = 1;
           continue;
         }
-        ctx.state.env.set(name, value);
+        envSet(ctx.state.env, name, value);
         markNameref(ctx, name);
         // If the target variable exists at creation time, mark this nameref as "bound".
         // Bound namerefs always resolve through to their target, even if unset later.
@@ -839,12 +840,12 @@ export async function handleDeclare(
       if (isNameref(ctx, name)) {
         const resolved = resolveNameref(ctx, name);
         if (resolved && resolved !== name) {
-          ctx.state.env.set(resolved, value);
+          envSet(ctx.state.env, resolved, value);
         } else {
-          ctx.state.env.set(name, value);
+          envSet(ctx.state.env, name, value);
         }
       } else {
-        ctx.state.env.set(name, value);
+        envSet(ctx.state.env, name, value);
       }
 
       // Mark as local if inside a function
@@ -884,9 +885,8 @@ export async function handleDeclare(
         markNameref(ctx, name);
         // If the existing value is not a valid variable name, mark as invalid nameref.
         // Invalid namerefs act as regular variables (no resolution).
-        const existingValue = ctx.state.env.get(name);
+        const existingValue = envGet(ctx.state.env, name);
         if (
-          existingValue !== undefined &&
           existingValue !== "" &&
           !/^[a-zA-Z_][a-zA-Z0-9_]*(\[.+\])?$/.test(existingValue)
         ) {
@@ -942,7 +942,7 @@ export async function handleDeclare(
       if (!ctx.state.env.has(name) && !hasArrayElements) {
         // If declaring as array, initialize empty array
         if (declareArray || declareAssoc) {
-          ctx.state.env.set(`${name}__length`, "0");
+          envSet(ctx.state.env, `${name}__length`, "0");
         } else {
           // Mark variable as declared but don't set a value
           // This distinguishes "declare x" (unset) from "declare x=" (empty string)
@@ -1006,7 +1006,9 @@ export async function handleReadonly(
     for (const name of readonlyNames) {
       const value = ctx.state.env.get(name);
       if (value !== undefined) {
-        const escapedValue = value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+        const escapedValue = decode(value ?? EMPTY)
+          .replace(/\\/g, "\\\\")
+          .replace(/"/g, '\\"');
         stdout += `declare -r ${name}="${escapedValue}"\n`;
       }
     }
@@ -1035,7 +1037,7 @@ export async function handleReadonly(
         const entries = parseAssocArrayLiteral(content);
         for (const [key, rawValue] of entries) {
           const value = expandTildesInValue(ctx, rawValue);
-          ctx.state.env.set(`${name}_${key}`, value);
+          envSet(ctx.state.env, `${name}_${key}`, value);
         }
       } else {
         // For indexed arrays, get current highest index and append
@@ -1056,7 +1058,8 @@ export async function handleReadonly(
 
         // Append new elements
         for (let i = 0; i < newElements.length; i++) {
-          ctx.state.env.set(
+          envSet(
+            ctx.state.env,
             `${name}_${startIndex + i}`,
             expandTildesInValue(ctx, newElements[i]),
           );
@@ -1064,7 +1067,7 @@ export async function handleReadonly(
 
         // Update length marker
         const newLength = startIndex + newElements.length;
-        ctx.state.env.set(`${name}__length`, String(newLength));
+        envSet(ctx.state.env, `${name}__length`, String(newLength));
       }
 
       markReadonly(ctx, name);
@@ -1083,7 +1086,7 @@ export async function handleReadonly(
 
       // Append to existing value (or set if not defined)
       const existing = ctx.state.env.get(name) ?? "";
-      ctx.state.env.set(name, existing + appendValue);
+      envSet(ctx.state.env, name, existing + appendValue);
       markReadonly(ctx, name);
       continue;
     }

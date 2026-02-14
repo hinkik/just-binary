@@ -34,7 +34,15 @@ import type {
   FeatureCoverageWriter,
   TraceCallback,
 } from "../types.js";
-import { concat, EMPTY, encode } from "../utils/bytes.js";
+import {
+  concat,
+  decode,
+  decodeArgs,
+  EMPTY,
+  encode,
+  envGet,
+  envSet,
+} from "../utils/bytes.js";
 import { expandAlias as expandAliasHelper } from "./alias-expansion.js";
 import { evaluateArithmetic } from "./arithmetic.js";
 import {
@@ -174,9 +182,8 @@ export class Interpreter {
     // Use null-prototype to prevent prototype pollution via user-controlled variable names
     const env: Record<string, string> = Object.create(null);
     for (const name of allExported) {
-      const value = this.ctx.state.env.get(name);
-      if (value !== undefined) {
-        env[name] = value;
+      if (this.ctx.state.env.has(name)) {
+        env[name] = envGet(this.ctx.state.env, name);
       }
     }
     return env;
@@ -194,7 +201,7 @@ export class Interpreter {
         stderr = concat(stderr, result.stderr);
         exitCode = result.exitCode;
         this.ctx.state.lastExitCode = exitCode;
-        this.ctx.state.env.set("?", String(exitCode));
+        envSet(this.ctx.state.env, "?", String(exitCode));
       } catch (error) {
         // ExitError always propagates up to terminate the script
         // This allows 'eval exit 42' and 'source exit.sh' to exit properly
@@ -209,7 +216,7 @@ export class Interpreter {
           stderr = concat(stderr, error.stderr);
           exitCode = error.exitCode;
           this.ctx.state.lastExitCode = exitCode;
-          this.ctx.state.env.set("?", String(exitCode));
+          envSet(this.ctx.state.env, "?", String(exitCode));
           return {
             stdout,
             stderr,
@@ -226,7 +233,7 @@ export class Interpreter {
           stderr = concat(stderr, error.stderr);
           exitCode = error.exitCode;
           this.ctx.state.lastExitCode = exitCode;
-          this.ctx.state.env.set("?", String(exitCode));
+          envSet(this.ctx.state.env, "?", String(exitCode));
           return {
             stdout,
             stderr,
@@ -239,7 +246,7 @@ export class Interpreter {
           stderr = concat(stderr, error.stderr);
           exitCode = 1;
           this.ctx.state.lastExitCode = exitCode;
-          this.ctx.state.env.set("?", String(exitCode));
+          envSet(this.ctx.state.env, "?", String(exitCode));
           return {
             stdout,
             stderr,
@@ -252,7 +259,7 @@ export class Interpreter {
           stderr = concat(stderr, error.stderr);
           exitCode = 1;
           this.ctx.state.lastExitCode = exitCode;
-          this.ctx.state.env.set("?", String(exitCode));
+          envSet(this.ctx.state.env, "?", String(exitCode));
           return {
             stdout,
             stderr,
@@ -267,7 +274,7 @@ export class Interpreter {
           stderr = concat(stderr, error.stderr);
           exitCode = 1;
           this.ctx.state.lastExitCode = exitCode;
-          this.ctx.state.env.set("?", String(exitCode));
+          envSet(this.ctx.state.env, "?", String(exitCode));
           // Continue to next statement instead of terminating script
           continue;
         }
@@ -278,7 +285,7 @@ export class Interpreter {
           stderr = concat(stderr, error.stderr);
           exitCode = 1;
           this.ctx.state.lastExitCode = exitCode;
-          this.ctx.state.env.set("?", String(exitCode));
+          envSet(this.ctx.state.env, "?", String(exitCode));
           // Continue to next statement instead of terminating script
           continue;
         }
@@ -316,11 +323,15 @@ export class Interpreter {
    */
   private async executeUserScript(
     scriptPath: string,
-    args: string[],
+    args: Uint8Array[],
     stdin: Uint8Array = EMPTY,
   ): Promise<ExecResult> {
-    return executeUserScriptHelper(this.ctx, scriptPath, args, stdin, (ast) =>
-      this.executeScript(ast),
+    return executeUserScriptHelper(
+      this.ctx,
+      scriptPath,
+      decodeArgs(args),
+      stdin,
+      (ast) => this.executeScript(ast),
     );
   }
 
@@ -382,7 +393,7 @@ export class Interpreter {
 
       // Update $? after each pipeline so it's available for subsequent commands
       this.ctx.state.lastExitCode = exitCode;
-      this.ctx.state.env.set("?", String(exitCode));
+      envSet(this.ctx.state.env, "?", String(exitCode));
     }
 
     // Track whether this exit code is "safe" for errexit purposes
@@ -542,7 +553,7 @@ export class Interpreter {
       // Assignment-only command: preserve the exit code from command substitution
       // e.g., x=$(false) should set $? to 1, not 0
       // Also clear $_ - bash clears it for bare assignments
-      this.ctx.state.lastArg = "";
+      this.ctx.state.lastArg = encode("");
       // Include any stderr from command substitutions (e.g., FOO=$(echo foo 1>&2))
       const stderrOutput =
         (this.ctx.state.expansionStderr || "") + xtraceAssignmentOutput;
@@ -769,7 +780,7 @@ export class Interpreter {
           quotedArgs.shift();
           return await this.runCommand(
             newCommandName,
-            args,
+            args.map((a) => encode(a)),
             quotedArgs,
             stdin,
             false,
@@ -980,7 +991,7 @@ export class Interpreter {
     try {
       cmdResult = await this.runCommand(
         commandName,
-        args,
+        args.map((a) => encode(a)),
         quotedArgs,
         stdin,
         false,
@@ -1032,9 +1043,9 @@ export class Interpreter {
           lastArg = match[1];
         }
       }
-      this.ctx.state.lastArg = lastArg;
+      this.ctx.state.lastArg = encode(lastArg);
     } else {
-      this.ctx.state.lastArg = commandName;
+      this.ctx.state.lastArg = encode(commandName);
     }
 
     // In POSIX mode, prefix assignments persist after special builtins
@@ -1091,7 +1102,7 @@ export class Interpreter {
 
   private async runCommand(
     commandName: string,
-    args: string[],
+    args: Uint8Array[],
     quotedArgs: boolean[],
     stdin: Uint8Array,
     skipFunctions = false,

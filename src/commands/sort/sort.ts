@@ -1,5 +1,5 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decode, EMPTY, encode } from "../../utils/bytes.js";
+import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 import { readAndConcat } from "../../utils/file-reader.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 import { createComparator, filterUnique } from "./comparator.js";
@@ -42,8 +42,9 @@ Examples:
 
 export const sortCommand: Command = {
   name: "sort",
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
-    if (hasHelpFlag(args)) {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) {
       return showHelp(sortHelp);
     }
 
@@ -66,8 +67,8 @@ export const sortCommand: Command = {
     const files: string[] = [];
 
     // Parse arguments
-    for (let i = 0; i < args.length; i++) {
-      const arg = args[i];
+    for (let i = 0; i < a.length; i++) {
+      const arg = a[i];
       if (arg === "-r" || arg === "--reverse") {
         options.reverse = true;
       } else if (arg === "-n" || arg === "--numeric-sort") {
@@ -91,19 +92,19 @@ export const sortCommand: Command = {
       } else if (arg === "-c" || arg === "--check") {
         options.checkOnly = true;
       } else if (arg === "-o" || arg === "--output") {
-        options.outputFile = args[++i] || null;
+        options.outputFile = a[++i] || null;
       } else if (arg.startsWith("-o")) {
         options.outputFile = arg.slice(2) || null;
       } else if (arg.startsWith("--output=")) {
         options.outputFile = arg.slice(9) || null;
       } else if (arg === "-t" || arg === "--field-separator") {
-        options.fieldDelimiter = args[++i] || null;
+        options.fieldDelimiter = a[++i] || null;
       } else if (arg.startsWith("-t")) {
         options.fieldDelimiter = arg.slice(2) || null;
       } else if (arg.startsWith("--field-separator=")) {
         options.fieldDelimiter = arg.slice(18) || null;
       } else if (arg === "-k" || arg === "--key") {
-        const keyArg = args[++i];
+        const keyArg = a[++i];
         if (keyArg) {
           const keySpec = parseKeySpec(keyArg);
           if (keySpec) {

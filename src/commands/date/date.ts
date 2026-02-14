@@ -3,7 +3,7 @@
  */
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
 const dateHelp = {
@@ -169,8 +169,9 @@ function parseDate(s: string): Date | null {
 
 export const dateCommand: Command = {
   name: "date",
-  async execute(args: string[], _ctx: CommandContext): Promise<ExecResult> {
-    if (hasHelpFlag(args)) return showHelp(dateHelp);
+  async execute(args: Uint8Array[], _ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) return showHelp(dateHelp);
 
     let utc = false,
       dateStr: string | null = null,
@@ -178,17 +179,17 @@ export const dateCommand: Command = {
       iso = false,
       rfc = false;
 
-    for (let i = 0; i < args.length; i++) {
-      const a = args[i];
-      if (a === "-u" || a === "--utc") utc = true;
-      else if (a === "-d" || a === "--date") dateStr = args[++i] ?? "";
-      else if (a.startsWith("--date=")) dateStr = a.slice(7);
-      else if (a === "-I" || a === "--iso-8601") iso = true;
-      else if (a === "-R" || a === "--rfc-email") rfc = true;
-      else if (a.startsWith("+")) fmt = a.slice(1);
-      else if (a.startsWith("--")) return unknownOption("date", a);
-      else if (a.startsWith("-")) {
-        for (const c of a.slice(1)) {
+    for (let i = 0; i < a.length; i++) {
+      const arg = a[i];
+      if (arg === "-u" || arg === "--utc") utc = true;
+      else if (arg === "-d" || arg === "--date") dateStr = a[++i] ?? "";
+      else if (arg.startsWith("--date=")) dateStr = arg.slice(7);
+      else if (arg === "-I" || arg === "--iso-8601") iso = true;
+      else if (arg === "-R" || arg === "--rfc-email") rfc = true;
+      else if (arg.startsWith("+")) fmt = arg.slice(1);
+      else if (arg.startsWith("--")) return unknownOption("date", arg);
+      else if (arg.startsWith("-")) {
+        for (const c of arg.slice(1)) {
           if (c === "u") utc = true;
           else if (c === "I") iso = true;
           else if (c === "R") rfc = true;

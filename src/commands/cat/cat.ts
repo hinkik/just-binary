@@ -1,6 +1,6 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
-import { concat, decode, encode } from "../../utils/bytes.js";
+import { concat, decode, decodeArgs, encode } from "../../utils/bytes.js";
 import { readFiles } from "../../utils/file-reader.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
@@ -21,12 +21,13 @@ const argDefs = {
 export const catCommand: Command = {
   name: "cat",
 
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
-    if (hasHelpFlag(args)) {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) {
       return showHelp(catHelp);
     }
 
-    const parsed = parseArgs("cat", args, argDefs);
+    const parsed = parseArgs("cat", a, argDefs);
     if (!parsed.ok) return parsed.error;
 
     const showLineNumbers = parsed.result.flags.number;

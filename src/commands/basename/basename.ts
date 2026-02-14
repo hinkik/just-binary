@@ -1,5 +1,5 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const basenameHelp = {
@@ -16,8 +16,9 @@ const basenameHelp = {
 export const basenameCommand: Command = {
   name: "basename",
 
-  async execute(args: string[], _ctx: CommandContext): Promise<ExecResult> {
-    if (hasHelpFlag(args)) {
+  async execute(args: Uint8Array[], _ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) {
       return showHelp(basenameHelp);
     }
 
@@ -25,12 +26,12 @@ export const basenameCommand: Command = {
     let suffix = "";
     const names: string[] = [];
 
-    for (let i = 0; i < args.length; i++) {
-      const arg = args[i];
+    for (let i = 0; i < a.length; i++) {
+      const arg = a[i];
       if (arg === "-a" || arg === "--multiple") {
         multiple = true;
-      } else if (arg === "-s" && i + 1 < args.length) {
-        suffix = args[++i];
+      } else if (arg === "-s" && i + 1 < a.length) {
+        suffix = a[++i];
         multiple = true;
       } else if (arg.startsWith("--suffix=")) {
         suffix = arg.slice(9);

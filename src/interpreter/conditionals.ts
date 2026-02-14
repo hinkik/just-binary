@@ -15,7 +15,7 @@ import { parseArithmeticExpression } from "../parser/arithmetic-parser.js";
 import { Parser } from "../parser/parser.js";
 import { createUserRegex } from "../regex/index.js";
 import type { ExecResult } from "../types.js";
-import { EMPTY } from "../utils/bytes.js";
+import { decode, EMPTY, encode, envGet, envSet } from "../utils/bytes.js";
 import { evaluateArithmetic } from "./arithmetic.js";
 import {
   escapeRegexChars,
@@ -123,7 +123,7 @@ export async function evaluateConditional(
             if (match) {
               // Store full match at index 0, capture groups at indices 1, 2, ...
               for (let i = 0; i < match.length; i++) {
-                ctx.state.env.set(`BASH_REMATCH_${i}`, match[i] || "");
+                envSet(ctx.state.env, `BASH_REMATCH_${i}`, match[i] || "");
               }
             }
             return match !== null;

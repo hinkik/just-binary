@@ -7,6 +7,7 @@
  */
 
 import type { ExecResult } from "../../types.js";
+import { decode, encode, envGet, envSet } from "../../utils/bytes.js";
 import { failure, OK, successText } from "../helpers/result.js";
 import type { InterpreterContext } from "../types.js";
 
@@ -105,7 +106,7 @@ export async function handlePushd(
   } else if (targetDir === ".") {
     resolvedDir = ctx.state.cwd;
   } else if (targetDir.startsWith("~")) {
-    const home = ctx.state.env.get("HOME") || "/";
+    const home = envGet(ctx.state.env, "HOME", "/");
     resolvedDir = home + targetDir.slice(1);
   } else {
     resolvedDir = `${ctx.state.cwd}/${targetDir}`;
@@ -130,11 +131,11 @@ export async function handlePushd(
   // Change to new directory
   ctx.state.previousDir = ctx.state.cwd;
   ctx.state.cwd = resolvedDir;
-  ctx.state.env.set("PWD", resolvedDir);
-  ctx.state.env.set("OLDPWD", ctx.state.previousDir);
+  envSet(ctx.state.env, "PWD", resolvedDir);
+  envSet(ctx.state.env, "OLDPWD", ctx.state.previousDir);
 
   // Output the stack (pushd DOES do tilde substitution)
-  const home = ctx.state.env.get("HOME") || "";
+  const home = envGet(ctx.state.env, "HOME", "");
   const output = `${[resolvedDir, ...stack].map((p) => formatPath(p, home)).join(" ")}\n`;
 
   return successText(output);
@@ -174,11 +175,11 @@ export function handlePopd(
   // Change to the popped directory
   ctx.state.previousDir = ctx.state.cwd;
   ctx.state.cwd = newDir;
-  ctx.state.env.set("PWD", newDir);
-  ctx.state.env.set("OLDPWD", ctx.state.previousDir);
+  envSet(ctx.state.env, "PWD", newDir);
+  envSet(ctx.state.env, "OLDPWD", ctx.state.previousDir);
 
   // Output the stack (popd DOES do tilde substitution)
-  const home = ctx.state.env.get("HOME") || "";
+  const home = envGet(ctx.state.env, "HOME", "");
   const output = `${[newDir, ...stack].map((p) => formatPath(p, home)).join(" ")}\n`;
 
   return successText(output);
@@ -234,7 +235,7 @@ export function handleDirs(
 
   // Build the stack display (current dir + stack)
   const fullStack = [ctx.state.cwd, ...stack];
-  const home = ctx.state.env.get("HOME") || "";
+  const home = envGet(ctx.state.env, "HOME", "");
 
   let output: string;
   if (withNumbers) {

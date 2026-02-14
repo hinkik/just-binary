@@ -1,6 +1,6 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
-import { EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs, EMPTY, encode, envGet } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const whichHelp = {
@@ -22,12 +22,13 @@ const argDefs = {
 export const whichCommand: Command = {
   name: "which",
 
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
-    if (hasHelpFlag(args)) {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) {
       return showHelp(whichHelp);
     }
 
-    const parsed = parseArgs("which", args, argDefs);
+    const parsed = parseArgs("which", a, argDefs);
     if (!parsed.ok) return parsed.error;
 
     const showAll = parsed.result.flags.showAll;
@@ -38,7 +39,7 @@ export const whichCommand: Command = {
       return { stdout: EMPTY, stderr: EMPTY, exitCode: 1 };
     }
 
-    const pathEnv = ctx.env.get("PATH") || "/usr/bin:/bin";
+    const pathEnv = envGet(ctx.env, "PATH", "/usr/bin:/bin");
     const pathDirs = pathEnv.split(":");
 
     let stdout = "";

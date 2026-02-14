@@ -1,5 +1,5 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 
 // Command categories for organized display
 const CATEGORIES = new Map<string, string[]>([
@@ -86,9 +86,10 @@ function formatHelp(commands: string[]): string {
 
 export const helpCommand: Command = {
   name: "help",
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
     // Handle --help
-    if (args.includes("--help") || args.includes("-h")) {
+    if (a.includes("--help") || a.includes("-h")) {
       return {
         stdout: encode(`help - display available commands
 
@@ -106,8 +107,8 @@ Otherwise, lists all available commands.
     }
 
     // If a command name is provided, delegate to that command's --help
-    if (args.length > 0 && ctx.exec) {
-      const cmdName = args[0];
+    if (a.length > 0 && ctx.exec) {
+      const cmdName = a[0];
       return ctx.exec(`${cmdName} --help`, { cwd: ctx.cwd });
     }
 

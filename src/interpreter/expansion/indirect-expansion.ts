@@ -19,6 +19,7 @@ import type {
   WordNode,
   WordPart,
 } from "../../ast/types.js";
+import { decode, encode, envGet, envSet } from "../../utils/bytes.js";
 import { evaluateArithmetic } from "../arithmetic.js";
 import { ArithmeticError } from "../errors.js";
 import { getIfsSeparator } from "../helpers/ifs.js";
@@ -96,10 +97,10 @@ export async function handleIndirectArrayExpansion(
     // Handle ${!ref} where ref='@' or ref='*' (no array)
     if (!indirOp.innerOp) {
       if (refValue === "@" || refValue === "*") {
-        const numParams = Number.parseInt(ctx.state.env.get("#") || "0", 10);
+        const numParams = Number.parseInt(envGet(ctx.state.env, "#", "0"), 10);
         const params: string[] = [];
         for (let i = 1; i <= numParams; i++) {
-          params.push(ctx.state.env.get(String(i)) || "");
+          params.push(envGet(ctx.state.env, String(i)) || "");
         }
         if (refValue === "*") {
           // ref='*' - join with IFS into one word (like "$*")
@@ -175,7 +176,7 @@ export async function handleIndirectArrayExpansion(
       };
       // Temporarily set the element value
       const oldVal = ctx.state.env.get("_indirect_elem_");
-      ctx.state.env.set("_indirect_elem_", elemValue);
+      envSet(ctx.state.env, "_indirect_elem_", elemValue);
       try {
         const result = await expandParameterAsync(ctx, syntheticPart, true);
         values.push(result);
@@ -211,9 +212,8 @@ export async function handleIndirectArrayExpansion(
   }
 
   // No array elements - check for scalar variable
-  const scalarValue = ctx.state.env.get(arrayName);
-  if (scalarValue !== undefined) {
-    return { values: [scalarValue], quoted: true };
+  if (ctx.state.env.has(arrayName)) {
+    return { values: [envGet(ctx.state.env, arrayName)], quoted: true };
   }
 
   // Variable is unset - return empty
@@ -341,8 +341,8 @@ async function handleIndirectArrayDefaultAlternative(
         true,
       );
       // Assign to the target array
-      ctx.state.env.set(`${arrayName}_0`, assignValue);
-      ctx.state.env.set(`${arrayName}__length`, "1");
+      envSet(ctx.state.env, `${arrayName}_0`, assignValue);
+      envSet(ctx.state.env, `${arrayName}__length`, "1");
       return { values: [assignValue], quoted: true };
     }
     if (isStar) {
@@ -446,9 +446,8 @@ export async function handleIndirectInAlternative(
       return { values, quoted: true };
     }
     // No array elements - check for scalar variable
-    const scalarValue = ctx.state.env.get(arrayName);
-    if (scalarValue !== undefined) {
-      return { values: [scalarValue], quoted: true };
+    if (ctx.state.env.has(arrayName)) {
+      return { values: [envGet(ctx.state.env, arrayName)], quoted: true };
     }
     // Variable is unset - return empty
     return { values: [], quoted: true };
@@ -554,9 +553,8 @@ export async function handleIndirectionWithInnerAlternative(
       return { values, quoted: true };
     }
     // No array elements - check for scalar variable
-    const scalarValue = ctx.state.env.get(arrayName);
-    if (scalarValue !== undefined) {
-      return { values: [scalarValue], quoted: true };
+    if (ctx.state.env.has(arrayName)) {
+      return { values: [envGet(ctx.state.env, arrayName)], quoted: true };
     }
     // Variable is unset - return empty
     return { values: [], quoted: true };

@@ -1,17 +1,28 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { EMPTY, encode, encodeMixed } from "../../utils/bytes.js";
+import { concat, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+
+const te = new TextEncoder();
+
+/** Push bytes from a Uint8Array into a number array */
+function pushBytes(arr: number[], bytes: Uint8Array): void {
+  for (let k = 0; k < bytes.length; k++) {
+    arr.push(bytes[k]);
+  }
+}
 
 /**
- * Process echo -e escape sequences
+ * Process echo -e escape sequences, producing Uint8Array output directly.
+ * \xHH and \0NNN push raw bytes; \uHHHH/\UHHHHHHHH push UTF-8 encoded bytes;
+ * regular characters are UTF-8 encoded.
  */
-function processEscapes(input: string): { output: string; stop: boolean } {
-  let result = "";
+function processEscapes(input: string): { output: Uint8Array; stop: boolean } {
+  const bytes: number[] = [];
   let i = 0;
 
   while (i < input.length) {
     if (input[i] === "\\") {
       if (i + 1 >= input.length) {
-        result += "\\";
+        bytes.push(0x5c); // backslash
         break;
       }
 
@@ -19,45 +30,45 @@ function processEscapes(input: string): { output: string; stop: boolean } {
 
       switch (next) {
         case "\\":
-          result += "\\";
+          bytes.push(0x5c);
           i += 2;
           break;
         case "n":
-          result += "\n";
+          bytes.push(0x0a);
           i += 2;
           break;
         case "t":
-          result += "\t";
+          bytes.push(0x09);
           i += 2;
           break;
         case "r":
-          result += "\r";
+          bytes.push(0x0d);
           i += 2;
           break;
         case "a":
-          result += "\x07";
+          bytes.push(0x07);
           i += 2;
           break;
         case "b":
-          result += "\b";
+          bytes.push(0x08);
           i += 2;
           break;
         case "f":
-          result += "\f";
+          bytes.push(0x0c);
           i += 2;
           break;
         case "v":
-          result += "\v";
+          bytes.push(0x0b);
           i += 2;
           break;
         case "e":
         case "E":
-          result += "\x1b";
+          bytes.push(0x1b);
           i += 2;
           break;
         case "c":
           // \c stops output and suppresses trailing newline
-          return { output: result, stop: true };
+          return { output: new Uint8Array(bytes), stop: true };
         case "0": {
           // \0NNN - octal (up to 3 digits after the 0)
           let octal = "";
@@ -68,16 +79,15 @@ function processEscapes(input: string): { output: string; stop: boolean } {
           }
           if (octal.length === 0) {
             // \0 alone is NUL
-            result += "\0";
+            bytes.push(0x00);
           } else {
-            const code = parseInt(octal, 8) % 256;
-            result += String.fromCharCode(code);
+            bytes.push(parseInt(octal, 8) % 256);
           }
           i = j;
           break;
         }
         case "x": {
-          // \xHH - hex (1-2 hex digits)
+          // \xHH - hex (1-2 hex digits) - push raw byte
           let hex = "";
           let j = i + 2;
           while (
@@ -90,17 +100,16 @@ function processEscapes(input: string): { output: string; stop: boolean } {
           }
           if (hex.length === 0) {
             // \x with no valid hex digits - output literally
-            result += "\\x";
+            bytes.push(0x5c, 0x78); // \x
             i += 2;
           } else {
-            const code = parseInt(hex, 16);
-            result += String.fromCharCode(code);
+            bytes.push(parseInt(hex, 16));
             i = j;
           }
           break;
         }
         case "u": {
-          // \uHHHH - 4-digit unicode
+          // \uHHHH - 4-digit unicode -> UTF-8 encoded
           let hex = "";
           let j = i + 2;
           while (
@@ -112,17 +121,17 @@ function processEscapes(input: string): { output: string; stop: boolean } {
             j++;
           }
           if (hex.length === 0) {
-            result += "\\u";
+            pushBytes(bytes, te.encode("\\u"));
             i += 2;
           } else {
             const code = parseInt(hex, 16);
-            result += String.fromCodePoint(code);
+            pushBytes(bytes, te.encode(String.fromCodePoint(code)));
             i = j;
           }
           break;
         }
         case "U": {
-          // \UHHHHHHHH - 8-digit unicode
+          // \UHHHHHHHH - 8-digit unicode -> UTF-8 encoded
           let hex = "";
           let j = i + 2;
           while (
@@ -134,15 +143,15 @@ function processEscapes(input: string): { output: string; stop: boolean } {
             j++;
           }
           if (hex.length === 0) {
-            result += "\\U";
+            pushBytes(bytes, te.encode("\\U"));
             i += 2;
           } else {
             const code = parseInt(hex, 16);
             try {
-              result += String.fromCodePoint(code);
+              pushBytes(bytes, te.encode(String.fromCodePoint(code)));
             } catch {
               // Invalid code point, output as-is
-              result += `\\U${hex}`;
+              pushBytes(bytes, te.encode(`\\U${hex}`));
             }
             i = j;
           }
@@ -150,30 +159,44 @@ function processEscapes(input: string): { output: string; stop: boolean } {
         }
         default:
           // Unknown escape - keep the backslash and character
-          result += `\\${next}`;
+          pushBytes(bytes, te.encode(`\\${next}`));
           i += 2;
       }
     } else {
-      result += input[i];
-      i++;
+      // Regular character - UTF-8 encode
+      // Fast path for ASCII
+      const code = input.charCodeAt(i);
+      if (code < 0x80) {
+        bytes.push(code);
+        i++;
+      } else {
+        // Handle multi-byte characters (including surrogate pairs)
+        const char =
+          code >= 0xd800 && code <= 0xdbff && i + 1 < input.length
+            ? input.slice(i, i + 2)
+            : input[i];
+        pushBytes(bytes, te.encode(char));
+        i += char.length;
+      }
     }
   }
 
-  return { output: result, stop: false };
+  return { output: new Uint8Array(bytes), stop: false };
 }
 
 export const echoCommand: Command = {
   name: "echo",
 
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
     let noNewline = false;
     // When xpg_echo is enabled, interpret escapes by default (like echo -e)
     let interpretEscapes = ctx.xpgEcho ?? false;
     let startIndex = 0;
 
     // Parse flags
-    while (startIndex < args.length) {
-      const arg = args[startIndex];
+    while (startIndex < a.length) {
+      const arg = a[startIndex];
       if (arg === "-n") {
         noNewline = true;
         startIndex++;
@@ -192,32 +215,29 @@ export const echoCommand: Command = {
       }
     }
 
-    let output = args.slice(startIndex).join(" ");
+    const outputStr = a.slice(startIndex).join(" ");
 
     if (interpretEscapes) {
-      const result = processEscapes(output);
-      output = result.output;
+      const result = processEscapes(outputStr);
       if (result.stop) {
         // \c encountered - suppress newline and stop
-        // Use mixed encoding to handle both raw bytes and Unicode
         return {
-          stdout: encodeMixed(output),
+          stdout: result.output,
           stderr: EMPTY,
           exitCode: 0,
         };
       }
-    }
-
-    if (!noNewline) {
-      output += "\n";
+      return {
+        stdout: noNewline
+          ? result.output
+          : concat(result.output, new Uint8Array([0x0a])),
+        stderr: EMPTY,
+        exitCode: 0,
+      };
     }
 
     return {
-      // When escapes are interpreted, the output may contain a mix of
-      // raw byte values (0x80-0xFF from \xHH / \0NNN) and true Unicode
-      // characters (from \u / \U). Use encodeMixed to handle both correctly.
-      // When escapes are NOT interpreted, use normal UTF-8 encoding.
-      stdout: interpretEscapes ? encodeMixed(output) : encode(output),
+      stdout: encode(noNewline ? outputStr : `${outputStr}\n`),
       stderr: EMPTY,
       exitCode: 0,
     };

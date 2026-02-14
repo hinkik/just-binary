@@ -5,7 +5,7 @@
 import { parseArithmeticExpression } from "../../parser/arithmetic-parser.js";
 import { Parser } from "../../parser/parser.js";
 import type { ExecResult } from "../../types.js";
-import { EMPTY, encode } from "../../utils/bytes.js";
+import { decode, EMPTY, encode, envGet, envSet } from "../../utils/bytes.js";
 import { evaluateArithmetic } from "../arithmetic.js";
 import { getArrayIndices } from "../helpers/array.js";
 import { markNameref } from "../helpers/nameref.js";
@@ -117,9 +117,9 @@ export async function handleLocal(
       // Parse array elements (respects quotes)
       const elements = parseArrayElements(content);
       for (let i = 0; i < elements.length; i++) {
-        ctx.state.env.set(`${name}_${i}`, elements[i]);
+        envSet(ctx.state.env, `${name}_${i}`, elements[i]);
       }
-      ctx.state.env.set(`${name}__length`, String(elements.length));
+      envSet(ctx.state.env, `${name}__length`, String(elements.length));
 
       // Track local variable depth for bash-specific unset scoping
       markLocalVarDepth(ctx, name);
@@ -181,7 +181,8 @@ export async function handleLocal(
 
       // Append new elements
       for (let i = 0; i < newElements.length; i++) {
-        ctx.state.env.set(
+        envSet(
+          ctx.state.env,
           `${name}_${startIndex + i}`,
           expandTildesInValue(ctx, newElements[i]),
         );
@@ -189,7 +190,7 @@ export async function handleLocal(
 
       // Update length marker
       const newLength = startIndex + newElements.length;
-      ctx.state.env.set(`${name}__length`, String(newLength));
+      envSet(ctx.state.env, `${name}__length`, String(newLength));
 
       // Track local variable depth for bash-specific unset scoping
       markLocalVarDepth(ctx, name);
@@ -217,7 +218,7 @@ export async function handleLocal(
 
       // Append to existing value (or set if not defined)
       const existing = ctx.state.env.get(name) ?? "";
-      ctx.state.env.set(name, existing + appendValue);
+      envSet(ctx.state.env, name, existing + appendValue);
 
       // Track local variable depth for bash-specific unset scoping
       markLocalVarDepth(ctx, name);
@@ -272,15 +273,15 @@ export async function handleLocal(
       }
 
       // Set the array element
-      ctx.state.env.set(`${name}_${index}`, indexValue);
+      envSet(ctx.state.env, `${name}_${index}`, indexValue);
 
       // Update array length if needed
       const currentLength = parseInt(
-        ctx.state.env.get(`${name}__length`) ?? "0",
+        envGet(ctx.state.env, `${name}__length`, "0"),
         10,
       );
       if (index >= currentLength) {
-        ctx.state.env.set(`${name}__length`, String(index + 1));
+        envSet(ctx.state.env, `${name}__length`, String(index + 1));
       }
 
       // Track local variable depth for bash-specific unset scoping
@@ -321,7 +322,7 @@ export async function handleLocal(
     // - If NOT accessed at all: save the underlying value (for dynamic-unset to reveal)
     //   but local-unset will still just delete (value-unset)
     if (value !== undefined) {
-      let savedValue: string | undefined = ctx.state.env.get(name);
+      let savedValue: Uint8Array | undefined = ctx.state.env.get(name);
       // Check if there's a tempenv binding
       if (ctx.state.tempEnvBindings) {
         const tempEnvAccessed = ctx.state.accessedTempEnvVars?.has(name);
@@ -345,7 +346,7 @@ export async function handleLocal(
       // For bash 5.1 behavior: when saving the outer value for a local variable,
       // if there's a tempenv binding, save the underlying (global) value, not the tempenv value.
       // This way, dynamic-unset will correctly reveal the global value.
-      let savedValue: string | undefined = ctx.state.env.get(name);
+      let savedValue: Uint8Array | undefined = ctx.state.env.get(name);
       if (ctx.state.tempEnvBindings) {
         for (let i = ctx.state.tempEnvBindings.length - 1; i >= 0; i--) {
           const bindings = ctx.state.tempEnvBindings[i];
@@ -384,7 +385,7 @@ export async function handleLocal(
         }
       }
       // Mark as empty array
-      ctx.state.env.set(`${name}__length`, "0");
+      envSet(ctx.state.env, `${name}__length`, "0");
     } else if (value !== undefined) {
       // Check if variable is readonly
       checkReadonlyError(ctx, name, "bash");
@@ -399,7 +400,7 @@ export async function handleLocal(
         exitCode = 1;
         continue;
       }
-      ctx.state.env.set(name, value);
+      envSet(ctx.state.env, name, value);
       // If allexport is enabled (set -a), auto-export the variable
       if (ctx.state.options.allexport) {
         ctx.state.exportedVars = ctx.state.exportedVars || new Set();

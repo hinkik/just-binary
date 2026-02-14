@@ -310,6 +310,7 @@ export interface WordNode extends ASTNode {
 /** Parts that can make up a word */
 export type WordPart =
   | LiteralPart
+  | BytesPart
   | SingleQuotedPart
   | DoubleQuotedPart
   | EscapedPart
@@ -325,6 +326,12 @@ export type WordPart =
 export interface LiteralPart extends ASTNode {
   type: "Literal";
   value: string;
+}
+
+/** Raw bytes (from $'...' ANSI-C quoting with \xHH, \0NNN escapes) */
+export interface BytesPart extends ASTNode {
+  type: "Bytes";
+  value: Uint8Array;
 }
 
 /** Single-quoted string: 'literal' */
@@ -943,6 +950,10 @@ export const AST = {
 
   literal(value: string): LiteralPart {
     return { type: "Literal", value };
+  },
+
+  bytes(value: Uint8Array): BytesPart {
+    return { type: "Bytes", value };
   },
 
   singleQuoted(value: string): SingleQuotedPart {

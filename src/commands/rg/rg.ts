@@ -10,7 +10,7 @@
  */
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 import { formatTypeList } from "./file-types.js";
 import { parseArgs } from "./rg-parser.js";
@@ -87,12 +87,13 @@ EXAMPLES:
 export const rgCommand: Command = {
   name: "rg",
 
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
-    if (hasHelpFlag(args)) {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) {
       return showHelp(rgHelp);
     }
 
-    if (args.includes("--type-list")) {
+    if (a.includes("--type-list")) {
       return {
         stdout: encode(formatTypeList()),
         stderr: EMPTY,
@@ -100,7 +101,7 @@ export const rgCommand: Command = {
       };
     }
 
-    const parseResult = parseArgs(args);
+    const parseResult = parseArgs(a);
     if (!parseResult.success) {
       return parseResult.error;
     }

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { toText } from "../../test-utils.js";
+import { EMPTY } from "../../utils/bytes.js";
 import type { InterpreterContext, InterpreterState } from "../types.js";
 import { handleComplete } from "./complete.js";
 import { handleCompopt } from "./compopt.js";
@@ -16,7 +17,7 @@ function createMockCtx(): InterpreterContext {
     sourceDepth: 0,
     commandCount: 0,
     lastExitCode: 0,
-    lastArg: "",
+    lastArg: EMPTY,
     startTime: Date.now(),
     lastBackgroundPid: 0,
     bashPid: 1,

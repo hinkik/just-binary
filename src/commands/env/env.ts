@@ -1,5 +1,12 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { EMPTY, encode } from "../../utils/bytes.js";
+import {
+  decode,
+  decodeArgs,
+  EMPTY,
+  encode,
+  envGet,
+  envSet,
+} from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
 const envHelp = {
@@ -16,8 +23,9 @@ const envHelp = {
 export const envCommand: Command = {
   name: "env",
 
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
-    if (hasHelpFlag(args)) {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) {
       return showHelp(envHelp);
     }
 
@@ -27,13 +35,13 @@ export const envCommand: Command = {
     let commandStart = -1;
 
     // Parse arguments
-    for (let i = 0; i < args.length; i++) {
-      const arg = args[i];
+    for (let i = 0; i < a.length; i++) {
+      const arg = a[i];
 
       if (arg === "-i" || arg === "--ignore-environment") {
         ignoreEnv = true;
-      } else if (arg === "-u" && i + 1 < args.length) {
-        unsetVars.push(args[++i]);
+      } else if (arg === "-u" && i + 1 < a.length) {
+        unsetVars.push(a[++i]);
       } else if (arg.startsWith("-u")) {
         unsetVars.push(arg.slice(2));
       } else if (arg.startsWith("--unset=")) {
@@ -62,25 +70,30 @@ export const envCommand: Command = {
     }
 
     // Build the new environment
-    let newEnv: Map<string, string>;
+    // ctx.env is Map<string, Uint8Array>, but we work with strings for env command
+    let newEnvLines: [string, string][];
     if (ignoreEnv) {
-      newEnv = new Map(setVars);
+      newEnvLines = [...setVars.entries()];
     } else {
-      newEnv = new Map(ctx.env);
-      // Unset variables
-      for (const name of unsetVars) {
-        newEnv.delete(name);
+      // Decode all env values to strings
+      const decoded: [string, string][] = [];
+      for (const [key, val] of ctx.env) {
+        decoded.push([key, decode(val)]);
       }
-      // Set new variables
+      // Apply unsets
+      const filtered = decoded.filter(([k]) => !unsetVars.includes(k));
+      // Build map for overrides
+      const envMap = new Map(filtered);
       for (const [name, value] of setVars) {
-        newEnv.set(name, value);
+        envMap.set(name, value);
       }
+      newEnvLines = [...envMap.entries()];
     }
 
     // If no command, just print environment
     if (commandStart === -1) {
       const lines: string[] = [];
-      for (const [key, value] of newEnv) {
+      for (const [key, value] of newEnvLines) {
         lines.push(`${key}=${value}`);
       }
       return {
@@ -104,7 +117,7 @@ export const envCommand: Command = {
     // Build command line
     // Use 'command' prefix to bypass shell keywords (like 'time')
     // This ensures we run the actual command, not the shell keyword
-    const cmdArgs = args.slice(commandStart);
+    const cmdArgs = a.slice(commandStart);
     const cmdName = cmdArgs[0];
     const cmdRest = cmdArgs.slice(1);
 
@@ -122,7 +135,7 @@ export const envCommand: Command = {
     // Create a modified context and execute
     // Note: We can't directly modify the context for exec, so we pass the env vars as prefix
     // This is a limitation - in a real implementation, exec would accept an env parameter
-    const envPrefix = Object.entries(setVars)
+    const envPrefix = [...setVars.entries()]
       .map(([k, v]) => `${k}="${v}"`)
       .join(" ");
 
@@ -141,18 +154,19 @@ const printenvHelp = {
 export const printenvCommand: Command = {
   name: "printenv",
 
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
-    if (hasHelpFlag(args)) {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) {
       return showHelp(printenvHelp);
     }
 
-    const vars = args.filter((arg) => !arg.startsWith("-"));
+    const vars = a.filter((arg) => !arg.startsWith("-"));
 
     if (vars.length === 0) {
       // Print all
       const lines: string[] = [];
-      for (const [key, value] of ctx.env) {
-        lines.push(`${key}=${value}`);
+      for (const [key, val] of ctx.env) {
+        lines.push(`${key}=${decode(val)}`);
       }
       return {
         stdout: encode(lines.join("\n") + (lines.length > 0 ? "\n" : "")),
@@ -167,7 +181,7 @@ export const printenvCommand: Command = {
     for (const varName of vars) {
       const value = ctx.env.get(varName);
       if (value !== undefined) {
-        lines.push(value);
+        lines.push(decode(value));
       } else {
         exitCode = 1;
       }

@@ -15,6 +15,7 @@ import type {
   WordPart,
 } from "../../ast/types.js";
 import { createUserRegex } from "../../regex/index.js";
+import { decode, encode, envGet, envSet } from "../../utils/bytes.js";
 import { getIfsSeparator } from "../helpers/ifs.js";
 import { escapeRegex } from "../helpers/regex.js";
 import type { InterpreterContext } from "../types.js";
@@ -111,9 +112,8 @@ export async function handleArrayDefaultValue(
         }
         return { values, quoted: true };
       }
-      const scalarValue = ctx.state.env.get(arrayName);
-      if (scalarValue !== undefined) {
-        return { values: [scalarValue], quoted: true };
+      if (ctx.state.env.has(arrayName)) {
+        return { values: [envGet(ctx.state.env, arrayName)], quoted: true };
       }
       return { values: [], quoted: true };
     }
@@ -171,9 +171,11 @@ export async function handleArrayDefaultValue(
         return { values, quoted: true };
       }
       // Default array is empty - check for scalar
-      const scalarValue = ctx.state.env.get(defaultArrayName);
-      if (scalarValue !== undefined) {
-        return { values: [scalarValue], quoted: true };
+      if (ctx.state.env.has(defaultArrayName)) {
+        return {
+          values: [envGet(ctx.state.env, defaultArrayName)],
+          quoted: true,
+        };
       }
       // Default is unset
       return { values: [], quoted: true };
@@ -256,9 +258,8 @@ export async function handleArrayPatternWithPrefixSuffix(
 
   // If no elements, check for scalar (treat as single-element array)
   if (elements.length === 0) {
-    const scalarValue = ctx.state.env.get(arrayName);
-    if (scalarValue !== undefined) {
-      values = [scalarValue];
+    if (ctx.state.env.has(arrayName)) {
+      values = [envGet(ctx.state.env, arrayName)];
     } else {
       // Variable is unset or empty array
       if (isStar) {

@@ -21,6 +21,7 @@ import type {
 } from "../../ast/types.js";
 import { createUserRegex } from "../../regex/index.js";
 import { GlobExpander } from "../../shell/glob.js";
+import { decode, encode, envGet, envSet } from "../../utils/bytes.js";
 import { GlobError } from "../errors.js";
 import {
   getIfs,
@@ -175,9 +176,8 @@ export async function handleUnquotedArrayPatternReplacement(
 
   // If no elements, check for scalar (treat as single-element array)
   if (elements.length === 0) {
-    const scalarValue = ctx.state.env.get(unquotedArrayName);
-    if (scalarValue !== undefined) {
-      values = [scalarValue];
+    if (ctx.state.env.has(unquotedArrayName)) {
+      values = [envGet(ctx.state.env, unquotedArrayName)];
     }
   }
 
@@ -324,9 +324,8 @@ export async function handleUnquotedArrayPatternRemoval(
 
   // If no elements, check for scalar (treat as single-element array)
   if (elements.length === 0) {
-    const scalarValue = ctx.state.env.get(unquotedArrayName);
-    if (scalarValue !== undefined) {
-      values = [scalarValue];
+    if (ctx.state.env.has(unquotedArrayName)) {
+      values = [envGet(ctx.state.env, unquotedArrayName)];
     }
   }
 
@@ -439,10 +438,10 @@ export async function handleUnquotedPositionalPatternRemoval(
   };
 
   // Get positional parameters
-  const numParams = Number.parseInt(ctx.state.env.get("#") || "0", 10);
+  const numParams = Number.parseInt(envGet(ctx.state.env, "#", "0"), 10);
   const params: string[] = [];
   for (let i = 1; i <= numParams; i++) {
-    params.push(ctx.state.env.get(String(i)) || "");
+    params.push(envGet(ctx.state.env, String(i)) || "");
   }
 
   if (params.length === 0) {
@@ -555,13 +554,13 @@ export async function handleUnquotedPositionalSlicing(
     : undefined;
 
   // Get positional parameters
-  const numParams = Number.parseInt(ctx.state.env.get("#") || "0", 10);
+  const numParams = Number.parseInt(envGet(ctx.state.env, "#", "0"), 10);
   const allParams: string[] = [];
   for (let i = 1; i <= numParams; i++) {
-    allParams.push(ctx.state.env.get(String(i)) || "");
+    allParams.push(envGet(ctx.state.env, String(i)) || "");
   }
 
-  const shellName = ctx.state.env.get("0") || "bash";
+  const shellName = envGet(ctx.state.env, "0", "bash");
 
   // Build sliced params array
   let slicedParams: string[];
@@ -691,7 +690,7 @@ export async function handleUnquotedSimplePositional(
   }
 
   const isStar = wordParts[0].parameter === "*";
-  const numParams = Number.parseInt(ctx.state.env.get("#") || "0", 10);
+  const numParams = Number.parseInt(envGet(ctx.state.env, "#", "0"), 10);
   if (numParams === 0) {
     return { values: [], quoted: false };
   }
@@ -699,7 +698,7 @@ export async function handleUnquotedSimplePositional(
   // Get individual positional parameters
   const params: string[] = [];
   for (let i = 1; i <= numParams; i++) {
-    params.push(ctx.state.env.get(String(i)) || "");
+    params.push(envGet(ctx.state.env, String(i)) || "");
   }
 
   const ifsChars = getIfs(ctx.state.env);
@@ -787,9 +786,8 @@ export async function handleUnquotedSimpleArray(
   // If no array elements, check for scalar (treat as single-element array)
   let values: string[];
   if (elements.length === 0) {
-    const scalarValue = ctx.state.env.get(arrayName);
-    if (scalarValue !== undefined) {
-      values = [scalarValue];
+    if (ctx.state.env.has(arrayName)) {
+      values = [envGet(ctx.state.env, arrayName)];
     } else {
       return { values: [], quoted: false };
     }
@@ -993,10 +991,10 @@ export async function handleUnquotedPositionalWithPrefixSuffix(
   }
 
   // Get positional parameters
-  const numParams = Number.parseInt(ctx.state.env.get("#") || "0", 10);
+  const numParams = Number.parseInt(envGet(ctx.state.env, "#", "0"), 10);
   const params: string[] = [];
   for (let i = 1; i <= numParams; i++) {
-    params.push(ctx.state.env.get(String(i)) || "");
+    params.push(envGet(ctx.state.env, String(i)) || "");
   }
 
   // Expand prefix (parts before $@/$*)

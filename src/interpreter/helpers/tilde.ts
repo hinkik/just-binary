@@ -4,6 +4,7 @@
  * Handles ~ expansion in assignment contexts.
  */
 
+import { envGet } from "../../utils/bytes.js";
 import type { InterpreterContext } from "../types.js";
 
 /**
@@ -16,7 +17,7 @@ export function expandTildesInValue(
   ctx: InterpreterContext,
   value: string,
 ): string {
-  const home = ctx.state.env.get("HOME") || "/home/user";
+  const home = envGet(ctx.state.env, "HOME", "/home/user");
 
   // Split by : to handle PATH-like values
   const parts = value.split(":");

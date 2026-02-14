@@ -20,125 +20,6 @@ import type { Parser } from "./parser.js";
 // PURE STRING UTILITIES
 // =============================================================================
 
-/**
- * Decode a byte array as UTF-8 with error recovery.
- * Valid UTF-8 sequences are decoded to their Unicode characters.
- * Invalid bytes are preserved as Latin-1 characters (byte value = char code).
- *
- * This matches bash's behavior for $'\xNN' sequences.
- */
-function decodeUtf8WithRecovery(bytes: number[]): string {
-  let result = "";
-  let i = 0;
-
-  while (i < bytes.length) {
-    const b0 = bytes[i];
-
-    // ASCII (0xxxxxxx)
-    if (b0 < 0x80) {
-      result += String.fromCharCode(b0);
-      i++;
-      continue;
-    }
-
-    // 2-byte sequence (110xxxxx 10xxxxxx)
-    if ((b0 & 0xe0) === 0xc0) {
-      if (
-        i + 1 < bytes.length &&
-        (bytes[i + 1] & 0xc0) === 0x80 &&
-        b0 >= 0xc2 // Reject overlong sequences
-      ) {
-        const codePoint = ((b0 & 0x1f) << 6) | (bytes[i + 1] & 0x3f);
-        result += String.fromCharCode(codePoint);
-        i += 2;
-        continue;
-      }
-      // Invalid or incomplete - output as Latin-1
-      result += String.fromCharCode(b0);
-      i++;
-      continue;
-    }
-
-    // 3-byte sequence (1110xxxx 10xxxxxx 10xxxxxx)
-    if ((b0 & 0xf0) === 0xe0) {
-      if (
-        i + 2 < bytes.length &&
-        (bytes[i + 1] & 0xc0) === 0x80 &&
-        (bytes[i + 2] & 0xc0) === 0x80
-      ) {
-        // Check for overlong encoding
-        if (b0 === 0xe0 && bytes[i + 1] < 0xa0) {
-          // Overlong - output first byte as Latin-1
-          result += String.fromCharCode(b0);
-          i++;
-          continue;
-        }
-        // Check for surrogate range (U+D800-U+DFFF)
-        const codePoint =
-          ((b0 & 0x0f) << 12) |
-          ((bytes[i + 1] & 0x3f) << 6) |
-          (bytes[i + 2] & 0x3f);
-        if (codePoint >= 0xd800 && codePoint <= 0xdfff) {
-          // Invalid surrogate - output first byte as Latin-1
-          result += String.fromCharCode(b0);
-          i++;
-          continue;
-        }
-        result += String.fromCharCode(codePoint);
-        i += 3;
-        continue;
-      }
-      // Invalid or incomplete - output as Latin-1
-      result += String.fromCharCode(b0);
-      i++;
-      continue;
-    }
-
-    // 4-byte sequence (11110xxx 10xxxxxx 10xxxxxx 10xxxxxx)
-    if ((b0 & 0xf8) === 0xf0 && b0 <= 0xf4) {
-      if (
-        i + 3 < bytes.length &&
-        (bytes[i + 1] & 0xc0) === 0x80 &&
-        (bytes[i + 2] & 0xc0) === 0x80 &&
-        (bytes[i + 3] & 0xc0) === 0x80
-      ) {
-        // Check for overlong encoding
-        if (b0 === 0xf0 && bytes[i + 1] < 0x90) {
-          // Overlong - output first byte as Latin-1
-          result += String.fromCharCode(b0);
-          i++;
-          continue;
-        }
-        const codePoint =
-          ((b0 & 0x07) << 18) |
-          ((bytes[i + 1] & 0x3f) << 12) |
-          ((bytes[i + 2] & 0x3f) << 6) |
-          (bytes[i + 3] & 0x3f);
-        // Check for valid range (U+10000 to U+10FFFF)
-        if (codePoint > 0x10ffff) {
-          // Invalid - output first byte as Latin-1
-          result += String.fromCharCode(b0);
-          i++;
-          continue;
-        }
-        result += String.fromCodePoint(codePoint);
-        i += 4;
-        continue;
-      }
-      // Invalid or incomplete - output as Latin-1
-      result += String.fromCharCode(b0);
-      i++;
-      continue;
-    }
-
-    // Invalid lead byte (10xxxxxx or 11111xxx) - output as Latin-1
-    result += String.fromCharCode(b0);
-    i++;
-  }
-
-  return result;
-}
-
 export function findTildeEnd(_p: Parser, value: string, start: number): number {
   let i = start + 1;
   while (i < value.length && /[a-zA-Z0-9_-]/.test(value[i])) {
@@ -390,12 +271,48 @@ function findCharacterClassEnd(value: string, start: number): number {
   return -1; // No closing ] found
 }
 
+/**
+ * Encode a Unicode code point as UTF-8 bytes and push them into an array.
+ */
+function pushUtf8(bytes: number[], codePoint: number): void {
+  if (codePoint < 0x80) {
+    bytes.push(codePoint);
+  } else if (codePoint < 0x800) {
+    bytes.push(0xc0 | (codePoint >> 6), 0x80 | (codePoint & 0x3f));
+  } else if (codePoint < 0x10000) {
+    bytes.push(
+      0xe0 | (codePoint >> 12),
+      0x80 | ((codePoint >> 6) & 0x3f),
+      0x80 | (codePoint & 0x3f),
+    );
+  } else {
+    bytes.push(
+      0xf0 | (codePoint >> 18),
+      0x80 | ((codePoint >> 12) & 0x3f),
+      0x80 | ((codePoint >> 6) & 0x3f),
+      0x80 | (codePoint & 0x3f),
+    );
+  }
+}
+
+/**
+ * Encode a string's characters as UTF-8 bytes and push them into an array.
+ */
+function pushStringAsUtf8(bytes: number[], s: string): void {
+  for (let k = 0; k < s.length; ) {
+    const cp = s.codePointAt(k);
+    if (cp === undefined) break;
+    pushUtf8(bytes, cp);
+    k += cp > 0xffff ? 2 : 1;
+  }
+}
+
 export function parseAnsiCQuoted(
   _p: Parser,
   value: string,
   start: number,
 ): { part: WordPart; endIndex: number } {
-  let result = "";
+  const bytes: number[] = [];
   let i = start;
 
   while (i < value.length && value[i] !== "'") {
@@ -405,54 +322,52 @@ export function parseAnsiCQuoted(
       const next = value[i + 1];
       switch (next) {
         case "n":
-          result += "\n";
+          bytes.push(0x0a);
           i += 2;
           break;
         case "t":
-          result += "\t";
+          bytes.push(0x09);
           i += 2;
           break;
         case "r":
-          result += "\r";
+          bytes.push(0x0d);
           i += 2;
           break;
         case "\\":
-          result += "\\";
+          bytes.push(0x5c);
           i += 2;
           break;
         case "'":
-          result += "'";
+          bytes.push(0x27);
           i += 2;
           break;
         case '"':
-          result += '"';
+          bytes.push(0x22);
           i += 2;
           break;
         case "a":
-          result += "\x07"; // bell
+          bytes.push(0x07); // bell
           i += 2;
           break;
         case "b":
-          result += "\b"; // backspace
+          bytes.push(0x08); // backspace
           i += 2;
           break;
         case "e":
         case "E":
-          result += "\x1b"; // escape
+          bytes.push(0x1b); // escape
           i += 2;
           break;
         case "f":
-          result += "\f"; // form feed
+          bytes.push(0x0c); // form feed
           i += 2;
           break;
         case "v":
-          result += "\v"; // vertical tab
+          bytes.push(0x0b); // vertical tab
           i += 2;
           break;
         case "x": {
-          // \xHH - hex escape
-          // Collect consecutive \xHH escapes and decode as UTF-8 with error recovery
-          const bytes: number[] = [];
+          // \xHH - hex escape: push raw bytes
           let j = i;
           while (
             j + 1 < value.length &&
@@ -469,43 +384,50 @@ export function parseAnsiCQuoted(
             }
           }
 
-          if (bytes.length > 0) {
-            // Decode bytes as UTF-8 with error recovery
-            // Invalid bytes are preserved as Latin-1 characters
-            result += decodeUtf8WithRecovery(bytes);
-            i = j;
-          } else {
-            result += "\\x";
+          if (j === i) {
+            // No valid hex digits found
+            pushStringAsUtf8(bytes, "\\x");
             i += 2;
+          } else {
+            i = j;
           }
           break;
         }
         case "u": {
-          // \uHHHH - unicode escape
+          // \uHHHH - unicode escape: push UTF-8 encoded bytes
           const hex = value.slice(i + 2, i + 6);
           const code = parseInt(hex, 16);
           if (!Number.isNaN(code)) {
-            result += String.fromCharCode(code);
+            pushUtf8(bytes, code);
             i += 6;
           } else {
-            result += "\\u";
+            pushStringAsUtf8(bytes, "\\u");
+            i += 2;
+          }
+          break;
+        }
+        case "U": {
+          // \UHHHHHHHH - unicode escape (up to 8 hex digits): push UTF-8 encoded bytes
+          const hex = value.slice(i + 2, i + 10);
+          const code = parseInt(hex, 16);
+          if (!Number.isNaN(code) && code <= 0x10ffff) {
+            pushUtf8(bytes, code);
+            i += 2 + hex.length;
+          } else {
+            pushStringAsUtf8(bytes, "\\U");
             i += 2;
           }
           break;
         }
         case "c": {
           // \cX - control character escape
-          // Control char = X & 0x1f (mask with 31)
-          // For letters a-z/A-Z: ctrl-A=1, ctrl-Z=26
-          // For special chars: \c- = 0x0d (CR), \c+ = 0x0b (VT), \c" = 0x02
           if (i + 2 < value.length) {
             const ctrlChar = value[i + 2];
             const code = ctrlChar.charCodeAt(0) & 0x1f;
-            result += String.fromCharCode(code);
+            bytes.push(code);
             i += 3;
           } else {
-            // Incomplete \c at end of string
-            result += "\\c";
+            pushStringAsUtf8(bytes, "\\c");
             i += 2;
           }
           break;
@@ -518,7 +440,7 @@ export function parseAnsiCQuoted(
         case "5":
         case "6":
         case "7": {
-          // \NNN - octal escape
+          // \NNN - octal escape: push raw byte
           let octal = "";
           let j = i + 1;
           while (j < value.length && j < i + 4 && /[0-7]/.test(value[j])) {
@@ -526,18 +448,24 @@ export function parseAnsiCQuoted(
             j++;
           }
           const code = parseInt(octal, 8);
-          result += String.fromCharCode(code);
+          bytes.push(code & 0xff);
           i = j;
           break;
         }
         default:
           // Unknown escape, keep the backslash
-          result += char;
+          pushStringAsUtf8(bytes, char);
           i++;
       }
     } else {
-      result += char;
-      i++;
+      // Regular character: UTF-8 encode it
+      const cp = char.codePointAt(0);
+      if (cp !== undefined) {
+        pushUtf8(bytes, cp);
+        i += cp > 0xffff ? 2 : 1;
+      } else {
+        i++;
+      }
     }
   }
 
@@ -547,7 +475,7 @@ export function parseAnsiCQuoted(
   }
 
   return {
-    part: AST.literal(result),
+    part: AST.bytes(new Uint8Array(bytes)),
     endIndex: i,
   };
 }
@@ -705,6 +633,12 @@ export function wordToString(_p: Parser, word: WordNode): string {
     switch (part.type) {
       case "Literal":
         result += part.value;
+        break;
+      case "Bytes":
+        // Bytes from $'...' ANSI-C quoting: decode each byte as Latin-1
+        for (let bi = 0; bi < part.value.length; bi++) {
+          result += String.fromCharCode(part.value[bi]);
+        }
         break;
       case "SingleQuoted":
         // Preserve single quotes so empty strings like '' are not lost

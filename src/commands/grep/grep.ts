@@ -1,6 +1,6 @@
 import type { UserRegex } from "../../regex/index.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decode, EMPTY, encode } from "../../utils/bytes.js";
+import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 import { matchGlob } from "../../utils/glob.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 import { buildRegex, searchContent } from "../search-engine/index.js";
@@ -46,8 +46,9 @@ const grepHelp = {
 export const grepCommand: Command = {
   name: "grep",
 
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
-    if (hasHelpFlag(args)) {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) {
       return showHelp(grepHelp);
     }
 
@@ -76,12 +77,12 @@ export const grepCommand: Command = {
     const files: string[] = [];
 
     // Parse arguments
-    for (let i = 0; i < args.length; i++) {
-      const arg = args[i];
+    for (let i = 0; i < a.length; i++) {
+      const arg = a[i];
 
       if (arg.startsWith("-") && arg !== "-") {
-        if (arg === "-e" && i + 1 < args.length) {
-          pattern = args[++i];
+        if (arg === "-e" && i + 1 < a.length) {
+          pattern = a[++i];
           continue;
         }
 
@@ -115,8 +116,8 @@ export const grepCommand: Command = {
           maxCount = parseInt(maxCountMatch[1], 10);
           continue;
         }
-        if (arg === "-m" && i + 1 < args.length) {
-          maxCount = parseInt(args[++i], 10);
+        if (arg === "-m" && i + 1 < a.length) {
+          maxCount = parseInt(a[++i], 10);
           continue;
         }
 
@@ -136,9 +137,9 @@ export const grepCommand: Command = {
         // Handle -A n, -B n, -C n
         if (
           (arg === "-A" || arg === "-B" || arg === "-C") &&
-          i + 1 < args.length
+          i + 1 < a.length
         ) {
-          const num = parseInt(args[++i], 10);
+          const num = parseInt(a[++i], 10);
           if (arg === "-A") afterContext = num;
           else if (arg === "-B") beforeContext = num;
           else {
@@ -660,9 +661,9 @@ async function expandRecursiveWithTypes(
 export const fgrepCommand: Command = {
   name: "fgrep",
 
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
     // Insert -F at the beginning of args
-    return grepCommand.execute(["-F", ...args], ctx);
+    return grepCommand.execute([encode("-F"), ...args], ctx);
   },
 };
 
@@ -670,9 +671,9 @@ export const fgrepCommand: Command = {
 export const egrepCommand: Command = {
   name: "egrep",
 
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
     // Insert -E at the beginning of args
-    return grepCommand.execute(["-E", ...args], ctx);
+    return grepCommand.execute([encode("-E"), ...args], ctx);
   },
 };
 

@@ -1,6 +1,6 @@
 import { mergeToNullPrototype } from "../../helpers/env.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decode, EMPTY, encode } from "../../utils/bytes.js";
+import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const bashHelp = {
@@ -21,23 +21,24 @@ const bashHelp = {
 export const bashCommand: Command = {
   name: "bash",
 
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
-    if (hasHelpFlag(args)) {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) {
       return showHelp(bashHelp);
     }
 
     // Handle -c flag
     // With -c: bash -c 'command' arg0 arg1 arg2
     // arg0 becomes $0, arg1 becomes $1, arg2 becomes $2
-    if (args[0] === "-c" && args.length >= 2) {
-      const command = args[1];
-      const scriptName = args[2] || "bash";
-      const scriptArgs = args.slice(3);
+    if (a[0] === "-c" && a.length >= 2) {
+      const command = a[1];
+      const scriptName = a[2] || "bash";
+      const scriptArgs = a.slice(3);
       return executeScript(command, scriptName, scriptArgs, ctx);
     }
 
     // No arguments - read script from stdin if available
-    if (args.length === 0) {
+    if (a.length === 0) {
       if (ctx.stdin?.length && decode(ctx.stdin).trim()) {
         return executeScript(decode(ctx.stdin), "bash", [], ctx);
       }
@@ -46,8 +47,8 @@ export const bashCommand: Command = {
     }
 
     // Read and execute script file
-    const scriptPath = args[0];
-    const scriptArgs = args.slice(1);
+    const scriptPath = a[0];
+    const scriptArgs = a.slice(1);
 
     try {
       const fullPath = ctx.fs.resolvePath(ctx.cwd, scriptPath);
@@ -67,8 +68,9 @@ export const bashCommand: Command = {
 export const shCommand: Command = {
   name: "sh",
 
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
-    if (hasHelpFlag(args)) {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) {
       return showHelp({
         ...bashHelp,
         name: "sh",
@@ -79,15 +81,15 @@ export const shCommand: Command = {
     // Same implementation as bash
     // With -c: sh -c 'command' arg0 arg1 arg2
     // arg0 becomes $0, arg1 becomes $1, arg2 becomes $2
-    if (args[0] === "-c" && args.length >= 2) {
-      const command = args[1];
-      const scriptName = args[2] || "sh";
-      const scriptArgs = args.slice(3);
+    if (a[0] === "-c" && a.length >= 2) {
+      const command = a[1];
+      const scriptName = a[2] || "sh";
+      const scriptArgs = a.slice(3);
       return executeScript(command, scriptName, scriptArgs, ctx);
     }
 
     // No arguments - read script from stdin if available
-    if (args.length === 0) {
+    if (a.length === 0) {
       if (ctx.stdin?.length && decode(ctx.stdin).trim()) {
         return executeScript(decode(ctx.stdin), "sh", [], ctx);
       }
@@ -95,8 +97,8 @@ export const shCommand: Command = {
       return { stdout: EMPTY, stderr: EMPTY, exitCode: 0 };
     }
 
-    const scriptPath = args[0];
-    const scriptArgs = args.slice(1);
+    const scriptPath = a[0];
+    const scriptArgs = a.slice(1);
 
     try {
       const fullPath = ctx.fs.resolvePath(ctx.cwd, scriptPath);

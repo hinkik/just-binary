@@ -2,126 +2,30 @@ import { sprintf } from "sprintf-js";
 import { ExecutionLimitError } from "../../interpreter/errors.js";
 import { getErrorMessage } from "../../interpreter/helpers/errors.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { EMPTY, encode, encodeMixed } from "../../utils/bytes.js";
+import {
+  concat,
+  decodeArgs,
+  EMPTY,
+  encode,
+  envGet,
+  envSet,
+} from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
-import { applyWidth, processEscapes } from "./escapes.js";
+import { applyWidth, processEscapesBytes } from "./escapes.js";
 import { formatStrftime } from "./strftime.js";
 
-/**
- * Decode a byte array as UTF-8 with error recovery.
- * Valid UTF-8 sequences are decoded to their Unicode characters.
- * Invalid bytes are preserved as Latin-1 characters (byte value = char code).
- */
-function decodeUtf8WithRecovery(bytes: number[]): string {
-  let result = "";
-  let i = 0;
+const te = new TextEncoder();
 
-  while (i < bytes.length) {
-    const b0 = bytes[i];
-
-    // ASCII (0xxxxxxx)
-    if (b0 < 0x80) {
-      result += String.fromCharCode(b0);
-      i++;
-      continue;
-    }
-
-    // 2-byte sequence (110xxxxx 10xxxxxx)
-    if ((b0 & 0xe0) === 0xc0) {
-      if (
-        i + 1 < bytes.length &&
-        (bytes[i + 1] & 0xc0) === 0x80 &&
-        b0 >= 0xc2 // Reject overlong sequences
-      ) {
-        const codePoint = ((b0 & 0x1f) << 6) | (bytes[i + 1] & 0x3f);
-        result += String.fromCharCode(codePoint);
-        i += 2;
-        continue;
-      }
-      // Invalid or incomplete - output as Latin-1
-      result += String.fromCharCode(b0);
-      i++;
-      continue;
-    }
-
-    // 3-byte sequence (1110xxxx 10xxxxxx 10xxxxxx)
-    if ((b0 & 0xf0) === 0xe0) {
-      if (
-        i + 2 < bytes.length &&
-        (bytes[i + 1] & 0xc0) === 0x80 &&
-        (bytes[i + 2] & 0xc0) === 0x80
-      ) {
-        // Check for overlong encoding
-        if (b0 === 0xe0 && bytes[i + 1] < 0xa0) {
-          // Overlong - output first byte as Latin-1
-          result += String.fromCharCode(b0);
-          i++;
-          continue;
-        }
-        // Check for surrogate range (U+D800-U+DFFF)
-        const codePoint =
-          ((b0 & 0x0f) << 12) |
-          ((bytes[i + 1] & 0x3f) << 6) |
-          (bytes[i + 2] & 0x3f);
-        if (codePoint >= 0xd800 && codePoint <= 0xdfff) {
-          // Invalid surrogate - output first byte as Latin-1
-          result += String.fromCharCode(b0);
-          i++;
-          continue;
-        }
-        result += String.fromCharCode(codePoint);
-        i += 3;
-        continue;
-      }
-      // Invalid or incomplete - output as Latin-1
-      result += String.fromCharCode(b0);
-      i++;
-      continue;
-    }
-
-    // 4-byte sequence (11110xxx 10xxxxxx 10xxxxxx 10xxxxxx)
-    if ((b0 & 0xf8) === 0xf0 && b0 <= 0xf4) {
-      if (
-        i + 3 < bytes.length &&
-        (bytes[i + 1] & 0xc0) === 0x80 &&
-        (bytes[i + 2] & 0xc0) === 0x80 &&
-        (bytes[i + 3] & 0xc0) === 0x80
-      ) {
-        // Check for overlong encoding
-        if (b0 === 0xf0 && bytes[i + 1] < 0x90) {
-          // Overlong - output first byte as Latin-1
-          result += String.fromCharCode(b0);
-          i++;
-          continue;
-        }
-        const codePoint =
-          ((b0 & 0x07) << 18) |
-          ((bytes[i + 1] & 0x3f) << 12) |
-          ((bytes[i + 2] & 0x3f) << 6) |
-          (bytes[i + 3] & 0x3f);
-        // Check for valid range (U+10000 to U+10FFFF)
-        if (codePoint > 0x10ffff) {
-          // Invalid - output first byte as Latin-1
-          result += String.fromCharCode(b0);
-          i++;
-          continue;
-        }
-        result += String.fromCodePoint(codePoint);
-        i += 4;
-        continue;
-      }
-      // Invalid or incomplete - output as Latin-1
-      result += String.fromCharCode(b0);
-      i++;
-      continue;
-    }
-
-    // Invalid lead byte (10xxxxxx or 11111xxx) - output as Latin-1
-    result += String.fromCharCode(b0);
-    i++;
+/** Push bytes from a Uint8Array into a number array */
+function pushBytes(arr: number[], bytes: Uint8Array): void {
+  for (let k = 0; k < bytes.length; k++) {
+    arr.push(bytes[k]);
   }
+}
 
-  return result;
+/** Encode a string segment and push into byte array */
+function pushStr(arr: number[], s: string): void {
+  pushBytes(arr, te.encode(s));
 }
 
 const printfHelp = {
@@ -144,12 +48,13 @@ const printfHelp = {
 export const printfCommand: Command = {
   name: "printf",
 
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
-    if (hasHelpFlag(args)) {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) {
       return showHelp(printfHelp);
     }
 
-    if (args.length === 0) {
+    if (a.length === 0) {
       return {
         stdout: EMPTY,
         stderr: encode("printf: usage: printf format [arguments]\n"),
@@ -161,8 +66,8 @@ export const printfCommand: Command = {
     let targetVar: string | null = null;
     let argIndex = 0;
 
-    while (argIndex < args.length) {
-      const arg = args[argIndex];
+    while (argIndex < a.length) {
+      const arg = a[argIndex];
       if (arg === "--") {
         // End of options
         argIndex++;
@@ -170,14 +75,14 @@ export const printfCommand: Command = {
       }
       if (arg === "-v") {
         // Store result in variable
-        if (argIndex + 1 >= args.length) {
+        if (argIndex + 1 >= a.length) {
           return {
             stdout: EMPTY,
             stderr: encode("printf: -v: option requires an argument\n"),
             exitCode: 1,
           };
         }
-        targetVar = args[argIndex + 1];
+        targetVar = a[argIndex + 1];
         // Validate variable name
         if (!/^[a-zA-Z_][a-zA-Z0-9_]*(\[[^\]]+\])?$/.test(targetVar)) {
           return {
@@ -195,7 +100,7 @@ export const printfCommand: Command = {
       }
     }
 
-    if (argIndex >= args.length) {
+    if (argIndex >= a.length) {
       return {
         stdout: EMPTY,
         stderr: encode("printf: usage: printf format [arguments]\n"),
@@ -203,21 +108,21 @@ export const printfCommand: Command = {
       };
     }
 
-    const format = args[argIndex];
-    const formatArgs = args.slice(argIndex + 1);
+    const format = a[argIndex];
+    const formatArgs = a.slice(argIndex + 1);
 
     try {
-      // First, process escape sequences in the format string
-      const processedFormat = processEscapes(format);
+      // First, process escape sequences in the format string into bytes
+      const processedFormat = processEscapesBytes(format);
 
       // Format and handle argument reuse (bash loops through format until all args consumed)
-      let output = "";
+      let output = EMPTY;
       let argPos = 0;
       let hadError = false;
       let errorMessage = "";
 
       // Get TZ from shell environment for strftime formatting
-      const tz = ctx.env.get("TZ");
+      const tz = envGet(ctx.env, "TZ") || undefined;
 
       const maxStringLength = ctx.limits?.maxStringLength;
 
@@ -228,7 +133,7 @@ export const printfCommand: Command = {
           argPos,
           tz,
         );
-        output += result;
+        output = concat(output, result);
         // Check output size against limit
         if (
           maxStringLength !== undefined &&
@@ -258,6 +163,8 @@ export const printfCommand: Command = {
 
       // If -v was specified, store in variable instead of printing
       if (targetVar) {
+        // For -v, decode the byte output back to a string for variable storage
+        const outputStr = new TextDecoder().decode(output);
         // Check for array subscript syntax: name[key] or name["key"] or name['key']
         const arrayMatch = targetVar.match(
           /^([a-zA-Z_][a-zA-Z0-9_]*)\[(['"]?)(.+?)\2\]$/,
@@ -267,11 +174,11 @@ export const printfCommand: Command = {
           let key = arrayMatch[3];
           // Expand variables in the subscript (e.g., $key -> value)
           key = key.replace(/\$([a-zA-Z_][a-zA-Z0-9_]*)/g, (_, varName) => {
-            return ctx.env.get(varName) ?? "";
+            return envGet(ctx.env, varName);
           });
-          ctx.env.set(`${arrayName}_${key}`, output);
+          envSet(ctx.env, `${arrayName}_${key}`, outputStr);
         } else {
-          ctx.env.set(targetVar, output);
+          envSet(ctx.env, targetVar, outputStr);
         }
         return {
           stdout: EMPTY,
@@ -281,10 +188,7 @@ export const printfCommand: Command = {
       }
 
       return {
-        // Use mixed encoding: raw byte values from \xHH / \0NNN escapes
-        // (code points 0x80-0xFF) are emitted as-is, while true Unicode
-        // characters from \u / \U escapes are UTF-8 encoded.
-        stdout: encodeMixed(output),
+        stdout: output,
         stderr: encode(errorMessage),
         exitCode: hadError ? 1 : 0,
       };
@@ -301,53 +205,66 @@ export const printfCommand: Command = {
   },
 };
 
+/** Helper: decode a single ASCII char from byte */
+function charFromByte(b: number): string {
+  return String.fromCharCode(b);
+}
+
+/** Helper: test if byte is an ASCII digit */
+function isDigit(b: number): boolean {
+  return b >= 0x30 && b <= 0x39; // '0'-'9'
+}
+
 /**
  * Format the string once, consuming args starting at argPos.
- * Returns the formatted result and number of args consumed.
+ * The format is a Uint8Array (already escape-processed).
+ * Returns the formatted result as Uint8Array and number of args consumed.
  */
 function formatOnce(
-  format: string,
+  format: Uint8Array,
   args: string[],
   argPos: number,
   tz?: string,
 ): {
-  result: string;
+  result: Uint8Array;
   argsConsumed: number;
   error: boolean;
   errMsg: string;
   stopped: boolean;
 } {
-  let result = "";
+  const bytes: number[] = [];
   let i = 0;
   let argsConsumed = 0;
   let error = false;
   let errMsg = "";
 
   while (i < format.length) {
-    if (format[i] === "%" && i + 1 < format.length) {
+    if (format[i] === 0x25 /* % */ && i + 1 < format.length) {
       // Parse the format specifier
       const specStart = i;
       i++; // skip %
 
       // Check for %%
-      if (format[i] === "%") {
-        result += "%";
+      if (format[i] === 0x25 /* % */) {
+        bytes.push(0x25); // %
         i++;
         continue;
       }
 
       // Check for %(strftime)T format
-      // Format: %[flags][width][.precision](strftime-format)T
-      const strftimeMatch = format
-        .slice(specStart)
-        .match(/^%(-?\d*)(?:\.(\d+))?\(([^)]*)\)T/);
+      // We need to decode a slice of the format to use regex matching
+      const formatSlice = new TextDecoder().decode(format.subarray(specStart));
+      const strftimeMatch = formatSlice.match(
+        /^%(-?\d*)(?:\.(\d+))?\(([^)]*)\)T/,
+      );
       if (strftimeMatch) {
         const width = strftimeMatch[1] ? parseInt(strftimeMatch[1], 10) : 0;
         const precision = strftimeMatch[2]
           ? parseInt(strftimeMatch[2], 10)
           : -1;
         const strftimeFmt = strftimeMatch[3];
-        const fullMatch = strftimeMatch[0];
+        // Calculate byte length of the match
+        const fullMatchBytes = te.encode(strftimeMatch[0]);
 
         // Get the timestamp argument
         const arg = args[argPos + argsConsumed] || "";
@@ -386,51 +303,65 @@ function formatOnce(
           }
         }
 
-        result += formatted;
-        i = specStart + fullMatch.length;
+        pushStr(bytes, formatted);
+        i = specStart + fullMatchBytes.length;
         continue;
       }
 
-      // Parse flags
-      while (i < format.length && "+-0 #'".includes(format[i])) {
+      // Parse flags: +-0 #'
+      while (
+        i < format.length &&
+        (format[i] === 0x2b || // +
+          format[i] === 0x2d || // -
+          format[i] === 0x30 || // 0
+          format[i] === 0x20 || // space
+          format[i] === 0x23 || // #
+          format[i] === 0x27) // '
+      ) {
         i++;
       }
 
       // Parse width (can be * to read from args)
       let widthFromArg = false;
-      if (format[i] === "*") {
+      if (format[i] === 0x2a /* * */) {
         widthFromArg = true;
         i++;
       } else {
-        while (i < format.length && /\d/.test(format[i])) {
+        while (i < format.length && isDigit(format[i])) {
           i++;
         }
       }
 
       // Parse precision
       let precisionFromArg = false;
-      if (format[i] === ".") {
+      if (format[i] === 0x2e /* . */) {
         i++;
-        if (format[i] === "*") {
+        if (format[i] === 0x2a /* * */) {
           precisionFromArg = true;
           i++;
         } else {
-          while (i < format.length && /\d/.test(format[i])) {
+          while (i < format.length && isDigit(format[i])) {
             i++;
           }
         }
       }
 
-      // Parse length modifier
-      if (i < format.length && "hlL".includes(format[i])) {
+      // Parse length modifier: h, l, L
+      if (
+        i < format.length &&
+        (format[i] === 0x68 || format[i] === 0x6c || format[i] === 0x4c)
+      ) {
         i++;
       }
 
       // Get specifier
-      const specifier = format[i] || "";
+      const specifierByte = i < format.length ? format[i] : 0;
+      const specifier = specifierByte ? charFromByte(specifierByte) : "";
       i++;
 
-      const fullSpec = format.slice(specStart, i);
+      // Build the full spec string from the bytes
+      const specBytes = format.subarray(specStart, i);
+      const fullSpec = new TextDecoder().decode(specBytes);
 
       // Handle width/precision from args
       let adjustedSpec = fullSpec;
@@ -450,31 +381,49 @@ function formatOnce(
       argsConsumed++;
 
       // Format based on specifier
-      const { value, parseError, parseErrMsg, stopped } = formatValue(
+      const { value, rawBytes, parseError, parseErrMsg, stopped } = formatValue(
         adjustedSpec,
         specifier,
         arg,
       );
-      result += value;
+      if (rawBytes) {
+        pushBytes(bytes, rawBytes);
+      } else {
+        pushStr(bytes, value);
+      }
       if (parseError) {
         error = true;
         if (parseErrMsg) errMsg = parseErrMsg;
       }
       // If %b with \c was encountered, stop all output immediately
       if (stopped) {
-        return { result, argsConsumed, error, errMsg, stopped: true };
+        return {
+          result: new Uint8Array(bytes),
+          argsConsumed,
+          error,
+          errMsg,
+          stopped: true,
+        };
       }
     } else {
-      result += format[i];
+      // Literal byte from format string - copy directly
+      bytes.push(format[i]);
       i++;
     }
   }
 
-  return { result, argsConsumed, error, errMsg, stopped: false };
+  return {
+    result: new Uint8Array(bytes),
+    argsConsumed,
+    error,
+    errMsg,
+    stopped: false,
+  };
 }
 
 /**
- * Format a single value with the given specifier
+ * Format a single value with the given specifier.
+ * Returns either `value` (string, to be UTF-8 encoded) or `rawBytes` (Uint8Array, used as-is).
  */
 function formatValue(
   spec: string,
@@ -482,6 +431,7 @@ function formatValue(
   arg: string,
 ): {
   value: string;
+  rawBytes?: Uint8Array;
   parseError: boolean;
   parseErrMsg: string;
   stopped?: boolean;
@@ -541,13 +491,11 @@ function formatValue(
       if (arg === "") {
         return { value: "", parseError: false, parseErrMsg: "" };
       }
-      // Encode the string to UTF-8 and take just the first byte
-      const encoder = new TextEncoder();
-      const bytes = encoder.encode(arg);
-      const firstByte = bytes[0];
-      // Convert byte back to a character (as Latin-1 / ISO-8859-1)
+      // Encode the string to UTF-8 and take just the first byte as a raw byte
+      const encoded = te.encode(arg);
       return {
-        value: String.fromCharCode(firstByte),
+        value: "",
+        rawBytes: new Uint8Array([encoded[0]]),
         parseError: false,
         parseErrMsg: "",
       };
@@ -566,11 +514,11 @@ function formatValue(
         parseErrMsg: "",
       };
     case "b": {
-      // Interpret escape sequences in arg
-      // Returns {value, stopped} - if stopped is true, \c was encountered
+      // Interpret escape sequences in arg, producing raw bytes
       const bResult = processBEscapes(arg);
       return {
-        value: bResult.value,
+        value: "",
+        rawBytes: bResult.value,
         parseError: false,
         parseErrMsg: "",
         stopped: bResult.stopped,
@@ -991,15 +939,18 @@ function formatFloat(spec: string, specifier: string, num: number): string {
 }
 
 /**
- * Process escape sequences in %b argument
- * Similar to processEscapes but with additional features:
+ * Process escape sequences in %b argument, producing Uint8Array directly.
+ * Similar to processEscapesBytes but with additional features:
  * - \c stops output (discards rest of string and rest of format)
  * - \uHHHH unicode escapes
  * - Octal can be \NNN or \0NNN
- * Returns {value, stopped} - stopped is true if \c was encountered
+ * Returns {value: Uint8Array, stopped} - stopped is true if \c was encountered
  */
-function processBEscapes(str: string): { value: string; stopped: boolean } {
-  let result = "";
+function processBEscapes(str: string): {
+  value: Uint8Array;
+  stopped: boolean;
+} {
+  const bytes: number[] = [];
   let i = 0;
 
   while (i < str.length) {
@@ -1007,45 +958,44 @@ function processBEscapes(str: string): { value: string; stopped: boolean } {
       const next = str[i + 1];
       switch (next) {
         case "n":
-          result += "\n";
+          bytes.push(0x0a);
           i += 2;
           break;
         case "t":
-          result += "\t";
+          bytes.push(0x09);
           i += 2;
           break;
         case "r":
-          result += "\r";
+          bytes.push(0x0d);
           i += 2;
           break;
         case "\\":
-          result += "\\";
+          bytes.push(0x5c);
           i += 2;
           break;
         case "a":
-          result += "\x07";
+          bytes.push(0x07);
           i += 2;
           break;
         case "b":
-          result += "\b";
+          bytes.push(0x08);
           i += 2;
           break;
         case "f":
-          result += "\f";
+          bytes.push(0x0c);
           i += 2;
           break;
         case "v":
-          result += "\v";
+          bytes.push(0x0b);
           i += 2;
           break;
         case "c":
           // \c stops all output - return immediately with stopped flag
-          return { value: result, stopped: true };
+          return { value: new Uint8Array(bytes), stopped: true };
         case "x": {
-          // \xHH - hex escape (1-2 hex digits)
-          // Collect consecutive \xHH escapes and decode as UTF-8 with error recovery
-          const bytes: number[] = [];
+          // \xHH - hex escape (1-2 hex digits) - push raw bytes
           let j = i;
+          let found = false;
           while (j + 1 < str.length && str[j] === "\\" && str[j + 1] === "x") {
             let hex = "";
             let k = j + 2;
@@ -1056,23 +1006,22 @@ function processBEscapes(str: string): { value: string; stopped: boolean } {
             if (hex) {
               bytes.push(parseInt(hex, 16));
               j = k;
+              found = true;
             } else {
               break;
             }
           }
 
-          if (bytes.length > 0) {
-            // Decode bytes as UTF-8 with error recovery
-            result += decodeUtf8WithRecovery(bytes);
+          if (found) {
             i = j;
           } else {
-            result += "\\x";
+            pushStr(bytes, "\\x");
             i += 2;
           }
           break;
         }
         case "u": {
-          // \uHHHH - unicode escape (1-4 hex digits)
+          // \uHHHH - unicode escape (1-4 hex digits) -> UTF-8 encoded
           let hex = "";
           let j = i + 2;
           while (j < str.length && j < i + 6 && /[0-9a-fA-F]/.test(str[j])) {
@@ -1080,16 +1029,19 @@ function processBEscapes(str: string): { value: string; stopped: boolean } {
             j++;
           }
           if (hex) {
-            result += String.fromCodePoint(parseInt(hex, 16));
+            pushBytes(
+              bytes,
+              te.encode(String.fromCodePoint(parseInt(hex, 16))),
+            );
             i = j;
           } else {
-            result += "\\u";
+            pushStr(bytes, "\\u");
             i += 2;
           }
           break;
         }
         case "0": {
-          // \0NNN - octal escape (0-3 digits after the 0)
+          // \0NNN - octal escape (0-3 digits after the 0) - push raw byte
           let octal = "";
           let j = i + 2;
           while (j < str.length && j < i + 5 && /[0-7]/.test(str[j])) {
@@ -1097,9 +1049,9 @@ function processBEscapes(str: string): { value: string; stopped: boolean } {
             j++;
           }
           if (octal) {
-            result += String.fromCharCode(parseInt(octal, 8));
+            bytes.push(parseInt(octal, 8) & 0xff);
           } else {
-            result += "\0"; // Just \0 is NUL
+            bytes.push(0x00); // Just \0 is NUL
           }
           i = j;
           break;
@@ -1111,29 +1063,40 @@ function processBEscapes(str: string): { value: string; stopped: boolean } {
         case "5":
         case "6":
         case "7": {
-          // \NNN - octal escape (1-3 digits, no leading 0)
+          // \NNN - octal escape (1-3 digits, no leading 0) - push raw byte
           let octal = "";
           let j = i + 1;
           while (j < str.length && j < i + 4 && /[0-7]/.test(str[j])) {
             octal += str[j];
             j++;
           }
-          result += String.fromCharCode(parseInt(octal, 8));
+          bytes.push(parseInt(octal, 8) & 0xff);
           i = j;
           break;
         }
         default:
           // Unknown escape, keep as-is
-          result += str[i];
+          pushStr(bytes, str[i]);
           i++;
       }
     } else {
-      result += str[i];
-      i++;
+      // Regular character - UTF-8 encode
+      const code = str.charCodeAt(i);
+      if (code < 0x80) {
+        bytes.push(code);
+        i++;
+      } else {
+        const char =
+          code >= 0xd800 && code <= 0xdbff && i + 1 < str.length
+            ? str.slice(i, i + 2)
+            : str[i];
+        pushBytes(bytes, te.encode(char));
+        i += char.length;
+      }
     }
   }
 
-  return { value: result, stopped: false };
+  return { value: new Uint8Array(bytes), stopped: false };
 }
 
 import type { CommandFuzzInfo } from "../fuzz-flags-types.js";

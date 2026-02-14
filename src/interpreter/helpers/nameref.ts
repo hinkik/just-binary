@@ -5,6 +5,7 @@
  * When a nameref is accessed, it transparently dereferences to the target variable.
  */
 
+import { decode, encode, envGet, envSet } from "../../utils/bytes.js";
 import type { InterpreterContext } from "../types.js";
 
 /**
@@ -130,8 +131,8 @@ export function resolveNameref(
     }
 
     // Get the target name from the variable's value
-    const target = ctx.state.env.get(current);
-    if (target === undefined || target === "") {
+    const targetStr = envGet(ctx.state.env, current);
+    if (targetStr === "") {
       // Empty or unset nameref - return the nameref itself
       return current;
     }
@@ -140,14 +141,14 @@ export function resolveNameref(
     // Allow array subscripts like arr[0] or arr[@]
     // Note: Numeric-only targets like '1' are NOT valid - bash doesn't resolve namerefs
     // to positional parameters. The nameref keeps its literal value.
-    if (!/^[a-zA-Z_][a-zA-Z0-9_]*(\[.+\])?$/.test(target)) {
+    if (!/^[a-zA-Z_][a-zA-Z0-9_]*(\[.+\])?$/.test(targetStr)) {
       // Invalid nameref target - return the nameref itself (bash behavior)
       return current;
     }
 
     // Always resolve to the target for reading
     // (The target may not exist, which will result in empty string on read)
-    current = target;
+    current = targetStr;
   }
 
   // Max depth exceeded - likely circular reference
@@ -165,7 +166,7 @@ export function getNamerefTarget(
   if (!isNameref(ctx, name)) {
     return undefined;
   }
-  return ctx.state.env.get(name);
+  return envGet(ctx.state.env, name);
 }
 
 /**
@@ -215,8 +216,8 @@ export function resolveNamerefForAssignment(
     }
 
     // Get the target name from the variable's value
-    const target = ctx.state.env.get(current);
-    if (target === undefined || target === "") {
+    const targetStr = envGet(ctx.state.env, current);
+    if (targetStr === "") {
       // Empty or unset nameref - special handling based on value being assigned
       // If the value is a valid variable name AND that variable exists, set it as target
       // Otherwise, the assignment is a no-op
@@ -235,12 +236,12 @@ export function resolveNamerefForAssignment(
 
     // Validate target is a valid variable name (not special chars like #, @, *, etc.)
     // Allow array subscripts like arr[0] or arr[@]
-    if (!/^[a-zA-Z_][a-zA-Z0-9_]*(\[.+\])?$/.test(target)) {
+    if (!/^[a-zA-Z_][a-zA-Z0-9_]*(\[.+\])?$/.test(targetStr)) {
       // Invalid nameref target - assign to the nameref itself
       return current;
     }
 
-    current = target;
+    current = targetStr;
   }
 
   // Max depth exceeded - likely circular reference

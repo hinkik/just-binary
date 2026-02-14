@@ -1,5 +1,5 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
 const timeoutHelp = {
@@ -49,8 +49,9 @@ function parseDuration(arg: string): number | null {
 export const timeoutCommand: Command = {
   name: "timeout",
 
-  async execute(args: string[], ctx: CommandContext): Promise<ExecResult> {
-    if (hasHelpFlag(args)) {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    const a = decodeArgs(args);
+    if (hasHelpFlag(a)) {
       return showHelp(timeoutHelp);
     }
 
@@ -58,8 +59,8 @@ export const timeoutCommand: Command = {
     let commandStart = 0;
 
     // Parse timeout options
-    for (let i = 0; i < args.length; i++) {
-      const arg = args[i];
+    for (let i = 0; i < a.length; i++) {
+      const arg = a[i];
 
       if (arg === "--preserve-status") {
         preserveStatus = true;
@@ -97,7 +98,7 @@ export const timeoutCommand: Command = {
       }
     }
 
-    const remainingArgs = args.slice(commandStart);
+    const remainingArgs = a.slice(commandStart);
 
     if (remainingArgs.length === 0) {
       return {

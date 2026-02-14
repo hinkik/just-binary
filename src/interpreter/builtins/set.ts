@@ -6,7 +6,7 @@
  */
 
 import type { ExecResult } from "../../types.js";
-import { EMPTY, encode } from "../../utils/bytes.js";
+import { decode, EMPTY, encode, envGet, envSet } from "../../utils/bytes.js";
 import { PosixFatalError } from "../errors.js";
 import { getArrayIndices, getAssocArrayKeys } from "../helpers/array.js";
 import { quoteArrayValue, quoteValue } from "../helpers/quoting.js";
@@ -169,7 +169,7 @@ function formatArrayOutput(ctx: InterpreterContext, arrayName: string): string {
   }
 
   const elements = indices.map((i) => {
-    const value = ctx.state.env.get(`${arrayName}_${i}`) ?? "";
+    const value = envGet(ctx.state.env, `${arrayName}_${i}`, "");
     return `[${i}]=${quoteArrayValue(value)}`;
   });
 
@@ -207,7 +207,7 @@ function formatAssocArrayOutput(
   }
 
   const elements = keys.map((k) => {
-    const value = ctx.state.env.get(`${arrayName}_${k}`) ?? "";
+    const value = envGet(ctx.state.env, `${arrayName}_${k}`, "");
     return `[${quoteAssocKey(k)}]=${quoteArrayValue(value)}`;
   });
 
@@ -309,7 +309,7 @@ export function handleSet(ctx: InterpreterContext, args: string[]): ExecResult {
       if (arrayMetadataMatch && assocArrayNames.has(arrayMetadataMatch[1])) {
         continue;
       }
-      scalarEntries.push([key, value]);
+      scalarEntries.push([key, decode(value)]);
     }
 
     // Build output: scalars first, then arrays
@@ -471,15 +471,15 @@ function setPositionalParameters(
 
   // Set new positional parameters
   for (let j = 0; j < params.length; j++) {
-    ctx.state.env.set(String(j + 1), params[j]);
+    envSet(ctx.state.env, String(j + 1), params[j]);
   }
 
   // Update $# (number of parameters)
-  ctx.state.env.set("#", String(params.length));
+  envSet(ctx.state.env, "#", String(params.length));
 
   // Update $@ and $* (all parameters)
-  ctx.state.env.set("@", params.join(" "));
-  ctx.state.env.set("*", params.join(" "));
+  envSet(ctx.state.env, "@", params.join(" "));
+  envSet(ctx.state.env, "*", params.join(" "));
 
   // Note: bash does NOT reset OPTIND when positional parameters change.
   // This is intentional to match bash behavior.
