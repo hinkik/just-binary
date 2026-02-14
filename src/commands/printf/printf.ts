@@ -110,6 +110,8 @@ export const printfCommand: Command = {
 
     const format = a[argIndex];
     const formatArgs = a.slice(argIndex + 1);
+    // Keep raw byte args for %q to preserve non-UTF-8 bytes
+    const rawFormatArgs = args.slice(argIndex + 1);
 
     try {
       // First, process escape sequences in the format string into bytes
@@ -132,6 +134,7 @@ export const printfCommand: Command = {
           formatArgs,
           argPos,
           tz,
+          rawFormatArgs,
         );
         output = concat(output, result);
         // Check output size against limit
@@ -225,6 +228,7 @@ function formatOnce(
   args: string[],
   argPos: number,
   tz?: string,
+  rawArgs?: Uint8Array[],
 ): {
   result: Uint8Array;
   argsConsumed: number;
@@ -377,7 +381,9 @@ function formatOnce(
       }
 
       // Get the argument
-      const arg = args[argPos + argsConsumed] || "";
+      const argIdx = argPos + argsConsumed;
+      const arg = args[argIdx] || "";
+      const rawArg = rawArgs?.[argIdx] ?? encode(arg);
       argsConsumed++;
 
       // Format based on specifier
@@ -385,6 +391,7 @@ function formatOnce(
         adjustedSpec,
         specifier,
         arg,
+        rawArg,
       );
       if (rawBytes) {
         pushBytes(bytes, rawBytes);
@@ -429,6 +436,7 @@ function formatValue(
   spec: string,
   specifier: string,
   arg: string,
+  rawArg?: Uint8Array,
 ): {
   value: string;
   rawBytes?: Uint8Array;
@@ -507,9 +515,9 @@ function formatValue(
         parseErrMsg: "",
       };
     case "q":
-      // Shell quoting with width support
+      // Shell quoting with width support — use raw bytes to preserve non-UTF-8
       return {
-        value: formatQuoted(spec, arg),
+        value: formatQuoted(spec, rawArg ?? encode(arg)),
         parseError: false,
         parseErrMsg: "",
       };
@@ -750,56 +758,136 @@ function formatHex(spec: string, num: number): string {
   return result;
 }
 
+/** Get the expected length of a UTF-8 sequence from the leading byte. Returns 0 for invalid. */
+function utf8SeqLength(b: number): number {
+  if (b < 0x80) return 1;
+  if ((b & 0xe0) === 0xc0) return 2;
+  if ((b & 0xf0) === 0xe0) return 3;
+  if ((b & 0xf8) === 0xf0) return 4;
+  return 0; // invalid leading byte
+}
+
 /**
- * Shell-quote a string (for %q)
- * Bash uses backslash escaping for printable chars, $'...' only for control chars
+ * Shell-quote raw bytes (for %q).
+ * Works with Uint8Array to preserve non-UTF-8 bytes.
+ * Bash uses backslash escaping for printable chars, $'...' only for control chars.
  */
-function shellQuote(str: string): string {
-  if (str === "") {
+function shellQuoteBytes(bytes: Uint8Array): string {
+  if (bytes.length === 0) {
     return "''";
   }
-  // If string contains only safe characters, return as-is
-  if (/^[a-zA-Z0-9_./-]+$/.test(str)) {
-    return str;
+  // If bytes contain only safe ASCII characters, return as-is
+  let allSafe = true;
+  for (let i = 0; i < bytes.length; i++) {
+    const b = bytes[i];
+    // a-zA-Z0-9 . _ / -
+    if (
+      (b >= 0x61 && b <= 0x7a) ||
+      (b >= 0x41 && b <= 0x5a) ||
+      (b >= 0x30 && b <= 0x39) ||
+      b === 0x2e ||
+      b === 0x5f ||
+      b === 0x2f ||
+      b === 0x2d
+    ) {
+      continue;
+    }
+    allSafe = false;
+    break;
+  }
+  if (allSafe) {
+    return new TextDecoder().decode(bytes);
   }
 
-  // Check if we need $'...' syntax (for control chars, newlines, high bytes, etc.)
-  // High bytes (0x80-0xff) need escaping as they are not printable ASCII
-  const needsDollarQuote = /[\x00-\x1f\x7f-\xff]/.test(str);
+  // Check if we need $'...' syntax (for control chars or invalid UTF-8)
+  let needsDollarQuote = false;
+  for (let i = 0; i < bytes.length; i++) {
+    const b = bytes[i];
+    if (b < 0x20 || b === 0x7f) {
+      needsDollarQuote = true;
+      break;
+    }
+    if (b >= 0x80) {
+      // Check if this is a valid UTF-8 sequence
+      const seqLen = utf8SeqLength(b);
+      if (seqLen === 0 || i + seqLen > bytes.length) {
+        needsDollarQuote = true;
+        break;
+      }
+      // Validate continuation bytes
+      let valid = true;
+      for (let j = 1; j < seqLen; j++) {
+        if ((bytes[i + j] & 0xc0) !== 0x80) {
+          valid = false;
+          break;
+        }
+      }
+      if (!valid) {
+        needsDollarQuote = true;
+        break;
+      }
+      i += seqLen - 1; // skip continuation bytes
+    }
+  }
 
   if (needsDollarQuote) {
-    // Use $'...' format with escape sequences for control characters
+    // Use $'...' format with escape sequences for control characters and invalid bytes
     let result = "$'";
-    for (const char of str) {
-      const code = char.charCodeAt(0);
-      if (char === "'") {
+    for (let i = 0; i < bytes.length; i++) {
+      const b = bytes[i];
+      if (b === 0x27) {
+        // single quote
         result += "\\'";
-      } else if (char === "\\") {
+      } else if (b === 0x5c) {
+        // backslash
         result += "\\\\";
-      } else if (char === "\n") {
+      } else if (b === 0x0a) {
         result += "\\n";
-      } else if (char === "\t") {
+      } else if (b === 0x09) {
         result += "\\t";
-      } else if (char === "\r") {
+      } else if (b === 0x0d) {
         result += "\\r";
-      } else if (char === "\x07") {
+      } else if (b === 0x07) {
         result += "\\a";
-      } else if (char === "\b") {
+      } else if (b === 0x08) {
         result += "\\b";
-      } else if (char === "\f") {
+      } else if (b === 0x0c) {
         result += "\\f";
-      } else if (char === "\v") {
+      } else if (b === 0x0b) {
         result += "\\v";
-      } else if (char === "\x1b") {
+      } else if (b === 0x1b) {
         result += "\\E";
-      } else if (code < 32 || (code >= 127 && code <= 255)) {
-        // Use octal escapes like bash does for control chars and high bytes (0x80-0xFF)
-        // Valid Unicode chars (code > 255) are left unescaped
-        result += `\\${code.toString(8).padStart(3, "0")}`;
-      } else if (char === '"') {
+      } else if (b < 0x20 || b === 0x7f) {
+        // Other control chars -> octal escape
+        result += `\\${b.toString(8).padStart(3, "0")}`;
+      } else if (b >= 0x80) {
+        // Check for valid UTF-8 sequence
+        const seqLen = utf8SeqLength(b);
+        let valid = seqLen > 0 && i + seqLen <= bytes.length;
+        if (valid) {
+          for (let j = 1; j < seqLen; j++) {
+            if ((bytes[i + j] & 0xc0) !== 0x80) {
+              valid = false;
+              break;
+            }
+          }
+        }
+        if (valid) {
+          // Valid UTF-8: decode and output as character
+          const decoded = new TextDecoder().decode(
+            bytes.subarray(i, i + seqLen),
+          );
+          result += decoded;
+          i += seqLen - 1;
+        } else {
+          // Invalid byte -> octal escape
+          result += `\\${b.toString(8).padStart(3, "0")}`;
+        }
+      } else if (b === 0x22) {
+        // double quote
         result += '\\"';
       } else {
-        result += char;
+        result += String.fromCharCode(b);
       }
     }
     result += "'";
@@ -807,13 +895,22 @@ function shellQuote(str: string): string {
   }
 
   // Use backslash escaping for printable special characters
+  const SPECIAL = new Set(
+    " \t|&;<>()$`\\\"'*?[#~=%!{}".split("").map((c) => c.charCodeAt(0)),
+  );
   let result = "";
-  for (const char of str) {
-    // Characters that need backslash escaping
-    if (" \t|&;<>()$`\\\"'*?[#~=%!{}".includes(char)) {
-      result += `\\${char}`;
+  for (let i = 0; i < bytes.length; i++) {
+    const b = bytes[i];
+    if (b >= 0x80) {
+      // Valid UTF-8 sequence — decode and output
+      const seqLen = utf8SeqLength(b);
+      const decoded = new TextDecoder().decode(bytes.subarray(i, i + seqLen));
+      result += decoded;
+      i += seqLen - 1;
+    } else if (SPECIAL.has(b)) {
+      result += `\\${String.fromCharCode(b)}`;
     } else {
-      result += char;
+      result += String.fromCharCode(b);
     }
   }
   return result;
@@ -844,8 +941,8 @@ function formatString(spec: string, str: string): string {
 /**
  * Format a quoted string with %q, respecting width
  */
-function formatQuoted(spec: string, str: string): string {
-  const quoted = shellQuote(str);
+function formatQuoted(spec: string, rawArg: Uint8Array): string {
+  const quoted = shellQuoteBytes(rawArg);
 
   const match = spec.match(/^%(-?)(\d*)q$/);
   if (!match) {

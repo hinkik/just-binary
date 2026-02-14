@@ -12,61 +12,59 @@ import { decode, EMPTY, encode } from "../utils/bytes.js";
 // argv.py - prints arguments in Python 2 repr() format: ['arg1', "arg with '"]
 // Python uses single quotes by default, double quotes when string contains single quotes
 // Python 2 escapes non-printable and non-ASCII bytes as \xNN
-export const argvCommand: Command = defineCommand("argv.py", async (args) => {
-  const formatted = args.map((arg) => {
-    // Convert string to Python 2 repr() format
-    // Process character by character, escaping as needed
-    let escaped = "";
-    for (let i = 0; i < arg.length; i++) {
-      const char = arg[i];
-      const code = arg.charCodeAt(i);
-
-      if (char === "\\") {
-        escaped += "\\\\";
-      } else if (char === "\n") {
-        escaped += "\\n";
-      } else if (char === "\r") {
-        escaped += "\\r";
-      } else if (char === "\t") {
-        escaped += "\\t";
-      } else if (code < 0x20 || code === 0x7f) {
-        // Non-printable ASCII control characters -> \xNN
-        escaped += `\\x${code.toString(16).padStart(2, "0")}`;
-      } else if (code >= 0x80 && code <= 0xff) {
-        // Latin-1 range (U+0080-U+00FF): show as single \xNN
-        // This matches Python 2 behavior where bytes are 1:1 with codepoints
-        escaped += `\\x${code.toString(16).padStart(2, "0")}`;
-      } else if (code >= 0x100) {
-        // Non-Latin-1 Unicode: encode as UTF-8 bytes, then escape each byte as \xNN
-        // This matches Python 2 behavior with byte strings
-        const encoder = new TextEncoder();
-        const bytes = encoder.encode(char);
-        for (const byte of bytes) {
+// Uses raw Uint8Array args to preserve non-UTF-8 bytes (e.g., $'\xff')
+export const argvCommand: Command = {
+  name: "argv.py",
+  async execute(args) {
+    const formatted = args.map((arg) => {
+      // Process raw bytes to Python 2 repr() format
+      let escaped = "";
+      let hasSingleQuote = false;
+      let hasDoubleQuote = false;
+      for (let i = 0; i < arg.length; i++) {
+        const byte = arg[i];
+        if (byte === 0x5c) {
+          // backslash
+          escaped += "\\\\";
+        } else if (byte === 0x0a) {
+          // newline
+          escaped += "\\n";
+        } else if (byte === 0x0d) {
+          // carriage return
+          escaped += "\\r";
+        } else if (byte === 0x09) {
+          // tab
+          escaped += "\\t";
+        } else if (byte < 0x20 || byte === 0x7f) {
+          // Non-printable ASCII control characters -> \xNN
           escaped += `\\x${byte.toString(16).padStart(2, "0")}`;
+        } else if (byte >= 0x80) {
+          // Non-ASCII byte -> \xNN (Python 2 byte string repr)
+          escaped += `\\x${byte.toString(16).padStart(2, "0")}`;
+        } else {
+          // Printable ASCII
+          const char = String.fromCharCode(byte);
+          escaped += char;
+          if (byte === 0x27) hasSingleQuote = true;
+          if (byte === 0x22) hasDoubleQuote = true;
         }
-      } else {
-        // Printable ASCII
-        escaped += char;
       }
-    }
 
-    const hasSingleQuote = arg.includes("'");
-    const hasDoubleQuote = arg.includes('"');
-
-    if (hasSingleQuote && !hasDoubleQuote) {
-      // Use double quotes when string contains single quotes but no double quotes
-      return `"${escaped}"`;
-    }
-    // Default: use single quotes (escape single quotes)
-    escaped = escaped.replace(/'/g, "\\'");
-    return `'${escaped}'`;
-  });
-  return {
-    stdout: encode(`[${formatted.join(", ")}]\n`),
-    stderr: EMPTY,
-    exitCode: 0,
-  };
-});
+      if (hasSingleQuote && !hasDoubleQuote) {
+        // Use double quotes when string contains single quotes but no double quotes
+        return `"${escaped}"`;
+      }
+      // Default: use single quotes (escape single quotes)
+      escaped = escaped.replace(/'/g, "\\'");
+      return `'${escaped}'`;
+    });
+    return {
+      stdout: encode(`[${formatted.join(", ")}]\n`),
+      stderr: EMPTY,
+      exitCode: 0,
+    };
+  },
+};
 
 // printenv.py - prints environment variable values, one per line
 // Prints "None" for variables that are not set (matching Python's printenv.py)

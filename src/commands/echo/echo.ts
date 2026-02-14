@@ -1,5 +1,5 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { concat, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { concat, decodeArgs, EMPTY } from "../../utils/bytes.js";
 
 const te = new TextEncoder();
 
@@ -188,6 +188,7 @@ export const echoCommand: Command = {
   name: "echo",
 
   async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
+    // Decode args for flag parsing (flags are always ASCII)
     const a = decodeArgs(args);
     let noNewline = false;
     // When xpg_echo is enabled, interpret escapes by default (like echo -e)
@@ -215,9 +216,9 @@ export const echoCommand: Command = {
       }
     }
 
-    const outputStr = a.slice(startIndex).join(" ");
-
     if (interpretEscapes) {
+      // Escape mode needs string processing
+      const outputStr = a.slice(startIndex).join(" ");
       const result = processEscapes(outputStr);
       if (result.stop) {
         // \c encountered - suppress newline and stop
@@ -236,11 +237,18 @@ export const echoCommand: Command = {
       };
     }
 
-    return {
-      stdout: encode(noNewline ? outputStr : `${outputStr}\n`),
-      stderr: EMPTY,
-      exitCode: 0,
-    };
+    // Non-escape mode: join raw byte args with spaces to preserve non-UTF-8 bytes
+    const SPACE = new Uint8Array([0x20]);
+    const NL = new Uint8Array([0x0a]);
+    const dataArgs = args.slice(startIndex);
+    let stdout = EMPTY;
+    for (let i = 0; i < dataArgs.length; i++) {
+      if (i > 0) stdout = concat(stdout, SPACE);
+      stdout = concat(stdout, dataArgs[i]);
+    }
+    if (!noNewline) stdout = concat(stdout, NL);
+
+    return { stdout, stderr: EMPTY, exitCode: 0 };
   },
 };
 

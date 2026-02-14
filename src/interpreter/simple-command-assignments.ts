@@ -21,6 +21,7 @@ import {
 import { ArithmeticError, ExitError } from "./errors.js";
 import {
   expandWord,
+  expandWordToBytes,
   expandWordWithGlob,
   getArrayElements,
 } from "./expansion.js";
@@ -95,6 +96,10 @@ export async function processAssignments(
     const value = assignment.value
       ? await expandWord(ctx, assignment.value)
       : "";
+    // Also compute raw bytes for simple assignments to preserve non-UTF-8 bytes
+    const valueBytes = assignment.value
+      ? await expandWordToBytes(ctx, assignment.value)
+      : EMPTY;
 
     // Check for empty subscript assignment: a[]=value is invalid
     const emptySubscriptMatch = name.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\[\]$/);
@@ -140,6 +145,7 @@ export async function processAssignments(
       value,
       assignment.append,
       tempAssignments,
+      valueBytes,
     );
     if (scalarResult.error) {
       return {
@@ -710,6 +716,7 @@ async function processScalarAssignment(
   value: string,
   append: boolean,
   tempAssignments: Map<string, Uint8Array | undefined>,
+  valueBytes?: Uint8Array,
 ): Promise<SingleAssignmentResult> {
   let xtraceOutput = "";
 
@@ -758,7 +765,10 @@ async function processScalarAssignment(
 
   // Handle append mode and integer attribute
   let finalValue: string;
+  // Track whether we can use raw bytes (no string-semantic operations)
+  let canUseRawBytes = !!valueBytes && !append && !namerefArrayRef;
   if (isInteger(ctx, targetName)) {
+    canUseRawBytes = false;
     try {
       const parser = new Parser();
       if (append) {
@@ -775,11 +785,15 @@ async function processScalarAssignment(
     }
   } else {
     const { isArray } = await import("./expansion.js");
-    const appendKey = isArray(ctx, targetName) ? `${targetName}_0` : targetName;
+    const isArr = isArray(ctx, targetName);
+    if (isArr) canUseRawBytes = false;
+    const appendKey = isArr ? `${targetName}_0` : targetName;
     finalValue = append ? envGet(ctx.state.env, appendKey) + value : value;
   }
 
-  finalValue = applyCaseTransform(ctx, targetName, finalValue);
+  const transformed = applyCaseTransform(ctx, targetName, finalValue);
+  if (transformed !== finalValue) canUseRawBytes = false;
+  finalValue = transformed;
 
   xtraceOutput += await traceAssignment(ctx, targetName, finalValue);
 
@@ -791,14 +805,20 @@ async function processScalarAssignment(
     const { isArray } = await import("./expansion.js");
     if (isArray(ctx, targetName)) {
       actualEnvKey = `${targetName}_0`;
+      canUseRawBytes = false;
     }
   }
 
+  // Store value: use raw bytes when possible to preserve non-UTF-8 data
+  const storeValue = canUseRawBytes
+    ? () => ctx.state.env.set(actualEnvKey, valueBytes as Uint8Array)
+    : () => envSet(ctx.state.env, actualEnvKey, finalValue);
+
   if (node.name) {
     tempAssignments.set(actualEnvKey, ctx.state.env.get(actualEnvKey));
-    envSet(ctx.state.env, actualEnvKey, finalValue);
+    storeValue();
   } else {
-    envSet(ctx.state.env, actualEnvKey, finalValue);
+    storeValue();
     if (ctx.state.options.allexport) {
       ctx.state.exportedVars = ctx.state.exportedVars || new Set();
       ctx.state.exportedVars.add(targetName);

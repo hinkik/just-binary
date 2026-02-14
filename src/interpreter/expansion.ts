@@ -11,6 +11,7 @@
  */
 
 import type {
+  CommandSubstitutionPart,
   ParameterExpansionPart,
   WordNode,
   WordPart,
@@ -18,7 +19,16 @@ import type {
 import { parseArithmeticExpression } from "../parser/arithmetic-parser.js";
 import { Parser } from "../parser/parser.js";
 import { GlobExpander } from "../shell/glob.js";
-import { decode, envGet, envSet, isEmpty } from "../utils/bytes.js";
+import {
+  concat,
+  decode,
+  EMPTY,
+  encode,
+  envGet,
+  envSet,
+  isEmpty,
+  trimTrailingNewlines,
+} from "../utils/bytes.js";
 import { evaluateArithmetic } from "./arithmetic.js";
 import {
   BadSubstitutionError,
@@ -78,7 +88,11 @@ import {
   patternHasCommandSubstitution,
 } from "./expansion/pattern-expansion.js";
 import { applyTildeExpansion } from "./expansion/tilde.js";
-import { getVariable, isVariableSet } from "./expansion/variable.js";
+import {
+  getVariable,
+  getVariableBytes,
+  isVariableSet,
+} from "./expansion/variable.js";
 import {
   expandWordWithGlobImpl,
   type WordGlobExpansionDeps,
@@ -91,7 +105,11 @@ import {
   splitByIfsForExpansion,
 } from "./helpers/ifs.js";
 import { isNameref, resolveNameref } from "./helpers/nameref.js";
-import { getLiteralValue, isQuotedPart } from "./helpers/word-parts.js";
+import {
+  getLiteralBytes,
+  getLiteralValue,
+  isQuotedPart,
+} from "./helpers/word-parts.js";
 import type { InterpreterContext } from "./types.js";
 
 // Re-export extracted functions for use elsewhere
@@ -692,7 +710,180 @@ async function expandWordAsync(
   return result;
 }
 
-async function expandPart(
+/**
+ * Expand a word to raw bytes. Uses the bytes-canonical path for all parts.
+ */
+export async function expandWordToBytes(
+  ctx: InterpreterContext,
+  word: WordNode,
+): Promise<Uint8Array> {
+  const parts = word.parts;
+  if (parts.length === 0) return EMPTY;
+
+  let result = EMPTY;
+  for (const part of parts) {
+    result = concat(result, await expandPartToBytes(ctx, part));
+  }
+  return result;
+}
+
+/**
+ * Canonical bytes-first expansion for a single part.
+ * Handles literal types, simple variables, double-quoted, and command
+ * substitutions directly in bytes. Everything else (Arithmetic, Brace,
+ * Tilde, Glob, complex ParameterExpansion) falls back to expandPartString
+ * and encodes the result — those operations are inherently string-semantic.
+ */
+async function expandPartToBytes(
+  ctx: InterpreterContext,
+  part: WordPart,
+  inDoubleQuotes = false,
+): Promise<Uint8Array> {
+  // Literal types: use getLiteralBytes (Literal, SingleQuoted, Escaped, Bytes)
+  const literalBytes = getLiteralBytes(part);
+  if (literalBytes !== null) return literalBytes;
+
+  // Simple $var or ${var} without operations: use getVariableBytes
+  if (part.type === "ParameterExpansion" && !part.operation) {
+    const bytes = getVariableBytes(ctx, part.parameter);
+    if (bytes !== null) return bytes;
+    // Complex variable (special var, nameref, array) — use string path
+    return encode(await expandParameterAsync(ctx, part, inDoubleQuotes));
+  }
+
+  // DoubleQuoted: recurse on inner parts in bytes
+  if (part.type === "DoubleQuoted") {
+    let result = EMPTY;
+    for (const innerPart of part.parts) {
+      result = concat(result, await expandPartToBytes(ctx, innerPart, true));
+    }
+    return result;
+  }
+
+  // CommandSubstitution: return raw stdout bytes directly
+  if (part.type === "CommandSubstitution") {
+    return executeCommandSubstitutionBytes(ctx, part);
+  }
+
+  // Everything else (BraceExpansion, ArithmeticExpansion, TildeExpansion,
+  // Glob, complex ParameterExpansion with operations):
+  // compute string result via expandPartString, encode to bytes.
+  return encode(await expandPartString(ctx, part, inDoubleQuotes));
+}
+
+/**
+ * Execute a command substitution and return raw stdout bytes with trailing
+ * newlines trimmed. This is the shared implementation used by both the string
+ * path (expandPart) and the bytes path (expandPartToBytes).
+ */
+async function executeCommandSubstitutionBytes(
+  ctx: InterpreterContext,
+  part: CommandSubstitutionPart,
+): Promise<Uint8Array> {
+  // Check for the special $(<file) shorthand pattern
+  const fileReadShorthand = getFileReadShorthand(part.body);
+  if (fileReadShorthand) {
+    try {
+      const filePath = await expandWord(ctx, fileReadShorthand.target);
+      const resolvedPath = filePath.startsWith("/")
+        ? filePath
+        : `${ctx.state.cwd}/${filePath}`;
+      const content = await ctx.fs.readFile(resolvedPath);
+      ctx.state.lastExitCode = 0;
+      envSet(ctx.state.env, "?", "0");
+      // Strip trailing newlines
+      const result = content.replace(/\n+$/, "");
+      checkStringLength(
+        result,
+        ctx.limits.maxStringLength,
+        "command substitution",
+      );
+      return encode(result);
+    } catch (error) {
+      if (error instanceof ExecutionLimitError) {
+        throw error;
+      }
+      ctx.state.lastExitCode = 1;
+      envSet(ctx.state.env, "?", "1");
+      return EMPTY;
+    }
+  }
+
+  const currentDepth = ctx.substitutionDepth ?? 0;
+  const maxDepth = ctx.limits.maxSubstitutionDepth;
+  if (currentDepth >= maxDepth) {
+    throw new ExecutionLimitError(
+      `Command substitution nesting limit exceeded (${maxDepth})`,
+      "substitution_depth",
+    );
+  }
+  const savedDepth = ctx.substitutionDepth;
+  ctx.substitutionDepth = currentDepth + 1;
+
+  const savedBashPid = ctx.state.bashPid;
+  ctx.state.bashPid = ctx.state.nextVirtualPid++;
+  const savedEnv = new Map(ctx.state.env);
+  const savedCwd = ctx.state.cwd;
+  const savedSuppressVerbose = ctx.state.suppressVerbose;
+  ctx.state.suppressVerbose = true;
+  try {
+    const result = await ctx.executeScript(part.body);
+    const exitCode = result.exitCode;
+    ctx.state.env = savedEnv;
+    ctx.state.cwd = savedCwd;
+    ctx.state.suppressVerbose = savedSuppressVerbose;
+    ctx.state.lastExitCode = exitCode;
+    envSet(ctx.state.env, "?", String(exitCode));
+    if (!isEmpty(result.stderr)) {
+      ctx.state.expansionStderr =
+        (ctx.state.expansionStderr || "") + decode(result.stderr);
+    }
+    ctx.state.bashPid = savedBashPid;
+    ctx.substitutionDepth = savedDepth;
+    const output = trimTrailingNewlines(result.stdout);
+    if (output.length > ctx.limits.maxStringLength) {
+      throw new ExecutionLimitError(
+        `command substitution: string length limit exceeded (${ctx.limits.maxStringLength} bytes)`,
+        "string_length",
+      );
+    }
+    return output;
+  } catch (error) {
+    ctx.state.env = savedEnv;
+    ctx.state.cwd = savedCwd;
+    ctx.state.bashPid = savedBashPid;
+    ctx.substitutionDepth = savedDepth;
+    ctx.state.suppressVerbose = savedSuppressVerbose;
+    if (error instanceof ExecutionLimitError) {
+      throw error;
+    }
+    if (error instanceof ExitError) {
+      ctx.state.lastExitCode = error.exitCode;
+      envSet(ctx.state.env, "?", String(error.exitCode));
+      if (!isEmpty(error.stderr)) {
+        ctx.state.expansionStderr =
+          (ctx.state.expansionStderr || "") + decode(error.stderr);
+      }
+      const exitOutput = trimTrailingNewlines(error.stdout);
+      if (exitOutput.length > ctx.limits.maxStringLength) {
+        throw new ExecutionLimitError(
+          `command substitution: string length limit exceeded (${ctx.limits.maxStringLength} bytes)`,
+          "string_length",
+        );
+      }
+      return exitOutput;
+    }
+    throw error;
+  }
+}
+
+/**
+ * String-path expansion for a single part. This is the fallback used by
+ * expandPartToBytes for types that are inherently string-semantic
+ * (Arithmetic, Brace, Tilde, Glob, complex ParameterExpansion).
+ * Not called directly by external code — use expandPart instead.
+ */
+async function expandPartString(
   ctx: InterpreterContext,
   part: WordPart,
   inDoubleQuotes = false,
@@ -712,132 +903,15 @@ async function expandPart(
       const parts: string[] = [];
       for (const p of part.parts) {
         // Inside double quotes, suppress tilde expansion
-        parts.push(await expandPart(ctx, p, true));
+        parts.push(await expandPartString(ctx, p, true));
       }
       return parts.join("");
     }
 
     case "CommandSubstitution": {
-      // Check for the special $(<file) shorthand pattern
-      // This is equivalent to $(cat file) but reads the file directly
-      const fileReadShorthand = getFileReadShorthand(part.body);
-      if (fileReadShorthand) {
-        try {
-          // Expand the file path (handles $VAR, etc.)
-          const filePath = await expandWord(ctx, fileReadShorthand.target);
-          // Resolve relative paths
-          const resolvedPath = filePath.startsWith("/")
-            ? filePath
-            : `${ctx.state.cwd}/${filePath}`;
-          // Read the file
-          const content = await ctx.fs.readFile(resolvedPath);
-          ctx.state.lastExitCode = 0;
-          envSet(ctx.state.env, "?", "0");
-          // Strip trailing newlines (like command substitution does)
-          const result = content.replace(/\n+$/, "");
-          // Check string length limit
-          checkStringLength(
-            result,
-            ctx.limits.maxStringLength,
-            "command substitution",
-          );
-          return result;
-        } catch (error) {
-          // ExecutionLimitError must propagate
-          if (error instanceof ExecutionLimitError) {
-            throw error;
-          }
-          // File not found or read error - return empty string, set exit code
-          ctx.state.lastExitCode = 1;
-          envSet(ctx.state.env, "?", "1");
-          return "";
-        }
-      }
-
-      // Command substitution runs in a subshell-like context
-      // ExitError should NOT terminate the main script, just this substitution
-      // But ExecutionLimitError MUST propagate to protect against infinite recursion
-      // Check command substitution nesting depth limit
-      const currentDepth = ctx.substitutionDepth ?? 0;
-      const maxDepth = ctx.limits.maxSubstitutionDepth;
-      if (currentDepth >= maxDepth) {
-        throw new ExecutionLimitError(
-          `Command substitution nesting limit exceeded (${maxDepth})`,
-          "substitution_depth",
-        );
-      }
-      // Increment depth for nested substitutions
-      const savedDepth = ctx.substitutionDepth;
-      ctx.substitutionDepth = currentDepth + 1;
-
-      // Command substitutions get a new BASHPID (unlike $$ which stays the same)
-      const savedBashPid = ctx.state.bashPid;
-      ctx.state.bashPid = ctx.state.nextVirtualPid++;
-      // Save environment - command substitutions run in a subshell and should not
-      // modify parent environment (e.g., aliases defined inside $() should not leak)
-      const savedEnv = new Map(ctx.state.env);
-      const savedCwd = ctx.state.cwd;
-      // Suppress verbose mode (set -v) inside command substitutions
-      // bash only prints verbose output for the main script
-      const savedSuppressVerbose = ctx.state.suppressVerbose;
-      ctx.state.suppressVerbose = true;
-      try {
-        const result = await ctx.executeScript(part.body);
-        // Restore environment but preserve exit code
-        const exitCode = result.exitCode;
-        ctx.state.env = savedEnv;
-        ctx.state.cwd = savedCwd;
-        ctx.state.suppressVerbose = savedSuppressVerbose;
-        // Store the exit code for $?
-        ctx.state.lastExitCode = exitCode;
-        envSet(ctx.state.env, "?", String(exitCode));
-        // Command substitution stderr should go to the shell's stderr at expansion time,
-        // NOT be affected by later redirections on the outer command
-        if (!isEmpty(result.stderr)) {
-          ctx.state.expansionStderr =
-            (ctx.state.expansionStderr || "") + decode(result.stderr);
-        }
-        ctx.state.bashPid = savedBashPid;
-        ctx.substitutionDepth = savedDepth;
-        const output = decode(result.stdout).replace(/\n+$/, "");
-        // Check string length limit for command substitution output
-        checkStringLength(
-          output,
-          ctx.limits.maxStringLength,
-          "command substitution",
-        );
-        return output;
-      } catch (error) {
-        // Restore environment on error as well
-        ctx.state.env = savedEnv;
-        ctx.state.cwd = savedCwd;
-        ctx.state.bashPid = savedBashPid;
-        ctx.substitutionDepth = savedDepth;
-        ctx.state.suppressVerbose = savedSuppressVerbose;
-        // ExecutionLimitError must always propagate - these are safety limits
-        if (error instanceof ExecutionLimitError) {
-          throw error;
-        }
-        if (error instanceof ExitError) {
-          // Catch exit in command substitution - return output so far
-          ctx.state.lastExitCode = error.exitCode;
-          envSet(ctx.state.env, "?", String(error.exitCode));
-          // Also forward stderr from the exit
-          if (!isEmpty(error.stderr)) {
-            ctx.state.expansionStderr =
-              (ctx.state.expansionStderr || "") + decode(error.stderr);
-          }
-          const exitOutput = decode(error.stdout).replace(/\n+$/, "");
-          // Check string length limit for command substitution output
-          checkStringLength(
-            exitOutput,
-            ctx.limits.maxStringLength,
-            "command substitution",
-          );
-          return exitOutput;
-        }
-        throw error;
-      }
+      // Delegate to shared bytes helper, then decode for string path
+      const bytes = await executeCommandSubstitutionBytes(ctx, part);
+      return decode(bytes);
     }
 
     case "ArithmeticExpansion": {
@@ -892,6 +966,18 @@ async function expandPart(
     default:
       return "";
   }
+}
+
+/**
+ * Public expansion entry point for a single part → string.
+ * Goes through the bytes-canonical path to preserve raw bytes where possible.
+ */
+async function expandPart(
+  ctx: InterpreterContext,
+  part: WordPart,
+  inDoubleQuotes = false,
+): Promise<string> {
+  return decode(await expandPartToBytes(ctx, part, inDoubleQuotes));
 }
 
 // Async version of expandParameter for parameter expansions that contain command substitution

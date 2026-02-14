@@ -472,6 +472,49 @@ export async function getVariable(
 }
 
 /**
+ * Get raw bytes for a simple variable lookup ($x, ${x}) without decoding.
+ * Only handles the simple case: no operations, no array subscripts beyond [0].
+ * Returns null for complex cases (special variables, namerefs, arrays),
+ * signaling the caller to fall back to the string path.
+ */
+export function getVariableBytes(
+  ctx: InterpreterContext,
+  name: string,
+): Uint8Array | null {
+  // Skip special variables — they compute string values
+  if (/^[?$#@_\-*!]$/.test(name)) return null;
+  if (
+    /^(PWD|OLDPWD|PPID|UID|EUID|RANDOM|SECONDS|BASH_VERSION|BASHPID|LINENO|FUNCNAME|BASH_LINENO|BASH_SOURCE|0)$/.test(
+      name,
+    )
+  )
+    return null;
+
+  // Skip array subscripts
+  if (name.includes("[")) return null;
+
+  // Skip namerefs
+  if (isNameref(ctx, name)) return null;
+
+  // Simple scalar lookup — return raw bytes
+  const value = ctx.state.env.get(name);
+  if (value !== undefined) {
+    // Track tempenv access (same as getVariable)
+    if (ctx.state.tempEnvBindings?.some((b) => b.has(name))) {
+      ctx.state.accessedTempEnvVars =
+        ctx.state.accessedTempEnvVars || new Set();
+      ctx.state.accessedTempEnvVars.add(name);
+    }
+    return value;
+  }
+
+  // Positional parameters
+  if (/^[1-9][0-9]*$/.test(name)) return null;
+
+  return null;
+}
+
+/**
  * Check if a variable is set (exists in the environment).
  * Properly handles array subscripts (e.g., arr[0] -> arr_0).
  * @param ctx - The interpreter context

@@ -6,7 +6,7 @@
  */
 
 import type { WordPart } from "../../ast/types.js";
-import { decode } from "../../utils/bytes.js";
+import { decode, encode } from "../../utils/bytes.js";
 
 /**
  * Get the literal string value from a word part.
@@ -23,6 +23,26 @@ export function getLiteralValue(part: WordPart): string | null {
       return part.value;
     case "Bytes":
       return decode(part.value);
+    default:
+      return null;
+  }
+}
+
+/**
+ * Get the raw bytes from a word part without decoding.
+ * Returns the bytes for Literal, SingleQuoted, Escaped, and Bytes parts.
+ * Returns null for complex parts that require expansion.
+ */
+export function getLiteralBytes(part: WordPart): Uint8Array | null {
+  switch (part.type) {
+    case "Bytes":
+      return part.value;
+    case "Literal":
+      return encode(part.value);
+    case "SingleQuoted":
+      return encode(part.value);
+    case "Escaped":
+      return encode(part.value);
     default:
       return null;
   }

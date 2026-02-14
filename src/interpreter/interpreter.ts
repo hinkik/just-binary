@@ -36,6 +36,7 @@ import type {
 } from "../types.js";
 import {
   concat,
+  decode,
   decodeArgs,
   EMPTY,
   encode,
@@ -77,8 +78,13 @@ import {
   PosixFatalError,
   ReturnError,
 } from "./errors.js";
-import { expandWord, expandWordWithGlob } from "./expansion.js";
+import {
+  expandWord,
+  expandWordToBytes,
+  expandWordWithGlob,
+} from "./expansion.js";
 import { executeFunctionDef } from "./functions.js";
+import { isNameref, resolveNameref } from "./helpers/nameref.js";
 import {
   failure,
   OK,
@@ -106,6 +112,70 @@ import {
 import type { InterpreterContext, InterpreterState } from "./types.js";
 
 export type { InterpreterContext, InterpreterState } from "./types.js";
+
+/**
+ * Check if a word can use the bytes expansion path (preserves non-UTF-8 data).
+ * Returns true for simple words where expandWordToBytes can handle them fully:
+ * - Single Bytes part (e.g., $'\xff')
+ * - Single DoubleQuoted part with only literals, Bytes, and simple param expansions
+ * - Concatenations of the above
+ * Returns false for words that need glob expansion, word splitting, or brace expansion.
+ */
+function wordCanUseBytesPath(ctx: InterpreterContext, word: WordNode): boolean {
+  for (const part of word.parts) {
+    switch (part.type) {
+      case "Bytes":
+      case "Literal":
+      case "SingleQuoted":
+      case "Escaped":
+        continue;
+      case "DoubleQuoted":
+        // Check inner parts are simple
+        for (const inner of part.parts) {
+          switch (inner.type) {
+            case "Bytes":
+            case "Literal":
+            case "SingleQuoted":
+            case "Escaped":
+              continue;
+            case "ParameterExpansion":
+              if (inner.operation) return false; // complex ops need string path
+              // $@, $*, ${arr[@]}, ${arr[*]} produce multiple values
+              // and must go through expandWordWithGlob's special multi-value handling
+              if (inner.parameter === "@" || inner.parameter === "*")
+                return false;
+              if (
+                inner.parameter.endsWith("[@]") ||
+                inner.parameter.endsWith("[*]")
+              )
+                return false;
+              // Namerefs can resolve to arr[@] or arr[*], producing multiple values
+              if (isNameref(ctx, inner.parameter)) {
+                const target = resolveNameref(ctx, inner.parameter);
+                if (
+                  target &&
+                  (target.endsWith("[@]") || target.endsWith("[*]"))
+                )
+                  return false;
+              }
+              continue;
+            case "CommandSubstitution":
+              continue; // command sub returns bytes
+            default:
+              return false;
+          }
+        }
+        continue;
+      case "ParameterExpansion":
+        // Unquoted param expansion needs word splitting → can't use bytes path
+        return false;
+      default:
+        // Glob, BraceExpansion, ArithmeticExpansion, CommandSubstitution, TildeExpansion
+        return false;
+    }
+  }
+  return word.parts.length > 0;
+}
 
 export interface InterpreterOptions {
   fs: IFileSystem;
@@ -613,31 +683,39 @@ export class Interpreter {
         redir.target.type === "HereDoc"
       ) {
         const hereDoc = redir.target as HereDocNode;
-        let content = await expandWord(this.ctx, hereDoc.content);
-        // <<- strips leading tabs from each line
-        if (hereDoc.stripTabs) {
-          content = content
-            .split("\n")
-            .map((line) => line.replace(/^\t+/, ""))
-            .join("\n");
-        }
-        // If this is a non-standard fd (not 0), store in fileDescriptors for -u option
         const fd = redir.fd ?? 0;
-        if (fd !== 0) {
-          if (!this.ctx.state.fileDescriptors) {
-            this.ctx.state.fileDescriptors = new Map();
-          }
-          this.ctx.state.fileDescriptors.set(fd, content);
+        // Use bytes path for stdin (fd 0) without stripTabs to preserve raw bytes
+        if (fd === 0 && !hereDoc.stripTabs) {
+          stdin = await expandWordToBytes(this.ctx, hereDoc.content);
         } else {
-          stdin = encode(content);
+          let content = await expandWord(this.ctx, hereDoc.content);
+          // <<- strips leading tabs from each line
+          if (hereDoc.stripTabs) {
+            content = content
+              .split("\n")
+              .map((line) => line.replace(/^\t+/, ""))
+              .join("\n");
+          }
+          // If this is a non-standard fd (not 0), store in fileDescriptors for -u option
+          if (fd !== 0) {
+            if (!this.ctx.state.fileDescriptors) {
+              this.ctx.state.fileDescriptors = new Map();
+            }
+            this.ctx.state.fileDescriptors.set(fd, content);
+          } else {
+            stdin = encode(content);
+          }
         }
         continue;
       }
 
       if (redir.operator === "<<<" && redir.target.type === "Word") {
-        stdin = encode(
-          `${await expandWord(this.ctx, redir.target as WordNode)}\n`,
+        // Use bytes path to preserve raw bytes in here-strings
+        const hereStringBytes = await expandWordToBytes(
+          this.ctx,
+          redir.target as WordNode,
         );
+        stdin = concat(hereStringBytes, encode("\n"));
         continue;
       }
 
@@ -688,7 +766,7 @@ export class Interpreter {
 
     const commandName = await expandWord(this.ctx, node.name);
 
-    const args: string[] = [];
+    const args: Uint8Array[] = [];
     const quotedArgs: boolean[] = [];
 
     // Handle local/declare/export/readonly arguments specially:
@@ -723,7 +801,7 @@ export class Interpreter {
           arg,
         );
         if (arrayAssignResult) {
-          args.push(arrayAssignResult);
+          args.push(encode(arrayAssignResult));
           quotedArgs.push(true);
         } else {
           // Check if this looks like a scalar assignment (name=value)
@@ -733,13 +811,13 @@ export class Interpreter {
             arg,
           );
           if (scalarAssignResult !== null) {
-            args.push(scalarAssignResult);
+            args.push(encode(scalarAssignResult));
             quotedArgs.push(true);
           } else {
             // Not an assignment - use normal glob expansion
             const expanded = await expandWordWithGlob(this.ctx, arg);
             for (const value of expanded.values) {
-              args.push(value);
+              args.push(encode(value));
               quotedArgs.push(expanded.quoted);
             }
           }
@@ -748,10 +826,17 @@ export class Interpreter {
     } else {
       // Expand args even if command name is empty (they may have side effects)
       for (const arg of node.args) {
-        const expanded = await expandWordWithGlob(this.ctx, arg);
-        for (const value of expanded.values) {
-          args.push(value);
-          quotedArgs.push(expanded.quoted);
+        // Use bytes path for simple quoted words to preserve non-UTF-8 data
+        // This avoids the decode/encode roundtrip that destroys raw bytes
+        if (wordCanUseBytesPath(this.ctx, arg)) {
+          args.push(await expandWordToBytes(this.ctx, arg));
+          quotedArgs.push(true);
+        } else {
+          const expanded = await expandWordWithGlob(this.ctx, arg);
+          for (const value of expanded.values) {
+            args.push(encode(value));
+            quotedArgs.push(expanded.quoted);
+          }
         }
       }
     }
@@ -775,11 +860,11 @@ export class Interpreter {
         // Empty result from variable/command substitution - word split removes it
         // If there are args, the first arg becomes the command name
         if (args.length > 0) {
-          const newCommandName = args.shift() as string;
+          const newCommandName = decode(args.shift() as Uint8Array);
           quotedArgs.shift();
           return await this.runCommand(
             newCommandName,
-            args.map((a) => encode(a)),
+            args,
             quotedArgs,
             stdin,
             false,
@@ -801,7 +886,10 @@ export class Interpreter {
 
     // Special handling for 'exec' with only redirections (no command to run)
     // In this case, the redirections apply persistently to the shell
-    if (commandName === "exec" && (args.length === 0 || args[0] === "--")) {
+    if (
+      commandName === "exec" &&
+      (args.length === 0 || decode(args[0]) === "--")
+    ) {
       // Process persistent FD redirections
       // Note: {var}>file redirections are already handled by processFdVariableRedirections
       // which sets up the FD mapping persistently. We only need to handle explicit fd redirections here.
@@ -974,7 +1062,11 @@ export class Interpreter {
     }
 
     // Generate xtrace output before running the command
-    const xtraceOutput = await traceSimpleCommand(this.ctx, commandName, args);
+    const xtraceOutput = await traceSimpleCommand(
+      this.ctx,
+      commandName,
+      args.map((a) => decode(a)),
+    );
 
     // Push tempEnvBindings onto the stack so unset can see them
     // This allows `unset v` to reveal the underlying global value when
@@ -990,7 +1082,7 @@ export class Interpreter {
     try {
       cmdResult = await this.runCommand(
         commandName,
-        args.map((a) => encode(a)),
+        args,
         quotedArgs,
         stdin,
         false,
@@ -1029,20 +1121,20 @@ export class Interpreter {
     // Special case: for declare/local/typeset with array assignments like "a=(1 2)",
     // bash sets $_ to just the variable name "a", not the full "a=(1 2)"
     if (args.length > 0) {
-      let lastArg = args[args.length - 1];
+      let lastArgStr = decode(args[args.length - 1]);
       if (
         (commandName === "declare" ||
           commandName === "local" ||
           commandName === "typeset") &&
-        /^[a-zA-Z_][a-zA-Z0-9_]*=\(/.test(lastArg)
+        /^[a-zA-Z_][a-zA-Z0-9_]*=\(/.test(lastArgStr)
       ) {
         // Extract just the variable name from array assignment
-        const match = lastArg.match(/^([a-zA-Z_][a-zA-Z0-9_]*)=\(/);
+        const match = lastArgStr.match(/^([a-zA-Z_][a-zA-Z0-9_]*)=\(/);
         if (match) {
-          lastArg = match[1];
+          lastArgStr = match[1];
         }
       }
-      this.ctx.state.lastArg = encode(lastArg);
+      this.ctx.state.lastArg = encode(lastArgStr);
     } else {
       this.ctx.state.lastArg = encode(commandName);
     }
