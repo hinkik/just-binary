@@ -26,6 +26,9 @@ export function getProcessInfo(): {
   uid: number;
   gid: number;
 } {
+  if (typeof process === "undefined") {
+    return { pid: 1, ppid: 0, uid: 1000, gid: 1000 };
+  }
   return {
     pid: process.pid,
     ppid: process.ppid,

@@ -52,6 +52,7 @@ import {
   SecurityViolationError,
 } from "./security/defense-in-depth-box.js";
 import type { DefenseInDepthConfig } from "./security/types.js";
+import { getProcessInfo } from "./shell-metadata.js";
 import type {
   BashExecResult,
   Command,
@@ -299,8 +300,8 @@ export class Bash {
       lastArg: EMPTY, // $_ is initially empty (or could be shell name)
       startTime: Date.now(),
       lastBackgroundPid: 0,
-      bashPid: process.pid, // BASHPID starts as the main process PID
-      nextVirtualPid: process.pid + 1, // Counter for unique subshell PIDs
+      bashPid: getProcessInfo().pid, // BASHPID starts as the main process PID
+      nextVirtualPid: getProcessInfo().pid + 1, // Counter for unique subshell PIDs
       currentLine: 1, // $LINENO starts at 1
       options: {
         errexit: false,
