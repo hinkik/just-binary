@@ -5,7 +5,21 @@
  */
 
 import type { Command, CommandContext, ExecResult } from "./types.js";
-import { createStringEnvAdapter, decodeArgs } from "./utils/bytes.js";
+import { createStringEnvAdapter, decodeArgs, encode } from "./utils/bytes.js";
+
+/**
+ * An ExecResult with string stdout/stderr, for ergonomic custom commands.
+ */
+export interface StringExecResult {
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+}
+
+/**
+ * Return type for custom commands — either binary ExecResult or string-based.
+ */
+export type CustomExecResult = ExecResult | StringExecResult;
 
 /**
  * User-facing CommandContext with string-typed env for ergonomics.
@@ -52,7 +66,10 @@ export function isLazyCommand(cmd: CustomCommand): cmd is LazyCommand {
  */
 export function defineCommand(
   name: string,
-  execute: (args: string[], ctx: CustomCommandContext) => Promise<ExecResult>,
+  execute: (
+    args: string[],
+    ctx: CustomCommandContext,
+  ) => Promise<CustomExecResult>,
 ): Command {
   return {
     name,
@@ -64,7 +81,15 @@ export function defineCommand(
         ...ctx,
         env: createStringEnvAdapter(ctx.env),
       };
-      return execute(decodeArgs(rawArgs), stringCtx);
+      const raw = await execute(decodeArgs(rawArgs), stringCtx);
+      if (typeof raw.stdout === "string") {
+        return {
+          stdout: encode(raw.stdout),
+          stderr: encode(raw.stderr as string),
+          exitCode: raw.exitCode,
+        };
+      }
+      return raw as ExecResult;
     },
   };
 }

@@ -21,7 +21,12 @@ export {
   getCommandNames,
   getNetworkCommandNames,
 } from "./commands/registry.js";
-export type { CustomCommand, LazyCommand } from "./custom-commands.js";
+export type {
+  CustomCommand,
+  CustomExecResult,
+  LazyCommand,
+  StringExecResult,
+} from "./custom-commands.js";
 export { defineCommand } from "./custom-commands.js";
 export { InMemoryFs } from "./fs/in-memory-fs/index.js";
 export type {

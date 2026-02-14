@@ -24,6 +24,21 @@ describe("custom-commands", () => {
       expect(typeof cmd.execute).toBe("function");
     });
 
+    it("auto-encodes string returns", async () => {
+      const cmd = defineCommand("greet-string", async (args) => ({
+        stdout: `Hello, ${args[0] || "world"}!\n`,
+        stderr: "",
+        exitCode: 0,
+      }));
+
+      const bash = new Bash({ customCommands: [cmd] });
+      const result = toText(await bash.exec("greet-string Alice"));
+
+      expect(result.stdout).toBe("Hello, Alice!\n");
+      expect(result.stderr).toBe("");
+      expect(result.exitCode).toBe(0);
+    });
+
     it("execute function receives args and ctx", async () => {
       const cmd = defineCommand("greet", async (args, ctx) => ({
         stdout: encode(`Hello, ${args[0] || "world"}! CWD: ${ctx.cwd}\n`),
