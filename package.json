@@ -1,14 +1,14 @@
 {
-  "name": "just-bash",
+  "name": "just-binary",
   "version": "2.9.8",
   "description": "A simulated bash environment with virtual filesystem",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/vercel-labs/just-bash.git"
+    "url": "git+https://github.com/hinkik/just-binary.git"
   },
-  "homepage": "https://github.com/vercel-labs/just-bash#readme",
+  "homepage": "https://github.com/hinkik/just-binary#readme",
   "bugs": {
-    "url": "https://github.com/vercel-labs/just-bash/issues"
+    "url": "https://github.com/hinkik/just-binary/issues"
   },
   "type": "module",
   "main": "dist/bundle/index.js",
@@ -40,8 +40,8 @@
     "dist/AGENTS.md"
   ],
   "bin": {
-    "just-bash": "./dist/bin/just-bash.js",
-    "just-bash-shell": "./dist/bin/shell/shell.js"
+    "just-binary": "./dist/bin/just-bash.js",
+    "just-binary-shell": "./dist/bin/shell/shell.js"
   },
   "publishConfig": {
     "access": "public"
@@ -76,7 +76,7 @@
     "dev:exec": "npx tsx src/cli/exec.ts"
   },
   "keywords": [],
-  "author": "Malte and Claude",
+  "author": "hinkik",
   "license": "Apache-2.0",
   "devDependencies": {
     "@biomejs/biome": "^2.3.10",
