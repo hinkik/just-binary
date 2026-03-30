@@ -7,6 +7,7 @@
 
 import { createUserRegex } from "../../regex/index.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { uint8ToBinaryString } from "../../utils/binary-string.js";
 import { decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 import {
@@ -363,7 +364,7 @@ async function createTarArchive(
     }
   } else {
     // Output to stdout as binary
-    stdout = String.fromCharCode(...archiveData);
+    stdout = uint8ToBinaryString(archiveData);
   }
 
   // Verbose output goes to stderr (like real tar)
