@@ -2,6 +2,7 @@
  * Shared utilities for filesystem implementations
  */
 
+import { uint8ToBinaryString } from "../utils/binary-string.js";
 import type {
   BufferEncoding,
   ReadFileOptions,
@@ -59,7 +60,7 @@ export function fromBuffer(
   encoding?: BufferEncoding | null,
 ): string {
   if (encoding === "base64") {
-    return btoa(String.fromCharCode(...buffer));
+    return btoa(uint8ToBinaryString(buffer));
   }
   if (encoding === "hex") {
     return Array.from(buffer)

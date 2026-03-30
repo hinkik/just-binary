@@ -4,6 +4,7 @@
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
+import { uint8ToBinaryString } from "../../utils/binary-string.js";
 import { decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
@@ -116,7 +117,7 @@ export const base64Command: Command = {
         }
 
         // Browser fallback - use binary string (latin1) to preserve bytes for input
-        const input = String.fromCharCode(...readResult.data);
+        const input = uint8ToBinaryString(readResult.data);
         const cleaned = input.replace(/\s/g, "");
         // Decode base64 to binary string (each char code = byte value)
         const decoded = atob(cleaned);
@@ -134,7 +135,7 @@ export const base64Command: Command = {
         encoded = buffer.toString("base64");
       } else {
         // Browser fallback - convert binary to base64
-        encoded = btoa(String.fromCharCode(...readResult.data));
+        encoded = btoa(uint8ToBinaryString(readResult.data));
       }
 
       if (wrapCols > 0) {
