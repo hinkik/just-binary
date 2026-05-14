@@ -57,3 +57,33 @@ export type {
   ExecResult,
   IFileSystem,
 } from "./types.js";
+
+// FS classes that work in the browser (no node:fs).
+export {
+  MountableFs,
+  type MountableFsOptions,
+  type MountConfig,
+} from "./fs/mountable-fs/index.js";
+
+// Stream utilities — the public surface from utils/stream.ts. Without
+// these, browser consumers cannot read the ByteStream returned by
+// stdout/stderr/stdin/fs.readFile.
+export type { ByteStream } from "./utils/stream.js";
+export {
+  CHUNK_SIZE,
+  collectBytes,
+  collectText,
+  concatStreams,
+  drain,
+  emptyStream,
+  fromBytes,
+  fromChunks,
+  fromString,
+  mapChunks,
+  streamChunks,
+  streamLines,
+  teeStream,
+} from "./utils/stream.js";
+
+// Byte helpers exposed alongside streams for parity with the Node entry.
+export { decode, EMPTY, encode } from "./utils/bytes.js";
