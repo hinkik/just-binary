@@ -74,12 +74,17 @@ type AsyncLocalStorageType<T> = {
 let AsyncLocalStorageClass: (new <T>() => AsyncLocalStorageType<T>) | null =
   null;
 
-// Only load AsyncLocalStorage in Node.js (not in browser builds)
+// Only load AsyncLocalStorage in Node.js (not in browser builds).
+//
+// The /* @vite-ignore */ hint stops bundlers from statically resolving
+// these dynamic imports — without it, Rollup/Vite still parse the string
+// literal and demand a "node:module" resolver in the browser build.
 if (!IS_BROWSER) {
   try {
     // Use createRequire for ESM compatibility (require is not defined in ESM)
     // This approach works in both CJS and ESM Node.js environments
-    const { createRequire } = await import("node:module");
+    const moduleSpec = "node:module";
+    const { createRequire } = await import(/* @vite-ignore */ moduleSpec);
     const require = createRequire(import.meta.url);
     const asyncHooks = require("node:async_hooks");
     AsyncLocalStorageClass = asyncHooks.AsyncLocalStorage;

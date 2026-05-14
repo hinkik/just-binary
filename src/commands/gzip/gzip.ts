@@ -4,8 +4,26 @@
  * Also provides gunzip (decompress) and zcat (decompress to stdout) commands.
  */
 
-import { constants, gunzipSync, gzipSync } from "node:zlib";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+
+// zlib is loaded lazily so the browser bundle doesn't need a polyfill at
+// build time. The /* @vite-ignore */ hint stops bundlers from statically
+// resolving the dynamic import. Browser callers will see a runtime error
+// if they actually invoke gzip — which matches the previous policy
+// documented in src/browser.ts.
+type Zlib = typeof import("node:zlib");
+let _zlib: Zlib | null = null;
+async function getZlib(): Promise<Zlib> {
+  if (_zlib) return _zlib;
+  _zlib = (await import(/* @vite-ignore */ "node:zlib")) as Zlib;
+  return _zlib;
+}
+// Well-known zlib constants (POSIX-stable); inlined so they don't force
+// a top-level zlib import.
+const Z_BEST_COMPRESSION = 9;
+const Z_BEST_SPEED = 1;
+const Z_DEFAULT_COMPRESSION = -1;
+
 import { parseArgs } from "../../utils/args.js";
 import { concat, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
@@ -141,7 +159,7 @@ type GzipFlags = {
  * Get compression level from flags (default is 6)
  */
 function getCompressionLevel(flags: GzipFlags): number {
-  if (flags.best) return constants.Z_BEST_COMPRESSION; // 9
+  if (flags.best) return Z_BEST_COMPRESSION; // 9
   if (flags.level8) return 8;
   if (flags.level7) return 7;
   if (flags.level6) return 6;
@@ -149,8 +167,8 @@ function getCompressionLevel(flags: GzipFlags): number {
   if (flags.level4) return 4;
   if (flags.level3) return 3;
   if (flags.level2) return 2;
-  if (flags.fast) return constants.Z_BEST_SPEED; // 1
-  return constants.Z_DEFAULT_COMPRESSION; // -1 (usually 6)
+  if (flags.fast) return Z_BEST_SPEED; // 1
+  return Z_DEFAULT_COMPRESSION; // -1 (usually 6)
 }
 
 /**
@@ -272,7 +290,7 @@ async function processFile(
         return { stdout: EMPTY, stderr: "", exitCode: 1 };
       }
       try {
-        const decompressed = gunzipSync(inputData);
+        const decompressed = (await getZlib()).gunzipSync(inputData);
         return {
           stdout: decompressed as Uint8Array,
           stderr: "",
@@ -289,7 +307,7 @@ async function processFile(
     } else {
       // Compress stdin
       const level = getCompressionLevel(flags);
-      const compressed = gzipSync(inputData, { level });
+      const compressed = (await getZlib()).gzipSync(inputData, { level });
       return {
         stdout: compressed as Uint8Array,
         stderr: "",
@@ -370,7 +388,7 @@ async function processFile(
 
     let decompressed: Uint8Array;
     try {
-      decompressed = gunzipSync(inputData);
+      decompressed = (await getZlib()).gunzipSync(inputData);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "unknown error";
       return {
@@ -452,7 +470,7 @@ async function processFile(
     let compressed: Uint8Array;
 
     try {
-      compressed = gzipSync(inputData, { level });
+      compressed = (await getZlib()).gzipSync(inputData, { level });
     } catch (e) {
       const msg = e instanceof Error ? e.message : "unknown error";
       return {
@@ -652,7 +670,7 @@ async function testFile(
   }
 
   try {
-    gunzipSync(inputData);
+    (await getZlib()).gunzipSync(inputData);
     if (flags.verbose) {
       return { stdout: EMPTY, stderr: `${file}:\tOK\n`, exitCode: 0 };
     }

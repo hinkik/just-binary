@@ -207,4 +207,65 @@ describe("browser bundle safety", () => {
       expect(result.exitCode).toBe(127);
     });
   });
+
+  describe("browser entry public surface", () => {
+    // Every new addition to the public Node API (src/index.ts) that should
+    // also work in the browser MUST be re-exported from src/browser.ts.
+    // The browser bundle is what verse (and other Vite/Rollup consumers)
+    // resolve, so a missing export breaks downstream builds with errors
+    // like: `"collectBytes" is not exported by …/dist/bundle/browser.js`.
+    it("exposes the documented public API", async () => {
+      const browser = (await import(browserBundlePath)) as Record<
+        string,
+        unknown
+      >;
+      const required = [
+        // Core
+        "Bash",
+        "defineCommand",
+        // Filesystem (browser-safe subset)
+        "InMemoryFs",
+        "MountableFs",
+        // Command catalogue
+        "getCommandNames",
+        "getNetworkCommandNames",
+        // Network errors
+        "NetworkAccessDeniedError",
+        "RedirectNotAllowedError",
+        "TooManyRedirectsError",
+        // Stream utilities — required to read ByteStream stdout/stderr/stdin
+        "ByteStream", // type-only, but TS re-exports show up as undefined; check key presence below
+        "CHUNK_SIZE",
+        "collectBytes",
+        "collectText",
+        "concatStreams",
+        "drain",
+        "emptyStream",
+        "fromBytes",
+        "fromChunks",
+        "fromString",
+        "mapChunks",
+        "streamChunks",
+        "streamLines",
+        "teeStream",
+        // Byte helpers
+        "EMPTY",
+        "decode",
+        "encode",
+      ];
+      const missing: string[] = [];
+      for (const name of required) {
+        // Type-only re-exports (`ByteStream`) won't have a runtime value;
+        // we can't enforce them here. The rest must exist.
+        if (name === "ByteStream") continue;
+        if (!(name in browser)) missing.push(name);
+      }
+      if (missing.length > 0) {
+        throw new Error(
+          `browser entry is missing public exports: ${missing.join(", ")}\n` +
+            "Add them to src/browser.ts (and src/index.ts if missing there too).",
+        );
+      }
+    });
+  });
 });
