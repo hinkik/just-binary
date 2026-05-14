@@ -102,7 +102,6 @@ export const catCommand: Command = {
       async pull(controller) {
         // Loop until we either enqueue a chunk or close the stream. Empty
         // chunks (rare) are skipped without yielding.
-        // biome-ignore lint/correctness/noUnreachable: loop structured to handle end-of-source mid-pull
         while (true) {
           if (currentReader === null) {
             const opened = await openNext();

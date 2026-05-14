@@ -40,11 +40,6 @@ export function concat(a: Uint8Array, b: Uint8Array): Uint8Array {
   return result as Uint8Array;
 }
 
-/** Check if a byte array is empty (zero length) */
-export function isEmpty(bytes: Uint8Array): boolean {
-  return bytes.length === 0;
-}
-
 /** Convenience: decode an array of Uint8Array args to string[] via UTF-8 */
 export function decodeArgs(args: Uint8Array[]): string[] {
   return args.map((a) => decoder.decode(a));

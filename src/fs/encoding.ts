@@ -7,12 +7,7 @@
  */
 
 import { uint8ToBinaryString } from "../utils/binary-string.js";
-import {
-  type ByteStream,
-  CHUNK_SIZE,
-  collectBytes,
-  streamChunks,
-} from "../utils/stream.js";
+import { type ByteStream, CHUNK_SIZE, streamChunks } from "../utils/stream.js";
 import type {
   BufferEncoding,
   FileContent,
@@ -20,14 +15,13 @@ import type {
   WriteFileOptions,
 } from "./interface.js";
 
-// Text encoder/decoder for encoding conversions
+// Text encoder for encoding conversions
 const textEncoder = new TextEncoder();
-const textDecoder = new TextDecoder();
 
 /**
  * Type guard: is this a ReadableStream of bytes?
  */
-export function isByteStream(value: unknown): value is ByteStream {
+function isByteStream(value: unknown): value is ByteStream {
   return (
     typeof value === "object" &&
     value !== null &&
@@ -77,7 +71,7 @@ function encodedToBytes(
  * Split a single Uint8Array into chunks of up to CHUNK_SIZE bytes.
  * Each chunk references a subarray of the original buffer (no extra copies).
  */
-export function splitIntoChunks(bytes: Uint8Array): Uint8Array[] {
+function splitIntoChunks(bytes: Uint8Array): Uint8Array[] {
   if (bytes.length === 0) return [];
   if (bytes.length <= CHUNK_SIZE) return [bytes];
   const out: Uint8Array[] = [];
@@ -131,26 +125,6 @@ export async function contentToChunks(
 }
 
 /**
- * Collect a stream to a single Uint8Array, decoding the bytes through the
- * given encoding (e.g. base64 input becomes the decoded raw bytes).
- *
- * For non-text encodings (base64/hex/latin1/binary), the stream is expected
- * to contain UTF-8 text in that encoding. This is rarely used in practice.
- */
-export async function streamToBytes(
-  stream: ByteStream,
-  encoding?: BufferEncoding,
-): Promise<Uint8Array> {
-  const raw = await collectBytes(stream);
-  if (!encoding || encoding === "utf8" || encoding === "utf-8") {
-    return raw;
-  }
-  // Decode bytes → string, then re-encode using requested encoding.
-  const text = textDecoder.decode(raw);
-  return encodedToBytes(text, encoding);
-}
-
-/**
  * Decode a sequence of chunks to a string using the given encoding.
  * Uses TextDecoder with stream:true for UTF-8 across chunks.
  */
@@ -200,7 +174,7 @@ export function decodeChunks(
 }
 
 /** Concatenate chunks into a single Uint8Array. */
-export function concatChunks(chunks: readonly Uint8Array[]): Uint8Array {
+function concatChunks(chunks: readonly Uint8Array[]): Uint8Array {
   let total = 0;
   for (const c of chunks) total += c.length;
   if (total === 0) return new Uint8Array(0);

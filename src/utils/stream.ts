@@ -234,23 +234,6 @@ export async function* streamLines(
   if (leftover.length > 0) yield leftover;
 }
 
-/**
- * Create a writable sink that collects chunks into a Uint8Array[].
- * Useful for writing to in-memory file storage.
- */
-export function makeChunkSink(): {
-  writable: WritableStream<Uint8Array>;
-  chunks: Uint8Array[];
-} {
-  const chunks: Uint8Array[] = [];
-  const writable = new WritableStream<Uint8Array>({
-    write(chunk) {
-      if (chunk.length > 0) chunks.push(chunk);
-    },
-  });
-  return { writable, chunks };
-}
-
 /** Drain a stream to /dev/null (consume and discard). */
 export async function drain(s: ByteStream): Promise<void> {
   const reader = s.getReader();
