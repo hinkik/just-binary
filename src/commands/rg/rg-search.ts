@@ -8,9 +8,12 @@
 // only if they actually run `rg -z` on a .gz file.
 async function gunzipSync(buf: Uint8Array): Promise<Uint8Array> {
   const spec = "node:zlib";
-  const zlib = (await import(/* @vite-ignore */ spec)) as typeof import("node:zlib");
+  const zlib = (await import(
+    /* @vite-ignore */ spec
+  )) as typeof import("node:zlib");
   return zlib.gunzipSync(buf) as unknown as Uint8Array;
 }
+
 import { createUserRegex, type UserRegex } from "../../regex/index.js";
 import type { CommandContext, ExecResult } from "../../types.js";
 import {

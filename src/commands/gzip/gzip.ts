@@ -23,6 +23,7 @@ async function getZlib(): Promise<Zlib> {
 const Z_BEST_COMPRESSION = 9;
 const Z_BEST_SPEED = 1;
 const Z_DEFAULT_COMPRESSION = -1;
+
 import { parseArgs } from "../../utils/args.js";
 import { concat, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";

@@ -44,6 +44,12 @@ export type {
   RmOptions,
   SymlinkEntry,
 } from "./fs/interface.js";
+// FS classes that work in the browser (no node:fs).
+export {
+  MountableFs,
+  type MountableFsOptions,
+  type MountConfig,
+} from "./fs/mountable-fs/index.js";
 export type { NetworkConfig } from "./network/index.js";
 export {
   NetworkAccessDeniedError,
@@ -57,14 +63,8 @@ export type {
   ExecResult,
   IFileSystem,
 } from "./types.js";
-
-// FS classes that work in the browser (no node:fs).
-export {
-  MountableFs,
-  type MountableFsOptions,
-  type MountConfig,
-} from "./fs/mountable-fs/index.js";
-
+// Byte helpers exposed alongside streams for parity with the Node entry.
+export { decode, EMPTY, encode } from "./utils/bytes.js";
 // Stream utilities — the public surface from utils/stream.ts. Without
 // these, browser consumers cannot read the ByteStream returned by
 // stdout/stderr/stdin/fs.readFile.
@@ -84,6 +84,3 @@ export {
   streamLines,
   teeStream,
 } from "./utils/stream.js";
-
-// Byte helpers exposed alongside streams for parity with the Node entry.
-export { decode, EMPTY, encode } from "./utils/bytes.js";
