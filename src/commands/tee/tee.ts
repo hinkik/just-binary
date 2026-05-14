@@ -1,7 +1,12 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
 import { decodeArgs } from "../../utils/bytes.js";
-import { collectText, fromString } from "../../utils/stream.js";
+import {
+  type ByteStream,
+  fromChunks,
+  fromString,
+  streamChunks,
+} from "../../utils/stream.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const teeHelp = {
@@ -32,28 +37,64 @@ export const teeCommand: Command = {
 
     const { append } = parsed.result.flags;
     const files = parsed.result.positional;
-    const content = await collectText(ctx.stdin);
+
+    // Stream stdin → split each chunk to every output file and accumulate
+    // for stdout. We can't ship a "live" stdout stream because writeFile
+    // returns a Promise we must await before signalling completion; instead
+    // we collect chunks into an array (chunked storage, no single Uint8Array
+    // limit) and emit via fromChunks.
+    const outChunks: Uint8Array[] = [];
+    // For non-append the first chunk truncates the file; for append we
+    // always appendFile. We can do this incrementally — first write
+    // truncates+writes the chunk, subsequent writes append.
     let stderr = "";
     let exitCode = 0;
+    const seeded = new Set<string>();
+    const tooManyOpenErrored = new Set<string>();
+    const resolvedPaths: string[] = [];
+    for (const f of files) resolvedPaths.push(ctx.fs.resolvePath(ctx.cwd, f));
 
-    // Write to each file
-    for (const file of files) {
-      try {
-        const filePath = ctx.fs.resolvePath(ctx.cwd, file);
-        if (append) {
-          await ctx.fs.appendFile(filePath, content);
-        } else {
-          await ctx.fs.writeFile(filePath, content);
+    // Truncate non-append targets up-front so empty-input case still
+    // produces empty files.
+    if (!append) {
+      for (let i = 0; i < files.length; i++) {
+        try {
+          await ctx.fs.writeFile(resolvedPaths[i], "");
+          seeded.add(resolvedPaths[i]);
+        } catch {
+          stderr += `tee: ${files[i]}: No such file or directory\n`;
+          exitCode = 1;
+          tooManyOpenErrored.add(resolvedPaths[i]);
         }
-      } catch (_error) {
-        stderr += `tee: ${file}: No such file or directory\n`;
-        exitCode = 1;
       }
     }
 
-    // Pass through to stdout
+    for await (const chunk of streamChunks(ctx.stdin)) {
+      outChunks.push(chunk);
+      for (let i = 0; i < files.length; i++) {
+        const real = resolvedPaths[i];
+        if (tooManyOpenErrored.has(real)) continue;
+        try {
+          if (!append && seeded.has(real)) {
+            await ctx.fs.appendFile(real, chunk);
+          } else if (append) {
+            await ctx.fs.appendFile(real, chunk);
+          } else {
+            await ctx.fs.writeFile(real, chunk);
+            seeded.add(real);
+          }
+        } catch {
+          if (!tooManyOpenErrored.has(real)) {
+            stderr += `tee: ${files[i]}: No such file or directory\n`;
+            exitCode = 1;
+            tooManyOpenErrored.add(real);
+          }
+        }
+      }
+    }
+
     return {
-      stdout: fromString(content),
+      stdout: outChunks.length > 0 ? (fromChunks(outChunks) as ByteStream) : fromString(""),
       stderr: fromString(stderr),
       exitCode,
     };
