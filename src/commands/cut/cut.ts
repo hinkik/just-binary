@@ -1,6 +1,6 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decode, decodeArgs } from "../../utils/bytes.js";
-import { readAndConcat } from "../../utils/file-reader.js";
+import { decodeArgs } from "../../utils/bytes.js";
+import { streamLines } from "../../utils/stream.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
 const cutHelp = {
@@ -120,48 +120,78 @@ export const cutCommand: Command = {
       };
     }
 
-    // Read from files or stdin
-    const readResult = await readAndConcat(ctx, files, { cmdName: "cut" });
-    if (!readResult.ok) return readResult.error;
-    const content = decode(readResult.content);
-
-    // Split into lines
-    const lines = content.split("\n");
-    if (lines.length > 0 && lines[lines.length - 1] === "") {
-      lines.pop();
+    // Resolve input stream: stdin if no files, else first file.
+    let input: import("../../utils/stream.js").ByteStream;
+    if (files.length === 0 || files[0] === "-") {
+      input = ctx.stdin;
+    } else {
+      try {
+        input = await ctx.fs.readFile(ctx.fs.resolvePath(ctx.cwd, files[0]));
+      } catch {
+        return {
+          stdout: emptyStream(),
+          stderr: fromString(`cut: ${files[0]}: No such file or directory\n`),
+          exitCode: 1,
+        };
+      }
     }
 
     const ranges = parseRange(fieldSpec || charSpec || "1");
-    let output = "";
-
-    for (const line of lines) {
+    const decoder = new TextDecoder();
+    const encoder = new TextEncoder();
+    const processLine = (line: string): string | null => {
       if (charSpec) {
-        // Character mode (-s has no effect in character mode)
         const chars = line.split("");
         const selected: string[] = [];
         for (const range of ranges) {
           const start = range.start - 1;
           const end = range.end === null ? chars.length : range.end;
           for (let i = start; i < end && i < chars.length; i++) {
-            if (i >= 0) {
-              selected.push(chars[i]);
-            }
+            if (i >= 0) selected.push(chars[i]);
           }
         }
-        output += `${selected.join("")}\n`;
-      } else {
-        // Field mode
-        // If -s is set, skip lines that don't contain the delimiter
-        if (suppressNoDelim && !line.includes(delimiter)) {
-          continue;
-        }
-        const fields = line.split(delimiter);
-        const selected = extractByRanges(fields, ranges);
-        output += `${selected.join(delimiter)}\n`;
+        return selected.join("");
       }
-    }
+      if (suppressNoDelim && !line.includes(delimiter)) return null;
+      const fields = line.split(delimiter);
+      const selected = extractByRanges(fields, ranges);
+      return selected.join(delimiter);
+    };
 
-    return { stdout: fromString(output), stderr: emptyStream(), exitCode: 0 };
+    // Pull-based: only consume the next line when downstream wants more.
+    let lineIter: AsyncIterator<Uint8Array> | null = null;
+    const stream: import("../../utils/stream.js").ByteStream =
+      new ReadableStream<Uint8Array>({
+        async pull(controller) {
+          if (lineIter === null) {
+            lineIter = streamLines(input)[Symbol.asyncIterator]();
+          }
+          while (true) {
+            const { done, value } = await lineIter.next();
+            if (done) {
+              controller.close();
+              return;
+            }
+            const line = decoder.decode(value);
+            const out = processLine(line);
+            if (out !== null) {
+              controller.enqueue(encoder.encode(`${out}\n`) as Uint8Array);
+              return;
+            }
+          }
+        },
+        async cancel() {
+          if (lineIter?.return) {
+            try {
+              await lineIter.return();
+            } catch {
+              // ignore
+            }
+          }
+        },
+      });
+
+    return { stdout: stream, stderr: emptyStream(), exitCode: 0 };
   },
 };
 

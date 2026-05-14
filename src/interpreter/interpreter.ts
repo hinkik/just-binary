@@ -38,6 +38,7 @@ import {
   concat,
   decode,
   decodeArgs,
+  EMPTY,
   encode,
   envGet,
   envSet,
@@ -608,8 +609,25 @@ export class Interpreter {
 
     let stdinSourceFd = -1;
 
-    // Materialize stdin once for redirection mutations.
-    let stdinBytes = await collectBytes(stdin);
+    // Fast path: when no redirection mutates stdin, pass the pipeline
+    // stream through untouched. This is critical for performance —
+    // `cat huge | head -c 5` MUST NOT drain `cat`'s stream here.
+    const stdinAffectingRedir = node.redirections.some((r) => {
+      if (r.operator === "<<" || r.operator === "<<-" || r.operator === "<<<")
+        return true;
+      const fd = r.fd ?? 0;
+      return (r.operator === "<" || r.operator === "<&") && fd === 0;
+    });
+
+    let stdinStream: ByteStream | null = null;
+    let stdinBytes: Uint8Array = EMPTY;
+    if (stdinAffectingRedir) {
+      // We're going to mutate stdin via redirections — materialize once.
+      stdinBytes = await collectBytes(stdin);
+    } else {
+      // No mutation; thread the lazy stream straight through.
+      stdinStream = stdin;
+    }
 
     for (const redir of node.redirections) {
       if (
@@ -764,7 +782,7 @@ export class Interpreter {
             newCommandName,
             args,
             quotedArgs,
-            fromBytes(stdinBytes),
+            stdinStream ?? fromBytes(stdinBytes),
             false,
             false,
             stdinSourceFd,
@@ -939,7 +957,7 @@ export class Interpreter {
         commandName,
         args,
         quotedArgs,
-        fromBytes(stdinBytes),
+        stdinStream ?? fromBytes(stdinBytes),
         false,
         false,
         stdinSourceFd,

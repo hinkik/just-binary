@@ -177,6 +177,52 @@ describe.skipIf(!runBigFile)(
     expect(total).toBe(FILE_SIZE_BYTES + "END-MARKER\n".length);
   });
 
+  it("grep streams over a big file", async () => {
+    // Pattern only matches the marker at the very end.
+    const r = await toText(await env.exec(`grep END /big.bin`));
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout).toBe("END-MARKER\n");
+  });
+
+  it("tr translates a big stream through pipes", async () => {
+    const r = await toText(
+      await env.exec(`tr A b < /big.bin | head -c 5`),
+    );
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout).toBe("bbbbb");
+  });
+
+  it("uniq deduplicates streamed lines", async () => {
+    // The big file is many lines of "AAA…A\n", so uniq should produce one
+    // line plus the marker.
+    const r = await toText(await env.exec(`uniq /big.bin`));
+    expect(r.exitCode).toBe(0);
+    const lines = r.stdout.split("\n").filter(Boolean);
+    expect(lines.length).toBe(2);
+    expect(lines[1]).toBe("END-MARKER");
+  });
+
+  it("cut -c streams character ranges from a big file", async () => {
+    const r = await toText(
+      await env.exec(`cut -c1-3 /big.bin | head -c 4`),
+    );
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout).toBe("AAA\n");
+  });
+
+  it("cat | head closes early — lazy cat doesn't read the rest", async () => {
+    // The lazy cat win: this should complete in well under a second even
+    // for a multi-GB file, because head -c 5 closes the pipe almost
+    // immediately and cat's source stream's cancel() fires.
+    const start = performance.now();
+    const r = await toText(await env.exec(`cat /big.bin | head -c 5`));
+    const elapsed = performance.now() - start;
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout).toBe("AAAAA");
+    // 1 second is generous; on a 3 GB file we typically see < 50 ms.
+    expect(elapsed).toBeLessThan(1000);
+  });
+
   it("collectBytes on a big stream produces a single Uint8Array up to V8 limit", async () => {
     // V8 ArrayBuffer cap is ~8 PB on 64-bit, so 600 MB is fine. The point
     // here is to assert we don't have any hidden assumption forcing a

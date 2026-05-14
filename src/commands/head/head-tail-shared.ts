@@ -244,72 +244,122 @@ async function tailLinesStream(
 
 // --- streaming primitives ---
 
-/** Emit at most `maxBytes` bytes from `stream`, then close. */
+/** Emit at most `maxBytes` bytes from `stream`, then close. Pull-based so
+ * the upstream stream only pulls a chunk when we're ready for more — this
+ * makes `cat huge | head -c N` exit after a single chunk read. */
 function streamHeadBytes(stream: ByteStream, maxBytes: number): ByteStream {
+  let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
+  let remaining = maxBytes;
   return new ReadableStream<Uint8Array>({
-    async start(controller) {
-      let remaining = maxBytes;
-      try {
-        if (remaining > 0) {
-          for await (const chunk of streamChunks(stream)) {
-            if (remaining <= 0) break;
-            if (chunk.length <= remaining) {
-              controller.enqueue(chunk);
-              remaining -= chunk.length;
-            } else {
-              controller.enqueue(chunk.subarray(0, remaining) as Uint8Array);
-              remaining = 0;
-              break;
-            }
-          }
-        }
+    async pull(controller) {
+      if (remaining <= 0) {
         controller.close();
-      } catch (e) {
-        controller.error(e);
+        if (reader) {
+          try {
+            await reader.cancel();
+          } catch {
+            // ignore
+          }
+          reader = null;
+        }
+        return;
+      }
+      if (reader === null) reader = stream.getReader();
+      const { done, value } = await reader.read();
+      if (done) {
+        controller.close();
+        reader.releaseLock();
+        reader = null;
+        return;
+      }
+      if (!value || value.length === 0) return;
+      if (value.length <= remaining) {
+        controller.enqueue(value);
+        remaining -= value.length;
+      } else {
+        controller.enqueue(value.subarray(0, remaining) as Uint8Array);
+        remaining = 0;
+        controller.close();
+        try {
+          await reader.cancel();
+        } catch {
+          // ignore
+        }
+        reader = null;
+      }
+    },
+    async cancel() {
+      if (reader) {
+        try {
+          await reader.cancel();
+        } catch {
+          // ignore
+        }
+        reader = null;
       }
     },
   });
 }
 
-/** Emit up to `maxLines` lines from `stream`, then close. */
+/** Emit up to `maxLines` lines from `stream`, then close. Pull-based. */
 function streamHeadLines(stream: ByteStream, maxLines: number): ByteStream {
+  let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
+  let linesEmitted = 0;
+  let lastByte: number | null = null;
+  let emittedAny = false;
+  let done = false;
   return new ReadableStream<Uint8Array>({
-    async start(controller) {
-      let linesEmitted = 0;
-      let lastByte: number | null = null;
-      let emittedAny = false;
-      try {
-        if (maxLines > 0) {
-          for await (const chunk of streamChunks(stream)) {
-            // Count newlines in chunk; if maxLines reached, emit up to and
-            // including that newline.
-            for (let i = 0; i < chunk.length; i++) {
-              if (chunk[i] === 0x0a) {
-                linesEmitted++;
-                if (linesEmitted >= maxLines) {
-                  const slice = chunk.subarray(0, i + 1) as Uint8Array;
-                  controller.enqueue(slice);
-                  controller.close();
-                  return;
-                }
-              }
-            }
-            if (chunk.length > 0) {
-              controller.enqueue(chunk);
-              emittedAny = true;
-              lastByte = chunk[chunk.length - 1];
-            }
-          }
-        }
-        // If we emitted partial content without a trailing newline, append one
-        // to match real `head` (and prior just-bash) behavior on incomplete
-        // final lines.
+    async pull(controller) {
+      if (done) return;
+      if (maxLines <= 0) {
+        controller.close();
+        done = true;
+        return;
+      }
+      if (reader === null) reader = stream.getReader();
+      const r = await reader.read();
+      if (r.done) {
         if (emittedAny && lastByte !== null && lastByte !== 0x0a) {
           controller.enqueue(new Uint8Array([0x0a]) as Uint8Array);
         }
         controller.close();
-      } catch (e) {
-        controller.error(e);
+        reader.releaseLock();
+        reader = null;
+        done = true;
+        return;
+      }
+      const chunk = r.value;
+      if (!chunk || chunk.length === 0) return;
+      for (let i = 0; i < chunk.length; i++) {
+        if (chunk[i] === 0x0a) {
+          linesEmitted++;
+          if (linesEmitted >= maxLines) {
+            const slice = chunk.subarray(0, i + 1) as Uint8Array;
+            controller.enqueue(slice);
+            controller.close();
+            done = true;
+            try {
+              await reader.cancel();
+            } catch {
+              // ignore
+            }
+            reader = null;
+            return;
+          }
+        }
+      }
+      controller.enqueue(chunk);
+      emittedAny = true;
+      lastByte = chunk[chunk.length - 1];
+    },
+    async cancel() {
+      if (reader) {
+        try {
+          await reader.cancel();
+        } catch {
+          // ignore
+        }
+        reader = null;
       }
     },
   });

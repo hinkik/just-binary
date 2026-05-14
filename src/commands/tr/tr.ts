@@ -1,7 +1,7 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
 import { decodeArgs } from "../../utils/bytes.js";
-import { collectText } from "../../utils/stream.js";
+import { streamChunks } from "../../utils/stream.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const trHelp = {
@@ -157,76 +157,126 @@ export const trCommand: Command = {
 
     const set1Raw = expandRange(sets[0]);
     const set2 = sets.length > 1 ? expandRange(sets[1]) : "";
-    const content = await collectText(ctx.stdin);
 
-    // Helper to check if character is in set1 (considering complement mode)
     const isInSet1 = (char: string): boolean => {
       const inSet = set1Raw.includes(char);
       return complementMode ? !inSet : inSet;
     };
 
-    let output = "";
-
-    if (deleteMode) {
-      // Delete characters in set1 (or complement of set1)
-      for (const char of content) {
-        if (!isInSet1(char)) {
-          output += char;
-        }
-      }
-    } else if (squeezeMode && sets.length === 1) {
-      // Squeeze consecutive characters in set1
-      let prev = "";
-      for (const char of content) {
-        if (isInSet1(char) && char === prev) {
-          continue; // Skip repeated character
-        }
-        output += char;
-        prev = char;
-      }
-    } else {
-      // Translate characters from set1 to set2
+    // Pre-build the translation map once.
+    let translationMap: Map<string, string> | null = null;
+    let complementTarget = "";
+    if (!deleteMode && !(squeezeMode && sets.length === 1)) {
       if (complementMode) {
-        // In complement mode, all characters NOT in set1 are translated
-        // They're all mapped to a single character (last char of set2)
-        const targetChar = set2.length > 0 ? set2[set2.length - 1] : "";
-        for (const char of content) {
-          if (!set1Raw.includes(char)) {
-            output += targetChar;
-          } else {
-            output += char;
-          }
-        }
+        complementTarget = set2.length > 0 ? set2[set2.length - 1] : "";
       } else {
-        // Normal translation mode
-        const translationMap = new Map<string, string>();
+        translationMap = new Map<string, string>();
         for (let i = 0; i < set1Raw.length; i++) {
-          // If set2 is shorter, use the last character of set2
-          const targetChar = i < set2.length ? set2[i] : set2[set2.length - 1];
+          const targetChar =
+            i < set2.length ? set2[i] : set2[set2.length - 1];
           translationMap.set(set1Raw[i], targetChar);
         }
-
-        for (const char of content) {
-          output += translationMap.get(char) ?? char;
-        }
-      }
-
-      // If squeeze mode is also enabled, squeeze set2 characters
-      if (squeezeMode) {
-        let squeezed = "";
-        let prev = "";
-        for (const char of output) {
-          if (set2.includes(char) && char === prev) {
-            continue;
-          }
-          squeezed += char;
-          prev = char;
-        }
-        output = squeezed;
       }
     }
 
-    return { stdout: fromString(output), stderr: emptyStream(), exitCode: 0 };
+    // Stream-transform stdin chunks. UTF-8 boundary handling via the
+    // decoder's stream mode.
+    const decoder = new TextDecoder();
+    const encoder = new TextEncoder();
+    let prevChar = "";
+
+    const transformText = (text: string): string => {
+      let out = "";
+      if (deleteMode) {
+        for (const char of text) {
+          if (!isInSet1(char)) out += char;
+        }
+        return out;
+      }
+      if (squeezeMode && sets.length === 1) {
+        // Squeeze repeated chars in set1
+        for (const char of text) {
+          if (isInSet1(char) && char === prevChar) continue;
+          out += char;
+          prevChar = char;
+        }
+        return out;
+      }
+      // Translate
+      if (complementMode) {
+        for (const char of text) {
+          out += set1Raw.includes(char) ? char : complementTarget;
+        }
+      } else {
+        const map = translationMap as Map<string, string>;
+        for (const char of text) {
+          out += map.get(char) ?? char;
+        }
+      }
+      if (squeezeMode) {
+        // Squeeze set2 chars in the translated output
+        let squeezed = "";
+        for (const char of out) {
+          if (set2.includes(char) && char === prevChar) continue;
+          squeezed += char;
+          prevChar = char;
+        }
+        return squeezed;
+      }
+      return out;
+    };
+
+    // Pull-based so a downstream `head -c N` can cancel us early and stop
+    // reading from cat / the file mid-stream.
+    let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
+    let upstreamDone = false;
+    const outStream: import("../../utils/stream.js").ByteStream =
+      new ReadableStream<Uint8Array>({
+        async pull(controller) {
+          if (reader === null && !upstreamDone) reader = ctx.stdin.getReader();
+          while (true) {
+            if (upstreamDone) {
+              const trailing = decoder.decode();
+              if (trailing.length > 0) {
+                const transformed = transformText(trailing);
+                if (transformed.length > 0) {
+                  controller.enqueue(encoder.encode(transformed) as Uint8Array);
+                  return;
+                }
+              }
+              controller.close();
+              return;
+            }
+            const r = await (reader as ReadableStreamDefaultReader<Uint8Array>).read();
+            if (r.done) {
+              upstreamDone = true;
+              (reader as ReadableStreamDefaultReader<Uint8Array>).releaseLock();
+              reader = null;
+              continue;
+            }
+            const chunk = r.value;
+            if (!chunk || chunk.length === 0) continue;
+            const text = decoder.decode(chunk, { stream: true });
+            const transformed = transformText(text);
+            if (transformed.length > 0) {
+              controller.enqueue(encoder.encode(transformed) as Uint8Array);
+              return;
+            }
+          }
+        },
+        async cancel() {
+          if (reader) {
+            try {
+              await reader.cancel();
+            } catch {
+              // ignore
+            }
+            reader = null;
+          }
+        },
+      });
+
+    return { stdout: outStream, stderr: emptyStream(), exitCode: 0 };
   },
 };
 

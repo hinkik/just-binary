@@ -11,6 +11,7 @@ import { decode, decodeArgs, encode } from "../utils/bytes.js";
 import {
   type ByteStream,
   collectBytes,
+  concatStreams,
   emptyStream,
   fromBytes,
 } from "../utils/stream.js";
@@ -434,17 +435,24 @@ export async function executeExternalCommand(
     ctx.state.hashTable.set(commandName, cmdPath);
   }
 
-  // Use groupStdin as fallback if no stdin from redirections/pipeline
-  // This is needed for commands inside groups/functions that receive stdin via heredoc
-  // Materialize stdin to detect empty and fall back to groupStdin if needed.
-  const stdinBytes = await collectBytes(stdin);
+  // Use groupStdin as fallback if no stdin from redirections/pipeline.
+  // We must detect emptiness WITHOUT draining the stream — peek a single
+  // chunk and prepend it back if it isn't empty. This preserves lazy
+  // streaming for `cat huge | head -c N` etc.
   let effectiveStdin: ByteStream;
-  if (stdinBytes.length > 0) {
-    effectiveStdin = fromBytes(stdinBytes);
-  } else if (ctx.state.groupStdin) {
-    effectiveStdin = ctx.state.groupStdin;
+  const reader = stdin.getReader();
+  const first = await reader.read();
+  reader.releaseLock();
+  if (first.done || !first.value || first.value.length === 0) {
+    // Stream had no data — fall back to groupStdin / empty.
+    if (ctx.state.groupStdin) {
+      effectiveStdin = ctx.state.groupStdin;
+    } else {
+      effectiveStdin = emptyStream();
+    }
   } else {
-    effectiveStdin = emptyStream();
+    // Splice the peeked chunk back in front of the rest of the stream.
+    effectiveStdin = concatStreams(fromBytes(first.value), stdin);
   }
 
   // Build exported environment for commands that need it (printenv, env, etc.)

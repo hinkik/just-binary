@@ -3,7 +3,12 @@ import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { decodeArgs, encode } from "../../utils/bytes.js";
 import { matchGlob } from "../../utils/glob.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
-import { buildRegex, searchContent } from "../search-engine/index.js";
+import {
+  buildRegex,
+  canStream,
+  searchContent,
+  searchStream,
+} from "../search-engine/index.js";
 
 /** File entry with optional type info from glob expansion */
 interface FileEntry {
@@ -227,7 +232,7 @@ export const grepCommand: Command = {
 
     // If no files and stdin is provided (including empty string), read from stdin
     if (files.length === 0 && ctx.stdin !== undefined) {
-      const result = searchContent(await collectText(ctx.stdin), regex, {
+      const searchOpts = {
         invertMatch,
         showLineNumbers,
         countOnly,
@@ -237,7 +242,40 @@ export const grepCommand: Command = {
         afterContext,
         maxCount,
         kResetGroup,
-      });
+      };
+      if (canStream(searchOpts)) {
+        // Stream-search stdin: bounded memory regardless of input size.
+        const s = searchStream(ctx.stdin, regex, searchOpts);
+        // Drain the output stream into a chunks array so we can compute the
+        // exit code synchronously before returning.
+        const chunks: Uint8Array[] = [];
+        const reader = s.output.getReader();
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            if (value && value.length > 0) chunks.push(value);
+          }
+        } finally {
+          reader.releaseLock();
+        }
+        const matched = await s.matched;
+        const exitCode = matched ? 0 : 1;
+        if (quietMode) {
+          return {
+            stdout: emptyStream(),
+            stderr: emptyStream(),
+            exitCode,
+          };
+        }
+        return {
+          stdout:
+            chunks.length === 0 ? emptyStream() : fromChunks(chunks),
+          stderr: emptyStream(),
+          exitCode,
+        };
+      }
+      const result = searchContent(await collectText(ctx.stdin), regex, searchOpts);
       if (quietMode) {
         return {
           stdout: emptyStream(),
@@ -356,8 +394,7 @@ export const grepCommand: Command = {
               return null;
             }
 
-            const content = await ctx.fs.readFileText(filePath);
-            const result = searchContent(content, regex, {
+            const opts = {
               invertMatch,
               showLineNumbers,
               countOnly,
@@ -367,7 +404,33 @@ export const grepCommand: Command = {
               afterContext,
               maxCount,
               kResetGroup,
-            });
+            };
+            if (canStream(opts)) {
+              const fileStream = await ctx.fs.readFile(filePath);
+              const s = searchStream(fileStream, regex, opts);
+              const chunks: Uint8Array[] = [];
+              const reader = s.output.getReader();
+              try {
+                while (true) {
+                  const { done, value } = await reader.read();
+                  if (done) break;
+                  if (value && value.length > 0) chunks.push(value);
+                }
+              } finally {
+                reader.releaseLock();
+              }
+              const matched = await s.matched;
+              const matchCount = await s.matchCount;
+              const output = chunks
+                .map((c) => new TextDecoder().decode(c))
+                .join("");
+              return {
+                file,
+                result: { output, matched, matchCount },
+              };
+            }
+            const content = await ctx.fs.readFileText(filePath);
+            const result = searchContent(content, regex, opts);
 
             return { file, result };
           } catch {
@@ -681,7 +744,12 @@ export const egrepCommand: Command = {
   },
 };
 
-import { collectText, emptyStream, fromString } from "../../utils/stream.js";
+import {
+  collectText,
+  emptyStream,
+  fromChunks,
+  fromString,
+} from "../../utils/stream.js";
 import type { CommandFuzzInfo } from "../fuzz-flags-types.js";
 
 export const flagsForFuzzing: CommandFuzzInfo = {
