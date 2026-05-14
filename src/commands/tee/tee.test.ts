@@ -5,14 +5,14 @@ import { toText } from "../../test-utils.js";
 describe("tee command", () => {
   it("should pass through stdin to stdout", async () => {
     const env = new Bash();
-    const result = toText(await env.exec("echo hello | tee"));
+    const result = await toText(await env.exec("echo hello | tee"));
     expect(result.stdout).toBe("hello\n");
     expect(result.exitCode).toBe(0);
   });
 
   it("should write to file and stdout", async () => {
     const env = new Bash();
-    const result = toText(await env.exec("echo hello | tee output.txt"));
+    const result = await toText(await env.exec("echo hello | tee output.txt"));
     expect(result.stdout).toBe("hello\n");
     const content = await env.readFile("output.txt");
     expect(content).toBe("hello\n");
@@ -20,7 +20,7 @@ describe("tee command", () => {
 
   it("should write to multiple files", async () => {
     const env = new Bash();
-    const result = toText(
+    const result = await toText(
       await env.exec("echo hello | tee file1.txt file2.txt"),
     );
     expect(result.stdout).toBe("hello\n");
@@ -34,7 +34,9 @@ describe("tee command", () => {
     const env = new Bash({
       files: { "/test.txt": "existing\n" },
     });
-    const result = toText(await env.exec("echo appended | tee -a test.txt"));
+    const result = await toText(
+      await env.exec("echo appended | tee -a test.txt"),
+    );
     expect(result.stdout).toBe("appended\n");
     const content = await env.readFile("/test.txt");
     expect(content).toBe("existing\nappended\n");
@@ -51,7 +53,7 @@ describe("tee command", () => {
 
   it("should show help with --help", async () => {
     const env = new Bash();
-    const result = toText(await env.exec("tee --help"));
+    const result = await toText(await env.exec("tee --help"));
     expect(result.stdout).toContain("tee");
     expect(result.stdout).toContain("stdin");
     expect(result.exitCode).toBe(0);

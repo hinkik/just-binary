@@ -92,7 +92,7 @@ describe("curl cookies", () => {
       });
       await env.exec("curl -c /cookies.txt https://api.example.com/login");
 
-      const cookies = await env.fs.readFile("/cookies.txt");
+      const cookies = await env.fs.readFileText("/cookies.txt");
       expect(cookies).toContain("session=abc123");
     });
 
@@ -104,7 +104,7 @@ describe("curl cookies", () => {
         "curl --cookie-jar /jar.txt https://api.example.com/login",
       );
 
-      const cookies = await env.fs.readFile("/jar.txt");
+      const cookies = await env.fs.readFileText("/jar.txt");
       expect(cookies).toContain("session=abc123");
     });
 
@@ -116,7 +116,7 @@ describe("curl cookies", () => {
         "curl --cookie-jar=/save.txt https://api.example.com/login",
       );
 
-      const cookies = await env.fs.readFile("/save.txt");
+      const cookies = await env.fs.readFileText("/save.txt");
       expect(cookies).toContain("session=abc123");
     });
   });

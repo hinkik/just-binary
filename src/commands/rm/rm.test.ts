@@ -7,11 +7,11 @@ describe("rm", () => {
     const env = new Bash({
       files: { "/test.txt": "content" },
     });
-    const result = toText(await env.exec("rm /test.txt"));
+    const result = await toText(await env.exec("rm /test.txt"));
     expect(result.stdout).toBe("");
     expect(result.stderr).toBe("");
     expect(result.exitCode).toBe(0);
-    const cat = toText(await env.exec("cat /test.txt"));
+    const cat = await toText(await env.exec("cat /test.txt"));
     expect(cat.exitCode).toBe(1);
   });
 
@@ -24,14 +24,14 @@ describe("rm", () => {
       },
     });
     await env.exec("rm /a.txt /b.txt /c.txt");
-    const ls = toText(await env.exec("ls /"));
+    const ls = await toText(await env.exec("ls /"));
     // /bin, /usr, /dev, /proc always exist
     expect(ls.stdout).toBe("bin\ndev\nproc\nusr\n");
   });
 
   it("should error on missing file", async () => {
     const env = new Bash();
-    const result = toText(await env.exec("rm /missing.txt"));
+    const result = await toText(await env.exec("rm /missing.txt"));
     expect(result.stdout).toBe("");
     expect(result.stderr).toBe(
       "rm: cannot remove '/missing.txt': No such file or directory\n",
@@ -41,7 +41,7 @@ describe("rm", () => {
 
   it("should not error with -f on missing file", async () => {
     const env = new Bash();
-    const result = toText(await env.exec("rm -f /missing.txt"));
+    const result = await toText(await env.exec("rm -f /missing.txt"));
     expect(result.stdout).toBe("");
     expect(result.stderr).toBe("");
     expect(result.exitCode).toBe(0);
@@ -51,7 +51,7 @@ describe("rm", () => {
     const env = new Bash({
       files: { "/dir/file.txt": "content" },
     });
-    const result = toText(await env.exec("rm /dir"));
+    const result = await toText(await env.exec("rm /dir"));
     expect(result.stdout).toBe("");
     expect(result.exitCode).toBe(1);
   });
@@ -60,11 +60,11 @@ describe("rm", () => {
     const env = new Bash({
       files: { "/dir/file.txt": "content" },
     });
-    const result = toText(await env.exec("rm -r /dir"));
+    const result = await toText(await env.exec("rm -r /dir"));
     expect(result.stdout).toBe("");
     expect(result.stderr).toBe("");
     expect(result.exitCode).toBe(0);
-    const ls = toText(await env.exec("ls /dir"));
+    const ls = await toText(await env.exec("ls /dir"));
     expect(ls.exitCode).toBe(2);
   });
 
@@ -73,7 +73,7 @@ describe("rm", () => {
       files: { "/dir/file.txt": "content" },
     });
     await env.exec("rm -R /dir");
-    const ls = toText(await env.exec("ls /dir"));
+    const ls = await toText(await env.exec("ls /dir"));
     expect(ls.exitCode).toBe(2);
   });
 
@@ -86,7 +86,7 @@ describe("rm", () => {
       },
     });
     await env.exec("rm -r /dir");
-    const ls = toText(await env.exec("ls /dir"));
+    const ls = await toText(await env.exec("ls /dir"));
     expect(ls.exitCode).toBe(2);
   });
 
@@ -94,7 +94,7 @@ describe("rm", () => {
     const env = new Bash({
       files: { "/dir/file.txt": "" },
     });
-    const result = toText(await env.exec("rm -rf /dir /nonexistent"));
+    const result = await toText(await env.exec("rm -rf /dir /nonexistent"));
     expect(result.stdout).toBe("");
     expect(result.stderr).toBe("");
     expect(result.exitCode).toBe(0);
@@ -105,13 +105,13 @@ describe("rm", () => {
       files: { "/dir/file.txt": "" },
     });
     await env.exec("rm --recursive /dir");
-    const ls = toText(await env.exec("ls /dir"));
+    const ls = await toText(await env.exec("ls /dir"));
     expect(ls.exitCode).toBe(2);
   });
 
   it("should handle --force flag", async () => {
     const env = new Bash();
-    const result = toText(await env.exec("rm --force /missing"));
+    const result = await toText(await env.exec("rm --force /missing"));
     expect(result.stdout).toBe("");
     expect(result.stderr).toBe("");
     expect(result.exitCode).toBe(0);
@@ -119,7 +119,7 @@ describe("rm", () => {
 
   it("should not error with -f and no arguments", async () => {
     const env = new Bash();
-    const result = toText(await env.exec("rm -f"));
+    const result = await toText(await env.exec("rm -f"));
     expect(result.stdout).toBe("");
     expect(result.stderr).toBe("");
     expect(result.exitCode).toBe(0);
@@ -127,7 +127,7 @@ describe("rm", () => {
 
   it("should error with no arguments", async () => {
     const env = new Bash();
-    const result = toText(await env.exec("rm"));
+    const result = await toText(await env.exec("rm"));
     expect(result.stdout).toBe("");
     expect(result.stderr).toBe("rm: missing operand\n");
     expect(result.exitCode).toBe(1);
@@ -137,7 +137,7 @@ describe("rm", () => {
     const env = new Bash();
     await env.exec("mkdir /emptydir");
     await env.exec("rm -r /emptydir");
-    const ls = toText(await env.exec("ls /emptydir"));
+    const ls = await toText(await env.exec("ls /emptydir"));
     expect(ls.exitCode).toBe(2);
   });
 
@@ -147,7 +147,7 @@ describe("rm", () => {
       cwd: "/home/user",
     });
     await env.exec("rm file.txt");
-    const cat = toText(await env.exec("cat /home/user/file.txt"));
+    const cat = await toText(await env.exec("cat /home/user/file.txt"));
     expect(cat.exitCode).toBe(1);
   });
 });

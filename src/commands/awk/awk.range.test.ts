@@ -14,7 +14,9 @@ END
 after`,
       },
     });
-    const result = toText(await env.exec("awk '/START/,/END/' /test/data.txt"));
+    const result = await toText(
+      await env.exec("awk '/START/,/END/' /test/data.txt"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("START\nline1\nline2\nEND\n");
   });
@@ -33,7 +35,9 @@ END
 after`,
       },
     });
-    const result = toText(await env.exec("awk '/BEGIN/,/END/' /test/data.txt"));
+    const result = await toText(
+      await env.exec("awk '/BEGIN/,/END/' /test/data.txt"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("BEGIN\na\nEND\nBEGIN\nb\nEND\n");
   });
@@ -49,7 +53,7 @@ END
 after`,
       },
     });
-    const result = toText(
+    const result = await toText(
       await env.exec("awk '/START/,/END/ { print \">> \" $0 }' /test/data.txt"),
     );
     expect(result.exitCode).toBe(0);
@@ -64,7 +68,9 @@ START END
 after`,
       },
     });
-    const result = toText(await env.exec("awk '/START/,/END/' /test/data.txt"));
+    const result = await toText(
+      await env.exec("awk '/START/,/END/' /test/data.txt"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("START END\n");
   });
@@ -78,7 +84,9 @@ line1
 line2`,
       },
     });
-    const result = toText(await env.exec("awk '/START/,/END/' /test/data.txt"));
+    const result = await toText(
+      await env.exec("awk '/START/,/END/' /test/data.txt"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("START\nline1\nline2\n");
   });
@@ -94,7 +102,7 @@ footer: bar
 line2`,
       },
     });
-    const result = toText(
+    const result = await toText(
       await env.exec("awk '/^header:/,/^footer:/' /test/data.txt"),
     );
     expect(result.exitCode).toBe(0);
@@ -112,7 +120,7 @@ line5`,
       },
     });
     // Alternative approach: use regex that matches specific line content
-    const result = toText(
+    const result = await toText(
       await env.exec("awk '/line2/,/line4/' /test/data.txt"),
     );
     expect(result.exitCode).toBe(0);

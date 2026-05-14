@@ -30,7 +30,7 @@ describe("rg regression: r16 - directory trailing slash", () => {
         "/home/user/def/ghi/subdir.txt": "xyz\n",
       },
     });
-    const result = toText(await bash.exec("rg xyz"));
+    const result = await toText(await bash.exec("rg xyz"));
     expect(result.exitCode).toBe(1);
   });
 });
@@ -46,7 +46,7 @@ describe("rg regression: r25 - rooted gitignore pattern", () => {
         "/home/user/src/llvm/foo": "test\n",
       },
     });
-    const result = toText(await bash.exec("rg test"));
+    const result = await toText(await bash.exec("rg test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("src/llvm/foo:1:test\n");
   });
@@ -63,7 +63,7 @@ describe("rg regression: r30 - negation after double-star", () => {
         "/home/user/vendor/other": "test\n",
       },
     });
-    const result = toText(await bash.exec("rg test"));
+    const result = await toText(await bash.exec("rg test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("vendor/manifest:1:test\n");
   });
@@ -79,7 +79,7 @@ describe("rg regression: r49 - unanchored directory pattern", () => {
         "/home/user/test/foo/bar/baz": "test\n",
       },
     });
-    const result = toText(await bash.exec("rg xyz"));
+    const result = await toText(await bash.exec("rg xyz"));
     expect(result.exitCode).toBe(1);
   });
 });
@@ -95,7 +95,7 @@ describe("rg regression: r50 - nested directory pattern", () => {
         "/home/user/ghi/XXX/YYY/bar": "test\n",
       },
     });
-    const result = toText(await bash.exec("rg xyz"));
+    const result = await toText(await bash.exec("rg xyz"));
     expect(result.exitCode).toBe(1);
   });
 });
@@ -110,7 +110,7 @@ describe("rg regression: r64 - --files with path argument", () => {
         "/home/user/foo/abc": "",
       },
     });
-    const result = toText(await bash.exec("rg --files foo"));
+    const result = await toText(await bash.exec("rg --files foo"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("foo/abc\n");
   });
@@ -128,7 +128,7 @@ describe("rg regression: r65 - simple directory ignore", () => {
         "/home/user/a/bar": "xyz\n",
       },
     });
-    const result = toText(await bash.exec("rg xyz"));
+    const result = await toText(await bash.exec("rg xyz"));
     expect(result.exitCode).toBe(1);
   });
 });
@@ -145,7 +145,7 @@ describe("rg regression: r67 - negation of root", () => {
         "/home/user/dir/bar": "test\n",
       },
     });
-    const result = toText(await bash.exec("rg test"));
+    const result = await toText(await bash.exec("rg test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("dir/bar:1:test\n");
   });
@@ -162,7 +162,7 @@ describe("rg regression: r87 - double-star pattern", () => {
         "/home/user/foo": "test\n",
       },
     });
-    const result = toText(await bash.exec("rg test"));
+    const result = await toText(await bash.exec("rg test"));
     expect(result.exitCode).toBe(1);
   });
 });
@@ -178,7 +178,7 @@ describe("rg regression: r90 - negation of hidden file", () => {
         "/home/user/.foo": "test\n",
       },
     });
-    const result = toText(await bash.exec("rg test"));
+    const result = await toText(await bash.exec("rg test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(".foo:1:test\n");
   });
@@ -193,7 +193,9 @@ describe("rg regression: r93 - IP address regex", () => {
         "/home/user/foo": "192.168.1.1\n",
       },
     });
-    const result = toText(await bash.exec("rg '(\\d{1,3}\\.){3}\\d{1,3}'"));
+    const result = await toText(
+      await bash.exec("rg '(\\d{1,3}\\.){3}\\d{1,3}'"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("foo:1:192.168.1.1\n");
   });
@@ -210,7 +212,7 @@ describe("rg regression: r99 - heading output", () => {
         "/home/user/bar": "test\n",
       },
     });
-    const result = toText(await bash.exec("rg --heading test"));
+    const result = await toText(await bash.exec("rg --heading test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("test");
   });
@@ -225,7 +227,7 @@ describe("rg regression: r105 - vimgrep and column", () => {
         "/home/user/foo": "zztest\n",
       },
     });
-    const result = toText(await bash.exec("rg --vimgrep test"));
+    const result = await toText(await bash.exec("rg --vimgrep test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("foo:1:3:zztest\n");
   });
@@ -237,7 +239,7 @@ describe("rg regression: r105 - vimgrep and column", () => {
         "/home/user/foo": "zztest\n",
       },
     });
-    const result = toText(await bash.exec("rg --column test"));
+    const result = await toText(await bash.exec("rg --column test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("foo:1:3:zztest\n");
   });
@@ -255,7 +257,7 @@ describe("rg regression: r127 - gitignore with path", () => {
         "/home/user/foo/watson": SHERLOCK,
       },
     });
-    const result = toText(await bash.exec("rg Sherlock"));
+    const result = await toText(await bash.exec("rg Sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("foo/watson:");
     expect(result.stdout).not.toContain("foo/sherlock:");
@@ -272,7 +274,7 @@ describe("rg regression: r128 - vertical tab handling", () => {
         "/home/user/foo": "01234567\x0b\n\x0b\n\x0b\n\x0b\nx\n",
       },
     });
-    const result = toText(await bash.exec("rg -n x"));
+    const result = await toText(await bash.exec("rg -n x"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("5:x\n");
   });
@@ -293,7 +295,7 @@ describe("rg regression: r137 - follow symlinks to files", () => {
     // Create a symlink to the file
     await bash.exec("ln -s real.txt /home/user/link.txt");
     // With -L, should follow symlink
-    const result = toText(await bash.exec("rg -L test"));
+    const result = await toText(await bash.exec("rg -L test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("test content");
   });
@@ -312,7 +314,7 @@ describe("rg regression: r156 - complex regex pattern", () => {
         "/home/user/testcase.txt": content,
       },
     });
-    const result = toText(
+    const result = await toText(
       await bash.exec(
         `rg -N '#(?:parse|include)\\s*\\(\\s*(?:"|'"'"')[./A-Za-z_-]+(?:"|'"'"')' testcase.txt`,
       ),
@@ -332,7 +334,7 @@ describe("rg regression: r184 - dot star gitignore", () => {
         "/home/user/foo/bar/baz": "test\n",
       },
     });
-    const result = toText(await bash.exec("rg test"));
+    const result = await toText(await bash.exec("rg test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("foo/bar/baz:1:test\n");
   });
@@ -347,7 +349,9 @@ describe("rg regression: r199 - smart case with word boundary", () => {
         "/home/user/foo": "tEsT\n",
       },
     });
-    const result = toText(await bash.exec("rg --smart-case '\\btest\\b'"));
+    const result = await toText(
+      await bash.exec("rg --smart-case '\\btest\\b'"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("foo:1:tEsT\n");
   });
@@ -362,7 +366,7 @@ describe("rg regression: r206 - glob with subdirectory", () => {
         "/home/user/foo/bar.txt": "test\n",
       },
     });
-    const result = toText(await bash.exec("rg test -g '*.txt'"));
+    const result = await toText(await bash.exec("rg test -g '*.txt'"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("foo/bar.txt:1:test\n");
   });
@@ -383,7 +387,7 @@ describe("rg regression: r229 - smart case with bracket expression", () => {
         "/home/user/foo": "economie\n",
       },
     });
-    const result = toText(await bash.exec("rg -S '[E]conomie'"));
+    const result = await toText(await bash.exec("rg -S '[E]conomie'"));
     expect(result.exitCode).toBe(1);
   });
 });
@@ -397,7 +401,7 @@ describe("rg regression: r251 - unicode case folding", () => {
         "/home/user/foo": "привет\nПривет\nПрИвЕт\n",
       },
     });
-    const result = toText(await bash.exec("rg -i привет"));
+    const result = await toText(await bash.exec("rg -i привет"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("foo:1:привет\nfoo:2:Привет\nfoo:3:ПрИвЕт\n");
   });
@@ -415,7 +419,7 @@ describe("rg regression: r256 - follow directory symlinks", () => {
     // Create a symlink to the directory
     await bash.exec("ln -s realdir /home/user/linkdir");
     // With -L, should follow symlink and search inside
-    const result = toText(await bash.exec("rg -L test linkdir"));
+    const result = await toText(await bash.exec("rg -L test linkdir"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("test content");
   });
@@ -430,7 +434,7 @@ describe("rg regression: r256 - follow directory symlinks", () => {
     // Create a symlink to the directory
     await bash.exec("ln -s realdir /home/user/linkdir");
     // With -L and -j1, should still follow symlinks
-    const result = toText(await bash.exec("rg -L -j1 test linkdir"));
+    const result = await toText(await bash.exec("rg -L -j1 test linkdir"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("test content");
   });
@@ -445,7 +449,7 @@ describe("rg regression: r270 - pattern starting with dash", () => {
         "/home/user/foo": "-test\n",
       },
     });
-    const result = toText(await bash.exec("rg -e '-test'"));
+    const result = await toText(await bash.exec("rg -e '-test'"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("foo:1:-test\n");
   });
@@ -460,7 +464,7 @@ describe("rg regression: r279 - quiet mode empty output", () => {
         "/home/user/foo": "test\n",
       },
     });
-    const result = toText(await bash.exec("rg -q test"));
+    const result = await toText(await bash.exec("rg -q test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("");
   });
@@ -479,7 +483,7 @@ describe("rg regression: r391 - complex glob patterns", () => {
         "/home/user/.git/description": "",
       },
     });
-    const result = toText(
+    const result = await toText(
       await bash.exec(
         "rg --no-ignore --hidden --follow --files --glob '!{.git,node_modules,plugged}/**' --glob '*.py'",
       ),
@@ -499,7 +503,7 @@ describe("rg regression: r405 - negated glob with path", () => {
         "/home/user/bar/foo/file2.txt": "test\n",
       },
     });
-    const result = toText(await bash.exec("rg -g '!/foo/**' test"));
+    const result = await toText(await bash.exec("rg -g '!/foo/**' test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("bar/foo/file2.txt:1:test\n");
   });
@@ -518,7 +522,7 @@ describe("rg regression: r451 - only matching", () => {
         "/home/user/digits.txt": "1 2 3\n",
       },
     });
-    const result = toText(
+    const result = await toText(
       await bash.exec("rg --only-matching '[0-9]+' digits.txt"),
     );
     expect(result.exitCode).toBe(0);
@@ -532,7 +536,7 @@ describe("rg regression: r451 - only matching", () => {
         "/home/user/digits.txt": "1 2 3\n123\n",
       },
     });
-    const result = toText(
+    const result = await toText(
       await bash.exec("rg --only-matching --column '[0-9]' digits.txt"),
     );
     expect(result.exitCode).toBe(0);
@@ -549,7 +553,9 @@ describe("rg regression: r483 - quiet with files", () => {
         "/home/user/file.py": "",
       },
     });
-    const result = toText(await bash.exec("rg --quiet --files --glob '*.py'"));
+    const result = await toText(
+      await bash.exec("rg --quiet --files --glob '*.py'"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("");
   });
@@ -561,7 +567,9 @@ describe("rg regression: r483 - quiet with files", () => {
         "/home/user/file.rs": "",
       },
     });
-    const result = toText(await bash.exec("rg --quiet --files --glob '*.py'"));
+    const result = await toText(
+      await bash.exec("rg --quiet --files --glob '*.py'"),
+    );
     expect(result.exitCode).toBe(1);
   });
 });
@@ -575,7 +583,9 @@ describe("rg regression: r493 - word boundary with space", () => {
         "/home/user/input.txt": "peshwaship 're seminomata\n",
       },
     });
-    const result = toText(await bash.exec('rg -o "\\b \'re \\b" input.txt'));
+    const result = await toText(
+      await bash.exec('rg -o "\\b \'re \\b" input.txt'),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(" 're \n");
   });
@@ -590,7 +600,7 @@ describe("rg regression: r506 - word match with alternation", () => {
         "/home/user/wb.txt": "min minimum amin\nmax maximum amax\n",
       },
     });
-    const result = toText(await bash.exec("rg -w -o 'min|max' wb.txt"));
+    const result = await toText(await bash.exec("rg -w -o 'min|max' wb.txt"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("min\nmax\n");
   });
@@ -605,7 +615,7 @@ describe("rg regression: r553 - repeated flags", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = toText(await bash.exec("rg -i -i sherlock"));
+    const result = await toText(await bash.exec("rg -i -i sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("Sherlock");
   });
@@ -617,13 +627,13 @@ describe("rg regression: r553 - repeated flags", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result1 = toText(
+    const result1 = await toText(
       await bash.exec("rg -C 1 'world|attached' sherlock"),
     );
     expect(result1.exitCode).toBe(0);
     expect(result1.stdout).toContain("--");
 
-    const result2 = toText(
+    const result2 = await toText(
       await bash.exec("rg -C 1 -C 0 'world|attached' sherlock"),
     );
     expect(result2.exitCode).toBe(0);
@@ -640,7 +650,7 @@ describe("rg regression: r568 - leading hyphen in args", () => {
         "/home/user/file": "foo bar -baz\n",
       },
     });
-    const result = toText(await bash.exec("rg -e '-baz' file"));
+    const result = await toText(await bash.exec("rg -e '-baz' file"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("foo bar -baz\n");
   });
@@ -659,7 +669,7 @@ describe("rg regression: r693 - context in count mode", () => {
         "/home/user/foo": "xyz\n",
       },
     });
-    const result = toText(await bash.exec("rg -C1 -c --sort path xyz"));
+    const result = await toText(await bash.exec("rg -C1 -c --sort path xyz"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("bar:1\nfoo:1\n");
   });
@@ -677,7 +687,7 @@ describe("rg regression: r807 - hidden with gitignore", () => {
         "/home/user/.a/c/file": "test\n",
       },
     });
-    const result = toText(await bash.exec("rg --hidden test"));
+    const result = await toText(await bash.exec("rg --hidden test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(".a/c/file:1:test\n");
   });
@@ -693,7 +703,7 @@ describe("rg regression: r829 - anchored gitignore patterns", () => {
         "/home/user/a/b/test.txt": "Sample text\n",
       },
     });
-    const result = toText(await bash.exec("rg Sample"));
+    const result = await toText(await bash.exec("rg Sample"));
     expect(result.exitCode).toBe(1);
   });
 
@@ -705,7 +715,7 @@ describe("rg regression: r829 - anchored gitignore patterns", () => {
         "/home/user/some_dir/build/foo": "string\n",
       },
     });
-    const result = toText(await bash.exec("rg -l string"));
+    const result = await toText(await bash.exec("rg -l string"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("some_dir/build/foo\n");
   });
@@ -719,7 +729,7 @@ describe("rg regression: r829 - anchored gitignore patterns", () => {
         "/home/user/a/src/f/b/foo": "",
       },
     });
-    const result = toText(await bash.exec("rg --files"));
+    const result = await toText(await bash.exec("rg --files"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("a/src/f/b/foo\n");
   });
@@ -733,7 +743,7 @@ describe("rg regression: r829 - anchored gitignore patterns", () => {
         "/home/user/parent/subdir/dont-ignore-me.txt": "",
       },
     });
-    const result = toText(await bash.exec("rg --files"));
+    const result = await toText(await bash.exec("rg --files"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("parent/subdir/dont-ignore-me.txt\n");
   });
@@ -746,7 +756,7 @@ describe("rg regression: r829 - anchored gitignore patterns", () => {
         "/home/user/testdir/sub/sub2/foo": "",
       },
     });
-    const result = toText(await bash.exec("rg --files"));
+    const result = await toText(await bash.exec("rg --files"));
     expect(result.exitCode).toBe(1);
   });
 
@@ -758,7 +768,9 @@ describe("rg regression: r829 - anchored gitignore patterns", () => {
         "/home/user/testdir/sub/sub2/testfile": "needle\n",
       },
     });
-    const result = toText(await bash.exec("rg --files-with-matches needle"));
+    const result = await toText(
+      await bash.exec("rg --files-with-matches needle"),
+    );
     expect(result.exitCode).toBe(1);
   });
 });
@@ -773,7 +785,7 @@ describe("rg regression: r900 - empty pattern file", () => {
         "/home/user/pat": "",
       },
     });
-    const result = toText(await bash.exec("rg -f pat sherlock"));
+    const result = await toText(await bash.exec("rg -f pat sherlock"));
     expect(result.exitCode).toBe(1);
   });
 });
@@ -787,7 +799,7 @@ describe("rg regression: r1064 - capture group", () => {
         "/home/user/input": "abc\n",
       },
     });
-    const result = toText(await bash.exec("rg 'a(.*c)'"));
+    const result = await toText(await bash.exec("rg 'a(.*c)'"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("input:1:abc\n");
   });
@@ -804,7 +816,7 @@ describe("rg regression: r1098 - gitignore with adjacent stars", () => {
         "/home/user/afoob": "test\n",
       },
     });
-    const result = toText(await bash.exec("rg test"));
+    const result = await toText(await bash.exec("rg test"));
     expect(result.exitCode).toBe(1);
   });
 });
@@ -818,7 +830,9 @@ describe("rg regression: r1130 - files with/without matches", () => {
         "/home/user/foo": "test\n",
       },
     });
-    const result = toText(await bash.exec("rg --files-with-matches test foo"));
+    const result = await toText(
+      await bash.exec("rg --files-with-matches test foo"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("foo\n");
   });
@@ -830,7 +844,9 @@ describe("rg regression: r1130 - files with/without matches", () => {
         "/home/user/foo": "test\n",
       },
     });
-    const result = toText(await bash.exec("rg --files-without-match nada foo"));
+    const result = await toText(
+      await bash.exec("rg --files-without-match nada foo"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("foo\n");
   });
@@ -843,7 +859,7 @@ describe("rg regression: r1159 - exit codes", () => {
       cwd: "/home/user",
       files: {},
     });
-    const result = toText(await bash.exec("rg --wat test"));
+    const result = await toText(await bash.exec("rg --wat test"));
     expect(result.exitCode).not.toBe(0);
   });
 
@@ -855,19 +871,19 @@ describe("rg regression: r1159 - exit codes", () => {
       },
     });
     // Match = 0
-    const result1 = toText(await bash.exec("rg test"));
+    const result1 = await toText(await bash.exec("rg test"));
     expect(result1.exitCode).toBe(0);
 
     // No match = 1
-    const result2 = toText(await bash.exec("rg nada"));
+    const result2 = await toText(await bash.exec("rg nada"));
     expect(result2.exitCode).toBe(1);
 
     // Quiet with match = 0
-    const result3 = toText(await bash.exec("rg -q test"));
+    const result3 = await toText(await bash.exec("rg -q test"));
     expect(result3.exitCode).toBe(0);
 
     // Quiet with no match = 1
-    const result4 = toText(await bash.exec("rg -q nada"));
+    const result4 = await toText(await bash.exec("rg -q nada"));
     expect(result4.exitCode).toBe(1);
   });
 });
@@ -881,7 +897,7 @@ describe("rg regression: r1163 - BOM handling", () => {
         "/home/user/bom.txt": "\uFEFFtest123\ntest123\n",
       },
     });
-    const result = toText(await bash.exec("rg '^test123'"));
+    const result = await toText(await bash.exec("rg '^test123'"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("bom.txt:1:test123\nbom.txt:2:test123\n");
   });
@@ -901,7 +917,7 @@ describe("rg regression: r1173 - double star gitignore", () => {
         "/home/user/foo": "test\n",
       },
     });
-    const result = toText(await bash.exec("rg test"));
+    const result = await toText(await bash.exec("rg test"));
     expect(result.exitCode).toBe(1);
   });
 });
@@ -917,7 +933,7 @@ describe("rg regression: r1174 - triple double star", () => {
         "/home/user/a/foo": "test\n",
       },
     });
-    const result = toText(await bash.exec("rg test"));
+    const result = await toText(await bash.exec("rg test"));
     expect(result.exitCode).toBe(1);
   });
 });
@@ -932,7 +948,7 @@ describe("rg regression: r1176 - pattern file with -F and -x", () => {
         "/home/user/test": "foo(bar\n",
       },
     });
-    const result = toText(await bash.exec("rg -F -f patterns test"));
+    const result = await toText(await bash.exec("rg -F -f patterns test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("foo(bar\n");
   });
@@ -945,7 +961,7 @@ describe("rg regression: r1176 - pattern file with -F and -x", () => {
         "/home/user/test": "foobar\nfoo\nbarfoo\n",
       },
     });
-    const result = toText(await bash.exec("rg -x -f patterns test"));
+    const result = await toText(await bash.exec("rg -x -f patterns test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("foo\n");
   });
@@ -960,11 +976,11 @@ describe("rg regression: r1203 - reverse suffix literal", () => {
         "/home/user/test": "153.230000\n",
       },
     });
-    const result1 = toText(await bash.exec("rg '\\d\\d\\d00' test"));
+    const result1 = await toText(await bash.exec("rg '\\d\\d\\d00' test"));
     expect(result1.exitCode).toBe(0);
     expect(result1.stdout).toBe("153.230000\n");
 
-    const result2 = toText(await bash.exec("rg '\\d\\d\\d000' test"));
+    const result2 = await toText(await bash.exec("rg '\\d\\d\\d000' test"));
     expect(result2.exitCode).toBe(0);
     expect(result2.stdout).toBe("153.230000\n");
   });
@@ -984,11 +1000,11 @@ describe("rg regression: r1259 - pattern file without newline", () => {
         "/home/user/test": "fz\n",
       },
     });
-    const result1 = toText(await bash.exec("rg -f patterns-nonl test"));
+    const result1 = await toText(await bash.exec("rg -f patterns-nonl test"));
     expect(result1.exitCode).toBe(0);
     expect(result1.stdout).toBe("fz\n");
 
-    const result2 = toText(await bash.exec("rg -f patterns-nl test"));
+    const result2 = await toText(await bash.exec("rg -f patterns-nl test"));
     expect(result2.exitCode).toBe(0);
     expect(result2.stdout).toBe("fz\n");
   });
@@ -1003,7 +1019,7 @@ describe("rg regression: r1311 - multiline replace newline", () => {
         "/home/user/input": "hello\nworld\n",
       },
     });
-    const result = toText(await bash.exec("rg -U -r '?' -n '\\n' input"));
+    const result = await toText(await bash.exec("rg -U -r '?' -n '\\n' input"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("1:hello?world?\n");
   });
@@ -1019,7 +1035,9 @@ describe("rg regression: r1319 - DNA sequence pattern", () => {
           "CCAGCTACTCGGGAGGCTGAGGCTGGAGGATCGCTTGAGTCCAGGAGTTC\n",
       },
     });
-    const result = toText(await bash.exec("rg 'TTGAGTCCAGGAG[ATCG]{2}C'"));
+    const result = await toText(
+      await bash.exec("rg 'TTGAGTCCAGGAG[ATCG]{2}C'"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain(
       "CCAGCTACTCGGGAGGCTGAGGCTGGAGGATCGCTTGAGTCCAGGAGTTC",
@@ -1039,11 +1057,15 @@ describe("rg regression: r1334 - empty and invert patterns", () => {
       },
     });
     // Zero patterns matches nothing
-    const result1 = toText(await bash.exec("rg -f zero-patterns haystack"));
+    const result1 = await toText(
+      await bash.exec("rg -f zero-patterns haystack"),
+    );
     expect(result1.exitCode).toBe(1);
 
     // Invert zero patterns matches everything
-    const result2 = toText(await bash.exec("rg -vf zero-patterns haystack"));
+    const result2 = await toText(
+      await bash.exec("rg -vf zero-patterns haystack"),
+    );
     expect(result2.exitCode).toBe(0);
     expect(result2.stdout).toBe("one\ntwo\nthree\n");
   });
@@ -1056,7 +1078,7 @@ describe("rg regression: r1334 - empty and invert patterns", () => {
         "/home/user/corpus": "1.208.0.0/12\n",
       },
     });
-    const result = toText(await bash.exec("rg -Ff patterns corpus"));
+    const result = await toText(await bash.exec("rg -Ff patterns corpus"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("1.208.0.0/12\n");
   });
@@ -1071,7 +1093,7 @@ describe("rg regression: r1380 - max count with context", () => {
         "/home/user/foo": "a\nb\nc\nd\ne\nd\ne\nd\ne\nd\ne\n",
       },
     });
-    const result = toText(await bash.exec("rg -A2 -m1 d foo"));
+    const result = await toText(await bash.exec("rg -A2 -m1 d foo"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("d\ne\nd\n");
   });
@@ -1091,7 +1113,7 @@ describe("rg regression: r1389 - follow symlinks without bad symlinks", () => {
     // Create a broken symlink (target doesn't exist)
     await bash.exec("ln -s nonexistent.txt /home/user/bad_link.txt");
     // With -L, should follow good symlinks and skip bad ones
-    const result = toText(await bash.exec("rg -L test"));
+    const result = await toText(await bash.exec("rg -L test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("test content");
     // Should not error due to broken symlink
@@ -1117,7 +1139,7 @@ describe("rg regression: r1537 - semicolon comma pattern", () => {
         "/home/user/foo": "abc;de,fg\n",
       },
     });
-    const result = toText(await bash.exec("rg ';(.*,){1}'"));
+    const result = await toText(await bash.exec("rg ';(.*,){1}'"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("foo:1:abc;de,fg\n");
   });
@@ -1140,7 +1162,7 @@ type B struct {
 `,
       },
     });
-    const result = toText(await bash.exec("rg 'TaskID +int'"));
+    const result = await toText(await bash.exec("rg 'TaskID +int'"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("TaskID int");
     expect(result.stdout).toContain("TaskID   int");
@@ -1159,7 +1181,7 @@ describe("rg regression: r1638 - BOM column index", () => {
         "/home/user/foo": "\uFEFFx\n",
       },
     });
-    const result = toText(await bash.exec("rg --column x"));
+    const result = await toText(await bash.exec("rg --column x"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("foo:1:1:x\n");
   });
@@ -1174,7 +1196,7 @@ describe("rg regression: r1739 - replacement with line terminator", () => {
         "/home/user/test": "a\n",
       },
     });
-    const result = toText(await bash.exec("rg -r '${0}f' '.*' test"));
+    const result = await toText(await bash.exec("rg -r '${0}f' '.*' test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("af\n");
   });
@@ -1191,7 +1213,7 @@ describe("rg regression: f1757 - ignore with path prefix", () => {
         "/home/user/rust/target/rustdoc-output.html": "needle\n",
       },
     });
-    const result = toText(
+    const result = await toText(
       await bash.exec("rg --files-with-matches needle rust"),
     );
     expect(result.exitCode).toBe(0);
@@ -1211,7 +1233,7 @@ describe("rg regression: r1838 - NUL in pattern", () => {
         "/home/user/test": "foo\n",
       },
     });
-    const result = toText(await bash.exec("rg 'foo\\x00?' test"));
+    const result = await toText(await bash.exec("rg 'foo\\x00?' test"));
     expect(result.exitCode).not.toBe(0);
   });
 
@@ -1222,7 +1244,7 @@ describe("rg regression: r1838 - NUL in pattern", () => {
         "/home/user/test": "foo\n",
       },
     });
-    const result = toText(await bash.exec("rg -a 'foo\\x00?' test"));
+    const result = await toText(await bash.exec("rg -a 'foo\\x00?' test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("test:1:foo\n");
   });
@@ -1237,7 +1259,7 @@ describe("rg regression: r1866 - vimgrep multiline", () => {
         "/home/user/test": "foobar\nfoobar\nfoo quux\n",
       },
     });
-    const result = toText(
+    const result = await toText(
       await bash.exec(
         "rg --multiline --vimgrep 'foobar\\nfoobar\\nfoo|quux' test",
       ),
@@ -1258,16 +1280,16 @@ describe("rg regression: r1868 - context passthru override", () => {
         "/home/user/test": "foo\nbar\nbaz\nquux\n",
       },
     });
-    const result1 = toText(await bash.exec("rg -C1 bar test"));
+    const result1 = await toText(await bash.exec("rg -C1 bar test"));
     expect(result1.stdout).toBe("foo\nbar\nbaz\n");
 
-    const result2 = toText(await bash.exec("rg --passthru bar test"));
+    const result2 = await toText(await bash.exec("rg --passthru bar test"));
     expect(result2.stdout).toBe("foo\nbar\nbaz\nquux\n");
 
-    const result3 = toText(await bash.exec("rg --passthru -C1 bar test"));
+    const result3 = await toText(await bash.exec("rg --passthru -C1 bar test"));
     expect(result3.stdout).toBe("foo\nbar\nbaz\n");
 
-    const result4 = toText(await bash.exec("rg -C1 --passthru bar test"));
+    const result4 = await toText(await bash.exec("rg -C1 --passthru bar test"));
     expect(result4.stdout).toBe("foo\nbar\nbaz\nquux\n");
   });
 });
@@ -1281,7 +1303,7 @@ describe("rg regression: r1878 - multiline anchor", () => {
         "/home/user/test": "a\nbaz\nabc\n",
       },
     });
-    const result = toText(await bash.exec("rg -U '^baz' test"));
+    const result = await toText(await bash.exec("rg -U '^baz' test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("baz\n");
   });
@@ -1297,7 +1319,7 @@ describe("rg regression: r1891 - empty match word boundary", () => {
         "/home/user/test": "\n##\n",
       },
     });
-    const result = toText(await bash.exec("rg -won '' test"));
+    const result = await toText(await bash.exec("rg -won '' test"));
     expect(result.exitCode).toBe(0);
     // Empty pattern matches at word boundaries
   });
@@ -1312,7 +1334,7 @@ describe("rg regression: r2094 - multiline max-count passthru", () => {
         "/home/user/haystack": "a\nb\nc\na\nb\nc\n",
       },
     });
-    const result = toText(
+    const result = await toText(
       await bash.exec(
         "rg --no-line-number --no-filename --multiline --max-count=1 --passthru --replace=B b haystack",
       ),
@@ -1338,10 +1360,10 @@ describe("rg regression: r2198 - no-ignore-dot", () => {
         "/home/user/c": "",
       },
     });
-    const result1 = toText(await bash.exec("rg --files --sort path"));
+    const result1 = await toText(await bash.exec("rg --files --sort path"));
     expect(result1.stdout).toBe("c\n");
 
-    const result2 = toText(
+    const result2 = await toText(
       await bash.exec("rg --files --sort path --no-ignore-dot"),
     );
     expect(result2.stdout).toBe("a\nb\nc\n");
@@ -1361,7 +1383,7 @@ describe("rg regression: r2236 - escaped slash in ignore", () => {
         "/home/user/foo/bar": "test\n",
       },
     });
-    const result = toText(await bash.exec("rg test"));
+    const result = await toText(await bash.exec("rg test"));
     expect(result.exitCode).toBe(1);
   });
 });
@@ -1375,7 +1397,7 @@ describe("rg regression: r2480 - multiple patterns", () => {
         "/home/user/file": "FooBar\n",
       },
     });
-    const result = toText(await bash.exec("rg -e '' file"));
+    const result = await toText(await bash.exec("rg -e '' file"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("FooBar\n");
   });
@@ -1387,7 +1409,7 @@ describe("rg regression: r2480 - multiple patterns", () => {
         "/home/user/file": "FooBar\n",
       },
     });
-    const result = toText(
+    const result = await toText(
       await bash.exec("rg --only-matching -e Foo -e Bar file"),
     );
     expect(result.exitCode).toBe(0);
@@ -1411,7 +1433,7 @@ describe("rg regression: r2711 - hidden files with path prefix", () => {
         "/home/user/a/b/.foo": "",
       },
     });
-    const result = toText(await bash.exec("rg --hidden --files"));
+    const result = await toText(await bash.exec("rg --hidden --files"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("a/.ignore\n");
   });
@@ -1423,7 +1445,7 @@ describe("rg regression: r2711 - hidden files with path prefix", () => {
         "/home/user/a/.ignore": ".foo\n",
       },
     });
-    const result = toText(await bash.exec("rg --hidden --files ./"));
+    const result = await toText(await bash.exec("rg --hidden --files ./"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("./a/.ignore\n");
   });
@@ -1440,7 +1462,7 @@ describe("rg regression: r2770 - gitignore with double star path", () => {
         "/home/user/foo/bar/baz": "quux\n",
       },
     });
-    const result = toText(await bash.exec("rg -l quux"));
+    const result = await toText(await bash.exec("rg -l quux"));
     expect(result.exitCode).toBe(1);
   });
 });
@@ -1454,7 +1476,7 @@ describe("rg regression: r2944 - bytes searched with max-count", () => {
         "/home/user/haystack": "foo1\nfoo2\nfoo3\nfoo4\nfoo5\n",
       },
     });
-    const result = toText(await bash.exec("rg --stats -m2 foo ."));
+    const result = await toText(await bash.exec("rg --stats -m2 foo ."));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("bytes searched");
   });
@@ -1475,7 +1497,7 @@ describe("rg regression: r3067 - gitignore foobar/debug", () => {
         "/home/user/foobar/debug/flag2": "baz\n",
       },
     });
-    const result = toText(await bash.exec("rg baz"));
+    const result = await toText(await bash.exec("rg baz"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("foobar/some/debug/flag:1:baz\n");
   });
@@ -1491,18 +1513,18 @@ describe("rg regression: r3108 - files-without-match quiet exit", () => {
         "/home/user/non-match": "xyz\n",
       },
     });
-    const result1 = toText(
+    const result1 = await toText(
       await bash.exec("rg --files-without-match abc non-match"),
     );
     expect(result1.exitCode).toBe(0);
     expect(result1.stdout).toBe("non-match\n");
 
-    const result2 = toText(
+    const result2 = await toText(
       await bash.exec("rg --files-without-match abc yes-match"),
     );
     expect(result2.exitCode).toBe(1);
 
-    const result3 = toText(
+    const result3 = await toText(
       await bash.exec("rg --files-without-match -q abc non-match"),
     );
     expect(result3.exitCode).toBe(0);
@@ -1522,7 +1544,7 @@ describe("rg regression: r3127 - unclosed character class", () => {
         "/home/user/test": "",
       },
     });
-    const result = toText(await bash.exec("rg --files"));
+    const result = await toText(await bash.exec("rg --files"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("test\n");
   });
@@ -1535,7 +1557,7 @@ describe("rg regression: r3127 - unclosed character class", () => {
         "/home/user/test": "",
       },
     });
-    const result = toText(await bash.exec("rg --files -g '[abc'"));
+    const result = await toText(await bash.exec("rg --files -g '[abc'"));
     expect(result.exitCode).not.toBe(0);
   });
 });
@@ -1553,7 +1575,7 @@ describe("rg regression: r3173 - hidden whitelist only dot", () => {
         "/home/user/.ignore": "!.foo.txt\n",
       },
     });
-    const result = toText(await bash.exec("rg --files"));
+    const result = await toText(await bash.exec("rg --files"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("subdir/.foo.txt\n");
   });
@@ -1571,7 +1593,7 @@ describe("rg regression: r3180 - complex pattern no panic", () => {
         "/home/user/haystack": " b b b b b b b b\nc\n",
       },
     });
-    const result = toText(
+    const result = await toText(
       await bash.exec(
         `rg '(^|[^a-z])((([a-z]+)?)s)?b(s([a-z]+)?)($|[^a-z])' haystack -U -r x`,
       ),

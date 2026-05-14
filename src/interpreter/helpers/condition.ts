@@ -7,7 +7,11 @@
 
 import type { StatementNode } from "../../ast/types.js";
 import type { ExecResult } from "../../types.js";
-import { concat, EMPTY } from "../../utils/bytes.js";
+import {
+  type ByteStream,
+  concatStreams,
+  emptyStream,
+} from "../../utils/stream.js";
 import type { InterpreterContext } from "../types.js";
 
 /**
@@ -25,15 +29,15 @@ export async function executeCondition(
   const savedInCondition = ctx.state.inCondition;
   ctx.state.inCondition = true;
 
-  let stdout: Uint8Array = EMPTY;
-  let stderr: Uint8Array = EMPTY;
+  let stdout: ByteStream = emptyStream();
+  let stderr: ByteStream = emptyStream();
   let exitCode = 0;
 
   try {
     for (const stmt of statements) {
       const result = await ctx.executeStatement(stmt);
-      stdout = concat(stdout, result.stdout);
-      stderr = concat(stderr, result.stderr);
+      stdout = concatStreams(stdout, result.stdout);
+      stderr = concatStreams(stderr, result.stderr);
       exitCode = result.exitCode;
     }
   } finally {

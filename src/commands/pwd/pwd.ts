@@ -1,5 +1,5 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs } from "../../utils/bytes.js";
 
 export const pwdCommand: Command = {
   name: "pwd",
@@ -34,13 +34,14 @@ export const pwdCommand: Command = {
     }
 
     return {
-      stdout: encode(`${pwd}\n`),
-      stderr: EMPTY,
+      stdout: fromString(`${pwd}\n`),
+      stderr: emptyStream(),
       exitCode: 0,
     };
   },
 };
 
+import { emptyStream, fromString } from "../../utils/stream.js";
 import type { CommandFuzzInfo } from "../fuzz-flags-types.js";
 
 export const flagsForFuzzing: CommandFuzzInfo = {

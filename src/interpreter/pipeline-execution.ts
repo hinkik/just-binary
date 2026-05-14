@@ -6,9 +6,15 @@
 
 import type { CommandNode, PipelineNode } from "../ast/types.js";
 import type { ExecResult } from "../types.js";
-import { concat, EMPTY, encode, envSet } from "../utils/bytes.js";
+import { encode, envSet } from "../utils/bytes.js";
+import {
+  type ByteStream,
+  concatStreams,
+  emptyStream,
+  fromString,
+} from "../utils/stream.js";
 import { BadSubstitutionError, ErrexitError, ExitError } from "./errors.js";
-import { OK } from "./helpers/result.js";
+import { ok } from "./helpers/result.js";
 import type { InterpreterContext } from "./types.js";
 
 /**
@@ -16,7 +22,7 @@ import type { InterpreterContext } from "./types.js";
  */
 export type ExecuteCommandFn = (
   node: CommandNode,
-  stdin: Uint8Array,
+  stdin: ByteStream,
 ) => Promise<ExecResult>;
 
 /**
@@ -30,8 +36,8 @@ export async function executePipeline(
   // Record start time for timed pipelines
   const startTime = node.timed ? performance.now() : 0;
 
-  let stdin: Uint8Array = EMPTY;
-  let lastResult: ExecResult = OK;
+  let stdin: ByteStream = emptyStream();
+  let lastResult: ExecResult = ok();
   let pipefailExitCode = 0; // Track rightmost failing command
   const pipestatusExitCodes: number[] = []; // Track all exit codes for PIPESTATUS
 
@@ -127,17 +133,17 @@ export async function executePipeline(
       const pipeStderrToNext = node.pipeStderr?.[i] ?? false;
       if (pipeStderrToNext) {
         // |& pipes both stdout and stderr to next command's stdin
-        stdin = concat(result.stderr, result.stdout);
+        stdin = concatStreams(result.stderr, result.stdout);
         lastResult = {
-          stdout: EMPTY,
-          stderr: EMPTY,
+          stdout: emptyStream(),
+          stderr: emptyStream(),
           exitCode: result.exitCode,
         };
       } else {
         // Regular | only pipes stdout
         stdin = result.stdout;
         lastResult = {
-          stdout: EMPTY,
+          stdout: emptyStream(),
           stderr: result.stderr,
           exitCode: result.exitCode,
         };
@@ -208,7 +214,7 @@ export async function executePipeline(
 
     lastResult = {
       ...lastResult,
-      stderr: concat(lastResult.stderr, encode(timingOutput)),
+      stderr: concatStreams(lastResult.stderr, fromString(timingOutput)),
     };
   }
 

@@ -11,7 +11,8 @@ import type { SimpleCommandNode, WordNode } from "../ast/types.js";
 import { parseArithmeticExpression } from "../parser/arithmetic-parser.js";
 import { Parser } from "../parser/parser.js";
 import type { ExecResult } from "../types.js";
-import { EMPTY, encode, envGet, envSet } from "../utils/bytes.js";
+import { decode, EMPTY, envGet, envSet } from "../utils/bytes.js";
+import { emptyStream, fromString } from "../utils/stream.js";
 import { evaluateArithmetic } from "./arithmetic.js";
 import {
   applyCaseTransform,
@@ -36,7 +37,7 @@ import {
   resolveNamerefForAssignment,
 } from "./helpers/nameref.js";
 import { checkReadonlyError, isReadonly } from "./helpers/readonly.js";
-import { failure } from "./helpers/result.js";
+import { failure, throwExecutionLimit } from "./helpers/result.js";
 import { expandTildesInValue } from "./helpers/tilde.js";
 import { traceAssignment } from "./helpers/xtrace.js";
 import type { InterpreterContext } from "./types.js";
@@ -93,13 +94,19 @@ export async function processAssignments(
       }
     }
 
-    const value = assignment.value
-      ? await expandWord(ctx, assignment.value)
-      : "";
-    // Also compute raw bytes for simple assignments to preserve non-UTF-8 bytes
+    // Expand once. Doing both expandWord + expandWordToBytes re-executes
+    // any command substitutions in the value, which double-consumes
+    // groupStdin streams. Expand to bytes once and decode for the string.
     const valueBytes = assignment.value
       ? await expandWordToBytes(ctx, assignment.value)
       : EMPTY;
+    const value = assignment.value ? decode(valueBytes) : "";
+    if (value.length > ctx.limits.maxStringLength) {
+      throwExecutionLimit(
+        `word expansion: string length limit exceeded (${ctx.limits.maxStringLength} bytes)`,
+        "iterations",
+      );
+    }
 
     // Check for empty subscript assignment: a[]=value is invalid
     const emptySubscriptMatch = name.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\[\]$/);
@@ -199,7 +206,7 @@ async function processArrayAssignment(
   if (isNameref(ctx, name)) {
     const target = getNamerefTarget(ctx, name);
     if (target === undefined || target === "") {
-      throw new ExitError(1, EMPTY, EMPTY);
+      throw new ExitError(1, emptyStream(), emptyStream());
     }
     const resolved = resolveNameref(ctx, name);
     if (resolved && /^[a-zA-Z_][a-zA-Z0-9_]*\[@\]$/.test(resolved)) {
@@ -666,7 +673,7 @@ async function computeIndexedArrayIndex(
         const lineNum = ctx.state.currentLine;
         const errorMsg = `bash: line ${lineNum}: ${subscriptExpr}: ${e.message}\n`;
         if (e.fatal) {
-          throw new ExitError(1, EMPTY, encode(errorMsg));
+          throw new ExitError(1, emptyStream(), fromString(errorMsg));
         }
         return { index: 0, error: failure(errorMsg) };
       }

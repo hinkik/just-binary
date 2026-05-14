@@ -9,7 +9,7 @@ describe("timeout command", () => {
         sleep: async () => {},
       });
 
-      const result = toText(await env.exec("timeout 10 echo hello"));
+      const result = await toText(await env.exec("timeout 10 echo hello"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("hello\n");
     });
@@ -22,7 +22,7 @@ describe("timeout command", () => {
         },
       });
 
-      const result = toText(await env.exec("timeout 0.05 sleep 10"));
+      const result = await toText(await env.exec("timeout 0.05 sleep 10"));
       expect(result.exitCode).toBe(124);
     });
 
@@ -31,7 +31,9 @@ describe("timeout command", () => {
         sleep: async () => {},
       });
 
-      const result = toText(await env.exec("timeout 10 echo one two three"));
+      const result = await toText(
+        await env.exec("timeout 10 echo one two three"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("one two three\n");
     });
@@ -43,7 +45,7 @@ describe("timeout command", () => {
         sleep: async () => {},
       });
 
-      const result = toText(await env.exec("timeout 5 echo test"));
+      const result = await toText(await env.exec("timeout 5 echo test"));
       expect(result.exitCode).toBe(0);
     });
 
@@ -52,7 +54,7 @@ describe("timeout command", () => {
         sleep: async () => {},
       });
 
-      const result = toText(await env.exec("timeout 5s echo test"));
+      const result = await toText(await env.exec("timeout 5s echo test"));
       expect(result.exitCode).toBe(0);
     });
 
@@ -61,7 +63,7 @@ describe("timeout command", () => {
         sleep: async () => {},
       });
 
-      const result = toText(await env.exec("timeout 1m echo test"));
+      const result = await toText(await env.exec("timeout 1m echo test"));
       expect(result.exitCode).toBe(0);
     });
 
@@ -70,7 +72,7 @@ describe("timeout command", () => {
         sleep: async () => {},
       });
 
-      const result = toText(await env.exec("timeout 0.5 echo test"));
+      const result = await toText(await env.exec("timeout 0.5 echo test"));
       expect(result.exitCode).toBe(0);
     });
   });
@@ -79,7 +81,7 @@ describe("timeout command", () => {
     it("should error on missing operand", async () => {
       const env = new Bash();
 
-      const result = toText(await env.exec("timeout"));
+      const result = await toText(await env.exec("timeout"));
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("missing operand");
     });
@@ -87,7 +89,7 @@ describe("timeout command", () => {
     it("should error on missing command", async () => {
       const env = new Bash();
 
-      const result = toText(await env.exec("timeout 5"));
+      const result = await toText(await env.exec("timeout 5"));
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("missing operand");
     });
@@ -95,7 +97,7 @@ describe("timeout command", () => {
     it("should error on invalid duration", async () => {
       const env = new Bash();
 
-      const result = toText(await env.exec("timeout abc echo test"));
+      const result = await toText(await env.exec("timeout abc echo test"));
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("invalid time interval");
     });
@@ -103,7 +105,9 @@ describe("timeout command", () => {
     it("should error on unknown option", async () => {
       const env = new Bash();
 
-      const result = toText(await env.exec("timeout --unknown 5 echo test"));
+      const result = await toText(
+        await env.exec("timeout --unknown 5 echo test"),
+      );
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("unrecognized option");
     });
@@ -115,7 +119,7 @@ describe("timeout command", () => {
         sleep: async () => {},
       });
 
-      const result = toText(
+      const result = await toText(
         await env.exec("timeout --foreground 10 echo test"),
       );
       expect(result.exitCode).toBe(0);
@@ -127,7 +131,7 @@ describe("timeout command", () => {
         sleep: async () => {},
       });
 
-      const result = toText(await env.exec("timeout -k 5 10 echo test"));
+      const result = await toText(await env.exec("timeout -k 5 10 echo test"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("test\n");
     });
@@ -137,7 +141,9 @@ describe("timeout command", () => {
         sleep: async () => {},
       });
 
-      const result = toText(await env.exec("timeout -s KILL 10 echo test"));
+      const result = await toText(
+        await env.exec("timeout -s KILL 10 echo test"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("test\n");
     });
@@ -147,7 +153,7 @@ describe("timeout command", () => {
     it("should show help with --help", async () => {
       const env = new Bash();
 
-      const result = toText(await env.exec("timeout --help"));
+      const result = await toText(await env.exec("timeout --help"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("timeout");
       expect(result.stdout).toContain("DURATION");

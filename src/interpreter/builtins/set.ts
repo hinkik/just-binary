@@ -6,11 +6,12 @@
  */
 
 import type { ExecResult } from "../../types.js";
-import { decode, EMPTY, encode, envGet, envSet } from "../../utils/bytes.js";
+import { decode, envGet, envSet } from "../../utils/bytes.js";
+import { emptyStream, fromString } from "../../utils/stream.js";
 import { PosixFatalError } from "../errors.js";
 import { getArrayIndices, getAssocArrayKeys } from "../helpers/array.js";
 import { quoteArrayValue, quoteValue } from "../helpers/quoting.js";
-import { failure, OK, successText } from "../helpers/result.js";
+import { failure, ok, successText } from "../helpers/result.js";
 import { updateShellopts } from "../helpers/shellopts.js";
 import type { InterpreterContext, ShellOptions } from "../types.js";
 
@@ -358,7 +359,7 @@ export function handleSet(ctx: InterpreterContext, args: string[]): ExecResult {
         const errorMsg = `bash: set: ${optName}: invalid option name\n${SET_USAGE}`;
         // In POSIX mode, invalid option is fatal
         if (ctx.state.options.posix) {
-          throw new PosixFatalError(1, EMPTY, encode(errorMsg));
+          throw new PosixFatalError(1, emptyStream(), fromString(errorMsg));
         }
         return failure(errorMsg);
       }
@@ -402,7 +403,7 @@ export function handleSet(ctx: InterpreterContext, args: string[]): ExecResult {
           const errorMsg = `bash: set: ${arg[0]}${flag}: invalid option\n${SET_USAGE}`;
           // In POSIX mode, invalid option is fatal
           if (ctx.state.options.posix) {
-            throw new PosixFatalError(1, EMPTY, encode(errorMsg));
+            throw new PosixFatalError(1, emptyStream(), fromString(errorMsg));
           }
           return failure(errorMsg);
         }
@@ -415,7 +416,7 @@ export function handleSet(ctx: InterpreterContext, args: string[]): ExecResult {
     // Handle -- (end of options)
     if (arg === "--") {
       setPositionalParameters(ctx, args.slice(i + 1));
-      return OK;
+      return ok();
     }
 
     // Handle - (disable xtrace and verbose, end of options)
@@ -425,7 +426,7 @@ export function handleSet(ctx: InterpreterContext, args: string[]): ExecResult {
       updateShellopts(ctx);
       if (i + 1 < args.length) {
         setPositionalParameters(ctx, args.slice(i + 1));
-        return OK;
+        return ok();
       }
       i++;
       continue;
@@ -442,17 +443,17 @@ export function handleSet(ctx: InterpreterContext, args: string[]): ExecResult {
       const errorMsg = `bash: set: ${arg}: invalid option\n${SET_USAGE}`;
       // In POSIX mode, invalid option is fatal
       if (ctx.state.options.posix) {
-        throw new PosixFatalError(1, EMPTY, encode(errorMsg));
+        throw new PosixFatalError(1, emptyStream(), fromString(errorMsg));
       }
       return failure(errorMsg);
     }
 
     // Non-option arguments are positional parameters
     setPositionalParameters(ctx, args.slice(i));
-    return OK;
+    return ok();
   }
 
-  return OK;
+  return ok();
 }
 
 /**

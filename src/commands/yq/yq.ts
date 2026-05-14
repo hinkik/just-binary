@@ -10,13 +10,8 @@
 
 import { ExecutionLimitError } from "../../interpreter/errors.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import {
-  createStringEnvAdapter,
-  decode,
-  decodeArgs,
-  EMPTY,
-  encode,
-} from "../../utils/bytes.js";
+import { createStringEnvAdapter, decodeArgs } from "../../utils/bytes.js";
+import { collectText } from "../../utils/stream.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 import {
   type EvaluateOptions,
@@ -270,8 +265,8 @@ export const yqCommand: Command = {
     // Inplace requires a file
     if (options.inplace && (files.length === 0 || files[0] === "-")) {
       return {
-        stdout: EMPTY,
-        stderr: encode("yq: -i/--inplace requires a file argument\n"),
+        stdout: emptyStream(),
+        stderr: fromString("yq: -i/--inplace requires a file argument\n"),
         exitCode: 1,
       };
     }
@@ -282,15 +277,15 @@ export const yqCommand: Command = {
     if (options.nullInput) {
       input = "";
     } else if (files.length === 0 || (files.length === 1 && files[0] === "-")) {
-      input = decode(ctx.stdin);
+      input = await collectText(ctx.stdin);
     } else {
       try {
         filePath = ctx.fs.resolvePath(ctx.cwd, files[0]);
-        input = await ctx.fs.readFile(filePath);
+        input = await ctx.fs.readFileText(filePath);
       } catch {
         return {
-          stdout: EMPTY,
-          stderr: encode(`yq: ${files[0]}: No such file or directory\n`),
+          stdout: emptyStream(),
+          stderr: fromString(`yq: ${files[0]}: No such file or directory\n`),
           exitCode: 2,
         };
       }
@@ -315,8 +310,8 @@ export const yqCommand: Command = {
         const fm = extractFrontMatter(input);
         if (!fm) {
           return {
-            stdout: EMPTY,
-            stderr: encode("yq: no front-matter found\n"),
+            stdout: emptyStream(),
+            stderr: fromString("yq: no front-matter found\n"),
             exitCode: 1,
           };
         }
@@ -349,7 +344,7 @@ export const yqCommand: Command = {
       // Handle inplace mode
       if (options.inplace && filePath) {
         await ctx.fs.writeFile(filePath, finalOutput);
-        return { stdout: EMPTY, stderr: EMPTY, exitCode: 0 };
+        return { stdout: emptyStream(), stderr: emptyStream(), exitCode: 0 };
       }
 
       const exitCode =
@@ -360,35 +355,36 @@ export const yqCommand: Command = {
           : 0;
 
       return {
-        stdout: encode(finalOutput),
-        stderr: EMPTY,
+        stdout: fromString(finalOutput),
+        stderr: emptyStream(),
         exitCode,
       };
     } catch (e) {
       if (e instanceof ExecutionLimitError) {
         return {
-          stdout: EMPTY,
-          stderr: encode(`yq: ${e.message}\n`),
+          stdout: emptyStream(),
+          stderr: fromString(`yq: ${e.message}\n`),
           exitCode: ExecutionLimitError.EXIT_CODE,
         };
       }
       const msg = (e as Error).message;
       if (msg.includes("Unknown function")) {
         return {
-          stdout: EMPTY,
-          stderr: encode(`yq: error: ${msg}\n`),
+          stdout: emptyStream(),
+          stderr: fromString(`yq: error: ${msg}\n`),
           exitCode: 3,
         };
       }
       return {
-        stdout: EMPTY,
-        stderr: encode(`yq: parse error: ${msg}\n`),
+        stdout: emptyStream(),
+        stderr: fromString(`yq: parse error: ${msg}\n`),
         exitCode: 5,
       };
     }
   },
 };
 
+import { emptyStream, fromString } from "../../utils/stream.js";
 import type { CommandFuzzInfo } from "../fuzz-flags-types.js";
 
 export const flagsForFuzzing: CommandFuzzInfo = {

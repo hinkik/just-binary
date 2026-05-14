@@ -17,7 +17,7 @@ describe("JQ Execution Limits", () => {
     it("should protect against infinite until loop", async () => {
       const env = new Bash();
       // until condition that never becomes true
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo 'null' | jq 'until(false; .)'`),
       );
 
@@ -27,7 +27,7 @@ describe("JQ Execution Limits", () => {
 
     it("should allow until that terminates", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo '0' | jq 'until(. >= 5; . + 1)'`),
       );
 
@@ -40,7 +40,7 @@ describe("JQ Execution Limits", () => {
     it("should protect against infinite while loop", async () => {
       const env = new Bash();
       // while condition that's always true
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo '0' | jq '[while(true; . + 1)]'`),
       );
 
@@ -50,7 +50,7 @@ describe("JQ Execution Limits", () => {
 
     it("should allow while that terminates", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo '1' | jq '[while(. < 5; . + 1)]'`),
       );
 
@@ -63,7 +63,7 @@ describe("JQ Execution Limits", () => {
     it("should protect against infinite repeat", async () => {
       const env = new Bash();
       // repeat with identity produces infinite stream
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo '1' | jq '[limit(100000; repeat(.))]'`),
       );
 
@@ -74,7 +74,7 @@ describe("JQ Execution Limits", () => {
     it("should allow repeat that terminates naturally", async () => {
       const env = new Bash();
       // repeat with update that eventually returns empty stops
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo '5' | jq -c '[limit(10; repeat(if . > 0 then . - 1 else empty end))]'`,
         ),
@@ -89,7 +89,7 @@ describe("JQ Execution Limits", () => {
     it("should handle deep recursion with limit", async () => {
       const env = new Bash();
       // recurse that doesn't naturally terminate
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo '{"a":{"a":{"a":{"a":{}}}}}' | jq '[limit(10; recurse(.a?))]'`,
         ),
@@ -102,7 +102,7 @@ describe("JQ Execution Limits", () => {
   describe("range limits", () => {
     it("should handle large range with limit", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`jq -n '[limit(5; range(1000000))]'`),
       );
 

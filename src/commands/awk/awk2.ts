@@ -8,7 +8,8 @@ import { mapToRecord } from "../../helpers/env.js";
 import { ExecutionLimitError } from "../../interpreter/errors.js";
 import { ConstantRegex, createUserRegex } from "../../regex/index.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs } from "../../utils/bytes.js";
+import { collectText } from "../../utils/stream.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 import type { AwkProgram } from "./ast.js";
 import {
@@ -82,8 +83,8 @@ export const awkCommand2: Command = {
 
     if (programIdx >= a.length) {
       return {
-        stdout: EMPTY,
-        stderr: encode("awk: missing program\n"),
+        stdout: emptyStream(),
+        stderr: fromString("awk: missing program\n"),
         exitCode: 1,
       };
     }
@@ -98,17 +99,21 @@ export const awkCommand2: Command = {
       ast = parser.parse(program);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      return { stdout: EMPTY, stderr: encode(`awk: ${msg}\n`), exitCode: 1 };
+      return {
+        stdout: emptyStream(),
+        stderr: fromString(`awk: ${msg}\n`),
+        exitCode: 1,
+      };
     }
 
     // Create filesystem adapter with appendFile support
     const awkFs: AwkFileSystem = {
-      readFile: ctx.fs.readFile.bind(ctx.fs),
+      readFile: (path: string) => ctx.fs.readFileText(path),
       writeFile: ctx.fs.writeFile.bind(ctx.fs),
       appendFile: async (path: string, content: string) => {
         // Append by reading existing content and writing back
         try {
-          const existing = await ctx.fs.readFile(path);
+          const existing = await ctx.fs.readFileText(path);
           await ctx.fs.writeFile(path, existing + content);
         } catch {
           // File doesn't exist, just write
@@ -131,8 +136,8 @@ export const awkCommand2: Command = {
             // biome-ignore lint/style/noNonNullAssertion: exec checked in ternary
             const r = await ctx.exec!(cmd, { cwd: ctx.cwd });
             return {
-              stdout: decode(r.stdout),
-              stderr: decode(r.stderr),
+              stdout: await collectText(r.stdout),
+              stderr: await collectText(r.stderr),
               exitCode: r.exitCode,
             };
           }
@@ -174,8 +179,8 @@ export const awkCommand2: Command = {
         // exit in BEGIN still runs END blocks (AWK semantics)
         await interp.executeEnd();
         return {
-          stdout: encode(interp.getOutput()),
-          stderr: EMPTY,
+          stdout: fromString(interp.getOutput()),
+          stderr: emptyStream(),
           exitCode: interp.getExitCode(),
         };
       }
@@ -185,8 +190,8 @@ export const awkCommand2: Command = {
       if (!hasMainRules && !hasEndBlocks) {
         // Just run END blocks (none), no input processing needed
         return {
-          stdout: encode(interp.getOutput()),
-          stderr: EMPTY,
+          stdout: fromString(interp.getOutput()),
+          stderr: emptyStream(),
           exitCode: interp.getExitCode(),
         };
       }
@@ -202,7 +207,7 @@ export const awkCommand2: Command = {
         for (const file of files) {
           try {
             const filePath = ctx.fs.resolvePath(ctx.cwd, file);
-            const content = await ctx.fs.readFile(filePath);
+            const content = await ctx.fs.readFileText(filePath);
             const lines = content.split("\n");
             if (lines.length > 0 && lines[lines.length - 1] === "") {
               lines.pop();
@@ -210,14 +215,14 @@ export const awkCommand2: Command = {
             fileDataList.push({ filename: file, lines });
           } catch {
             return {
-              stdout: EMPTY,
-              stderr: encode(`awk: ${file}: No such file or directory\n`),
+              stdout: emptyStream(),
+              stderr: fromString(`awk: ${file}: No such file or directory\n`),
               exitCode: 1,
             };
           }
         }
       } else {
-        const lines = decode(ctx.stdin).split("\n");
+        const lines = (await collectText(ctx.stdin)).split("\n");
         if (lines.length > 0 && lines[lines.length - 1] === "") {
           lines.pop();
         }
@@ -246,8 +251,8 @@ export const awkCommand2: Command = {
       await interp.executeEnd();
 
       return {
-        stdout: encode(interp.getOutput()),
-        stderr: EMPTY,
+        stdout: fromString(interp.getOutput()),
+        stderr: emptyStream(),
         exitCode: interp.getExitCode(),
       };
     } catch (e) {
@@ -256,8 +261,8 @@ export const awkCommand2: Command = {
       const exitCode =
         e instanceof ExecutionLimitError ? ExecutionLimitError.EXIT_CODE : 2;
       return {
-        stdout: encode(interp.getOutput()),
-        stderr: encode(`awk: ${msg}\n`),
+        stdout: fromString(interp.getOutput()),
+        stderr: fromString(`awk: ${msg}\n`),
         exitCode,
       };
     }
@@ -299,6 +304,7 @@ function escapeForRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+import { emptyStream, fromString } from "../../utils/stream.js";
 import type { CommandFuzzInfo } from "../fuzz-flags-types.js";
 
 export const flagsForFuzzing: CommandFuzzInfo = {

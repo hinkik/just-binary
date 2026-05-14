@@ -30,7 +30,7 @@ describe("xan prototype pollution defense", () => {
     for (const keyword of DANGEROUS_KEYWORDS) {
       it(`should handle CSV header '${keyword}' in select`, async () => {
         const env = new Bash();
-        const result = toText(
+        const result = await toText(
           await env.exec(
             `echo '${keyword},value\ntest,data' | xan select ${keyword}`,
           ),
@@ -46,7 +46,7 @@ describe("xan prototype pollution defense", () => {
     for (const keyword of DANGEROUS_KEYWORDS.slice(0, 4)) {
       it(`should handle CSV header '${keyword}' in drop`, async () => {
         const env = new Bash();
-        const result = toText(
+        const result = await toText(
           await env.exec(
             `echo '${keyword},value,normal\ntest,data,keep' | xan drop ${keyword}`,
           ),
@@ -62,7 +62,7 @@ describe("xan prototype pollution defense", () => {
     for (const keyword of DANGEROUS_KEYWORDS.slice(0, 4)) {
       it(`should sort by column named '${keyword}'`, async () => {
         const env = new Bash();
-        const result = toText(
+        const result = await toText(
           await env.exec(`
           echo '${keyword},data
 z,1
@@ -81,7 +81,7 @@ a,2' | xan sort -s ${keyword}
     it("should show headers including all dangerous keywords", async () => {
       const env = new Bash();
       const testHeaders = DANGEROUS_KEYWORDS.slice(0, 5).join(",");
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         echo '${testHeaders}' | xan headers
       `),
@@ -96,7 +96,7 @@ a,2' | xan sort -s ${keyword}
   describe("xan explode with dangerous keyword columns", () => {
     it("should explode column named constructor", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         echo 'constructor,value
 a|b,1' | xan explode constructor
@@ -112,7 +112,7 @@ a|b,1' | xan explode constructor
   describe("xan transpose with dangerous keyword columns", () => {
     it("should transpose with dangerous keyword headers", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         echo 'constructor,a,b
 prototype,1,2' | xan transpose
@@ -127,7 +127,7 @@ prototype,1,2' | xan transpose
   describe("xan enum with dangerous keyword column name", () => {
     it("should add index column named constructor", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         echo 'value
 a

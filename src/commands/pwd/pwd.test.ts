@@ -5,21 +5,21 @@ import { toText } from "../../test-utils.js";
 describe("pwd", () => {
   it("should show default home directory", async () => {
     const env = new Bash();
-    const result = toText(await env.exec("pwd"));
+    const result = await toText(await env.exec("pwd"));
     expect(result.stdout).toBe("/home/user\n");
     expect(result.exitCode).toBe(0);
   });
 
   it("should show root directory when cwd is /", async () => {
     const env = new Bash({ cwd: "/" });
-    const result = toText(await env.exec("pwd"));
+    const result = await toText(await env.exec("pwd"));
     expect(result.stdout).toBe("/\n");
     expect(result.exitCode).toBe(0);
   });
 
   it("should show current directory", async () => {
     const env = new Bash({ cwd: "/home/user" });
-    const result = toText(await env.exec("pwd"));
+    const result = await toText(await env.exec("pwd"));
     expect(result.stdout).toBe("/home/user\n");
   });
 
@@ -28,7 +28,7 @@ describe("pwd", () => {
       files: { "/home/user/.keep": "" },
     });
     // cd and pwd must be in same exec (each exec is a new shell)
-    const result = toText(await env.exec("cd /home/user; pwd"));
+    const result = await toText(await env.exec("cd /home/user; pwd"));
     expect(result.stdout).toBe("/home/user\n");
   });
 
@@ -40,7 +40,7 @@ describe("pwd", () => {
         "/c/.keep": "",
       },
     });
-    const result = toText(await env.exec("cd /a; cd /b; cd /c; pwd"));
+    const result = await toText(await env.exec("cd /a; cd /b; cd /c; pwd"));
     expect(result.stdout).toBe("/c\n");
   });
 
@@ -49,13 +49,13 @@ describe("pwd", () => {
       files: { "/parent/child/.keep": "" },
       cwd: "/parent/child",
     });
-    const result = toText(await env.exec("cd ..; pwd"));
+    const result = await toText(await env.exec("cd ..; pwd"));
     expect(result.stdout).toBe("/parent\n");
   });
 
   it("should ignore arguments", async () => {
     const env = new Bash({ cwd: "/test" });
-    const result = toText(await env.exec("pwd ignored args"));
+    const result = await toText(await env.exec("pwd ignored args"));
     expect(result.stdout).toBe("/test\n");
   });
 });

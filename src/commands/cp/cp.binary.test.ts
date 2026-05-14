@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { collectBytes } from "../../utils/stream.js";
 
 describe("cp with binary files", () => {
   it("should copy binary file preserving content", async () => {
@@ -12,7 +13,7 @@ describe("cp with binary files", () => {
 
     // Check the copied file's raw bytes via the fs directly
     // (cat returns string which can't faithfully represent 0xff bytes)
-    const copiedContent = await env.fs.readFileBuffer("/dst.bin");
+    const copiedContent = await collectBytes(await env.fs.readFile("/dst.bin"));
     expect(copiedContent.length).toBe(5);
     expect(copiedContent[0]).toBe(0x00);
     expect(copiedContent[1]).toBe(0xff);

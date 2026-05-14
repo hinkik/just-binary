@@ -1,5 +1,6 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs } from "../../utils/bytes.js";
+import { emptyStream, fromString } from "../../utils/stream.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const sleepHelp = {
@@ -51,8 +52,8 @@ export const sleepCommand: Command = {
 
     if (a.length === 0) {
       return {
-        stdout: EMPTY,
-        stderr: encode("sleep: missing operand\n"),
+        stdout: emptyStream(),
+        stderr: fromString("sleep: missing operand\n"),
         exitCode: 1,
       };
     }
@@ -63,8 +64,8 @@ export const sleepCommand: Command = {
       const ms = parseDuration(arg);
       if (ms === null) {
         return {
-          stdout: EMPTY,
-          stderr: encode(`sleep: invalid time interval '${arg}'\n`),
+          stdout: emptyStream(),
+          stderr: fromString(`sleep: invalid time interval '${arg}'\n`),
           exitCode: 1,
         };
       }
@@ -78,7 +79,7 @@ export const sleepCommand: Command = {
       await new Promise((resolve) => setTimeout(resolve, totalMs));
     }
 
-    return { stdout: EMPTY, stderr: EMPTY, exitCode: 0 };
+    return { stdout: emptyStream(), stderr: emptyStream(), exitCode: 0 };
   },
 };
 

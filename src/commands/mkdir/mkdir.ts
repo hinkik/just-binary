@@ -1,7 +1,7 @@
 import { getErrorMessage } from "../../interpreter/helpers/errors.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
-import { decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs } from "../../utils/bytes.js";
 
 const argDefs = {
   recursive: { short: "p", long: "parents", type: "boolean" as const },
@@ -22,8 +22,8 @@ export const mkdirCommand: Command = {
 
     if (dirs.length === 0) {
       return {
-        stdout: EMPTY,
-        stderr: encode("mkdir: missing operand\n"),
+        stdout: emptyStream(),
+        stderr: fromString("mkdir: missing operand\n"),
         exitCode: 1,
       };
     }
@@ -55,10 +55,11 @@ export const mkdirCommand: Command = {
       }
     }
 
-    return { stdout: encode(stdout), stderr: encode(stderr), exitCode };
+    return { stdout: fromString(stdout), stderr: fromString(stderr), exitCode };
   },
 };
 
+import { emptyStream, fromString } from "../../utils/stream.js";
 import type { CommandFuzzInfo } from "../fuzz-flags-types.js";
 
 export const flagsForFuzzing: CommandFuzzInfo = {

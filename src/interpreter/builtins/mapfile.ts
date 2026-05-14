@@ -15,15 +15,16 @@
 
 import type { ExecResult } from "../../types.js";
 import { decode, EMPTY, encode, envGet, envSet } from "../../utils/bytes.js";
+import { collectBytes, emptyStream } from "../../utils/stream.js";
 import { clearArray } from "../helpers/array.js";
 import { result } from "../helpers/result.js";
 import type { InterpreterContext } from "../types.js";
 
-export function handleMapfile(
+export async function handleMapfile(
   ctx: InterpreterContext,
   args: string[],
   stdinBytes: Uint8Array,
-): ExecResult {
+): Promise<ExecResult> {
   const stdin = decode(stdinBytes);
   // Parse options
   let delimiter = "\n";
@@ -67,7 +68,7 @@ export function handleMapfile(
   // Use stdin from parameter, or fall back to groupStdin
   let effectiveStdin = stdin;
   if (!effectiveStdin && ctx.state.groupStdin !== undefined) {
-    effectiveStdin = decode(ctx.state.groupStdin);
+    effectiveStdin = decode(await collectBytes(ctx.state.groupStdin));
   }
 
   // Split input by delimiter
@@ -169,7 +170,7 @@ export function handleMapfile(
 
   // Consume from groupStdin if we used it
   if (ctx.state.groupStdin !== undefined && !stdin) {
-    ctx.state.groupStdin = EMPTY;
+    ctx.state.groupStdin = emptyStream();
   }
 
   return result(EMPTY, EMPTY, 0);

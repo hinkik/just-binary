@@ -12,7 +12,7 @@ value2
 value3`,
       },
     });
-    const result = toText(
+    const result = await toText(
       await env.exec("awk '/header/ { getline; print }' /test/data.txt"),
     );
     expect(result.exitCode).toBe(0);
@@ -28,7 +28,7 @@ name: Bob
 age: 25`,
       },
     });
-    const result = toText(
+    const result = await toText(
       await env.exec(
         "awk '/^name:/ { getline age_line; print $2, age_line }' /test/data.txt",
       ),
@@ -45,7 +45,7 @@ line2
 line3`,
       },
     });
-    const result = toText(
+    const result = await toText(
       await env.exec("awk '{ print NR; getline; print NR }' /test/data.txt"),
     );
     expect(result.exitCode).toBe(0);
@@ -65,7 +65,7 @@ header3
 data3`,
       },
     });
-    const result = toText(
+    const result = await toText(
       await env.exec(
         "awk '/^header/ { print; getline; print \"  ->\" $0 }' /test/data.txt",
       ),
@@ -82,7 +82,7 @@ data3`,
         "/test/data.txt": `only line`,
       },
     });
-    const result = toText(
+    const result = await toText(
       await env.exec(
         "awk '{ print $0; getline; print \"after: \" $0 }' /test/data.txt",
       ),
@@ -101,7 +101,7 @@ key2
 value2`,
       },
     });
-    const result = toText(
+    const result = await toText(
       await env.exec(
         "awk 'NR % 2 == 1 { key = $0; getline; print key \": \" $0 }' /test/data.txt",
       ),
@@ -120,7 +120,7 @@ external2
 external3`,
       },
     });
-    const result = toText(
+    const result = await toText(
       await env.exec(
         `awk '{ getline ext < "/test/other.txt"; print $0, ext }' /test/main.txt`,
       ),
@@ -137,7 +137,7 @@ b
 c`,
       },
     });
-    const result = toText(
+    const result = await toText(
       await env.exec(
         `awk 'BEGIN { while ((getline line < "/test/data.txt") > 0) print "got:", line }'`,
       ),
@@ -148,7 +148,7 @@ c`,
 
   it("returns -1 for nonexistent file in getline", async () => {
     const env = new Bash();
-    const result = toText(
+    const result = await toText(
       await env.exec(
         `awk 'BEGIN { ret = getline x < "/nonexistent"; print "ret:", ret }'`,
       ),
@@ -161,7 +161,7 @@ c`,
 describe("awk command pipe getline", () => {
   it("reads from command pipe into $0", async () => {
     const env = new Bash();
-    const result = toText(
+    const result = await toText(
       await env.exec(`awk 'BEGIN { "echo hello" | getline; print }'`),
     );
     expect(result.exitCode).toBe(0);
@@ -170,7 +170,7 @@ describe("awk command pipe getline", () => {
 
   it("reads from command pipe into variable", async () => {
     const env = new Bash();
-    const result = toText(
+    const result = await toText(
       await env.exec(
         `awk 'BEGIN { "echo world" | getline x; print "got:", x }'`,
       ),
@@ -183,7 +183,7 @@ describe("awk command pipe getline", () => {
     const env = new Bash({
       files: { "/test/data.txt": "line1\nline2\nline3" },
     });
-    const result = toText(
+    const result = await toText(
       await env.exec(
         `awk 'BEGIN { while (("cat /test/data.txt") | getline line) print "read:", line }'`,
       ),
@@ -194,7 +194,7 @@ describe("awk command pipe getline", () => {
 
   it("updates fields after command pipe getline into $0", async () => {
     const env = new Bash();
-    const result = toText(
+    const result = await toText(
       await env.exec(
         `awk 'BEGIN { FS=":"; "echo a:bc:def" | getline; print NF, $1, $2 }'`,
       ),
@@ -205,7 +205,7 @@ describe("awk command pipe getline", () => {
 
   it("returns 1 on success, 0 on EOF", async () => {
     const env = new Bash();
-    const result = toText(
+    const result = await toText(
       await env.exec(
         `awk 'BEGIN {
         ret1 = ("echo single" | getline)
@@ -227,7 +227,7 @@ describe("awk print to file", () => {
 world`,
       },
     });
-    const result = toText(
+    const result = await toText(
       await env.exec(`awk '{ print $0 > "/test/output.txt" }' /test/input.txt`),
     );
     expect(result.exitCode).toBe(0);
@@ -245,7 +245,7 @@ line2
 line3`,
       },
     });
-    const result = toText(
+    const result = await toText(
       await env.exec(`awk '{ print $0 > "/test/out.txt" }' /test/input.txt`),
     );
     expect(result.exitCode).toBe(0);
@@ -262,7 +262,7 @@ line3`,
 new2`,
       },
     });
-    const result = toText(
+    const result = await toText(
       await env.exec(
         `awk '{ print $0 >> "/test/existing.txt" }' /test/input.txt`,
       ),
@@ -281,7 +281,7 @@ new2`,
 3`,
       },
     });
-    const result = toText(
+    const result = await toText(
       await env.exec(
         `awk '{ printf "%03d\\n", $1 > "/test/out.txt" }' /test/input.txt`,
       ),
@@ -298,7 +298,7 @@ describe("awk getline return values", () => {
     const env = new Bash({
       files: { "/test/data.txt": "line1\nline2" },
     });
-    const result = toText(
+    const result = await toText(
       await env.exec(
         `awk 'BEGIN { ret = (getline < "/test/data.txt"); print "ret:", ret }'`,
       ),
@@ -311,7 +311,7 @@ describe("awk getline return values", () => {
     const env = new Bash({
       files: { "/test/data.txt": "single" },
     });
-    const result = toText(
+    const result = await toText(
       await env.exec(
         `awk 'BEGIN {
         getline < "/test/data.txt"  # read first line
@@ -326,7 +326,7 @@ describe("awk getline return values", () => {
 
   it("returns -1 on error", async () => {
     const env = new Bash();
-    const result = toText(
+    const result = await toText(
       await env.exec(
         `awk 'BEGIN { ret = (getline < "/nonexistent/file"); print "ret:", ret }'`,
       ),
@@ -341,7 +341,7 @@ describe("awk getline with field separator", () => {
     const env = new Bash({
       files: { "/test/data.txt": "a:b:c" },
     });
-    const result = toText(
+    const result = await toText(
       await env.exec(
         `awk 'BEGIN { FS=":"; getline < "/test/data.txt"; print $2 }'`,
       ),
@@ -354,7 +354,7 @@ describe("awk getline with field separator", () => {
     const env = new Bash({
       files: { "/test/data.txt": "a:b:c" },
     });
-    const result = toText(
+    const result = await toText(
       await env.exec(
         `awk 'BEGIN { FS=":"; getline x < "/test/data.txt"; print x; print NF }'`,
       ),
@@ -370,7 +370,7 @@ describe("awk getline in loop", () => {
     const env = new Bash({
       files: { "/test/data.txt": "1\n2\n3\n4\n5" },
     });
-    const result = toText(
+    const result = await toText(
       await env.exec(
         `awk 'BEGIN { sum=0; while ((getline n < "/test/data.txt") > 0) sum += n; print sum }'`,
       ),
@@ -383,7 +383,7 @@ describe("awk getline in loop", () => {
     const env = new Bash({
       files: { "/test/data.txt": "a\nb\nc\nd" },
     });
-    const result = toText(
+    const result = await toText(
       await env.exec(
         `awk 'BEGIN { count=0; while ((getline < "/test/data.txt") > 0) count++; print count }'`,
       ),

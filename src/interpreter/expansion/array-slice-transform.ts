@@ -7,7 +7,8 @@
  */
 
 import type { SubstringOp, WordPart } from "../../ast/types.js";
-import { EMPTY, encode, envGet } from "../../utils/bytes.js";
+import { envGet } from "../../utils/bytes.js";
+import { emptyStream, fromString } from "../../utils/stream.js";
 import { ArithmeticError, ExitError } from "../errors.js";
 import { getIfsSeparator } from "../helpers/ifs.js";
 import type { InterpreterContext } from "../types.js";
@@ -72,8 +73,8 @@ export async function handleArraySlicing(
   if (ctx.state.associativeArrays?.has(arrayName)) {
     throw new ExitError(
       1,
-      EMPTY,
-      encode(`bash: \${${arrayName}[@]: 0: 3}: bad substitution\n`),
+      emptyStream(),
+      fromString(`bash: \${${arrayName}[@]: 0: 3}: bad substitution\n`),
     );
   }
 

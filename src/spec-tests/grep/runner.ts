@@ -3,7 +3,7 @@
  */
 
 import { Bash } from "../../Bash.js";
-import { decode } from "../../utils/bytes.js";
+import { collectText } from "../../utils/stream.js";
 import type { GrepTestCase } from "./parser.js";
 
 export interface GrepTestResult {
@@ -75,8 +75,12 @@ export async function runGrepTestCase(
     }
 
     const result = await env.exec(script);
+    const [stdoutText, stderrText] = await Promise.all([
+      collectText(result.stdout),
+      collectText(result.stderr),
+    ]);
 
-    const actualOutput = decode(result.stdout);
+    const actualOutput = stdoutText;
     const expectedOutput = testCase.expectedOutput;
     const actualExitCode = result.exitCode;
     const expectedExitCode = testCase.expectedExitCode;
@@ -96,7 +100,7 @@ export async function runGrepTestCase(
           skipped: false,
           unexpectedPass: true,
           actualOutput,
-          actualStderr: decode(result.stderr),
+          actualStderr: stderrText,
           actualStatus: result.exitCode,
           expectedOutput,
           error: `UNEXPECTED PASS: This test was marked skip (${skipReason}) but now passes. Please remove the skip.`,
@@ -108,7 +112,7 @@ export async function runGrepTestCase(
         skipped: true,
         skipReason: `skip: ${skipReason}`,
         actualOutput,
-        actualStderr: decode(result.stderr),
+        actualStderr: stderrText,
         actualStatus: result.exitCode,
         expectedOutput,
       };
@@ -135,7 +139,7 @@ export async function runGrepTestCase(
       passed,
       skipped: false,
       actualOutput,
-      actualStderr: decode(result.stderr),
+      actualStderr: stderrText,
       actualStatus: result.exitCode,
       expectedOutput,
       error,

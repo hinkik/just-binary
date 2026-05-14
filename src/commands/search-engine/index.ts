@@ -19,3 +19,8 @@ export {
   type RegexOptions,
   type RegexResult,
 } from "./regex.js";
+export {
+  canStream,
+  type StreamSearchResult,
+  searchStream,
+} from "./stream-matcher.js";

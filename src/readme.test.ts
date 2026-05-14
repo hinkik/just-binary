@@ -508,7 +508,7 @@ describe("AGENTS.npm.md Bash examples", () => {
         // Skip commands that are just comments or empty
         if (!cmd || cmd.startsWith("#")) continue;
 
-        const result = toText(await bash.exec(cmd));
+        const result = await toText(await bash.exec(cmd));
 
         // Commands should not have stderr (warnings/errors)
         // Allow exitCode 1 for grep (no matches) but fail on other errors

@@ -7,6 +7,7 @@
 
 import type { IFileSystem } from "../../fs/interface.js";
 import type { SecureFetch } from "../../network/fetch.js";
+import { collectBytes } from "../../utils/stream.js";
 import {
   ErrorCode,
   type ErrorCodeType,
@@ -155,7 +156,7 @@ export class FsBridgeHandler {
   private async handleReadFile(): Promise<void> {
     const path = this.resolvePath(this.protocol.getPath());
     try {
-      const content = await this.fs.readFileBuffer(path);
+      const content = await collectBytes(await this.fs.readFile(path));
       this.protocol.setResult(content);
       this.protocol.setStatus(Status.SUCCESS);
     } catch (e) {

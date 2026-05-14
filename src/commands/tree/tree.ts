@@ -1,6 +1,6 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
-import { decodeArgs, encode } from "../../utils/bytes.js";
+import { decodeArgs } from "../../utils/bytes.js";
 import { DEFAULT_BATCH_SIZE } from "../../utils/constants.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
@@ -78,8 +78,8 @@ export const treeCommand: Command = {
     stdout += "\n";
 
     return {
-      stdout: encode(stdout),
-      stderr: encode(stderr),
+      stdout: fromString(stdout),
+      stderr: fromString(stderr),
       exitCode: stderr ? 1 : 0,
     };
   },
@@ -319,6 +319,7 @@ async function buildTreeRecursive(
   return result;
 }
 
+import { fromString } from "../../utils/stream.js";
 import type { CommandFuzzInfo } from "../fuzz-flags-types.js";
 
 export const flagsForFuzzing: CommandFuzzInfo = {

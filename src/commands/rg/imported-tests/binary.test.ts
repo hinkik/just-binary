@@ -24,7 +24,7 @@ describe("rg binary: basic detection", () => {
         "/home/user/binary.bin": BINARY_CONTENT,
       },
     });
-    const result = toText(await bash.exec("rg hello"));
+    const result = await toText(await bash.exec("rg hello"));
     expect(result.exitCode).toBe(0);
     // Should only find match in text file, not binary
     expect(result.stdout).toBe("text.txt:1:hello world\n");
@@ -37,7 +37,7 @@ describe("rg binary: basic detection", () => {
         "/home/user/binary.bin": BINARY_CONTENT,
       },
     });
-    const result = toText(await bash.exec("rg hello binary.bin"));
+    const result = await toText(await bash.exec("rg hello binary.bin"));
     expect(result.exitCode).toBe(1);
     expect(result.stdout).toBe("");
   });
@@ -50,7 +50,7 @@ describe("rg binary: basic detection", () => {
         "/home/user/early.bin": `\x00${"a".repeat(100)}pattern\n`,
       },
     });
-    const result = toText(await bash.exec("rg pattern"));
+    const result = await toText(await bash.exec("rg pattern"));
     expect(result.exitCode).toBe(1);
   });
 
@@ -62,7 +62,7 @@ describe("rg binary: basic detection", () => {
         "/home/user/late.txt": `pattern\n${"a".repeat(9000)}\x00end\n`,
       },
     });
-    const result = toText(await bash.exec("rg pattern"));
+    const result = await toText(await bash.exec("rg pattern"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("late.txt:1:pattern\n");
   });
@@ -77,7 +77,7 @@ describe("rg binary: with count flag", () => {
         "/home/user/binary.bin": "match\x00match\n",
       },
     });
-    const result = toText(await bash.exec("rg -c match"));
+    const result = await toText(await bash.exec("rg -c match"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("text.txt:2\n");
   });
@@ -92,7 +92,7 @@ describe("rg binary: with files-with-matches flag", () => {
         "/home/user/binary.bin": "findme\x00\n",
       },
     });
-    const result = toText(await bash.exec("rg -l findme"));
+    const result = await toText(await bash.exec("rg -l findme"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("text.txt\n");
   });
@@ -108,7 +108,9 @@ describe("rg binary: mixed content", () => {
         "/home/user/script.sh": "echo documentation\n",
       },
     });
-    const result = toText(await bash.exec("rg --sort path documentation"));
+    const result = await toText(
+      await bash.exec("rg --sort path documentation"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       "readme.md:1:documentation\nscript.sh:1:echo documentation\n",
@@ -125,7 +127,7 @@ describe("rg binary: mixed content", () => {
         "/home/user/d.bin": "test\x00\n",
       },
     });
-    const result = toText(await bash.exec("rg test"));
+    const result = await toText(await bash.exec("rg test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("a.txt:1:test\nc.txt:1:test\n");
   });
@@ -139,7 +141,7 @@ describe("rg binary: edge cases", () => {
         "/home/user/nulls.bin": "\x00\x00\x00\x00",
       },
     });
-    const result = toText(await bash.exec("rg anything"));
+    const result = await toText(await bash.exec("rg anything"));
     expect(result.exitCode).toBe(1);
   });
 
@@ -150,7 +152,7 @@ describe("rg binary: edge cases", () => {
         "/home/user/start.bin": "\x00hello world\n",
       },
     });
-    const result = toText(await bash.exec("rg hello"));
+    const result = await toText(await bash.exec("rg hello"));
     expect(result.exitCode).toBe(1);
   });
 
@@ -161,7 +163,7 @@ describe("rg binary: edge cases", () => {
         "/home/user/end.bin": "hello world\n\x00",
       },
     });
-    const result = toText(await bash.exec("rg hello"));
+    const result = await toText(await bash.exec("rg hello"));
     expect(result.exitCode).toBe(1);
   });
 
@@ -172,7 +174,7 @@ describe("rg binary: edge cases", () => {
         "/home/user/multi.bin": "a\x00b\x00c\x00d\n",
       },
     });
-    const result = toText(await bash.exec("rg '[a-d]'"));
+    const result = await toText(await bash.exec("rg '[a-d]'"));
     expect(result.exitCode).toBe(1);
   });
 });
@@ -192,7 +194,7 @@ describe("rg binary: common binary file types", () => {
         "/home/user/text.txt": "data\n",
       },
     });
-    const result = toText(await bash.exec("rg data"));
+    const result = await toText(await bash.exec("rg data"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("text.txt:1:data\n");
   });
@@ -207,7 +209,7 @@ describe("rg binary: with other flags", () => {
         "/home/user/binary.bin": "HELLO\x00world\n",
       },
     });
-    const result = toText(await bash.exec("rg -i hello"));
+    const result = await toText(await bash.exec("rg -i hello"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("text.txt:1:HELLO world\n");
   });
@@ -220,7 +222,7 @@ describe("rg binary: with other flags", () => {
         "/home/user/binary.bin": "keep\x00remove\n",
       },
     });
-    const result = toText(await bash.exec("rg -v remove"));
+    const result = await toText(await bash.exec("rg -v remove"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("text.txt:1:keep\ntext.txt:3:keep\n");
   });
@@ -233,7 +235,7 @@ describe("rg binary: with other flags", () => {
         "/home/user/binary.bin": "foo bar\x00\n",
       },
     });
-    const result = toText(await bash.exec("rg -w foo"));
+    const result = await toText(await bash.exec("rg -w foo"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("text.txt:1:foo bar\n");
   });
@@ -246,7 +248,7 @@ describe("rg binary: with other flags", () => {
         "/home/user/binary.bin": "before\x00match\nafter\n",
       },
     });
-    const result = toText(await bash.exec("rg -C1 match"));
+    const result = await toText(await bash.exec("rg -C1 match"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       "text.txt-1-before\ntext.txt:2:match\ntext.txt-3-after\n",
@@ -261,7 +263,7 @@ describe("rg binary: with other flags", () => {
         "/home/user/binary.bin": "match\x00match\n",
       },
     });
-    const result = toText(await bash.exec("rg -m1 match"));
+    const result = await toText(await bash.exec("rg -m1 match"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("text.txt:1:match\n");
   });
@@ -277,7 +279,7 @@ describe("rg binary: subdirectories", () => {
         "/home/user/lib/util.ts": "export function foo() {}\n",
       },
     });
-    const result = toText(await bash.exec("rg --sort path export"));
+    const result = await toText(await bash.exec("rg --sort path export"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       "lib/util.ts:1:export function foo() {}\nsrc/code.ts:1:export const x = 1;\n",

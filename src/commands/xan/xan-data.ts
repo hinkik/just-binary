@@ -5,7 +5,7 @@
 
 import Papa from "papaparse";
 import type { CommandContext, ExecResult } from "../../types.js";
-import { decode, EMPTY, encode } from "../../utils/bytes.js";
+import { collectText, emptyStream, fromString } from "../../utils/stream.js";
 import {
   type CsvData,
   type CsvRow,
@@ -34,8 +34,8 @@ export async function cmdTranspose(
     const newHeaders = ["column"];
     const newData: CsvData = headers.map((h) => ({ column: h }));
     return {
-      stdout: encode(formatCsv(newHeaders, newData)),
-      stderr: EMPTY,
+      stdout: fromString(formatCsv(newHeaders, newData)),
+      stderr: emptyStream(),
       exitCode: 0,
     };
   }
@@ -60,8 +60,8 @@ export async function cmdTranspose(
   }
 
   return {
-    stdout: encode(formatCsv(newHeaders, newData)),
-    stderr: EMPTY,
+    stdout: fromString(formatCsv(newHeaders, newData)),
+    stderr: emptyStream(),
     exitCode: 0,
   };
 }
@@ -105,8 +105,8 @@ export async function cmdShuffle(
   }
 
   return {
-    stdout: encode(formatCsv(headers, shuffled)),
-    stderr: EMPTY,
+    stdout: fromString(formatCsv(headers, shuffled)),
+    stderr: emptyStream(),
     exitCode: 0,
   };
 }
@@ -141,15 +141,17 @@ export async function cmdFixlengths(
   let input: string;
 
   if (!file || file === "-") {
-    input = decode(ctx.stdin);
+    input = await collectText(ctx.stdin);
   } else {
     try {
       const path = ctx.fs.resolvePath(ctx.cwd, file);
-      input = await ctx.fs.readFile(path);
+      input = await ctx.fs.readFileText(path);
     } catch {
       return {
-        stdout: EMPTY,
-        stderr: encode(`xan fixlengths: ${file}: No such file or directory\n`),
+        stdout: emptyStream(),
+        stderr: fromString(
+          `xan fixlengths: ${file}: No such file or directory\n`,
+        ),
         exitCode: 1,
       };
     }
@@ -163,7 +165,7 @@ export async function cmdFixlengths(
   const rows = result.data;
 
   if (rows.length === 0) {
-    return { stdout: EMPTY, stderr: EMPTY, exitCode: 0 };
+    return { stdout: emptyStream(), stderr: emptyStream(), exitCode: 0 };
   }
 
   // Determine target length
@@ -182,8 +184,8 @@ export async function cmdFixlengths(
   // Output as CSV
   const output = Papa.unparse(fixed);
   return {
-    stdout: encode(`${output.replace(/\r\n/g, "\n")}\n`),
-    stderr: EMPTY,
+    stdout: fromString(`${output.replace(/\r\n/g, "\n")}\n`),
+    stderr: emptyStream(),
     exitCode: 0,
   };
 }
@@ -221,8 +223,8 @@ export async function cmdSplit(
 
   if (!numParts && !partSize) {
     return {
-      stdout: EMPTY,
-      stderr: encode("xan split: must specify -c or -S\n"),
+      stdout: emptyStream(),
+      stderr: fromString("xan split: must specify -c or -S\n"),
       exitCode: 1,
     };
   }
@@ -258,8 +260,8 @@ export async function cmdSplit(
       await ctx.fs.writeFile(filePath, formatCsv(headers, nonEmptyParts[i]));
     }
     return {
-      stdout: encode(`Split into ${nonEmptyParts.length} parts\n`),
-      stderr: EMPTY,
+      stdout: fromString(`Split into ${nonEmptyParts.length} parts\n`),
+      stderr: emptyStream(),
       exitCode: 0,
     };
   } catch {
@@ -267,7 +269,11 @@ export async function cmdSplit(
     const output = nonEmptyParts
       .map((p, i) => `Part ${i + 1}: ${p.length} rows`)
       .join("\n");
-    return { stdout: encode(`${output}\n`), stderr: EMPTY, exitCode: 0 };
+    return {
+      stdout: fromString(`${output}\n`),
+      stderr: emptyStream(),
+      exitCode: 0,
+    };
   }
 }
 
@@ -299,8 +305,8 @@ export async function cmdPartition(
 
   if (!column) {
     return {
-      stdout: EMPTY,
-      stderr: encode("xan partition: usage: xan partition COLUMN [FILE]\n"),
+      stdout: emptyStream(),
+      stderr: fromString("xan partition: usage: xan partition COLUMN [FILE]\n"),
       exitCode: 1,
     };
   }
@@ -310,8 +316,8 @@ export async function cmdPartition(
 
   if (!headers.includes(column)) {
     return {
-      stdout: EMPTY,
-      stderr: encode(`xan partition: column '${column}' not found\n`),
+      stdout: emptyStream(),
+      stderr: fromString(`xan partition: column '${column}' not found\n`),
       exitCode: 1,
     };
   }
@@ -336,8 +342,10 @@ export async function cmdPartition(
       await ctx.fs.writeFile(filePath, formatCsv(headers, rows));
     }
     return {
-      stdout: encode(`Partitioned into ${groups.size} files by '${column}'\n`),
-      stderr: EMPTY,
+      stdout: fromString(
+        `Partitioned into ${groups.size} files by '${column}'\n`,
+      ),
+      stderr: emptyStream(),
       exitCode: 0,
     };
   } catch {
@@ -345,7 +353,11 @@ export async function cmdPartition(
     const output = Array.from(groups.entries())
       .map(([val, rows]) => `${val}: ${rows.length} rows`)
       .join("\n");
-    return { stdout: encode(`${output}\n`), stderr: EMPTY, exitCode: 0 };
+    return {
+      stdout: fromString(`${output}\n`),
+      stderr: emptyStream(),
+      exitCode: 0,
+    };
   }
 }
 
@@ -360,8 +372,8 @@ export async function cmdTo(
 ): Promise<ExecResult> {
   if (args.length === 0) {
     return {
-      stdout: EMPTY,
-      stderr: encode("xan to: usage: xan to <format> [FILE]\n"),
+      stdout: emptyStream(),
+      stderr: fromString("xan to: usage: xan to <format> [FILE]\n"),
       exitCode: 1,
     };
   }
@@ -374,8 +386,8 @@ export async function cmdTo(
   }
 
   return {
-    stdout: EMPTY,
-    stderr: encode(`xan to: unsupported format '${format}'\n`),
+    stdout: emptyStream(),
+    stderr: fromString(`xan to: unsupported format '${format}'\n`),
     exitCode: 1,
   };
 }
@@ -395,7 +407,11 @@ async function cmdToJson(
 
   // Real xan always pretty prints
   const json = JSON.stringify(data, null, 2);
-  return { stdout: encode(`${json}\n`), stderr: EMPTY, exitCode: 0 };
+  return {
+    stdout: fromString(`${json}\n`),
+    stderr: emptyStream(),
+    exitCode: 0,
+  };
 }
 
 /**
@@ -421,8 +437,8 @@ export async function cmdFrom(
 
   if (!format) {
     return {
-      stdout: EMPTY,
-      stderr: encode("xan from: usage: xan from -f <format> [FILE]\n"),
+      stdout: emptyStream(),
+      stderr: fromString("xan from: usage: xan from -f <format> [FILE]\n"),
       exitCode: 1,
     };
   }
@@ -432,8 +448,8 @@ export async function cmdFrom(
   }
 
   return {
-    stdout: EMPTY,
-    stderr: encode(`xan from: unsupported format '${format}'\n`),
+    stdout: emptyStream(),
+    stderr: fromString(`xan from: unsupported format '${format}'\n`),
     exitCode: 1,
   };
 }
@@ -450,15 +466,15 @@ async function cmdFromJson(
   let input: string;
 
   if (!file || file === "-") {
-    input = decode(ctx.stdin);
+    input = await collectText(ctx.stdin);
   } else {
     try {
       const path = ctx.fs.resolvePath(ctx.cwd, file);
-      input = await ctx.fs.readFile(path);
+      input = await ctx.fs.readFileText(path);
     } catch {
       return {
-        stdout: EMPTY,
-        stderr: encode(`xan from: ${file}: No such file or directory\n`),
+        stdout: emptyStream(),
+        stderr: fromString(`xan from: ${file}: No such file or directory\n`),
         exitCode: 1,
       };
     }
@@ -468,14 +484,14 @@ async function cmdFromJson(
     const data = JSON.parse(input.trim());
     if (!Array.isArray(data)) {
       return {
-        stdout: EMPTY,
-        stderr: encode("xan from: JSON input must be an array\n"),
+        stdout: emptyStream(),
+        stderr: fromString("xan from: JSON input must be an array\n"),
         exitCode: 1,
       };
     }
 
     if (data.length === 0) {
-      return { stdout: encode("\n"), stderr: EMPTY, exitCode: 0 };
+      return { stdout: fromString("\n"), stderr: emptyStream(), exitCode: 0 };
     }
 
     // Check if array of arrays or array of objects
@@ -494,8 +510,8 @@ async function cmdFromJson(
         return obj;
       });
       return {
-        stdout: encode(formatCsv(headers as string[], csvData)),
-        stderr: EMPTY,
+        stdout: fromString(formatCsv(headers as string[], csvData)),
+        stderr: emptyStream(),
         exitCode: 0,
       };
     }
@@ -503,14 +519,14 @@ async function cmdFromJson(
     // Array of objects - real xan outputs columns in alphabetical order
     const headers = Object.keys(data[0] as object).sort();
     return {
-      stdout: encode(formatCsv(headers, data as CsvData)),
-      stderr: EMPTY,
+      stdout: fromString(formatCsv(headers, data as CsvData)),
+      stderr: emptyStream(),
       exitCode: 0,
     };
   } catch {
     return {
-      stdout: EMPTY,
-      stderr: encode("xan from: invalid JSON input\n"),
+      stdout: emptyStream(),
+      stderr: fromString("xan from: invalid JSON input\n"),
       exitCode: 1,
     };
   }

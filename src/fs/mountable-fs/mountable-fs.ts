@@ -1,3 +1,4 @@
+import type { ByteStream } from "../../utils/stream.js";
 import { InMemoryFs } from "../in-memory-fs/in-memory-fs.js";
 import type {
   BufferEncoding,
@@ -266,17 +267,17 @@ export class MountableFs implements IFileSystem {
 
   // ==================== IFileSystem Implementation ====================
 
-  async readFile(
+  async readFile(path: string): Promise<ByteStream> {
+    const { fs, relativePath } = this.routePath(path);
+    return fs.readFile(relativePath);
+  }
+
+  async readFileText(
     path: string,
     options?: ReadFileOptions | BufferEncoding,
   ): Promise<string> {
     const { fs, relativePath } = this.routePath(path);
-    return fs.readFile(relativePath, options);
-  }
-
-  async readFileBuffer(path: string): Promise<Uint8Array> {
-    const { fs, relativePath } = this.routePath(path);
-    return fs.readFileBuffer(relativePath);
+    return fs.readFileText(relativePath, options);
   }
 
   async writeFile(
@@ -650,8 +651,8 @@ export class MountableFs implements IFileSystem {
     const srcStat = await this.lstat(src);
 
     if (srcStat.isFile) {
-      const content = await this.readFileBuffer(src);
-      await this.writeFile(dest, content);
+      const stream = await this.readFile(src);
+      await this.writeFile(dest, stream);
       await this.chmod(dest, srcStat.mode);
     } else if (srcStat.isDirectory) {
       if (!options?.recursive) {

@@ -5,7 +5,7 @@ import { toText } from "../../test-utils.js";
 describe("POSIX mode fatal errors", () => {
   it("shift with too many args is fatal in POSIX mode", async () => {
     const bash = new Bash();
-    const result = toText(
+    const result = await toText(
       await bash.exec(`
 set -o posix
 set -- a b
@@ -21,7 +21,7 @@ echo status=$?
 
   it("set with invalid option is fatal in POSIX mode", async () => {
     const bash = new Bash();
-    const result = toText(
+    const result = await toText(
       await bash.exec(`
 set -o posix
 shopt -s invalid_ || true
@@ -38,7 +38,7 @@ echo should not get here
 
   it("shift works normally without POSIX mode", async () => {
     const bash = new Bash();
-    const result = toText(
+    const result = await toText(
       await bash.exec(`
 set -- a b
 shift 3
@@ -54,7 +54,7 @@ echo status=$?
   it("Shift is special and fails whole script (spec-test format)", async () => {
     const bash = new Bash({ env: { BASH_VERSION: "5.0" } });
     // This is the actual spec test script
-    const result = toText(
+    const result = await toText(
       await bash.exec(`
 if test -n "$BASH_VERSION"; then
   set -o posix
@@ -73,7 +73,7 @@ echo status=$?
 
   it("set is special and fails whole script (spec-test format)", async () => {
     const bash = new Bash({ env: { BASH_VERSION: "5.0" } });
-    const result = toText(
+    const result = await toText(
       await bash.exec(`
 if test -n "$BASH_VERSION"; then
   set -o posix

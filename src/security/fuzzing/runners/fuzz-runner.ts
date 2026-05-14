@@ -7,7 +7,7 @@
 import { appendFileSync, writeFileSync } from "node:fs";
 import { Bash } from "../../../Bash.js";
 import type { BashExecResult } from "../../../types.js";
-import { decode } from "../../../utils/bytes.js";
+import { collectText } from "../../../utils/stream.js";
 import type { SecurityViolation } from "../../types.js";
 import { DEFAULT_FUZZ_CONFIG, type FuzzingConfig } from "../config.js";
 import {
@@ -186,8 +186,8 @@ export class FuzzRunner {
         result.completed = true;
         result.bashResult = raceResult;
         result.exitCode = raceResult.exitCode;
-        result.stderr = decode(raceResult.stderr);
-        result.stdout = decode(raceResult.stdout);
+        result.stderr = await collectText(raceResult.stderr);
+        result.stdout = await collectText(raceResult.stdout);
 
         // Check if execution hit a limit gracefully
         const stderrStr = result.stderr;

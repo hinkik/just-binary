@@ -18,7 +18,7 @@ describe("Dynamic Execution Security", () => {
 
   describe("Eval Safety", () => {
     it("should execute basic eval", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         eval 'echo hello'
       `),
@@ -28,7 +28,7 @@ describe("Dynamic Execution Security", () => {
     });
 
     it("should handle eval with variable expansion", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         cmd="echo world"
         eval "$cmd"
@@ -43,7 +43,7 @@ describe("Dynamic Execution Security", () => {
         executionLimits: { maxCommandCount: 3 },
       });
 
-      const result = toText(
+      const result = await toText(
         await limitedBash.exec(`
         eval 'echo 1; echo 2; echo 3; echo 4; echo 5'
       `),
@@ -53,7 +53,7 @@ describe("Dynamic Execution Security", () => {
     });
 
     it("should handle nested eval", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         eval 'eval "echo nested"'
       `),
@@ -63,7 +63,7 @@ describe("Dynamic Execution Security", () => {
     });
 
     it("should handle eval with dangerous characters", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         dangerous="; echo injected"
         eval 'echo safe'"$dangerous"
@@ -76,7 +76,7 @@ describe("Dynamic Execution Security", () => {
     });
 
     it("should handle eval with empty string", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         eval ''
         echo "exit: $?"
@@ -87,7 +87,7 @@ describe("Dynamic Execution Security", () => {
     });
 
     it("should handle eval with syntax errors", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         eval 'if then fi' 2>&1
       `),
@@ -100,7 +100,7 @@ describe("Dynamic Execution Security", () => {
         executionLimits: { maxLoopIterations: 5 },
       });
 
-      const result = toText(
+      const result = await toText(
         await limitedBash.exec(`
         eval 'while true; do :; done'
       `),
@@ -110,7 +110,7 @@ describe("Dynamic Execution Security", () => {
     });
 
     it("should handle eval returning non-zero exit code", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         eval 'exit 42'
         echo "after: $?"
@@ -121,7 +121,7 @@ describe("Dynamic Execution Security", () => {
     });
 
     it("should handle eval with function definitions", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         eval 'myfunc() { echo "from eval"; }'
         myfunc
@@ -134,7 +134,7 @@ describe("Dynamic Execution Security", () => {
 
   describe("Source Command Behavior", () => {
     it("should handle source of non-existent file", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         source /nonexistent/file.sh 2>&1 || echo "source failed"
       `),
@@ -144,7 +144,7 @@ describe("Dynamic Execution Security", () => {
     });
 
     it("should handle source with dot syntax", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         . /nonexistent/file.sh 2>&1 || echo "dot failed"
       `),
@@ -154,7 +154,7 @@ describe("Dynamic Execution Security", () => {
     });
 
     it("should source virtual filesystem scripts", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo 'SOURCED_VAR=from_script' > /tmp/script.sh
         source /tmp/script.sh
@@ -167,7 +167,7 @@ describe("Dynamic Execution Security", () => {
 
     it("should not escape sandbox via source", async () => {
       // Attempting to source a real system file should fail or be isolated
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         source /etc/profile 2>&1 || echo "blocked"
       `),
@@ -179,7 +179,7 @@ describe("Dynamic Execution Security", () => {
 
   describe("Trap Handling", () => {
     it("should define EXIT trap", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         trap 'echo trapped' EXIT
         echo "main"
@@ -191,7 +191,7 @@ describe("Dynamic Execution Security", () => {
     });
 
     it("should handle trap with return", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         test_trap() {
           trap 'echo cleanup' RETURN
@@ -207,7 +207,7 @@ describe("Dynamic Execution Security", () => {
     });
 
     it("should handle trap -", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         trap 'echo trapped' EXIT
         trap - EXIT
@@ -219,7 +219,7 @@ describe("Dynamic Execution Security", () => {
     });
 
     it("should handle trap with ERR signal", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         trap 'echo error occurred' ERR
         false
@@ -231,7 +231,7 @@ describe("Dynamic Execution Security", () => {
     });
 
     it("should handle DEBUG trap", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         trap 'echo debug' DEBUG
         echo "step1"
@@ -243,7 +243,7 @@ describe("Dynamic Execution Security", () => {
     });
 
     it("should not allow trap to escape sandbox", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         trap 'cat /etc/shadow' EXIT
         echo "main"
@@ -256,7 +256,7 @@ describe("Dynamic Execution Security", () => {
 
   describe("Signal Safety", () => {
     it("should handle SIGTERM gracefully", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         trap 'echo received' TERM
         echo "running"
@@ -267,7 +267,7 @@ describe("Dynamic Execution Security", () => {
     });
 
     it("should handle SIGINT gracefully", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         trap 'echo interrupted' INT
         echo "running"
@@ -279,7 +279,7 @@ describe("Dynamic Execution Security", () => {
 
     it("should handle kill command", async () => {
       // kill command may have limited support in sandbox
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         kill -0 $$ 2>&1 || echo "kill not supported"
       `),
@@ -290,7 +290,7 @@ describe("Dynamic Execution Security", () => {
 
   describe("Prompt Security (PS1/PS2)", () => {
     it("should handle PS1 assignment", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         PS1='\\u@\\h:\\w\\$ '
         echo "PS1 set: $PS1"
@@ -301,7 +301,7 @@ describe("Dynamic Execution Security", () => {
     });
 
     it("should handle PS2 for continuation", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         PS2='continue> '
         echo "PS2 set: $PS2"
@@ -312,7 +312,7 @@ describe("Dynamic Execution Security", () => {
     });
 
     it("should not execute code in PS1 expansion", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         PS1='$(echo pwned)'
         echo "prompt set"
@@ -324,7 +324,7 @@ describe("Dynamic Execution Security", () => {
     });
 
     it("should handle PROMPT_COMMAND", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         PROMPT_COMMAND='echo prompt'
         echo "done"
@@ -338,7 +338,7 @@ describe("Dynamic Execution Security", () => {
 
   describe("Command Substitution in Dynamic Context", () => {
     it("should handle command substitution in eval", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         eval 'echo $(echo inner)'
       `),
@@ -348,7 +348,7 @@ describe("Dynamic Execution Security", () => {
     });
 
     it("should handle backticks in eval", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         eval 'echo \`echo backtick\`'
       `),
@@ -358,7 +358,7 @@ describe("Dynamic Execution Security", () => {
     });
 
     it("should handle nested command substitution", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         result=$(echo $(echo $(echo deep)))
         echo $result
@@ -373,7 +373,7 @@ describe("Dynamic Execution Security", () => {
         executionLimits: { maxSubstitutionDepth: 3 },
       });
 
-      const result = toText(
+      const result = await toText(
         await limitedBash.exec(`
         x=$(echo $(echo $(echo $(echo $(echo too_deep)))))
         echo $x
@@ -386,7 +386,7 @@ describe("Dynamic Execution Security", () => {
 
   describe("Arithmetic Evaluation Security", () => {
     it("should evaluate arithmetic safely", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $((5 + 3 * 2))
       `),
@@ -396,7 +396,7 @@ describe("Dynamic Execution Security", () => {
     });
 
     it("should handle let command", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         let "x = 5 + 3"
         echo $x
@@ -407,7 +407,7 @@ describe("Dynamic Execution Security", () => {
     });
 
     it("should handle (( )) compound", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         (( x = 10 ))
         (( x++ ))
@@ -419,7 +419,7 @@ describe("Dynamic Execution Security", () => {
     });
 
     it("should handle division by zero in arithmetic", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $((10 / 0)) 2>&1 || echo "div by zero error"
       `),
@@ -429,7 +429,7 @@ describe("Dynamic Execution Security", () => {
     });
 
     it("should handle large numbers safely", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $((2147483647 + 1))
       `),
@@ -439,7 +439,7 @@ describe("Dynamic Execution Security", () => {
     });
 
     it("should handle negative numbers", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         x=-5
         echo $((x * -3))
@@ -453,7 +453,7 @@ describe("Dynamic Execution Security", () => {
   describe("Process Substitution Security", () => {
     it("should handle <() syntax", async () => {
       // Process substitution may not be fully supported
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         cat <(echo "from process sub") 2>&1 || echo "not supported"
       `),
@@ -462,7 +462,7 @@ describe("Dynamic Execution Security", () => {
     });
 
     it("should handle >() syntax", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo "output" > >(cat) 2>&1 || echo "not supported"
       `),
@@ -473,7 +473,7 @@ describe("Dynamic Execution Security", () => {
 
   describe("Here Document in Dynamic Context", () => {
     it("should handle heredoc in eval", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         eval 'cat <<EOF
 heredoc content
@@ -485,7 +485,7 @@ EOF'
     });
 
     it("should handle heredoc with variable expansion", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         var="expanded"
         cat <<EOF
@@ -498,7 +498,7 @@ EOF
     });
 
     it("should handle heredoc with quoted delimiter", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         var="not expanded"
         cat <<'EOF'
@@ -513,7 +513,7 @@ EOF
 
   describe("Alias Security", () => {
     it("should define and use alias", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         shopt -s expand_aliases 2>/dev/null || true
         alias myalias='echo from alias'
@@ -525,7 +525,7 @@ EOF
     });
 
     it("should not expand alias in dangerous way", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         shopt -s expand_aliases 2>/dev/null || true
         alias ls='echo pwned; /bin/ls'
@@ -537,7 +537,7 @@ EOF
     });
 
     it("should unalias safely", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         shopt -s expand_aliases 2>/dev/null || true
         alias myalias='echo test'

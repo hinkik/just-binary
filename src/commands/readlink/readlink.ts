@@ -1,5 +1,5 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const readlinkHelp = {
@@ -35,8 +35,8 @@ export const readlinkCommand: Command = {
         break;
       } else {
         return {
-          stdout: EMPTY,
-          stderr: encode(`readlink: invalid option -- '${arg.slice(1)}'\n`),
+          stdout: emptyStream(),
+          stderr: fromString(`readlink: invalid option -- '${arg.slice(1)}'\n`),
           exitCode: 1,
         };
       }
@@ -46,8 +46,8 @@ export const readlinkCommand: Command = {
 
     if (files.length === 0) {
       return {
-        stdout: EMPTY,
-        stderr: encode("readlink: missing operand\n"),
+        stdout: emptyStream(),
+        stderr: fromString("readlink: missing operand\n"),
         exitCode: 1,
       };
     }
@@ -104,13 +104,14 @@ export const readlinkCommand: Command = {
     }
 
     return {
-      stdout: encode(stdout),
-      stderr: EMPTY,
+      stdout: fromString(stdout),
+      stderr: emptyStream(),
       exitCode: anyError ? 1 : 0,
     };
   },
 };
 
+import { emptyStream, fromString } from "../../utils/stream.js";
 import type { CommandFuzzInfo } from "../fuzz-flags-types.js";
 
 export const flagsForFuzzing: CommandFuzzInfo = {

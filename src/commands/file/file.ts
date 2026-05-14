@@ -6,7 +6,7 @@
 
 import { fileTypeFromBuffer } from "file-type";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
 const fileHelp = {
@@ -414,8 +414,8 @@ export const fileCommand: Command = {
 
     if (files.length === 0) {
       return {
-        stdout: EMPTY,
-        stderr: encode("Usage: file [-bLi] FILE...\n"),
+        stdout: emptyStream(),
+        stderr: fromString("Usage: file [-bLi] FILE...\n"),
         exitCode: 1,
       };
     }
@@ -434,7 +434,7 @@ export const fileCommand: Command = {
           continue;
         }
 
-        const buffer = await ctx.fs.readFileBuffer(path);
+        const buffer = await collectBytes(await ctx.fs.readFile(path));
         const fileType = await detectFileType(file, buffer);
         const result = mimeMode ? fileType.mime : fileType.description;
         output += brief ? `${result}\n` : `${file}: ${result}\n`;
@@ -446,10 +446,11 @@ export const fileCommand: Command = {
       }
     }
 
-    return { stdout: encode(output), stderr: EMPTY, exitCode };
+    return { stdout: fromString(output), stderr: emptyStream(), exitCode };
   },
 };
 
+import { collectBytes, emptyStream, fromString } from "../../utils/stream.js";
 import type { CommandFuzzInfo } from "../fuzz-flags-types.js";
 
 export const flagsForFuzzing: CommandFuzzInfo = {

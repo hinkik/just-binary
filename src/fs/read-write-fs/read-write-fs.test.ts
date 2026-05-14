@@ -41,7 +41,7 @@ describe("ReadWriteFs", () => {
       fs.writeFileSync(path.join(tempDir, "test.txt"), "real content");
       const rwfs = new ReadWriteFs({ root: tempDir });
 
-      const content = await rwfs.readFile("/test.txt");
+      const content = await rwfs.readFileText("/test.txt");
       expect(content).toBe("real content");
     });
 
@@ -50,7 +50,7 @@ describe("ReadWriteFs", () => {
       fs.writeFileSync(path.join(tempDir, "subdir", "file.txt"), "nested");
       const rwfs = new ReadWriteFs({ root: tempDir });
 
-      const content = await rwfs.readFile("/subdir/file.txt");
+      const content = await rwfs.readFileText("/subdir/file.txt");
       expect(content).toBe("nested");
     });
 
@@ -59,19 +59,22 @@ describe("ReadWriteFs", () => {
       fs.writeFileSync(path.join(tempDir, "binary.bin"), data);
       const rwfs = new ReadWriteFs({ root: tempDir });
 
-      const buffer = await rwfs.readFileBuffer("/binary.bin");
+      const { collectBytes } = await import("../../utils/stream.js");
+      const buffer = await collectBytes(await rwfs.readFile("/binary.bin"));
       expect(buffer).toEqual(new Uint8Array(data));
     });
 
     it("should throw ENOENT for non-existent file", async () => {
       const rwfs = new ReadWriteFs({ root: tempDir });
-      await expect(rwfs.readFile("/nonexistent.txt")).rejects.toThrow("ENOENT");
+      await expect(rwfs.readFileText("/nonexistent.txt")).rejects.toThrow(
+        "ENOENT",
+      );
     });
 
     it("should throw EISDIR when reading a directory", async () => {
       fs.mkdirSync(path.join(tempDir, "dir"));
       const rwfs = new ReadWriteFs({ root: tempDir });
-      await expect(rwfs.readFile("/dir")).rejects.toThrow("EISDIR");
+      await expect(rwfs.readFileText("/dir")).rejects.toThrow("EISDIR");
     });
   });
 
@@ -82,7 +85,7 @@ describe("ReadWriteFs", () => {
       await rwfs.writeFile("/new.txt", "new content");
 
       // Should read back from filesystem
-      const content = await rwfs.readFile("/new.txt");
+      const content = await rwfs.readFileText("/new.txt");
       expect(content).toBe("new content");
 
       // Real filesystem should have the file
@@ -498,7 +501,7 @@ describe("ReadWriteFs", () => {
       const base64Content = btoa("Hello World");
 
       await rwfs.writeFile("/base64.txt", base64Content, "base64");
-      const content = await rwfs.readFile("/base64.txt");
+      const content = await rwfs.readFileText("/base64.txt");
       expect(content).toBe("Hello World");
     });
 
@@ -507,7 +510,7 @@ describe("ReadWriteFs", () => {
       const hexContent = "48656c6c6f"; // "Hello"
 
       await rwfs.writeFile("/hex.txt", hexContent, "hex");
-      const content = await rwfs.readFile("/hex.txt");
+      const content = await rwfs.readFileText("/hex.txt");
       expect(content).toBe("Hello");
     });
   });

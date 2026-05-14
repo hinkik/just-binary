@@ -3,7 +3,7 @@
  */
 
 import type { CommandContext, ExecResult } from "../../types.js";
-import { EMPTY, encode } from "../../utils/bytes.js";
+import { emptyStream, fromString } from "../../utils/stream.js";
 import { formatCsv, readCsvInput } from "./csv.js";
 
 export async function cmdHeaders(
@@ -21,7 +21,7 @@ export async function cmdHeaders(
     ? `${headers.map((h) => h).join("\n")}\n`
     : `${headers.map((h, i) => `${i}   ${h}`).join("\n")}\n`;
 
-  return { stdout: encode(output), stderr: EMPTY, exitCode: 0 };
+  return { stdout: fromString(output), stderr: emptyStream(), exitCode: 0 };
 }
 
 export async function cmdCount(
@@ -30,7 +30,11 @@ export async function cmdCount(
 ): Promise<ExecResult> {
   const { data, error } = await readCsvInput(args, ctx);
   if (error) return error;
-  return { stdout: encode(`${data.length}\n`), stderr: EMPTY, exitCode: 0 };
+  return {
+    stdout: fromString(`${data.length}\n`),
+    stderr: emptyStream(),
+    exitCode: 0,
+  };
 }
 
 export async function cmdHead(
@@ -52,8 +56,8 @@ export async function cmdHead(
 
   const rows = data.slice(0, n);
   return {
-    stdout: encode(formatCsv(headers, rows)),
-    stderr: EMPTY,
+    stdout: fromString(formatCsv(headers, rows)),
+    stderr: emptyStream(),
     exitCode: 0,
   };
 }
@@ -77,8 +81,8 @@ export async function cmdTail(
 
   const rows = data.slice(-n);
   return {
-    stdout: encode(formatCsv(headers, rows)),
-    stderr: EMPTY,
+    stdout: fromString(formatCsv(headers, rows)),
+    stderr: emptyStream(),
     exitCode: 0,
   };
 }
@@ -120,8 +124,8 @@ export async function cmdSlice(
 
   const rows = data.slice(startIdx, endIdx);
   return {
-    stdout: encode(formatCsv(headers, rows)),
-    stderr: EMPTY,
+    stdout: fromString(formatCsv(headers, rows)),
+    stderr: emptyStream(),
     exitCode: 0,
   };
 }
@@ -135,8 +139,8 @@ export async function cmdReverse(
 
   const rows = [...data].reverse();
   return {
-    stdout: encode(formatCsv(headers, rows)),
-    stderr: EMPTY,
+    stdout: fromString(formatCsv(headers, rows)),
+    stderr: emptyStream(),
     exitCode: 0,
   };
 }

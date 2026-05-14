@@ -6,7 +6,7 @@ describe("jq construction", () => {
   describe("object construction", () => {
     it("should construct object with static keys", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           'echo \'{"name":"test","value":42}\' | jq -c \'{n: .name, v: .value}\'',
         ),
@@ -16,7 +16,7 @@ describe("jq construction", () => {
 
     it("should construct object with shorthand", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           'echo \'{"name":"test","value":42}\' | jq -c \'{name, value}\'',
         ),
@@ -26,7 +26,7 @@ describe("jq construction", () => {
 
     it("should construct object with dynamic keys", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           'echo \'{"key":"foo","val":42}\' | jq -c \'{(.key): .val}\'',
         ),
@@ -36,7 +36,7 @@ describe("jq construction", () => {
 
     it("should allow pipes in object values", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           "echo '[[1,2],[3,4]]' | jq -c '{a: .[0] | add, b: .[1] | add}'",
         ),
@@ -48,7 +48,7 @@ describe("jq construction", () => {
   describe("array construction", () => {
     it("should construct array from iterator", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec("echo '{\"a\":1,\"b\":2}' | jq '[.a, .b]'"),
       );
       expect(result.stdout).toBe("[\n  1,\n  2\n]\n");
@@ -56,7 +56,7 @@ describe("jq construction", () => {
 
     it("should construct array from object values", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec('echo \'{"a":1,"b":2,"c":3}\' | jq \'[.[]]\''),
       );
       expect(result.stdout).toBe("[\n  1,\n  2,\n  3\n]\n");

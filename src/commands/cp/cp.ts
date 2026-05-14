@@ -1,7 +1,7 @@
 import { getErrorMessage } from "../../interpreter/helpers/errors.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
-import { decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const cpHelp = {
@@ -46,8 +46,8 @@ export const cpCommand: Command = {
 
     if (paths.length < 2) {
       return {
-        stdout: EMPTY,
-        stderr: encode("cp: missing destination file operand\n"),
+        stdout: emptyStream(),
+        stderr: fromString("cp: missing destination file operand\n"),
         exitCode: 1,
       };
     }
@@ -72,8 +72,8 @@ export const cpCommand: Command = {
     // If multiple sources, dest must be a directory
     if (sources.length > 1 && !destIsDir) {
       return {
-        stdout: EMPTY,
-        stderr: encode(`cp: target '${dest}' is not a directory\n`),
+        stdout: emptyStream(),
+        stderr: fromString(`cp: target '${dest}' is not a directory\n`),
         exitCode: 1,
       };
     }
@@ -129,10 +129,11 @@ export const cpCommand: Command = {
       }
     }
 
-    return { stdout: encode(stdout), stderr: encode(stderr), exitCode };
+    return { stdout: fromString(stdout), stderr: fromString(stderr), exitCode };
   },
 };
 
+import { emptyStream, fromString } from "../../utils/stream.js";
 import type { CommandFuzzInfo } from "../fuzz-flags-types.js";
 
 export const flagsForFuzzing: CommandFuzzInfo = {

@@ -135,7 +135,7 @@ describe('ls command', () => {
     const env = new Bash({
       files: { '/dir/file.txt': '' },
     });
-    const result = toText(await env.exec('ls /dir'));
+    const result = (await toText(await env.exec('ls /dir')));
     expect(result.stdout).toContain('file.txt');
   });
 
@@ -146,7 +146,7 @@ describe('ls command', () => {
         '/dir/visible.txt': '',
       },
     });
-    const result = toText(await env.exec('ls /dir'));
+    const result = (await toText(await env.exec('ls /dir')));
     expect(result.stdout).not.toContain('.hidden');
     expect(result.stdout).toContain('visible.txt');
   });
@@ -158,7 +158,7 @@ describe('ls command', () => {
         '/dir/visible.txt': '',
       },
     });
-    const result = toText(await env.exec('ls -a /dir'));
+    const result = (await toText(await env.exec('ls -a /dir')));
     expect(result.stdout).toContain('.hidden');
   });
 
@@ -167,7 +167,7 @@ describe('ls command', () => {
     const env = new Bash({
       files: { '/dir/file.txt': '' },
     });
-    const result = toText(await env.exec('ls -a /dir'));
+    const result = (await toText(await env.exec('ls -a /dir')));
     expect(result.stdout).toContain('.');
     expect(result.stdout).toContain('..');
   });
@@ -180,7 +180,7 @@ describe('ls command', () => {
         '/dir/visible.txt': '',
       },
     });
-    const result = toText(await env.exec('ls -A /dir'));
+    const result = (await toText(await env.exec('ls -A /dir')));
     expect(result.stdout).toContain('.hidden');
   });
 });
@@ -406,7 +406,9 @@ describe("Agent Scenario: Feature Implementation", () => {
   describe("Step 1: Find skipped tests to understand requirements", () => {
     it("should find all skipped tests", async () => {
       const env = createEnv();
-      const result = toText(await env.exec('grep -rn "it.skip" /project/src'));
+      const result = await toText(
+        await env.exec('grep -rn "it.skip" /project/src'),
+      );
       expect(result.stdout).toContain("it.skip");
       expect(result.stdout).toContain("ls.comparison.test.ts");
       expect(result.stdout).toContain("ls.test.ts");
@@ -414,7 +416,7 @@ describe("Agent Scenario: Feature Implementation", () => {
 
     it("should identify specific issues from skip comments", async () => {
       const env = createEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           'grep -B1 "it.skip" /project/src/comparison-tests/ls.comparison.test.ts',
         ),
@@ -427,7 +429,7 @@ describe("Agent Scenario: Feature Implementation", () => {
   describe("Step 2: Read skipped test to understand requirements", () => {
     it("should read the comparison test file", async () => {
       const env = createEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           "cat /project/src/comparison-tests/ls.comparison.test.ts",
         ),
@@ -439,7 +441,7 @@ describe("Agent Scenario: Feature Implementation", () => {
 
     it("should understand what compareOutputs does", async () => {
       const env = createEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           'grep -A5 "compareOutputs" /project/src/comparison-tests/test-helpers.ts',
         ),
@@ -452,7 +454,7 @@ describe("Agent Scenario: Feature Implementation", () => {
   describe("Step 3: Understand current implementation", () => {
     it("should read the ls command implementation", async () => {
       const env = createEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec("cat /project/src/commands/ls/ls.ts"),
       );
       expect(result.stdout).toContain("showAll");
@@ -462,7 +464,7 @@ describe("Agent Scenario: Feature Implementation", () => {
 
     it("should find relevant flags handling", async () => {
       const env = createEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           'grep -n "showAll\\|showHidden" /project/src/commands/ls/ls.ts',
         ),
@@ -473,7 +475,7 @@ describe("Agent Scenario: Feature Implementation", () => {
 
     it("should find TODO comments in implementation", async () => {
       const env = createEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec('grep -n "TODO" /project/src/commands/ls/ls.ts'),
       );
       expect(result.stdout).toContain("TODO");
@@ -484,7 +486,7 @@ describe("Agent Scenario: Feature Implementation", () => {
   describe("Step 4: Find where commands are registered", () => {
     it("should locate command registration", async () => {
       const env = createEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec('grep -n "registerCommand" /project/src/BashEnv.ts'),
       );
       expect(result.stdout).toContain("registerCommand");
@@ -493,7 +495,7 @@ describe("Agent Scenario: Feature Implementation", () => {
 
     it("should find TODO for missing commands", async () => {
       const env = createEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec('grep -n "TODO.*command" /project/src/BashEnv.ts'),
       );
       expect(result.stdout).toContain("true");
@@ -504,7 +506,7 @@ describe("Agent Scenario: Feature Implementation", () => {
   describe("Step 5: Explore related files", () => {
     it("should find files that use ls flags", async () => {
       const env = createEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec('grep -rl "ls -a\\|ls -A" /project/src'),
       );
       expect(result.stdout).toContain("ls.comparison.test.ts");
@@ -513,7 +515,7 @@ describe("Agent Scenario: Feature Implementation", () => {
 
     it("should find unit tests to update", async () => {
       const env = createEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           'grep -n "should.*-a" /project/src/commands/ls/ls.test.ts',
         ),
@@ -526,14 +528,14 @@ describe("Agent Scenario: Feature Implementation", () => {
   describe("Step 6: Understand filesystem implementation", () => {
     it("should read the fs implementation", async () => {
       const env = createEnv();
-      const result = toText(await env.exec("cat /project/src/fs.ts"));
+      const result = await toText(await env.exec("cat /project/src/fs.ts"));
       expect(result.stdout).toContain("VirtualFs");
       expect(result.stdout).toContain("readdir");
     });
 
     it("should find TODO for missing methods", async () => {
       const env = createEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec('grep -n "TODO" /project/src/fs.ts'),
       );
       expect(result.stdout).toContain("mkdirSync");
@@ -543,7 +545,7 @@ describe("Agent Scenario: Feature Implementation", () => {
   describe("Step 7: Verify test patterns", () => {
     it("should understand test structure", async () => {
       const env = createEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           'grep -n "describe\\|it(" /project/src/commands/ls/ls.test.ts | head -10',
         ),
@@ -554,7 +556,7 @@ describe("Agent Scenario: Feature Implementation", () => {
 
     it("should find assertions in tests", async () => {
       const env = createEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec('grep -n "expect" /project/src/commands/ls/ls.test.ts'),
       );
       expect(result.stdout).toContain("expect");
@@ -567,7 +569,7 @@ describe("Agent Scenario: Feature Implementation", () => {
       const env = createEnv();
 
       // Find skipped tests
-      const skipped = toText(
+      const skipped = await toText(
         await env.exec(
           'grep -c "it.skip" /project/src/comparison-tests/ls.comparison.test.ts',
         ),
@@ -575,7 +577,7 @@ describe("Agent Scenario: Feature Implementation", () => {
       expect(parseInt(skipped.stdout.trim(), 10)).toBeGreaterThan(0);
 
       // Find the implementation
-      const impl = toText(
+      const impl = await toText(
         await env.exec(
           'find /project/src/commands -name "ls.ts" | grep -v test',
         ),
@@ -583,13 +585,13 @@ describe("Agent Scenario: Feature Implementation", () => {
       expect(impl.stdout).toContain("ls.ts");
 
       // Check for TODOs in implementation
-      const todos = toText(
+      const todos = await toText(
         await env.exec('grep -c "TODO" /project/src/commands/ls/ls.ts'),
       );
       expect(parseInt(todos.stdout.trim(), 10)).toBeGreaterThan(0);
 
       // Find related tests
-      const tests = toText(
+      const tests = await toText(
         await env.exec('find /project/src -name "*.test.ts" | grep ls'),
       );
       expect(tests.stdout).toContain("ls.test.ts");
@@ -600,7 +602,7 @@ describe("Agent Scenario: Feature Implementation", () => {
       const env = createEnv();
 
       // Files with skipped tests
-      const skippedFiles = toText(
+      const skippedFiles = await toText(
         await env.exec('grep -rl "it.skip" /project/src'),
       );
       expect(skippedFiles.stdout).toContain("ls.comparison.test.ts");
@@ -608,7 +610,9 @@ describe("Agent Scenario: Feature Implementation", () => {
       expect(skippedFiles.stdout).toContain("grep.comparison.test.ts");
 
       // Files with TODOs
-      const todoFiles = toText(await env.exec('grep -rl "TODO" /project/src'));
+      const todoFiles = await toText(
+        await env.exec('grep -rl "TODO" /project/src'),
+      );
       expect(todoFiles.stdout).toContain("ls.ts");
       expect(todoFiles.stdout).toContain("fs.ts");
       expect(todoFiles.stdout).toContain("BashEnv.ts");
@@ -618,7 +622,7 @@ describe("Agent Scenario: Feature Implementation", () => {
   describe("Step 9: Search for patterns to replicate", () => {
     it("should find async execute pattern", async () => {
       const env = createEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec('grep -rn "async execute" /project/src/commands'),
       );
       expect(result.stdout).toContain("async execute");
@@ -626,7 +630,7 @@ describe("Agent Scenario: Feature Implementation", () => {
 
     it("should find Command interface implementations", async () => {
       const env = createEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec('grep -rn "Command = {" /project/src/commands'),
       );
       expect(result.stdout).toContain("lsCommand");
@@ -635,7 +639,7 @@ describe("Agent Scenario: Feature Implementation", () => {
 
     it("should find error handling patterns", async () => {
       const env = createEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec('grep -rn "catch" /project/src/commands'),
       );
       expect(result.stdout).toContain("catch");

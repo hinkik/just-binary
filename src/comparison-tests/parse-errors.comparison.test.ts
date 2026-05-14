@@ -44,7 +44,7 @@ describe("Parse Errors - Comparison Tests", () => {
     files: Record<string, string> = {},
   ): Promise<{ stdout: string; stderr: string; exitCode: number }> => {
     const env = new Bash({ files, cwd: "/" });
-    return toText(await env.exec(command));
+    return await toText(await env.exec(command));
   };
 
   beforeEach(() => {

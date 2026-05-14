@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../Bash.js";
 import { toText } from "../test-utils.js";
+import { collectBytes } from "../utils/stream.js";
 
 describe("redirections with binary data", () => {
   describe("basic redirection >", () => {
@@ -13,13 +14,14 @@ describe("redirections with binary data", () => {
 
       await env.exec("cat /binary.bin > /output.bin");
       const result = await env.exec("cat /output.bin");
+      const stdout = await collectBytes(result.stdout);
 
-      expect(result.stdout.length).toBe(5);
-      expect(result.stdout[0]).toBe(0x80);
-      expect(result.stdout[1]).toBe(0x90);
-      expect(result.stdout[2]).toBe(0xa0);
-      expect(result.stdout[3]).toBe(0xb0);
-      expect(result.stdout[4]).toBe(0xff);
+      expect(stdout.length).toBe(5);
+      expect(stdout[0]).toBe(0x80);
+      expect(stdout[1]).toBe(0x90);
+      expect(stdout[2]).toBe(0xa0);
+      expect(stdout[3]).toBe(0xb0);
+      expect(stdout[4]).toBe(0xff);
     });
 
     it("should preserve null bytes when redirecting to file", async () => {
@@ -30,7 +32,7 @@ describe("redirections with binary data", () => {
       });
 
       await env.exec("cat /nulls.bin > /output.bin");
-      const result = toText(await env.exec("cat /output.bin"));
+      const result = await toText(await env.exec("cat /output.bin"));
 
       expect(result.stdout).toBe("A\0B\0C");
     });
@@ -46,10 +48,11 @@ describe("redirections with binary data", () => {
 
       await env.exec("cat /allbytes.bin > /output.bin");
       const result = await env.exec("cat /output.bin");
+      const stdout = await collectBytes(result.stdout);
 
-      expect(result.stdout.length).toBe(256);
+      expect(stdout.length).toBe(256);
       for (let i = 0; i < 256; i++) {
-        expect(result.stdout[i]).toBe(i);
+        expect(stdout[i]).toBe(i);
       }
     });
   });
@@ -66,12 +69,13 @@ describe("redirections with binary data", () => {
       await env.exec("cat /a.bin > /output.bin");
       await env.exec("cat /b.bin >> /output.bin");
       const result = await env.exec("cat /output.bin");
+      const stdout = await collectBytes(result.stdout);
 
-      expect(result.stdout.length).toBe(4);
-      expect(result.stdout[0]).toBe(0x80);
-      expect(result.stdout[1]).toBe(0x90);
-      expect(result.stdout[2]).toBe(0xa0);
-      expect(result.stdout[3]).toBe(0xb0);
+      expect(stdout.length).toBe(4);
+      expect(stdout[0]).toBe(0x80);
+      expect(stdout[1]).toBe(0x90);
+      expect(stdout[2]).toBe(0xa0);
+      expect(stdout[3]).toBe(0xb0);
     });
   });
 
@@ -85,12 +89,13 @@ describe("redirections with binary data", () => {
 
       await env.exec("cat /binary.bin | cat > /output.bin");
       const result = await env.exec("cat /output.bin");
+      const stdout = await collectBytes(result.stdout);
 
-      expect(result.stdout.length).toBe(4);
-      expect(result.stdout[0]).toBe(0x80);
-      expect(result.stdout[1]).toBe(0xff);
-      expect(result.stdout[2]).toBe(0x90);
-      expect(result.stdout[3]).toBe(0xab);
+      expect(stdout.length).toBe(4);
+      expect(stdout[0]).toBe(0x80);
+      expect(stdout[1]).toBe(0xff);
+      expect(stdout[2]).toBe(0x90);
+      expect(stdout[3]).toBe(0xab);
     });
 
     it("should preserve binary data through multiple pipes", async () => {
@@ -102,12 +107,13 @@ describe("redirections with binary data", () => {
 
       await env.exec("cat /binary.bin | cat | cat > /output.bin");
       const result = await env.exec("cat /output.bin");
+      const stdout = await collectBytes(result.stdout);
 
-      expect(result.stdout.length).toBe(4);
-      expect(result.stdout[0]).toBe(0x80);
-      expect(result.stdout[1]).toBe(0xff);
-      expect(result.stdout[2]).toBe(0x00);
-      expect(result.stdout[3]).toBe(0x90);
+      expect(stdout.length).toBe(4);
+      expect(stdout[0]).toBe(0x80);
+      expect(stdout[1]).toBe(0xff);
+      expect(stdout[2]).toBe(0x00);
+      expect(stdout[3]).toBe(0x90);
     });
   });
 
@@ -121,11 +127,12 @@ describe("redirections with binary data", () => {
 
       await env.exec("cat /binary.bin &> /output.bin");
       const result = await env.exec("cat /output.bin");
+      const stdout = await collectBytes(result.stdout);
 
-      expect(result.stdout.length).toBe(3);
-      expect(result.stdout[0]).toBe(0x80);
-      expect(result.stdout[1]).toBe(0x90);
-      expect(result.stdout[2]).toBe(0xa0);
+      expect(stdout.length).toBe(3);
+      expect(stdout[0]).toBe(0x80);
+      expect(stdout[1]).toBe(0x90);
+      expect(stdout[2]).toBe(0xa0);
     });
   });
 
@@ -138,7 +145,7 @@ describe("redirections with binary data", () => {
       });
 
       await env.exec("gzip -c /data.txt > /compressed.gz");
-      const result = toText(await env.exec("gunzip -c /compressed.gz"));
+      const result = await toText(await env.exec("gunzip -c /compressed.gz"));
 
       expect(result.stdout).toBe("test data for compression");
     });
@@ -151,7 +158,7 @@ describe("redirections with binary data", () => {
       });
 
       await env.exec("cat /data.txt | gzip -c > /compressed.gz");
-      const result = toText(await env.exec("gunzip -c /compressed.gz"));
+      const result = await toText(await env.exec("gunzip -c /compressed.gz"));
 
       expect(result.stdout).toBe("piped compression test");
     });
@@ -165,13 +172,14 @@ describe("redirections with binary data", () => {
 
       await env.exec("gzip -c /binary.bin > /binary.bin.gz");
       const result = await env.exec("gunzip -c /binary.bin.gz");
+      const stdout = await collectBytes(result.stdout);
 
-      expect(result.stdout.length).toBe(5);
-      expect(result.stdout[0]).toBe(0x80);
-      expect(result.stdout[1]).toBe(0xff);
-      expect(result.stdout[2]).toBe(0x00);
-      expect(result.stdout[3]).toBe(0x90);
-      expect(result.stdout[4]).toBe(0xab);
+      expect(stdout.length).toBe(5);
+      expect(stdout[0]).toBe(0x80);
+      expect(stdout[1]).toBe(0xff);
+      expect(stdout[2]).toBe(0x00);
+      expect(stdout[3]).toBe(0x90);
+      expect(stdout[4]).toBe(0xab);
     });
   });
 });

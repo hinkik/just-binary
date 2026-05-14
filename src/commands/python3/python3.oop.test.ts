@@ -13,7 +13,7 @@ lst.extend([5, 6])
 print(lst)
 print(len(lst))
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_list.py`));
+      const result = await toText(await env.exec(`python3 /tmp/test_list.py`));
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("[1, 2, 3, 4, 5, 6]\n6\n");
       expect(result.exitCode).toBe(0);
@@ -27,7 +27,7 @@ print(lst[2:4])
 print(lst[::2])
 print(lst[::-1])
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_slice.py`));
+      const result = await toText(await env.exec(`python3 /tmp/test_slice.py`));
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("[2, 3]\n[0, 2, 4]\n[5, 4, 3, 2, 1, 0]\n");
       expect(result.exitCode).toBe(0);
@@ -35,7 +35,7 @@ EOF`);
 
     it("should support list comprehensions", async () => {
       const env = new Bash({ python: true });
-      const result = toText(
+      const result = await toText(
         await env.exec(`python3 -c "print([x**2 for x in range(5)])"`),
       );
       expect(result.stderr).toBe("");
@@ -49,7 +49,9 @@ EOF`);
 matrix = [[i*j for j in range(3)] for i in range(3)]
 print(matrix)
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_nested_comp.py`));
+      const result = await toText(
+        await env.exec(`python3 /tmp/test_nested_comp.py`),
+      );
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("[[0, 0, 0], [0, 1, 2], [0, 2, 4]]\n");
       expect(result.exitCode).toBe(0);
@@ -65,7 +67,7 @@ d['c'] = 3
 print(d['a'])
 print(sorted(d.keys()))
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_dict.py`));
+      const result = await toText(await env.exec(`python3 /tmp/test_dict.py`));
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("1\n['a', 'b', 'c']\n");
       expect(result.exitCode).toBe(0);
@@ -77,7 +79,9 @@ EOF`);
 d = {x: x**2 for x in range(4)}
 print(sorted(d.items()))
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_dict_comp.py`));
+      const result = await toText(
+        await env.exec(`python3 /tmp/test_dict_comp.py`),
+      );
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("[(0, 0), (1, 1), (2, 4), (3, 9)]\n");
       expect(result.exitCode).toBe(0);
@@ -91,7 +95,7 @@ print(d.get('c', 'default'))
 d.update({'c': 3})
 print(sorted(d.keys()))
 EOF`);
-      const result = toText(
+      const result = await toText(
         await env.exec(`python3 /tmp/test_dict_methods.py`),
       );
       expect(result.stderr).toBe("");
@@ -109,7 +113,7 @@ s.add(4)
 s.add(2)  # duplicate
 print(sorted(s))
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_set.py`));
+      const result = await toText(await env.exec(`python3 /tmp/test_set.py`));
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("[1, 2, 3, 4]\n");
       expect(result.exitCode).toBe(0);
@@ -124,7 +128,9 @@ print(sorted(a & b))
 print(sorted(a | b))
 print(sorted(a - b))
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_set_ops.py`));
+      const result = await toText(
+        await env.exec(`python3 /tmp/test_set_ops.py`),
+      );
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("[2, 3]\n[1, 2, 3, 4]\n[1]\n");
       expect(result.exitCode).toBe(0);
@@ -132,7 +138,7 @@ EOF`);
 
     it("should support set comprehensions", async () => {
       const env = new Bash({ python: true });
-      const result = toText(
+      const result = await toText(
         await env.exec(`python3 -c "print(sorted({x%3 for x in range(10)}))"`),
       );
       expect(result.stderr).toBe("");
@@ -150,7 +156,7 @@ a, b, c = t
 print(a, b, c)
 print(len(t))
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_tuple.py`));
+      const result = await toText(await env.exec(`python3 /tmp/test_tuple.py`));
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("1 2 3\n3\n");
       expect(result.exitCode).toBe(0);
@@ -164,7 +170,9 @@ Point = namedtuple('Point', ['x', 'y'])
 p = Point(3, 4)
 print(p.x, p.y)
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_namedtuple.py`));
+      const result = await toText(
+        await env.exec(`python3 /tmp/test_namedtuple.py`),
+      );
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("3 4\n");
       expect(result.exitCode).toBe(0);
@@ -187,7 +195,7 @@ class Dog:
 dog = Dog("Buddy")
 print(dog.bark())
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_class.py`));
+      const result = await toText(await env.exec(`python3 /tmp/test_class.py`));
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("Buddy says woof!\n");
       expect(result.exitCode).toBe(0);
@@ -212,7 +220,9 @@ animals = [Cat(), Dog()]
 for a in animals:
     print(a.speak())
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_inheritance.py`));
+      const result = await toText(
+        await env.exec(`python3 /tmp/test_inheritance.py`),
+      );
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("meow\nwoof\n");
       expect(result.exitCode).toBe(0);
@@ -240,7 +250,7 @@ c2 = Counter()
 print(Counter.get_count())
 print(Counter.description())
 EOF`);
-      const result = toText(
+      const result = await toText(
         await env.exec(`python3 /tmp/test_classmethods.py`),
       );
       expect(result.stderr).toBe("");
@@ -270,7 +280,9 @@ print(c.radius)
 c.radius = 10
 print(c.radius)
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_property.py`));
+      const result = await toText(
+        await env.exec(`python3 /tmp/test_property.py`),
+      );
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("5\n10\n");
       expect(result.exitCode).toBe(0);
@@ -290,7 +302,9 @@ p = Point(3, 4)
 print(p.x, p.y)
 print(p)
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_dataclass.py`));
+      const result = await toText(
+        await env.exec(`python3 /tmp/test_dataclass.py`),
+      );
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("3 4\nPoint(x=3, y=4)\n");
       expect(result.exitCode).toBe(0);
@@ -316,7 +330,7 @@ p = Point(3, 4)
 print(str(p))
 print(repr(p))
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_magic.py`));
+      const result = await toText(await env.exec(`python3 /tmp/test_magic.py`));
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("Point(3, 4)\nPoint(x=3, y=4)\n");
       expect(result.exitCode).toBe(0);
@@ -341,7 +355,9 @@ c = Number(5)
 print(a == c)
 print(a < b)
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_comparison.py`));
+      const result = await toText(
+        await env.exec(`python3 /tmp/test_comparison.py`),
+      );
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("True\nTrue\n");
       expect(result.exitCode).toBe(0);
@@ -366,7 +382,9 @@ v2 = Vector(3, 4)
 v3 = v1 + v2
 print(v3)
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_arithmetic.py`));
+      const result = await toText(
+        await env.exec(`python3 /tmp/test_arithmetic.py`),
+      );
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("Vector(4, 6)\n");
       expect(result.exitCode).toBe(0);
@@ -389,7 +407,9 @@ ml = MyList([1, 2, 3, 4, 5])
 print(len(ml))
 print(ml[2])
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_container.py`));
+      const result = await toText(
+        await env.exec(`python3 /tmp/test_container.py`),
+      );
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("5\n3\n");
       expect(result.exitCode).toBe(0);
@@ -405,7 +425,9 @@ try:
 except ZeroDivisionError:
     print("caught division by zero")
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_exception.py`));
+      const result = await toText(
+        await env.exec(`python3 /tmp/test_exception.py`),
+      );
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("caught division by zero\n");
       expect(result.exitCode).toBe(0);
@@ -427,7 +449,7 @@ def test(x):
 print(test(0))
 print(test(2))
 EOF`);
-      const result = toText(
+      const result = await toText(
         await env.exec(`python3 /tmp/test_multi_except.py`),
       );
       expect(result.stderr).toBe("");
@@ -447,7 +469,9 @@ def test():
 result = test()
 print(result)
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_finally.py`));
+      const result = await toText(
+        await env.exec(`python3 /tmp/test_finally.py`),
+      );
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("finally\ntry\n");
       expect(result.exitCode).toBe(0);
@@ -465,7 +489,7 @@ try:
 except MyError as e:
     print(f"caught: {e.message}")
 EOF`);
-      const result = toText(
+      const result = await toText(
         await env.exec(`python3 /tmp/test_custom_exception.py`),
       );
       expect(result.stderr).toBe("");

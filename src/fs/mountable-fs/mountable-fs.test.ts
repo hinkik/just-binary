@@ -58,7 +58,7 @@ describe("MountableFs", () => {
       const base = new InMemoryFs({ "/base.txt": "base content" });
       const fs = new MountableFs({ base });
 
-      const content = await fs.readFile("/base.txt");
+      const content = await fs.readFileText("/base.txt");
       expect(content).toBe("base content");
     });
   });
@@ -129,7 +129,7 @@ describe("MountableFs", () => {
       const fs = new MountableFs();
       fs.mount("/mnt/data", mounted);
 
-      const content = await fs.readFile("/mnt/data/test.txt");
+      const content = await fs.readFileText("/mnt/data/test.txt");
       expect(content).toBe("mounted content");
     });
 
@@ -137,7 +137,7 @@ describe("MountableFs", () => {
       const base = new InMemoryFs({ "/base.txt": "base content" });
       const fs = new MountableFs({ base });
 
-      const content = await fs.readFile("/base.txt");
+      const content = await fs.readFileText("/base.txt");
       expect(content).toBe("base content");
     });
 
@@ -149,7 +149,7 @@ describe("MountableFs", () => {
       await fs.writeFile("/mnt/data/test.txt", "hello");
 
       // Verify written to mounted fs
-      const content = await mounted.readFile("/test.txt");
+      const content = await mounted.readFileText("/test.txt");
       expect(content).toBe("hello");
     });
 
@@ -272,7 +272,7 @@ describe("MountableFs", () => {
 
       await fs.cp("/mnt/data/src.txt", "/dest.txt");
 
-      const content = await base.readFile("/dest.txt");
+      const content = await base.readFileText("/dest.txt");
       expect(content).toBe("content");
     });
 
@@ -284,7 +284,7 @@ describe("MountableFs", () => {
 
       await fs.cp("/src.txt", "/mnt/data/dest.txt");
 
-      const content = await mounted.readFile("/dest.txt");
+      const content = await mounted.readFileText("/dest.txt");
       expect(content).toBe("content");
     });
 
@@ -297,7 +297,7 @@ describe("MountableFs", () => {
 
       await fs.cp("/mnt/a/src.txt", "/mnt/b/dest.txt");
 
-      const content = await mount2.readFile("/dest.txt");
+      const content = await mount2.readFileText("/dest.txt");
       expect(content).toBe("content");
     });
 
@@ -314,8 +314,8 @@ describe("MountableFs", () => {
 
       await fs.cp("/mnt/a/dir", "/mnt/b/dir", { recursive: true });
 
-      expect(await mount2.readFile("/dir/a.txt")).toBe("a");
-      expect(await mount2.readFile("/dir/b.txt")).toBe("b");
+      expect(await mount2.readFileText("/dir/a.txt")).toBe("a");
+      expect(await mount2.readFileText("/dir/b.txt")).toBe("b");
     });
 
     it("should preserve file mode on cross-mount copy", async () => {
@@ -341,7 +341,7 @@ describe("MountableFs", () => {
 
       await fs.cp("/mnt/data/src.txt", "/mnt/data/dest.txt");
 
-      const content = await mounted.readFile("/dest.txt");
+      const content = await mounted.readFileText("/dest.txt");
       expect(content).toBe("content");
     });
   });
@@ -356,7 +356,7 @@ describe("MountableFs", () => {
 
       await fs.mv("/mnt/a/src.txt", "/mnt/b/dest.txt");
 
-      expect(await mount2.readFile("/dest.txt")).toBe("content");
+      expect(await mount2.readFileText("/dest.txt")).toBe("content");
       expect(await mount1.exists("/src.txt")).toBe(false);
     });
 
@@ -377,7 +377,7 @@ describe("MountableFs", () => {
 
       await fs.mv("/mnt/data/src.txt", "/mnt/data/dest.txt");
 
-      expect(await mounted.readFile("/dest.txt")).toBe("content");
+      expect(await mounted.readFileText("/dest.txt")).toBe("content");
       expect(await mounted.exists("/src.txt")).toBe(false);
     });
   });
@@ -450,7 +450,7 @@ describe("MountableFs", () => {
       fs.mount("/mnt/data", mounted);
 
       // Reading the link should resolve to target within same mount
-      const content = await fs.readFile("/mnt/data/link.txt");
+      const content = await fs.readFileText("/mnt/data/link.txt");
       expect(content).toBe("content");
     });
 
@@ -469,7 +469,7 @@ describe("MountableFs", () => {
       expect(target).toBe("/mnt/a/target.txt");
 
       // To follow cross-mount symlinks, user must read target path explicitly
-      const content = await fs.readFile(target);
+      const content = await fs.readFileText(target);
       expect(content).toBe("content");
     });
 
@@ -498,7 +498,7 @@ describe("MountableFs", () => {
 
       await fs.link("/mnt/data/original.txt", "/mnt/data/hardlink.txt");
 
-      const content = await fs.readFile("/mnt/data/hardlink.txt");
+      const content = await fs.readFileText("/mnt/data/hardlink.txt");
       expect(content).toBe("content");
     });
 
@@ -574,7 +574,7 @@ describe("MountableFs", () => {
 
       await fs.appendFile("/mnt/data/test.txt", " world");
 
-      const content = await fs.readFile("/mnt/data/test.txt");
+      const content = await fs.readFileText("/mnt/data/test.txt");
       expect(content).toBe("hello world");
     });
   });
@@ -639,7 +639,7 @@ describe("MountableFs", () => {
       const fs = new MountableFs();
       fs.mount("mnt/data", mounted);
 
-      const content = await fs.readFile("mnt/data/test.txt");
+      const content = await fs.readFileText("mnt/data/test.txt");
       expect(content).toBe("content");
     });
 
@@ -648,7 +648,7 @@ describe("MountableFs", () => {
       const fs = new MountableFs();
       fs.mount("/mnt/data", mounted);
 
-      const content = await fs.readFile("/mnt/data/../data/./test.txt");
+      const content = await fs.readFileText("/mnt/data/../data/./test.txt");
       expect(content).toBe("content");
     });
 

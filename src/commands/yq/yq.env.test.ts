@@ -10,7 +10,7 @@ describe("yq environment variables", () => {
     const bash = new Bash({
       env: { TEST_VAR: "test_value" },
     });
-    const result = toText(
+    const result = await toText(
       await bash.exec("echo 'null' | yq -o json 'env.TEST_VAR'"),
     );
     expect(result.exitCode).toBe(0);
@@ -21,7 +21,7 @@ describe("yq environment variables", () => {
     const bash = new Bash({
       env: { MY_VAR: "my_value" },
     });
-    const result = toText(
+    const result = await toText(
       await bash.exec("echo 'null' | yq -o json '$ENV.MY_VAR'"),
     );
     expect(result.exitCode).toBe(0);
@@ -32,7 +32,7 @@ describe("yq environment variables", () => {
     const bash = new Bash({
       env: { A: "1", B: "2" },
     });
-    const result = toText(
+    const result = await toText(
       await bash.exec("echo 'null' | yq -o json 'env | keys'"),
     );
     expect(result.exitCode).toBe(0);
@@ -46,7 +46,7 @@ describe("yq environment variables", () => {
       const bash = new Bash({
         env: { A: "1" },
       });
-      const result = toText(
+      const result = await toText(
         await bash.exec("echo 'null' | yq -o json 'env.NONEXISTENT'"),
       );
       expect(result.exitCode).toBe(0);
@@ -57,7 +57,7 @@ describe("yq environment variables", () => {
       const bash = new Bash({
         env: { A: "1" },
       });
-      const result = toText(
+      const result = await toText(
         await bash.exec("echo 'null' | yq -o json '$ENV.NONEXISTENT'"),
       );
       expect(result.exitCode).toBe(0);
@@ -68,7 +68,7 @@ describe("yq environment variables", () => {
       const bash = new Bash({
         env: { EMPTY: "" },
       });
-      const result = toText(
+      const result = await toText(
         await bash.exec("echo 'null' | yq -o json 'env.EMPTY'"),
       );
       expect(result.exitCode).toBe(0);
@@ -79,7 +79,7 @@ describe("yq environment variables", () => {
       const bash = new Bash({
         env: { SPECIAL: "a=1&b=2" },
       });
-      const result = toText(
+      const result = await toText(
         await bash.exec("echo 'null' | yq -o json 'env.SPECIAL'"),
       );
       expect(result.exitCode).toBe(0);
@@ -91,7 +91,7 @@ describe("yq environment variables", () => {
         env: { NAME: "world" },
       });
       // Use env var in string interpolation would be nice, but test basic combination
-      const result = toText(
+      const result = await toText(
         await bash.exec(
           'echo \'{"greeting": "hello"}\' | yq -o json \'.greeting + " " + env.NAME\'',
         ),

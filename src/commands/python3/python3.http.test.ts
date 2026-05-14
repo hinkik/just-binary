@@ -48,7 +48,7 @@ response = jb_http.get("https://api.example.com/get")
 print(response.status_code)
 print(response.ok)
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_get.py`));
+      const result = await toText(await env.exec(`python3 /tmp/test_get.py`));
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("200\nTrue\n");
       expect(result.exitCode).toBe(0);
@@ -68,7 +68,7 @@ EOF`);
         },
       });
       // Use -c instead of file to eliminate file I/O as a variable
-      const result = toText(
+      const result = await toText(
         await env.exec(`python3 -c "
 import jb_http
 response = jb_http.get('https://api.example.com/get')
@@ -100,7 +100,7 @@ data = response.json()
 print(type(data).__name__)
 print(data["key"])
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_json.py`));
+      const result = await toText(await env.exec(`python3 /tmp/test_json.py`));
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("dict\nvalue\n");
       expect(result.exitCode).toBe(0);
@@ -126,7 +126,7 @@ response = jb_http.get("https://api.example.com/headers", headers={"X-Custom": "
 data = response.json()
 print(data["headers"].get("X-Custom", "not found"))
 EOF`);
-      const result = toText(
+      const result = await toText(
         await env.exec(`python3 /tmp/test_custom_headers.py`),
       );
       expect(result.stderr).toBe("");
@@ -153,7 +153,7 @@ response = jb_http.get("https://api.example.com/notfound")
 print(response.status_code)
 print(response.ok)
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_404.py`));
+      const result = await toText(await env.exec(`python3 /tmp/test_404.py`));
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("404\nFalse\n");
       expect(result.exitCode).toBe(0);
@@ -181,7 +181,7 @@ try:
 except Exception as e:
     print("error raised")
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_raise.py`));
+      const result = await toText(await env.exec(`python3 /tmp/test_raise.py`));
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("error raised\n");
       expect(result.exitCode).toBe(0);
@@ -199,7 +199,9 @@ try:
 except Exception as e:
     print("network error")
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_no_network.py`));
+      const result = await toText(
+        await env.exec(`python3 /tmp/test_no_network.py`),
+      );
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("network error\n");
       expect(result.exitCode).toBe(0);
@@ -220,7 +222,9 @@ try:
 except Exception as e:
     print("access denied")
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_blocked.py`));
+      const result = await toText(
+        await env.exec(`python3 /tmp/test_blocked.py`),
+      );
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("access denied\n");
       expect(result.exitCode).toBe(0);
@@ -246,7 +250,7 @@ import jb_http
 response = jb_http.post("https://api.example.com/post", data="hello=world")
 print(response.status_code)
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_post.py`));
+      const result = await toText(await env.exec(`python3 /tmp/test_post.py`));
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("200\n");
       expect(result.exitCode).toBe(0);
@@ -270,7 +274,9 @@ response = jb_http.post("https://api.example.com/post", json={"key": "value"})
 data = response.json()
 print(data["json"]["key"])
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_post_json.py`));
+      const result = await toText(
+        await env.exec(`python3 /tmp/test_post_json.py`),
+      );
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("value\n");
       expect(result.exitCode).toBe(0);
@@ -298,7 +304,7 @@ response = jb_http.head("https://api.example.com/resource")
 print(response.status_code)
 print(len(response.text))
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_head.py`));
+      const result = await toText(await env.exec(`python3 /tmp/test_head.py`));
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("200\n0\n");
       expect(result.exitCode).toBe(0);
@@ -320,7 +326,7 @@ import jb_http
 response = jb_http.put("https://api.example.com/resource", json={"update": "data"})
 print(response.status_code)
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_put.py`));
+      const result = await toText(await env.exec(`python3 /tmp/test_put.py`));
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("200\n");
       expect(result.exitCode).toBe(0);
@@ -342,7 +348,9 @@ import jb_http
 response = jb_http.delete("https://api.example.com/resource")
 print(response.status_code)
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_delete.py`));
+      const result = await toText(
+        await env.exec(`python3 /tmp/test_delete.py`),
+      );
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("200\n");
       expect(result.exitCode).toBe(0);
@@ -364,7 +372,7 @@ import jb_http
 response = jb_http.patch("https://api.example.com/resource", json={"partial": "update"})
 print(response.status_code)
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_patch.py`));
+      const result = await toText(await env.exec(`python3 /tmp/test_patch.py`));
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("200\n");
       expect(result.exitCode).toBe(0);
@@ -392,12 +400,16 @@ with open("/tmp/downloaded.json", "w") as f:
     f.write(response.text)
 print("saved")
 EOF`);
-      const pyResult = toText(await env.exec(`python3 /tmp/test_download.py`));
+      const pyResult = await toText(
+        await env.exec(`python3 /tmp/test_download.py`),
+      );
       expect(pyResult.stderr).toBe("");
       expect(pyResult.stdout).toBe("saved\n");
 
       // Verify the file was saved
-      const catResult = toText(await env.exec(`cat /tmp/downloaded.json`));
+      const catResult = await toText(
+        await env.exec(`cat /tmp/downloaded.json`),
+      );
       expect(catResult.stdout).toContain("slideshow");
     });
   });

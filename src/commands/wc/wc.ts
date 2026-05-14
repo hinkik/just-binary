@@ -1,7 +1,7 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
-import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
-import { readFiles } from "../../utils/file-reader.js";
+import { decodeArgs } from "../../utils/bytes.js";
+import { streamChunks } from "../../utils/stream.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const wcHelp = {
@@ -46,25 +46,20 @@ export const wcCommand: Command = {
       showLines = showWords = showChars = true;
     }
 
-    // Read files
-    const readResult = await readFiles(ctx, files, {
-      cmdName: "wc",
-      stopOnError: false,
-    });
-
-    // If reading from stdin (no files), use simpler output
+    // No files → count from stdin stream
     if (files.length === 0) {
-      const stats = countStats(decode(readResult.files[0].content));
+      const stats = await countStatsFromStream(ctx.stdin);
       return {
-        stdout: encode(
+        stdout: fromString(
           `${formatStats(stats, showLines, showWords, showChars, "", 0)}\n`,
         ),
-        stderr: EMPTY,
+        stderr: emptyStream(),
         exitCode: 0,
       };
     }
 
-    // First pass: count stats for all files and calculate max widths
+    // Count each file's stats by streaming its contents — never materialize
+    // the full file as a string or single Uint8Array.
     const allStats: Array<{
       filename: string;
       stats: { lines: number; words: number; chars: number };
@@ -72,13 +67,24 @@ export const wcCommand: Command = {
     let totalLines = 0;
     let totalWords = 0;
     let totalChars = 0;
+    let readStderr = "";
+    let readExit = 0;
 
-    for (const { filename, content } of readResult.files) {
-      const stats = countStats(decode(content));
-      totalLines += stats.lines;
-      totalWords += stats.words;
-      totalChars += stats.chars;
-      allStats.push({ filename, stats });
+    for (const file of files) {
+      try {
+        const stream =
+          file === "-"
+            ? ctx.stdin
+            : await ctx.fs.readFile(ctx.fs.resolvePath(ctx.cwd, file));
+        const stats = await countStatsFromStream(stream);
+        totalLines += stats.lines;
+        totalWords += stats.words;
+        totalChars += stats.chars;
+        allStats.push({ filename: file, stats });
+      } catch {
+        readStderr += `wc: ${file}: No such file or directory\n`;
+        readExit = 1;
+      }
     }
 
     // Calculate the max width needed for alignment
@@ -122,48 +128,54 @@ export const wcCommand: Command = {
     }
 
     return {
-      stdout: encode(stdout),
-      stderr: encode(readResult.stderr),
-      exitCode: readResult.exitCode,
+      stdout: fromString(stdout),
+      stderr: fromString(readStderr),
+      exitCode: readExit,
     };
   },
 };
 
-function countStats(content: string): {
-  lines: number;
-  words: number;
-  chars: number;
-} {
-  const len = content.length;
+/**
+ * Stream-count lines, words and bytes. Counts whitespace at the byte level —
+ * exactly what real `wc` does for ASCII; multi-byte UTF-8 sequences contribute
+ * each byte to the char count, matching `wc -c`. (`wc -m` would need code-point
+ * counting; we currently report bytes for `-m` too — same as before this refactor.)
+ */
+async function countStatsFromStream(
+  stream: import("../../utils/stream.js").ByteStream,
+): Promise<{ lines: number; words: number; chars: number }> {
   let lines = 0;
   let words = 0;
+  let chars = 0;
   let inWord = false;
 
-  // Single pass through content to count lines and words
-  for (let i = 0; i < len; i++) {
-    const c = content[i];
-    if (c === "\n") {
-      lines++;
-      if (inWord) {
-        words++;
-        inWord = false;
+  for await (const chunk of streamChunks(stream)) {
+    chars += chunk.length;
+    const len = chunk.length;
+    for (let i = 0; i < len; i++) {
+      const c = chunk[i];
+      if (c === 0x0a /* \n */) {
+        lines++;
+        if (inWord) {
+          words++;
+          inWord = false;
+        }
+      } else if (
+        c === 0x20 /* space */ ||
+        c === 0x09 /* tab */ ||
+        c === 0x0d /* CR */
+      ) {
+        if (inWord) {
+          words++;
+          inWord = false;
+        }
+      } else {
+        inWord = true;
       }
-    } else if (c === " " || c === "\t" || c === "\r") {
-      if (inWord) {
-        words++;
-        inWord = false;
-      }
-    } else {
-      inWord = true;
     }
   }
-
-  // Count final word if content doesn't end with whitespace
-  if (inWord) {
-    words++;
-  }
-
-  return { lines, words, chars: len };
+  if (inWord) words++;
+  return { lines, words, chars };
 }
 
 function formatStats(
@@ -193,6 +205,7 @@ function formatStats(
   return result;
 }
 
+import { emptyStream, fromString } from "../../utils/stream.js";
 import type { CommandFuzzInfo } from "../fuzz-flags-types.js";
 
 export const flagsForFuzzing: CommandFuzzInfo = {

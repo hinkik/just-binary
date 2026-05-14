@@ -6,7 +6,7 @@
  * expand to $(( 1 + 2 * 3 )) = 7, not $(( (1+2) * 3 )) = 9.
  */
 
-import { decode, isEmpty } from "../../utils/bytes.js";
+import { collectText } from "../../utils/stream.js";
 import type { InterpreterContext } from "../types.js";
 import { getVariable } from "./variable.js";
 
@@ -173,11 +173,12 @@ export async function expandSubscriptForAssocArray(
         if (ctx.execFn) {
           const cmdResult = await ctx.execFn(cmdStr);
           // Strip trailing newlines like command substitution does
-          result += decode(cmdResult.stdout).replace(/\n+$/, "");
+          result += (await collectText(cmdResult.stdout)).replace(/\n+$/, "");
           // Forward stderr to expansion stderr
-          if (!isEmpty(cmdResult.stderr)) {
+          const stderrText = await collectText(cmdResult.stderr);
+          if (stderrText.length > 0) {
             ctx.state.expansionStderr =
-              (ctx.state.expansionStderr || "") + decode(cmdResult.stderr);
+              (ctx.state.expansionStderr || "") + stderrText;
           }
         }
         i = j;
@@ -219,10 +220,11 @@ export async function expandSubscriptForAssocArray(
       const cmdStr = inner.slice(i + 1, j);
       if (ctx.execFn) {
         const cmdResult = await ctx.execFn(cmdStr);
-        result += decode(cmdResult.stdout).replace(/\n+$/, "");
-        if (!isEmpty(cmdResult.stderr)) {
+        result += (await collectText(cmdResult.stdout)).replace(/\n+$/, "");
+        const stderrText = await collectText(cmdResult.stderr);
+        if (stderrText.length > 0) {
           ctx.state.expansionStderr =
-            (ctx.state.expansionStderr || "") + decode(cmdResult.stderr);
+            (ctx.state.expansionStderr || "") + stderrText;
         }
       }
       i = j + 1;

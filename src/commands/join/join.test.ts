@@ -11,7 +11,7 @@ describe("join", () => {
           "/b.txt": "1 red\n2 yellow\n3 red\n",
         },
       });
-      const result = toText(await bash.exec("join /a.txt /b.txt"));
+      const result = await toText(await bash.exec("join /a.txt /b.txt"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe(
         "1 apple red\n2 banana yellow\n3 cherry red\n",
@@ -25,7 +25,7 @@ describe("join", () => {
           "/b.txt": "2 yellow\n3 red\n",
         },
       });
-      const result = toText(await bash.exec("join /a.txt /b.txt"));
+      const result = await toText(await bash.exec("join /a.txt /b.txt"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("2 banana yellow\n");
     });
@@ -37,7 +37,7 @@ describe("join", () => {
           "/b.txt": "1 x\n1 y\n",
         },
       });
-      const result = toText(await bash.exec("join /a.txt /b.txt"));
+      const result = await toText(await bash.exec("join /a.txt /b.txt"));
       expect(result.exitCode).toBe(0);
       // Each line from a matches each line from b with same key
       expect(result.stdout).toBe("1 a x\n1 a y\n1 b x\n1 b y\n");
@@ -49,7 +49,7 @@ describe("join", () => {
           "/b.txt": "1 red\n2 yellow\n",
         },
       });
-      const result = toText(
+      const result = await toText(
         await bash.exec("printf '1 apple\\n2 banana\\n' | join - /b.txt"),
       );
       expect(result.exitCode).toBe(0);
@@ -65,7 +65,9 @@ describe("join", () => {
           "/b.txt": "1 red\n2 yellow\n",
         },
       });
-      const result = toText(await bash.exec("join -1 2 -2 1 /a.txt /b.txt"));
+      const result = await toText(
+        await bash.exec("join -1 2 -2 1 /a.txt /b.txt"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("1 apple red\n2 banana yellow\n");
     });
@@ -77,7 +79,7 @@ describe("join", () => {
           "/b.txt": "b\n",
         },
       });
-      const result = toText(await bash.exec("join -1 0 /a.txt /b.txt"));
+      const result = await toText(await bash.exec("join -1 0 /a.txt /b.txt"));
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("invalid field number");
     });
@@ -91,7 +93,7 @@ describe("join", () => {
           "/b.csv": "1,red\n2,yellow\n",
         },
       });
-      const result = toText(await bash.exec("join -t ',' /a.csv /b.csv"));
+      const result = await toText(await bash.exec("join -t ',' /a.csv /b.csv"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("1,apple,fruit,red\n2,banana,fruit,yellow\n");
     });
@@ -103,7 +105,7 @@ describe("join", () => {
           "/b.txt": "user:active\nroot:active\n",
         },
       });
-      const result = toText(await bash.exec("join -t ':' /a.txt /b.txt"));
+      const result = await toText(await bash.exec("join -t ':' /a.txt /b.txt"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("user:1000:home:active\nroot:0:root:active\n");
     });
@@ -117,7 +119,7 @@ describe("join", () => {
           "/b.txt": "1 red\n3 red\n",
         },
       });
-      const result = toText(await bash.exec("join -a 1 /a.txt /b.txt"));
+      const result = await toText(await bash.exec("join -a 1 /a.txt /b.txt"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("1 apple red\n2 banana\n3 cherry red\n");
     });
@@ -129,7 +131,7 @@ describe("join", () => {
           "/b.txt": "1 red\n2 yellow\n",
         },
       });
-      const result = toText(await bash.exec("join -a 2 /a.txt /b.txt"));
+      const result = await toText(await bash.exec("join -a 2 /a.txt /b.txt"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("1 apple red\n2 yellow\n");
     });
@@ -141,7 +143,9 @@ describe("join", () => {
           "/b.txt": "2 yellow\n3 red\n",
         },
       });
-      const result = toText(await bash.exec("join -a 1 -a 2 /a.txt /b.txt"));
+      const result = await toText(
+        await bash.exec("join -a 1 -a 2 /a.txt /b.txt"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("1 apple\n2 banana yellow\n3 red\n");
     });
@@ -155,7 +159,7 @@ describe("join", () => {
           "/b.txt": "1 red\n3 red\n",
         },
       });
-      const result = toText(await bash.exec("join -v 1 /a.txt /b.txt"));
+      const result = await toText(await bash.exec("join -v 1 /a.txt /b.txt"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("2 banana\n");
     });
@@ -167,7 +171,7 @@ describe("join", () => {
           "/b.txt": "1 red\n2 yellow\n",
         },
       });
-      const result = toText(await bash.exec("join -v 2 /a.txt /b.txt"));
+      const result = await toText(await bash.exec("join -v 2 /a.txt /b.txt"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("2 yellow\n");
     });
@@ -181,7 +185,7 @@ describe("join", () => {
           "/b.txt": "1 red\n",
         },
       });
-      const result = toText(
+      const result = await toText(
         await bash.exec("join -a 1 -e 'EMPTY' -o '1.1,1.2,2.2' /a.txt /b.txt"),
       );
       expect(result.exitCode).toBe(0);
@@ -197,7 +201,9 @@ describe("join", () => {
           "/b.txt": "1 fruit\n2 fruit\n",
         },
       });
-      const result = toText(await bash.exec("join -o '1.2,2.2' /a.txt /b.txt"));
+      const result = await toText(
+        await bash.exec("join -o '1.2,2.2' /a.txt /b.txt"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("apple fruit\nbanana fruit\n");
     });
@@ -209,7 +215,7 @@ describe("join", () => {
           "/b.txt": "key val2\n",
         },
       });
-      const result = toText(
+      const result = await toText(
         await bash.exec("join -o '1.0,1.2,2.2' /a.txt /b.txt"),
       );
       expect(result.exitCode).toBe(0);
@@ -223,7 +229,9 @@ describe("join", () => {
           "/b.txt": "b\n",
         },
       });
-      const result = toText(await bash.exec("join -o 'invalid' /a.txt /b.txt"));
+      const result = await toText(
+        await bash.exec("join -o 'invalid' /a.txt /b.txt"),
+      );
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("invalid field spec");
     });
@@ -237,7 +245,7 @@ describe("join", () => {
           "/b.txt": "apple fruit\nbanana fruit\n",
         },
       });
-      const result = toText(await bash.exec("join -i /a.txt /b.txt"));
+      const result = await toText(await bash.exec("join -i /a.txt /b.txt"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("apple red fruit\nbanana yellow fruit\n");
     });
@@ -251,7 +259,7 @@ describe("join", () => {
           "/b.txt": "1 x\n",
         },
       });
-      const result = toText(await bash.exec("join /a.txt /b.txt"));
+      const result = await toText(await bash.exec("join /a.txt /b.txt"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("");
     });
@@ -263,7 +271,7 @@ describe("join", () => {
           "/b.txt": "2 banana\n",
         },
       });
-      const result = toText(await bash.exec("join /a.txt /b.txt"));
+      const result = await toText(await bash.exec("join /a.txt /b.txt"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("");
     });
@@ -272,7 +280,7 @@ describe("join", () => {
   describe("error handling", () => {
     it("errors when missing file operand", async () => {
       const bash = new Bash();
-      const result = toText(await bash.exec("join"));
+      const result = await toText(await bash.exec("join"));
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("missing file operand");
     });
@@ -281,14 +289,14 @@ describe("join", () => {
       const bash = new Bash({
         files: { "/a.txt": "1\n" },
       });
-      const result = toText(await bash.exec("join /a.txt"));
+      const result = await toText(await bash.exec("join /a.txt"));
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("missing file operand");
     });
 
     it("errors on unknown flag", async () => {
       const bash = new Bash();
-      const result = toText(await bash.exec("join -z /a.txt /b.txt"));
+      const result = await toText(await bash.exec("join -z /a.txt /b.txt"));
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("invalid option");
     });
@@ -297,7 +305,7 @@ describe("join", () => {
       const bash = new Bash({
         files: { "/a.txt": "1\n" },
       });
-      const result = toText(await bash.exec("join /a.txt /nonexistent"));
+      const result = await toText(await bash.exec("join /a.txt /nonexistent"));
       expect(result.exitCode).toBe(1);
       expect(result.stderr.toLowerCase()).toContain(
         "no such file or directory",
@@ -306,7 +314,7 @@ describe("join", () => {
 
     it("shows help with --help", async () => {
       const bash = new Bash();
-      const result = toText(await bash.exec("join --help"));
+      const result = await toText(await bash.exec("join --help"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("join");
       expect(result.stdout).toContain("Usage");

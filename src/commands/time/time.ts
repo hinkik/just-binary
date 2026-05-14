@@ -1,6 +1,6 @@
 import { mapToRecord } from "../../helpers/env.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { concat, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs } from "../../utils/bytes.js";
 
 /**
  * time - time command execution
@@ -44,8 +44,8 @@ export const timeCommand: Command = {
         i++;
         if (i >= a.length) {
           return {
-            stdout: EMPTY,
-            stderr: encode("time: missing argument to '-f'\n"),
+            stdout: emptyStream(),
+            stderr: fromString("time: missing argument to '-f'\n"),
             exitCode: 1,
           };
         }
@@ -55,8 +55,8 @@ export const timeCommand: Command = {
         i++;
         if (i >= a.length) {
           return {
-            stdout: EMPTY,
-            stderr: encode("time: missing argument to '-o'\n"),
+            stdout: emptyStream(),
+            stderr: fromString("time: missing argument to '-o'\n"),
             exitCode: 1,
           };
         }
@@ -91,8 +91,8 @@ export const timeCommand: Command = {
     if (commandArgs.length === 0) {
       // No command specified - just return success (matches GNU time behavior)
       return {
-        stdout: EMPTY,
-        stderr: EMPTY,
+        stdout: emptyStream(),
+        stderr: emptyStream(),
         exitCode: 0,
       };
     }
@@ -107,8 +107,8 @@ export const timeCommand: Command = {
     try {
       if (!ctx.exec) {
         return {
-          stdout: EMPTY,
-          stderr: encode("time: exec not available\n"),
+          stdout: emptyStream(),
+          stderr: fromString("time: exec not available\n"),
           exitCode: 1,
         };
       }
@@ -118,8 +118,8 @@ export const timeCommand: Command = {
       });
     } catch (error) {
       result = {
-        stdout: EMPTY,
-        stderr: encode(`time: ${(error as Error).message}\n`),
+        stdout: emptyStream(),
+        stderr: fromString(`time: ${(error as Error).message}\n`),
         exitCode: 127,
       };
     }
@@ -157,7 +157,7 @@ export const timeCommand: Command = {
       try {
         const filePath = ctx.fs.resolvePath(ctx.cwd, outputFile);
         if (appendMode && (await ctx.fs.exists(filePath))) {
-          const existing = await ctx.fs.readFile(filePath);
+          const existing = await ctx.fs.readFileText(filePath);
           await ctx.fs.writeFile(filePath, existing + timingOutput);
         } else {
           await ctx.fs.writeFile(filePath, timingOutput);
@@ -165,9 +165,9 @@ export const timeCommand: Command = {
       } catch (error) {
         return {
           stdout: result.stdout,
-          stderr: concat(
+          stderr: concatStreams(
             result.stderr,
-            encode(
+            fromString(
               `time: cannot write to '${outputFile}': ${(error as Error).message}\n`,
             ),
           ),
@@ -178,7 +178,7 @@ export const timeCommand: Command = {
       // Output to stderr (standard behavior for time)
       result = {
         ...result,
-        stderr: concat(result.stderr, encode(timingOutput)),
+        stderr: concatStreams(result.stderr, fromString(timingOutput)),
       };
     }
 
@@ -200,6 +200,7 @@ function formatElapsedTime(seconds: number): string {
   return `${minutes}:${secs.toFixed(2).padStart(5, "0")}`;
 }
 
+import { concatStreams, emptyStream, fromString } from "../../utils/stream.js";
 import type { CommandFuzzInfo } from "../fuzz-flags-types.js";
 
 export const flagsForFuzzing: CommandFuzzInfo = {

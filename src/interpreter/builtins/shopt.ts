@@ -4,7 +4,7 @@
  */
 
 import type { ExecResult } from "../../types.js";
-import { EMPTY, encode } from "../../utils/bytes.js";
+import { emptyStream, fromString } from "../../utils/stream.js";
 import { updateBashopts, updateShellopts } from "../helpers/shellopts.js";
 import type { InterpreterContext } from "../types.js";
 
@@ -120,8 +120,8 @@ export function handleShopt(
           default:
             return {
               exitCode: 2,
-              stdout: EMPTY,
-              stderr: encode(`shopt: -${flag}: invalid option\n`),
+              stdout: emptyStream(),
+              stderr: fromString(`shopt: -${flag}: invalid option\n`),
             };
         }
       }
@@ -153,8 +153,8 @@ export function handleShopt(
   if (setFlag && unsetFlag) {
     return {
       exitCode: 1,
-      stdout: EMPTY,
-      stderr: encode(
+      stdout: emptyStream(),
+      stderr: fromString(
         "shopt: cannot set and unset shell options simultaneously\n",
       ),
     };
@@ -175,8 +175,11 @@ export function handleShopt(
       }
       return {
         exitCode: 0,
-        stdout: output.length > 0 ? encode(`${output.join("\n")}\n`) : EMPTY,
-        stderr: EMPTY,
+        stdout:
+          output.length > 0
+            ? fromString(`${output.join("\n")}\n`)
+            : emptyStream(),
+        stderr: emptyStream(),
       };
     }
     // No flags: print all options
@@ -191,8 +194,8 @@ export function handleShopt(
     }
     return {
       exitCode: 0,
-      stdout: encode(`${output.join("\n")}\n`),
-      stderr: EMPTY,
+      stdout: fromString(`${output.join("\n")}\n`),
+      stderr: emptyStream(),
     };
   }
 
@@ -260,8 +263,9 @@ export function handleShopt(
 
   return {
     exitCode: hasError ? 1 : 0,
-    stdout: output.length > 0 ? encode(`${output.join("\n")}\n`) : EMPTY,
-    stderr: encode(stderr),
+    stdout:
+      output.length > 0 ? fromString(`${output.join("\n")}\n`) : emptyStream(),
+    stderr: fromString(stderr),
   };
 }
 
@@ -330,8 +334,11 @@ function handleSetOptions(
     }
     return {
       exitCode: 0,
-      stdout: output.length > 0 ? encode(`${output.join("\n")}\n`) : EMPTY,
-      stderr: EMPTY,
+      stdout:
+        output.length > 0
+          ? fromString(`${output.join("\n")}\n`)
+          : emptyStream(),
+      stderr: emptyStream(),
     };
   }
 
@@ -407,7 +414,8 @@ function handleSetOptions(
 
   return {
     exitCode: hasError ? 1 : 0,
-    stdout: output.length > 0 ? encode(`${output.join("\n")}\n`) : EMPTY,
-    stderr: encode(stderr),
+    stdout:
+      output.length > 0 ? fromString(`${output.join("\n")}\n`) : emptyStream(),
+    stderr: fromString(stderr),
   };
 }

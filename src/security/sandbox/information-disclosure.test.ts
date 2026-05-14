@@ -18,7 +18,7 @@ describe("Information Disclosure Prevention", () => {
 
   describe("Error Message Verbosity", () => {
     it("should not leak file paths in permission errors", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         cat /etc/shadow 2>&1 || true
       `),
@@ -29,7 +29,7 @@ describe("Information Disclosure Prevention", () => {
     });
 
     it("should not leak internal implementation details", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         invalid_syntax_here()))) 2>&1 || true
       `),
@@ -41,7 +41,7 @@ describe("Information Disclosure Prevention", () => {
     });
 
     it("should not leak memory addresses", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo test 2>&1
       `),
@@ -51,7 +51,7 @@ describe("Information Disclosure Prevention", () => {
     });
 
     it("should provide generic error for file not found", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         cat /nonexistent/path/file.txt 2>&1 || true
       `),
@@ -61,7 +61,7 @@ describe("Information Disclosure Prevention", () => {
     });
 
     it("should not leak environment in errors", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         $UNDEFINED_VAR_WITH_SPECIAL_NAME 2>&1 || true
       `),
@@ -74,7 +74,7 @@ describe("Information Disclosure Prevention", () => {
 
   describe("System Information Hiding", () => {
     it("should not expose host machine name", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         hostname 2>&1 || echo "hostname handled"
       `),
@@ -84,7 +84,7 @@ describe("Information Disclosure Prevention", () => {
     });
 
     it("should not expose real username", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         whoami 2>&1 || echo "whoami handled"
       `),
@@ -96,7 +96,7 @@ describe("Information Disclosure Prevention", () => {
     });
 
     it("should handle uname command safely", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         uname -a 2>&1 || echo "uname handled"
       `),
@@ -106,7 +106,7 @@ describe("Information Disclosure Prevention", () => {
     });
 
     it("should handle id command safely", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         id 2>&1 || echo "id handled"
       `),
@@ -116,7 +116,7 @@ describe("Information Disclosure Prevention", () => {
     });
 
     it("should not expose process list", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         ps aux 2>&1 || echo "ps handled"
       `),
@@ -129,7 +129,7 @@ describe("Information Disclosure Prevention", () => {
 
   describe("Environment Variable Protection", () => {
     it("should not expose AWS credentials", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         printenv | grep -i aws 2>&1 || echo "no aws"
       `),
@@ -139,7 +139,7 @@ describe("Information Disclosure Prevention", () => {
     });
 
     it("should not expose API keys", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         printenv | grep -i api 2>&1 || echo "no api"
       `),
@@ -149,7 +149,7 @@ describe("Information Disclosure Prevention", () => {
     });
 
     it("should not expose database credentials", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         printenv | grep -i db 2>&1 || echo "no db"
       `),
@@ -159,7 +159,7 @@ describe("Information Disclosure Prevention", () => {
     });
 
     it("should not expose token variables", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         printenv | grep -i token 2>&1 || echo "no token"
       `),
@@ -169,7 +169,7 @@ describe("Information Disclosure Prevention", () => {
     });
 
     it("should not expose SSH keys via env", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         printenv | grep -i ssh 2>&1 || echo "no ssh"
       `),
@@ -181,7 +181,7 @@ describe("Information Disclosure Prevention", () => {
 
   describe("File System Information", () => {
     it("should not expose root filesystem structure", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         ls / 2>&1 || echo "ls handled"
       `),
@@ -191,7 +191,7 @@ describe("Information Disclosure Prevention", () => {
     });
 
     it("should not expose /etc contents", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         ls /etc 2>&1 || echo "etc handled"
       `),
@@ -201,7 +201,7 @@ describe("Information Disclosure Prevention", () => {
     });
 
     it("should not expose /proc information", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         ls /proc 2>&1 || echo "proc handled"
       `),
@@ -211,7 +211,7 @@ describe("Information Disclosure Prevention", () => {
     });
 
     it("should not expose user home directory", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         ls ~ 2>&1 || echo "home handled"
       `),
@@ -222,7 +222,7 @@ describe("Information Disclosure Prevention", () => {
     });
 
     it("should handle df command safely", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         df 2>&1 || echo "df handled"
       `),
@@ -232,7 +232,7 @@ describe("Information Disclosure Prevention", () => {
     });
 
     it("should handle mount command safely", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         mount 2>&1 || echo "mount handled"
       `),
@@ -244,7 +244,7 @@ describe("Information Disclosure Prevention", () => {
 
   describe("Network Information", () => {
     it("should handle ifconfig safely", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         ifconfig 2>&1 || echo "ifconfig handled"
       `),
@@ -254,7 +254,7 @@ describe("Information Disclosure Prevention", () => {
     });
 
     it("should handle netstat safely", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         netstat 2>&1 || echo "netstat handled"
       `),
@@ -264,7 +264,7 @@ describe("Information Disclosure Prevention", () => {
     });
 
     it("should handle ip command safely", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         ip addr 2>&1 || echo "ip handled"
       `),
@@ -274,7 +274,7 @@ describe("Information Disclosure Prevention", () => {
     });
 
     it("should not expose /etc/hosts", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         cat /etc/hosts 2>&1 || echo "hosts handled"
       `),
@@ -287,8 +287,8 @@ describe("Information Disclosure Prevention", () => {
   describe("Timing Information", () => {
     it("should not leak timing via variable expansion", async () => {
       // Variable expansion should be constant time
-      const short = toText(await bash.exec('x="a"; echo ${x:-default}'));
-      const long = toText(
+      const short = await toText(await bash.exec('x="a"; echo ${x:-default}'));
+      const long = await toText(
         await bash.exec(
           'x="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"; echo ${x:-default}',
         ),
@@ -299,7 +299,7 @@ describe("Information Disclosure Prevention", () => {
     });
 
     it("should handle time command output safely", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         time echo test 2>&1 || echo "time handled"
       `),
@@ -309,7 +309,7 @@ describe("Information Disclosure Prevention", () => {
     });
 
     it("should handle date command safely", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         date 2>&1 || echo "date handled"
       `),
@@ -321,7 +321,7 @@ describe("Information Disclosure Prevention", () => {
 
   describe("History and State Exposure", () => {
     it("should not expose command history", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         history 2>&1 || echo "history handled"
       `),
@@ -331,7 +331,7 @@ describe("Information Disclosure Prevention", () => {
     });
 
     it("should handle fc command safely", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         fc -l 2>&1 || echo "fc handled"
       `),
@@ -341,7 +341,7 @@ describe("Information Disclosure Prevention", () => {
     });
 
     it("should not expose HISTFILE", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $HISTFILE
       `),
@@ -354,14 +354,14 @@ describe("Information Disclosure Prevention", () => {
       await bash1.exec("SECRET=sensitive_data_12345");
 
       const bash2 = new Bash();
-      const result = toText(await bash2.exec("echo $SECRET"));
+      const result = await toText(await bash2.exec("echo $SECRET"));
       expect(result.stdout).toBe("\n");
     });
   });
 
   describe("Debug Information", () => {
     it("should handle set -x safely", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         set -x
         echo "traced"
@@ -373,7 +373,7 @@ describe("Information Disclosure Prevention", () => {
     });
 
     it("should handle BASH_XTRACEFD", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         BASH_XTRACEFD=2
         echo "test"
@@ -383,7 +383,7 @@ describe("Information Disclosure Prevention", () => {
     });
 
     it("should handle PS4 prompt", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         PS4='+ '
         set -x
@@ -397,7 +397,7 @@ describe("Information Disclosure Prevention", () => {
 
   describe("Special Variables", () => {
     it("should have consistent BASH_VERSION", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $BASH_VERSION
       `),
@@ -409,7 +409,7 @@ describe("Information Disclosure Prevention", () => {
     });
 
     it("should not leak $0 with full path", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $0
       `),
@@ -420,7 +420,7 @@ describe("Information Disclosure Prevention", () => {
     });
 
     it("should handle $$ safely", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $$
       `),
@@ -430,7 +430,7 @@ describe("Information Disclosure Prevention", () => {
     });
 
     it("should handle $PPID safely", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $PPID
       `),
@@ -440,7 +440,7 @@ describe("Information Disclosure Prevention", () => {
     });
 
     it("should not expose HOSTNAME", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $HOSTNAME
       `),
@@ -452,7 +452,7 @@ describe("Information Disclosure Prevention", () => {
 
   describe("Exec Result Object", () => {
     it("should not leak implementation in ExecResult", async () => {
-      const result = toText(await bash.exec("echo test"));
+      const result = await toText(await bash.exec("echo test"));
       // ExecResult should only have stdout, stderr, exitCode
       const keys = Object.keys(result);
       expect(keys).toContain("stdout");
@@ -464,20 +464,22 @@ describe("Information Disclosure Prevention", () => {
     });
 
     it("should sanitize stdout", async () => {
-      const result = toText(await bash.exec("echo test"));
+      const result = await toText(await bash.exec("echo test"));
       // stdout should be a clean string
       expect(typeof result.stdout).toBe("string");
       expect(result.stdout).not.toContain("\0");
     });
 
     it("should sanitize stderr", async () => {
-      const result = toText(await bash.exec("cat /nonexistent 2>&1 || true"));
+      const result = await toText(
+        await bash.exec("cat /nonexistent 2>&1 || true"),
+      );
       // stderr should be a clean string
       expect(typeof result.stderr).toBe("string");
     });
 
     it("should have numeric exit code", async () => {
-      const result = toText(await bash.exec("exit 42"));
+      const result = await toText(await bash.exec("exit 42"));
       expect(typeof result.exitCode).toBe("number");
       expect(Number.isInteger(result.exitCode)).toBe(true);
     });
@@ -489,7 +491,7 @@ describe("Information Disclosure Prevention", () => {
       await bash1.exec("myfunc() { echo secret; }");
 
       const bash2 = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash2.exec("myfunc 2>&1 || echo 'not found'"),
       );
       expect(result.stdout).toContain("not found");
@@ -500,7 +502,7 @@ describe("Information Disclosure Prevention", () => {
       await bash1.exec("alias myalias='echo secret'");
 
       const bash2 = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash2.exec("myalias 2>&1 || echo 'not found'"),
       );
       expect(result.stdout).toContain("not found");
@@ -511,7 +513,7 @@ describe("Information Disclosure Prevention", () => {
       await bash1.exec("cd /tmp");
 
       const bash2 = new Bash();
-      const result = toText(await bash2.exec("pwd"));
+      const result = await toText(await bash2.exec("pwd"));
       // Should not be affected by bash1's cd
       expect(typeof result.stdout).toBe("string");
     });

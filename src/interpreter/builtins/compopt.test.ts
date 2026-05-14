@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { toText } from "../../test-utils.js";
 import { EMPTY } from "../../utils/bytes.js";
+import { emptyStream } from "../../utils/stream.js";
 import type { InterpreterContext, InterpreterState } from "../types.js";
 import { handleComplete } from "./complete.js";
 import { handleCompopt } from "./compopt.js";
@@ -60,40 +61,40 @@ function createMockCtx(): InterpreterContext {
     commands: {} as unknown as InterpreterContext["commands"],
     limits: {} as unknown as InterpreterContext["limits"],
     execFn: async () => ({
-      stdout: new Uint8Array(0),
-      stderr: new Uint8Array(0),
+      stdout: emptyStream(),
+      stderr: emptyStream(),
       exitCode: 0,
     }),
     executeScript: async () => ({
-      stdout: new Uint8Array(0),
-      stderr: new Uint8Array(0),
+      stdout: emptyStream(),
+      stderr: emptyStream(),
       exitCode: 0,
     }),
     executeStatement: async () => ({
-      stdout: new Uint8Array(0),
-      stderr: new Uint8Array(0),
+      stdout: emptyStream(),
+      stderr: emptyStream(),
       exitCode: 0,
     }),
     executeCommand: async () => ({
-      stdout: new Uint8Array(0),
-      stderr: new Uint8Array(0),
+      stdout: emptyStream(),
+      stderr: emptyStream(),
       exitCode: 0,
     }),
   };
 }
 
 describe("compopt builtin", () => {
-  test("compopt with invalid option returns exit code 2", () => {
+  test("compopt with invalid option returns exit code 2", async () => {
     const ctx = createMockCtx();
-    const result = toText(handleCompopt(ctx, ["-o", "invalid"]));
+    const result = await toText(handleCompopt(ctx, ["-o", "invalid"]));
     expect(result.exitCode).toBe(2);
     expect(result.stderr).toContain("invalid");
     expect(result.stderr).toContain("invalid option name");
   });
 
-  test("compopt without command name outside completion function returns exit code 1", () => {
+  test("compopt without command name outside completion function returns exit code 1", async () => {
     const ctx = createMockCtx();
-    const result = toText(
+    const result = await toText(
       handleCompopt(ctx, ["-o", "filenames", "+o", "nospace"]),
     );
     expect(result.exitCode).toBe(1);
@@ -102,7 +103,7 @@ describe("compopt builtin", () => {
     );
   });
 
-  test("compopt -D modifies default completion options", () => {
+  test("compopt -D modifies default completion options", async () => {
     const ctx = createMockCtx();
     // First set up a default completion
     handleComplete(ctx, ["-F", "myfunc", "-D"]);
@@ -123,7 +124,7 @@ describe("compopt builtin", () => {
     expect(spec?.options).toContain("filenames");
   });
 
-  test("compopt -E modifies empty-line completion options", () => {
+  test("compopt -E modifies empty-line completion options", async () => {
     const ctx = createMockCtx();
     const result = handleCompopt(ctx, ["-E", "-o", "default"]);
     expect(result.exitCode).toBe(0);
@@ -133,7 +134,7 @@ describe("compopt builtin", () => {
     expect(spec?.options).toContain("default");
   });
 
-  test("compopt with command name modifies that command's options", () => {
+  test("compopt with command name modifies that command's options", async () => {
     const ctx = createMockCtx();
     // First set up a completion for git
     handleComplete(ctx, ["-F", "gitfunc", "git"]);
@@ -148,7 +149,7 @@ describe("compopt builtin", () => {
     expect(spec?.function).toBe("gitfunc"); // Original function preserved
   });
 
-  test("compopt +o disables options", () => {
+  test("compopt +o disables options", async () => {
     const ctx = createMockCtx();
     // Set up a completion with options
     handleComplete(ctx, [
@@ -171,7 +172,7 @@ describe("compopt builtin", () => {
     expect(spec?.options).toContain("filenames");
   });
 
-  test("compopt can enable and disable options at once", () => {
+  test("compopt can enable and disable options at once", async () => {
     const ctx = createMockCtx();
     // Set up a completion with some options
     handleComplete(ctx, ["-o", "nospace", "-F", "myfunc", "cmd"]);
@@ -192,7 +193,7 @@ describe("compopt builtin", () => {
     expect(spec?.options).not.toContain("nospace");
   });
 
-  test("compopt creates spec for command that doesn't have one", () => {
+  test("compopt creates spec for command that doesn't have one", async () => {
     const ctx = createMockCtx();
     const result = handleCompopt(ctx, ["-o", "nospace", "newcmd"]);
     expect(result.exitCode).toBe(0);
@@ -202,23 +203,23 @@ describe("compopt builtin", () => {
     expect(spec?.options).toContain("nospace");
   });
 
-  test("compopt -o without argument returns error", () => {
+  test("compopt -o without argument returns error", async () => {
     const ctx = createMockCtx();
-    const result = toText(handleCompopt(ctx, ["-o"]));
+    const result = await toText(handleCompopt(ctx, ["-o"]));
     expect(result.exitCode).toBe(2);
     expect(result.stderr).toContain("-o");
     expect(result.stderr).toContain("option requires an argument");
   });
 
-  test("compopt +o without argument returns error", () => {
+  test("compopt +o without argument returns error", async () => {
     const ctx = createMockCtx();
-    const result = toText(handleCompopt(ctx, ["+o"]));
+    const result = await toText(handleCompopt(ctx, ["+o"]));
     expect(result.exitCode).toBe(2);
     expect(result.stderr).toContain("+o");
     expect(result.stderr).toContain("option requires an argument");
   });
 
-  test("compopt validates all option names", () => {
+  test("compopt validates all option names", async () => {
     const ctx = createMockCtx();
 
     // Test all valid options

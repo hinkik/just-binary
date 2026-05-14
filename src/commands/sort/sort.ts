@@ -1,5 +1,5 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { decode, decodeArgs } from "../../utils/bytes.js";
 import { readAndConcat } from "../../utils/file-reader.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 import { createComparator, filterUnique } from "./comparator.js";
@@ -173,15 +173,15 @@ export const sortCommand: Command = {
       for (let i = 1; i < lines.length; i++) {
         if (comparator(lines[i - 1], lines[i]) > 0) {
           return {
-            stdout: EMPTY,
-            stderr: encode(
+            stdout: emptyStream(),
+            stderr: fromString(
               `sort: ${checkFile}:${i + 1}: disorder: ${lines[i]}\n`,
             ),
             exitCode: 1,
           };
         }
       }
-      return { stdout: EMPTY, stderr: EMPTY, exitCode: 0 };
+      return { stdout: emptyStream(), stderr: emptyStream(), exitCode: 0 };
     }
 
     // Sort lines using the comparator
@@ -198,13 +198,14 @@ export const sortCommand: Command = {
     if (options.outputFile) {
       const outPath = ctx.fs.resolvePath(ctx.cwd, options.outputFile);
       await ctx.fs.writeFile(outPath, output);
-      return { stdout: EMPTY, stderr: EMPTY, exitCode: 0 };
+      return { stdout: emptyStream(), stderr: emptyStream(), exitCode: 0 };
     }
 
-    return { stdout: encode(output), stderr: EMPTY, exitCode: 0 };
+    return { stdout: fromString(output), stderr: emptyStream(), exitCode: 0 };
   },
 };
 
+import { emptyStream, fromString } from "../../utils/stream.js";
 import type { CommandFuzzInfo } from "../fuzz-flags-types.js";
 
 export const flagsForFuzzing: CommandFuzzInfo = {

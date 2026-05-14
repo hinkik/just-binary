@@ -5,7 +5,12 @@
 import { gunzipSync } from "node:zlib";
 import { createUserRegex, type UserRegex } from "../../regex/index.js";
 import type { CommandContext, ExecResult } from "../../types.js";
-import { decode, EMPTY, encode } from "../../utils/bytes.js";
+import {
+  collectBytes,
+  collectText,
+  emptyStream,
+  fromString,
+} from "../../utils/stream.js";
 import {
   buildRegex,
   convertReplacement,
@@ -64,7 +69,11 @@ export async function executeSearch(
     const globToValidate = glob.startsWith("!") ? glob.slice(1) : glob;
     const error = validateGlob(globToValidate);
     if (error) {
-      return { stdout: EMPTY, stderr: encode(`${error}\n`), exitCode: 1 };
+      return {
+        stdout: emptyStream(),
+        stderr: fromString(`${error}\n`),
+        exitCode: 1,
+      };
     }
   }
 
@@ -84,10 +93,10 @@ export async function executeSearch(
       let content: string;
       if (patternFile === "-") {
         // Read from stdin
-        content = decode(ctx.stdin);
+        content = await collectText(ctx.stdin);
       } else {
         const filePath = ctx.fs.resolvePath(ctx.cwd, patternFile);
-        content = await ctx.fs.readFile(filePath);
+        content = await ctx.fs.readFileText(filePath);
       }
       const filePatterns = content
         .split("\n")
@@ -95,8 +104,8 @@ export async function executeSearch(
       patterns.push(...filePatterns);
     } catch {
       return {
-        stdout: EMPTY,
-        stderr: encode(`rg: ${patternFile}: No such file or directory\n`),
+        stdout: emptyStream(),
+        stderr: fromString(`rg: ${patternFile}: No such file or directory\n`),
         exitCode: 2,
       };
     }
@@ -106,11 +115,11 @@ export async function executeSearch(
     // If patterns came from files but all were empty, return no-match (exit 1)
     // Otherwise return error for no pattern given (exit 2)
     if (options.patternFiles.length > 0) {
-      return { stdout: EMPTY, stderr: EMPTY, exitCode: 1 };
+      return { stdout: emptyStream(), stderr: emptyStream(), exitCode: 1 };
     }
     return {
-      stdout: EMPTY,
-      stderr: encode("rg: no pattern given\n"),
+      stdout: emptyStream(),
+      stderr: fromString("rg: no pattern given\n"),
       exitCode: 2,
     };
   }
@@ -134,8 +143,8 @@ export async function executeSearch(
     kResetGroup = regexResult.kResetGroup;
   } catch {
     return {
-      stdout: EMPTY,
-      stderr: encode(`rg: invalid regex: ${patterns.join(", ")}\n`),
+      stdout: emptyStream(),
+      stderr: fromString(`rg: invalid regex: ${patterns.join(", ")}\n`),
       exitCode: 2,
     };
   }
@@ -171,7 +180,7 @@ export async function executeSearch(
   );
 
   if (files.length === 0) {
-    return { stdout: EMPTY, stderr: EMPTY, exitCode: 1 };
+    return { stdout: emptyStream(), stderr: emptyStream(), exitCode: 1 };
   }
 
   // Determine output settings
@@ -674,19 +683,19 @@ async function listFiles(
   );
 
   if (files.length === 0) {
-    return { stdout: EMPTY, stderr: EMPTY, exitCode: 1 };
+    return { stdout: emptyStream(), stderr: emptyStream(), exitCode: 1 };
   }
 
   // In quiet mode, just indicate success without output
   if (options.quiet) {
-    return { stdout: EMPTY, stderr: EMPTY, exitCode: 0 };
+    return { stdout: emptyStream(), stderr: emptyStream(), exitCode: 0 };
   }
 
   // Output file list
   const sep = options.nullSeparator ? "\0" : "\n";
   const stdout = files.map((f) => f + sep).join("");
 
-  return { stdout: encode(stdout), stderr: EMPTY, exitCode: 0 };
+  return { stdout: fromString(stdout), stderr: emptyStream(), exitCode: 0 };
 }
 
 /**
@@ -721,10 +730,12 @@ async function readFileContent(
         const result = await ctx.exec(`${options.preprocessor} "${filePath}"`, {
           cwd: ctx.cwd,
         });
-        if (result.exitCode === 0 && result.stdout.length > 0) {
-          const text = decode(result.stdout);
-          const sample = text.slice(0, 8192);
-          return { content: text, isBinary: sample.includes("\0") };
+        if (result.exitCode === 0) {
+          const text = await collectText(result.stdout);
+          if (text.length > 0) {
+            const sample = text.slice(0, 8192);
+            return { content: text, isBinary: sample.includes("\0") };
+          }
         }
         // Preprocessing failed, fall through to normal file read
       }
@@ -732,7 +743,7 @@ async function readFileContent(
 
     // For -z option, try to decompress gzip files
     if (options.searchZip && file.endsWith(".gz")) {
-      const buffer = await ctx.fs.readFileBuffer(filePath);
+      const buffer = await collectBytes(await ctx.fs.readFile(filePath));
       if (isGzip(buffer)) {
         try {
           const decompressed = gunzipSync(buffer);
@@ -746,7 +757,7 @@ async function readFileContent(
     }
 
     // Regular file read
-    const content = await ctx.fs.readFile(filePath);
+    const content = await ctx.fs.readFileText(filePath);
     const sample = content.slice(0, 8192);
     return { content, isBinary: sample.includes("\0") };
   } catch {
@@ -1004,8 +1015,8 @@ async function searchFiles(
   }
 
   return {
-    stdout: encode(finalStdout),
-    stderr: EMPTY,
+    stdout: fromString(finalStdout),
+    stderr: emptyStream(),
     exitCode,
   };
 }

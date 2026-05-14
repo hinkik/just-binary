@@ -3,9 +3,9 @@
  */
 
 import type { ExecResult } from "../../types.js";
-import { EMPTY, encode } from "../../utils/bytes.js";
+import { emptyStream, fromString } from "../../utils/stream.js";
 import { BreakError, ExitError, SubshellExitError } from "../errors.js";
-import { OK } from "../helpers/result.js";
+import { ok } from "../helpers/result.js";
 import type { InterpreterContext } from "../types.js";
 
 export function handleBreak(
@@ -19,12 +19,16 @@ export function handleBreak(
       throw new SubshellExitError();
     }
     // Otherwise, break silently does nothing (returns 0)
-    return OK;
+    return ok();
   }
 
   // bash: too many arguments is an error (exit code 1)
   if (args.length > 1) {
-    throw new ExitError(1, EMPTY, encode("bash: break: too many arguments\n"));
+    throw new ExitError(
+      1,
+      emptyStream(),
+      fromString("bash: break: too many arguments\n"),
+    );
   }
 
   let levels = 1;
@@ -34,8 +38,8 @@ export function handleBreak(
       // Invalid argument causes a fatal error in bash (exit code 128)
       throw new ExitError(
         128,
-        EMPTY,
-        encode(`bash: break: ${args[0]}: numeric argument required\n`),
+        emptyStream(),
+        fromString(`bash: break: ${args[0]}: numeric argument required\n`),
       );
     }
     levels = n;

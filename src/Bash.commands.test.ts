@@ -8,13 +8,13 @@ describe("Bash commands filtering", () => {
     const env = new Bash();
 
     // Check that common commands are available
-    const echoResult = toText(await env.exec("echo hello"));
+    const echoResult = await toText(await env.exec("echo hello"));
     expect(echoResult.exitCode).toBe(0);
 
-    const lsResult = toText(await env.exec("ls /"));
+    const lsResult = await toText(await env.exec("ls /"));
     expect(lsResult.exitCode).toBe(0);
 
-    const grepResult = toText(await env.exec("echo test | grep test"));
+    const grepResult = await toText(await env.exec("echo test | grep test"));
     expect(grepResult.exitCode).toBe(0);
   });
 
@@ -24,15 +24,15 @@ describe("Bash commands filtering", () => {
     });
 
     // These should work
-    const echoResult = toText(await env.exec("echo hello"));
+    const echoResult = await toText(await env.exec("echo hello"));
     expect(echoResult.exitCode).toBe(0);
     expect(echoResult.stdout).toBe("hello\n");
 
-    const catResult = toText(await env.exec("echo test | cat"));
+    const catResult = await toText(await env.exec("echo test | cat"));
     expect(catResult.exitCode).toBe(0);
 
     // ls should not be available
-    const lsResult = toText(await env.exec("ls"));
+    const lsResult = await toText(await env.exec("ls"));
     expect(lsResult.exitCode).toBe(127);
     expect(lsResult.stderr).toContain("command not found");
   });
@@ -42,7 +42,7 @@ describe("Bash commands filtering", () => {
       commands: ["echo", "cat"],
     });
 
-    const result = toText(await env.exec("echo test | grep test"));
+    const result = await toText(await env.exec("echo test | grep test"));
     expect(result.exitCode).toBe(127);
     expect(result.stderr).toContain("command not found");
   });
@@ -63,7 +63,7 @@ describe("Bash commands filtering", () => {
       commands: [],
     });
 
-    const result = toText(await env.exec("echo hello"));
+    const result = await toText(await env.exec("echo hello"));
     expect(result.exitCode).toBe(127);
     expect(result.stderr).toContain("command not found");
   });
@@ -76,7 +76,9 @@ describe("Bash commands filtering", () => {
 
     // These should work
     expect((await env.exec("ls /")).exitCode).toBe(0);
-    expect(toText(await env.exec("cat /test.txt")).stdout).toBe("hello");
+    expect((await toText(await env.exec("cat /test.txt"))).stdout).toBe(
+      "hello",
+    );
     expect((await env.exec("mkdir /newdir")).exitCode).toBe(0);
 
     // These should not work

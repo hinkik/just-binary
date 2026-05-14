@@ -15,7 +15,7 @@ describe("Additional Syntax Features - Prototype Pollution", () => {
   describe("AWK Special Variables", () => {
     it("should handle NF with dangerous field count", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo "a b c" | awk '{print NF}'
       `),
@@ -26,7 +26,7 @@ describe("Additional Syntax Features - Prototype Pollution", () => {
 
     it("should handle NR with dangerous value in variable", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo -e "a\\nb\\nc" | awk '{constructor = NR; print constructor}'
       `),
@@ -37,7 +37,7 @@ describe("Additional Syntax Features - Prototype Pollution", () => {
 
     it("should handle FNR with dangerous variable name", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo -e "a\\nb" | awk '{__proto__ = FNR; print __proto__}'
       `),
@@ -48,7 +48,7 @@ describe("Additional Syntax Features - Prototype Pollution", () => {
 
     it("should handle FILENAME with dangerous variable", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo "test" > /tmp/awktest.txt
         awk '{constructor = FILENAME; print constructor}' /tmp/awktest.txt
@@ -61,7 +61,7 @@ describe("Additional Syntax Features - Prototype Pollution", () => {
 
     it("should handle RSTART and RLENGTH with dangerous vars", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo "hello world" | awk '{
           match($0, /wor/)
@@ -80,7 +80,7 @@ describe("Additional Syntax Features - Prototype Pollution", () => {
     for (const keyword of DANGEROUS_KEYWORDS) {
       it(`should sprintf into ${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           echo "test" | awk '{
             ${keyword} = sprintf("%s-%d", "value", 42)
@@ -95,7 +95,7 @@ describe("Additional Syntax Features - Prototype Pollution", () => {
 
     it("should sprintf dangerous keyword as value", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo "test" | awk '{
           x = sprintf("%s", "constructor")
@@ -112,7 +112,7 @@ describe("Additional Syntax Features - Prototype Pollution", () => {
     for (const keyword of DANGEROUS_KEYWORDS.slice(0, 2)) {
       it(`should redirect output to file via ${keyword} variable`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           echo "test" | awk -v ${keyword}="/tmp/awk_redir_test.txt" '{
             print "output" > ${keyword}
@@ -129,7 +129,7 @@ describe("Additional Syntax Features - Prototype Pollution", () => {
     // Note: AWK pipe to external command is not supported in sandboxed environment
     it("should reject pipe output via variable (sandboxed)", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo "hello" | awk -v constructor="cat" '{
           print $0 | constructor
@@ -145,7 +145,7 @@ describe("Additional Syntax Features - Prototype Pollution", () => {
   describe("AWK system() Function (Sandboxed)", () => {
     it("should reject system() with dangerous variable (sandboxed)", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo "test" | awk '{
           constructor = "echo from_system"
@@ -160,7 +160,7 @@ describe("Additional Syntax Features - Prototype Pollution", () => {
 
     it("should reject system() with dangerous keyword (sandboxed)", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo "test" | awk '{
           system("echo constructor")
@@ -176,7 +176,7 @@ describe("Additional Syntax Features - Prototype Pollution", () => {
   describe("AWK Control Flow with Dangerous Variables", () => {
     it("should use dangerous variable in exit", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo "test" | awk 'BEGIN { constructor = 42 } { exit constructor }'
         echo "exit code: $?"
@@ -187,7 +187,7 @@ describe("Additional Syntax Features - Prototype Pollution", () => {
 
     it("should use dangerous variable in next", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo -e "1\\n2\\n3" | awk '{
           constructor++
@@ -205,7 +205,7 @@ describe("Additional Syntax Features - Prototype Pollution", () => {
     for (const keyword of DANGEROUS_KEYWORDS.slice(0, 2)) {
       it(`should use FS=${keyword} in BEGIN`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           echo "a:b:c" | awk 'BEGIN { ${keyword} = ":"; FS = ${keyword} } { print $2 }'
         `),
@@ -216,7 +216,7 @@ describe("Additional Syntax Features - Prototype Pollution", () => {
 
       it(`should assign -F value to ${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           echo "a:b:c" | awk -F: 'BEGIN { ${keyword} = FS } { print $2, ${keyword} }'
         `),
@@ -230,7 +230,7 @@ describe("Additional Syntax Features - Prototype Pollution", () => {
   describe("SED Hold Space Commands", () => {
     it("should use h/g with dangerous content", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo -e "constructor\\nline2" | sed -n '1h; 2{g;p}'
       `),
@@ -241,7 +241,7 @@ describe("Additional Syntax Features - Prototype Pollution", () => {
 
     it("should use H/G with dangerous content", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo -e "__proto__\\nprototype" | sed -n '1h; 2{H;g;p}'
       `),
@@ -253,7 +253,7 @@ describe("Additional Syntax Features - Prototype Pollution", () => {
 
     it("should use x (exchange) with dangerous content", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo -e "constructor\\nother" | sed -n '1{h;d}; 2{x;p}'
       `),
@@ -267,7 +267,7 @@ describe("Additional Syntax Features - Prototype Pollution", () => {
     for (const keyword of DANGEROUS_KEYWORDS) {
       it(`should match pattern /${keyword}/`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           echo -e "before\\n${keyword}\\nafter" | sed -n '/${keyword}/p'
         `),
@@ -278,7 +278,7 @@ describe("Additional Syntax Features - Prototype Pollution", () => {
 
       it(`should use range with /${keyword}/`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           echo -e "start\\n${keyword}\\nmiddle\\nend" | sed -n '/${keyword}/,/end/p'
         `),
@@ -292,7 +292,7 @@ describe("Additional Syntax Features - Prototype Pollution", () => {
   describe("SED y (Transliterate) Command", () => {
     it("should transliterate with dangerous keywords in input", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo "constructor" | sed 'y/cot/COT/'
       `),
@@ -305,7 +305,7 @@ describe("Additional Syntax Features - Prototype Pollution", () => {
   describe("SED Back-references", () => {
     it("should capture dangerous keyword in back-reference", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo "constructor=value" | sed 's/\\(constructor\\)=\\(.*\\)/\\2=\\1/'
       `),
@@ -316,7 +316,7 @@ describe("Additional Syntax Features - Prototype Pollution", () => {
 
     it("should use & with dangerous keyword", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo "__proto__" | sed 's/__proto__/[&]/'
       `),
@@ -329,7 +329,7 @@ describe("Additional Syntax Features - Prototype Pollution", () => {
   describe("SED = (Line Number) Command", () => {
     it("should print line number with dangerous content", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo -e "constructor\\n__proto__" | sed -n '/constructor/='
       `),
@@ -343,7 +343,7 @@ describe("Additional Syntax Features - Prototype Pollution", () => {
     for (const keyword of DANGEROUS_KEYWORDS.slice(0, 2)) {
       it(`should show ${keyword} in FUNCNAME`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           ${keyword}() {
             echo "FUNCNAME: \${FUNCNAME[0]}"
@@ -357,7 +357,7 @@ describe("Additional Syntax Features - Prototype Pollution", () => {
 
       it(`should show nested ${keyword} in FUNCNAME stack`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           inner() {
             echo "\${FUNCNAME[@]}"
@@ -378,7 +378,7 @@ describe("Additional Syntax Features - Prototype Pollution", () => {
   describe("Bash PIPESTATUS Array", () => {
     it("should access PIPESTATUS after pipeline", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         true | false | true
         echo "\${PIPESTATUS[@]}"
@@ -390,7 +390,7 @@ describe("Additional Syntax Features - Prototype Pollution", () => {
 
     it("should assign PIPESTATUS to dangerous variable", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         true | false
         constructor=("\${PIPESTATUS[@]}")
@@ -406,7 +406,7 @@ describe("Additional Syntax Features - Prototype Pollution", () => {
     for (const keyword of DANGEROUS_KEYWORDS.slice(0, 2)) {
       it(`should use \${${keyword}@Q} (quote)`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           ${keyword}="hello world"
           echo "\${${keyword}@Q}"
@@ -418,7 +418,7 @@ describe("Additional Syntax Features - Prototype Pollution", () => {
 
       it(`should use \${${keyword}@E} (escape)`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           ${keyword}='hello\\nworld'
           echo "\${${keyword}@E}"
@@ -430,7 +430,7 @@ describe("Additional Syntax Features - Prototype Pollution", () => {
 
       it(`should use \${${keyword}@A} (assignment)`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           ${keyword}="value"
           echo "\${${keyword}@A}"
@@ -442,7 +442,7 @@ describe("Additional Syntax Features - Prototype Pollution", () => {
 
       it(`should use \${${keyword}@a} (attributes)`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           declare -i ${keyword}=5
           echo "\${${keyword}@a}"
@@ -458,7 +458,7 @@ describe("Additional Syntax Features - Prototype Pollution", () => {
     for (const keyword of DANGEROUS_KEYWORDS.slice(0, 2)) {
       it(`should access ${keyword}[-1]`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           ${keyword}=(a b c d e)
           echo "\${${keyword}[-1]}"
@@ -470,7 +470,7 @@ describe("Additional Syntax Features - Prototype Pollution", () => {
 
       it(`should access ${keyword}[-2]`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           ${keyword}=(1 2 3 4 5)
           echo "\${${keyword}[-2]}"
@@ -482,7 +482,7 @@ describe("Additional Syntax Features - Prototype Pollution", () => {
 
       it(`should slice ${keyword} with negative index`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           ${keyword}=(a b c d e)
           echo "\${${keyword}[@]: -2}"
@@ -497,7 +497,7 @@ describe("Additional Syntax Features - Prototype Pollution", () => {
   describe("Bash caller Builtin", () => {
     it("should use caller in function with dangerous name", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         constructor() {
           caller 0 2>/dev/null || echo "caller handled"
@@ -513,7 +513,7 @@ describe("Additional Syntax Features - Prototype Pollution", () => {
     for (const keyword of DANGEROUS_KEYWORDS.slice(0, 2)) {
       it(`should bind variable as $${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           echo '{"a":1}' | jq '.a as $${keyword} | $${keyword} + 10'
         `),
@@ -524,7 +524,7 @@ describe("Additional Syntax Features - Prototype Pollution", () => {
 
       it(`should use $${keyword} in reduce`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           echo '[1,2,3]' | jq 'reduce .[] as $${keyword} (0; . + $${keyword})'
         `),
@@ -539,7 +539,7 @@ describe("Additional Syntax Features - Prototype Pollution", () => {
     for (const keyword of DANGEROUS_KEYWORDS.slice(0, 2)) {
       it(`should define function named ${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           echo '5' | jq 'def ${keyword}: . * 2; ${keyword}'
         `),
@@ -551,7 +551,7 @@ describe("Additional Syntax Features - Prototype Pollution", () => {
       // Note: JQ function parameters have limited support
       it(`should handle function with ${keyword} parameter syntax`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           echo '5' | jq 'def myfunc($${keyword}): . * 2; myfunc(3)'
         `),
@@ -568,7 +568,7 @@ describe("Additional Syntax Features - Prototype Pollution", () => {
       it(`should handle dangerous keyword ${keyword} in variable binding instead`, async () => {
         const bash = new Bash();
         // Use 'as' binding instead of --arg (which is not supported)
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           echo '"value"' | jq '. as $${keyword} | $${keyword}'
         `),
@@ -579,7 +579,7 @@ describe("Additional Syntax Features - Prototype Pollution", () => {
 
       it(`should handle ${keyword} as object key access`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           echo '{"${keyword}": "value"}' | jq '.${keyword}'
         `),
@@ -593,7 +593,7 @@ describe("Additional Syntax Features - Prototype Pollution", () => {
   describe("JQ getpath/paths with Dangerous Keys", () => {
     it("should getpath with dangerous key", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo '{"a":{"b":1}}' | jq 'getpath(["a","b"])'
       `),
@@ -604,7 +604,7 @@ describe("Additional Syntax Features - Prototype Pollution", () => {
 
     it("should handle paths output safely", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo '{"a":1,"b":2}' | jq '[paths]'
       `),

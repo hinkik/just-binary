@@ -7,7 +7,14 @@
 
 import { isBrowserExcludedCommand } from "../commands/browser-excluded.js";
 import type { CommandContext, ExecResult } from "../types.js";
-import { decode, decodeArgs, EMPTY, encode, isEmpty } from "../utils/bytes.js";
+import { decode, decodeArgs, encode } from "../utils/bytes.js";
+import {
+  type ByteStream,
+  collectBytes,
+  concatStreams,
+  emptyStream,
+  fromBytes,
+} from "../utils/stream.js";
 import {
   handleBreak,
   handleCd,
@@ -45,7 +52,7 @@ import { evaluateTestArgs } from "./conditionals.js";
 import { ExecutionLimitError } from "./errors.js";
 import { callFunction } from "./functions.js";
 import { getErrorMessage } from "./helpers/errors.js";
-import { failure, OK, testResult } from "./helpers/result.js";
+import { failure, ok, testResult } from "./helpers/result.js";
 import { SHELL_BUILTINS } from "./helpers/shell-constants.js";
 import {
   findFirstInPath as findFirstInPathHelper,
@@ -61,7 +68,7 @@ export type RunCommandFn = (
   commandName: string,
   args: Uint8Array[],
   quotedArgs: boolean[],
-  stdin: Uint8Array,
+  stdin: ByteStream,
   skipFunctions?: boolean,
   useDefaultPath?: boolean,
   stdinSourceFd?: number,
@@ -78,7 +85,7 @@ export type BuildExportedEnvFn = () => Record<string, string>;
 export type ExecuteUserScriptFn = (
   scriptPath: string,
   args: Uint8Array[],
-  stdin?: Uint8Array,
+  stdin?: ByteStream,
 ) => Promise<ExecResult>;
 
 /**
@@ -100,7 +107,7 @@ export async function dispatchBuiltin(
   commandName: string,
   args: Uint8Array[],
   _quotedArgs: boolean[],
-  stdin: Uint8Array,
+  stdin: ByteStream,
   skipFunctions: boolean,
   _useDefaultPath: boolean,
   stdinSourceFd: number,
@@ -172,10 +179,15 @@ export async function dispatchBuiltin(
     return handleSource(ctx, strArgs);
   }
   if (commandName === "read") {
-    return handleRead(ctx, strArgs, stdin, stdinSourceFd);
+    return await handleRead(
+      ctx,
+      strArgs,
+      await collectBytes(stdin),
+      stdinSourceFd,
+    );
   }
   if (commandName === "mapfile" || commandName === "readarray") {
-    return handleMapfile(ctx, strArgs, stdin);
+    return await handleMapfile(ctx, strArgs, await collectBytes(stdin));
   }
   if (commandName === "declare" || commandName === "typeset") {
     return handleDeclare(ctx, strArgs);
@@ -200,7 +212,7 @@ export async function dispatchBuiltin(
     return await handleCd(ctx, strArgs);
   }
   if (commandName === ":" || commandName === "true") {
-    return OK;
+    return ok();
   }
   if (commandName === "false") {
     return testResult(false);
@@ -220,14 +232,14 @@ export async function dispatchBuiltin(
   if (commandName === "exec") {
     // exec - replace shell with command (stub: just run the command)
     if (args.length === 0) {
-      return OK;
+      return ok();
     }
     const [cmd, ...rest] = args;
     return runCommand(decode(cmd), rest, [], stdin, false, false, -1);
   }
   if (commandName === "wait") {
     // wait - wait for background jobs (stub: no-op in this context)
-    return OK;
+    return ok();
   }
   if (commandName === "type") {
     return await handleTypeHelper(
@@ -266,13 +278,13 @@ export async function dispatchBuiltin(
 async function handleCommandBuiltin(
   dispatchCtx: BuiltinDispatchContext,
   args: string[],
-  stdin: Uint8Array,
+  stdin: ByteStream,
 ): Promise<ExecResult> {
   const { ctx, runCommand } = dispatchCtx;
 
   // command [-pVv] command [arg...] - run command, bypassing functions
   if (args.length === 0) {
-    return OK;
+    return ok();
   }
   // Parse options
   let useDefaultPath = false; // -p flag
@@ -300,7 +312,7 @@ async function handleCommandBuiltin(
   }
 
   if (cmdArgs.length === 0) {
-    return OK;
+    return ok();
   }
 
   // Handle -v and -V: describe commands without executing
@@ -328,20 +340,20 @@ async function handleCommandBuiltin(
 async function handleBuiltinBuiltin(
   dispatchCtx: BuiltinDispatchContext,
   args: string[],
-  stdin: Uint8Array,
+  stdin: ByteStream,
 ): Promise<ExecResult> {
   const { runCommand } = dispatchCtx;
 
   // builtin command [arg...] - run builtin command
   if (args.length === 0) {
-    return OK;
+    return ok();
   }
   // Handle -- option terminator
   let cmdArgs = args;
   if (cmdArgs[0] === "--") {
     cmdArgs = cmdArgs.slice(1);
     if (cmdArgs.length === 0) {
-      return OK;
+      return ok();
     }
   }
   const cmd = cmdArgs[0];
@@ -371,7 +383,7 @@ export async function executeExternalCommand(
   dispatchCtx: BuiltinDispatchContext,
   commandName: string,
   args: Uint8Array[],
-  stdin: Uint8Array,
+  stdin: ByteStream,
   useDefaultPath: boolean,
 ): Promise<ExecResult> {
   const { ctx, buildExportedEnv, executeUserScript } = dispatchCtx;
@@ -423,11 +435,25 @@ export async function executeExternalCommand(
     ctx.state.hashTable.set(commandName, cmdPath);
   }
 
-  // Use groupStdin as fallback if no stdin from redirections/pipeline
-  // This is needed for commands inside groups/functions that receive stdin via heredoc
-  const effectiveStdin = !isEmpty(stdin)
-    ? stdin
-    : (ctx.state.groupStdin ?? EMPTY);
+  // Use groupStdin as fallback if no stdin from redirections/pipeline.
+  // We must detect emptiness WITHOUT draining the stream — peek a single
+  // chunk and prepend it back if it isn't empty. This preserves lazy
+  // streaming for `cat huge | head -c N` etc.
+  let effectiveStdin: ByteStream;
+  const reader = stdin.getReader();
+  const first = await reader.read();
+  reader.releaseLock();
+  if (first.done || !first.value || first.value.length === 0) {
+    // Stream had no data — fall back to groupStdin / empty.
+    if (ctx.state.groupStdin) {
+      effectiveStdin = ctx.state.groupStdin;
+    } else {
+      effectiveStdin = emptyStream();
+    }
+  } else {
+    // Splice the peeked chunk back in front of the rest of the stream.
+    effectiveStdin = concatStreams(fromBytes(first.value), stdin);
+  }
 
   // Build exported environment for commands that need it (printenv, env, etc.)
   // Most builtins need access to the full env to modify state

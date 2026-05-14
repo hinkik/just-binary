@@ -6,7 +6,7 @@ describe("column", () => {
   describe("table mode (-t)", () => {
     it("formats whitespace-delimited input as table", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec("printf 'a b c\\nd e f\\n' | column -t"),
       );
       expect(result.exitCode).toBe(0);
@@ -15,7 +15,7 @@ describe("column", () => {
 
     it("aligns columns based on maximum width", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec("printf 'short long\\nlonger x\\n' | column -t"),
       );
       expect(result.exitCode).toBe(0);
@@ -25,7 +25,7 @@ describe("column", () => {
 
     it("handles varying number of columns per row", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec("printf 'a b c\\nd e\\nf\\n' | column -t"),
       );
       expect(result.exitCode).toBe(0);
@@ -38,7 +38,7 @@ describe("column", () => {
           "/test.txt": "name age\nalice 30\nbob 25\n",
         },
       });
-      const result = toText(await bash.exec("column -t /test.txt"));
+      const result = await toText(await bash.exec("column -t /test.txt"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("name   age\nalice  30\nbob    25\n");
     });
@@ -47,7 +47,7 @@ describe("column", () => {
   describe("-s option (input separator)", () => {
     it("uses custom input delimiter", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec("printf 'a,b,c\\nd,e,f\\n' | column -t -s ','"),
       );
       expect(result.exitCode).toBe(0);
@@ -56,7 +56,7 @@ describe("column", () => {
 
     it("handles colon separator", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(
           "printf 'user:1000:home\\nroot:0:root\\n' | column -t -s ':'",
         ),
@@ -69,7 +69,7 @@ describe("column", () => {
   describe("-o option (output separator)", () => {
     it("uses custom output delimiter", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec("printf 'a b c\\nd e f\\n' | column -t -o ' | '"),
       );
       expect(result.exitCode).toBe(0);
@@ -79,7 +79,7 @@ describe("column", () => {
     it("uses tab as output separator", async () => {
       const bash = new Bash();
       // Use $'...' to get actual tab character
-      const result = toText(
+      const result = await toText(
         await bash.exec("printf 'a b\\nc d\\n' | column -t -o $'\\t'"),
       );
       expect(result.exitCode).toBe(0);
@@ -90,7 +90,7 @@ describe("column", () => {
   describe("-n option (no merge)", () => {
     it("preserves empty fields with -n", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec("printf 'a,,c\\nd,e,f\\n' | column -t -s ',' -n"),
       );
       expect(result.exitCode).toBe(0);
@@ -100,7 +100,7 @@ describe("column", () => {
 
     it("without -n, consecutive delimiters are merged", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec("printf 'a,,c\\nd,e,f\\n' | column -t -s ','"),
       );
       expect(result.exitCode).toBe(0);
@@ -112,7 +112,7 @@ describe("column", () => {
   describe("fill mode (default)", () => {
     it("arranges items into columns", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec("printf 'a\\nb\\nc\\nd\\ne\\nf\\n' | column -c 20"),
       );
       expect(result.exitCode).toBe(0);
@@ -122,14 +122,16 @@ describe("column", () => {
 
     it("uses default width of 80", async () => {
       const bash = new Bash();
-      const result = toText(await bash.exec("printf 'a\\nb\\nc\\n' | column"));
+      const result = await toText(
+        await bash.exec("printf 'a\\nb\\nc\\n' | column"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("a  b  c\n");
     });
 
     it("handles single column when items are too wide", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec("printf 'verylongword\\nanother\\n' | column -c 10"),
       );
       expect(result.exitCode).toBe(0);
@@ -141,21 +143,23 @@ describe("column", () => {
   describe("edge cases", () => {
     it("handles empty input", async () => {
       const bash = new Bash();
-      const result = toText(await bash.exec("printf '' | column"));
+      const result = await toText(await bash.exec("printf '' | column"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("");
     });
 
     it("handles whitespace-only input", async () => {
       const bash = new Bash();
-      const result = toText(await bash.exec("printf '   \\n   \\n' | column"));
+      const result = await toText(
+        await bash.exec("printf '   \\n   \\n' | column"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("");
     });
 
     it("reads from stdin with dash", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec("printf 'a b\\nc d\\n' | column -t -"),
       );
       expect(result.exitCode).toBe(0);
@@ -169,7 +173,7 @@ describe("column", () => {
           "/b.txt": "z w\n",
         },
       });
-      const result = toText(await bash.exec("column -t /a.txt /b.txt"));
+      const result = await toText(await bash.exec("column -t /a.txt /b.txt"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("x  y\nz  w\n");
     });
@@ -178,14 +182,14 @@ describe("column", () => {
   describe("error handling", () => {
     it("errors on unknown flag", async () => {
       const bash = new Bash();
-      const result = toText(await bash.exec("echo 'test' | column -z"));
+      const result = await toText(await bash.exec("echo 'test' | column -z"));
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("invalid option");
     });
 
     it("errors on missing file", async () => {
       const bash = new Bash();
-      const result = toText(await bash.exec("column /nonexistent"));
+      const result = await toText(await bash.exec("column /nonexistent"));
       expect(result.exitCode).toBe(1);
       expect(result.stderr.toLowerCase()).toContain(
         "no such file or directory",
@@ -194,7 +198,7 @@ describe("column", () => {
 
     it("shows help with --help", async () => {
       const bash = new Bash();
-      const result = toText(await bash.exec("column --help"));
+      const result = await toText(await bash.exec("column --help"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("column");
       expect(result.stdout).toContain("Usage");

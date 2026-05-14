@@ -27,7 +27,7 @@ describe("env command - Real Bash Comparison", () => {
         env: { TEST_VAR: "test_value" },
       });
 
-      const envResult = toText(await env.exec("env"));
+      const envResult = await toText(await env.exec("env"));
 
       // Check that it contains TEST_VAR=test_value
       expect(envResult.stdout).toContain("TEST_VAR=test_value");
@@ -55,7 +55,7 @@ describe("printenv command - Real Bash Comparison", () => {
         env: { HOME: "/home/testuser" },
       });
 
-      const envResult = toText(await env.exec("printenv HOME"));
+      const envResult = await toText(await env.exec("printenv HOME"));
       expect(envResult.stdout).toBe("/home/testuser\n");
       expect(envResult.exitCode).toBe(0);
     });
@@ -63,7 +63,7 @@ describe("printenv command - Real Bash Comparison", () => {
     it("should return exit code 1 for non-existent variable", async () => {
       const env = await setupFiles(testDir, {});
 
-      const envResult = toText(
+      const envResult = await toText(
         await env.exec("printenv NONEXISTENT_VAR_12345"),
       );
       const realResult = await runRealBash(
@@ -83,7 +83,7 @@ describe("printenv command - Real Bash Comparison", () => {
         env: { VAR1: "value1", VAR2: "value2" },
       });
 
-      const envResult = toText(await env.exec("printenv VAR1 VAR2"));
+      const envResult = await toText(await env.exec("printenv VAR1 VAR2"));
       expect(envResult.stdout).toBe("value1\nvalue2\n");
       expect(envResult.exitCode).toBe(0);
     });

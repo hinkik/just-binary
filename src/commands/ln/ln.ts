@@ -1,5 +1,5 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const lnHelp = {
@@ -56,8 +56,8 @@ export const lnCommand: Command = {
         break;
       } else {
         return {
-          stdout: EMPTY,
-          stderr: encode(`ln: invalid option -- '${arg.slice(1)}'\n`),
+          stdout: emptyStream(),
+          stderr: fromString(`ln: invalid option -- '${arg.slice(1)}'\n`),
           exitCode: 1,
         };
       }
@@ -67,8 +67,8 @@ export const lnCommand: Command = {
 
     if (remaining.length < 2) {
       return {
-        stdout: EMPTY,
-        stderr: encode("ln: missing file operand\n"),
+        stdout: emptyStream(),
+        stderr: fromString("ln: missing file operand\n"),
         exitCode: 1,
       };
     }
@@ -84,8 +84,8 @@ export const lnCommand: Command = {
           await ctx.fs.rm(linkPath, { force: true });
         } catch {
           return {
-            stdout: EMPTY,
-            stderr: encode(
+            stdout: emptyStream(),
+            stderr: fromString(
               `ln: cannot remove '${linkName}': Permission denied\n`,
             ),
             exitCode: 1,
@@ -93,8 +93,8 @@ export const lnCommand: Command = {
         }
       } else {
         return {
-          stdout: EMPTY,
-          stderr: encode(
+          stdout: emptyStream(),
+          stderr: fromString(
             `ln: failed to create ${symbolic ? "symbolic " : ""}link '${linkName}': File exists\n`,
           ),
           exitCode: 1,
@@ -113,8 +113,8 @@ export const lnCommand: Command = {
         // Check that target exists
         if (!(await ctx.fs.exists(targetPath))) {
           return {
-            stdout: EMPTY,
-            stderr: encode(
+            stdout: emptyStream(),
+            stderr: fromString(
               `ln: failed to access '${target}': No such file or directory\n`,
             ),
             exitCode: 1,
@@ -126,16 +126,16 @@ export const lnCommand: Command = {
       const err = e as Error;
       if (err.message.includes("EPERM")) {
         return {
-          stdout: EMPTY,
-          stderr: encode(
+          stdout: emptyStream(),
+          stderr: fromString(
             `ln: '${target}': hard link not allowed for directory\n`,
           ),
           exitCode: 1,
         };
       }
       return {
-        stdout: EMPTY,
-        stderr: encode(`ln: ${err.message}\n`),
+        stdout: emptyStream(),
+        stderr: fromString(`ln: ${err.message}\n`),
         exitCode: 1,
       };
     }
@@ -144,10 +144,11 @@ export const lnCommand: Command = {
     if (verbose) {
       stdout = `'${linkName}' -> '${target}'\n`;
     }
-    return { stdout: encode(stdout), stderr: EMPTY, exitCode: 0 };
+    return { stdout: fromString(stdout), stderr: emptyStream(), exitCode: 0 };
   },
 };
 
+import { emptyStream, fromString } from "../../utils/stream.js";
 import type { CommandFuzzInfo } from "../fuzz-flags-types.js";
 
 export const flagsForFuzzing: CommandFuzzInfo = {

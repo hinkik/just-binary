@@ -8,7 +8,8 @@
  */
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs } from "../../utils/bytes.js";
+import { collectBytes, emptyStream, fromString } from "../../utils/stream.js";
 
 type OutputFormat = "octal" | "hex" | "char";
 
@@ -49,7 +50,7 @@ async function odExecute(
   }
 
   // Get input bytes - from file or stdin
-  let inputBytes: Uint8Array = ctx.stdin;
+  let inputBytes: Uint8Array;
 
   // Check for file argument
   if (fileArgs.length > 0 && fileArgs[0] !== "-") {
@@ -57,14 +58,16 @@ async function odExecute(
       ? fileArgs[0]
       : `${ctx.cwd}/${fileArgs[0]}`;
     try {
-      inputBytes = (await ctx.fs.readFileBuffer(filePath)) as Uint8Array;
+      inputBytes = await collectBytes(await ctx.fs.readFile(filePath));
     } catch {
       return {
-        stdout: EMPTY,
-        stderr: encode(`od: ${fileArgs[0]}: No such file or directory\n`),
+        stdout: emptyStream(),
+        stderr: fromString(`od: ${fileArgs[0]}: No such file or directory\n`),
         exitCode: 1,
       };
     }
+  } else {
+    inputBytes = await collectBytes(ctx.stdin);
   }
 
   // Check if char format is included (affects field width)
@@ -151,8 +154,8 @@ async function odExecute(
   }
 
   return {
-    stdout: encode(lines.length > 0 ? `${lines.join("\n")}\n` : ""),
-    stderr: EMPTY,
+    stdout: fromString(lines.length > 0 ? `${lines.join("\n")}\n` : ""),
+    stderr: emptyStream(),
     exitCode: 0,
   };
 }

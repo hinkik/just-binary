@@ -210,7 +210,7 @@ describe("Parser Protection", () => {
     it("should limit brace expansion during execution", async () => {
       const env = new Bash();
       // This parses fine but expansion could be exponential
-      const result = toText(
+      const result = await toText(
         await env.exec(
           "echo {a,b}{c,d}{e,f}{g,h}{i,j}{k,l}{m,n}{o,p}{q,r}{s,t}",
         ),
@@ -222,7 +222,7 @@ describe("Parser Protection", () => {
 
     it("should limit range expansion during execution", async () => {
       const env = new Bash();
-      const result = toText(await env.exec("echo {1..100000}"));
+      const result = await toText(await env.exec("echo {1..100000}"));
 
       // Range expansion should be limited
       expect(result.exitCode).toBe(0);

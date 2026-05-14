@@ -3,95 +3,118 @@
  *
  * These helpers reduce verbosity and improve readability when
  * constructing ExecResult objects throughout the interpreter.
+ *
+ * IMPORTANT: stdout/stderr are now ByteStreams (single-use). Use factory
+ * functions like ok() instead of a shared constant — a constant ExecResult
+ * with stream fields breaks the second time it's consumed.
  */
 
 import type { ExecResult } from "../../types.js";
-import { EMPTY, encode } from "../../utils/bytes.js";
+import type { ByteStream } from "../../utils/stream.js";
+import { emptyStream, fromBytes, fromString } from "../../utils/stream.js";
 import { ExecutionLimitError } from "../errors.js";
 
 /**
- * A successful result with no output.
- * Use this for commands that succeed silently.
+ * Factory: build a successful no-output result.
+ * Streams are single-use, so each call returns a fresh ExecResult.
  */
-export const OK: ExecResult = Object.freeze({
-  stdout: EMPTY,
-  stderr: EMPTY,
-  exitCode: 0,
-});
+export function ok(): ExecResult {
+  return { stdout: emptyStream(), stderr: emptyStream(), exitCode: 0 };
+}
 
 /**
- * Create a successful result with optional stdout bytes.
- *
- * @param stdout - Output bytes to include (default: EMPTY)
- * @returns ExecResult with exitCode 0
+ * Backwards-compatible alias — a getter so each access returns a fresh
+ * ExecResult with new streams. Callers that destructure or use this in a
+ * pipeline must not reuse the same reference twice.
  */
-export function success(stdout: Uint8Array = EMPTY): ExecResult {
-  return { stdout, stderr: EMPTY, exitCode: 0 };
+export const OK = {
+  get stdout(): ByteStream {
+    return emptyStream();
+  },
+  get stderr(): ByteStream {
+    return emptyStream();
+  },
+  exitCode: 0,
+} as ExecResult;
+
+/**
+ * Create a successful result with optional stdout stream.
+ */
+export function success(stdout: ByteStream = emptyStream()): ExecResult {
+  return { stdout, stderr: emptyStream(), exitCode: 0 };
 }
 
 /**
  * Create a successful result from a text string.
- * Convenience wrapper that encodes the string to UTF-8.
- *
- * @param stdout - Text output to include
- * @returns ExecResult with exitCode 0
  */
 export function successText(stdout: string): ExecResult {
-  return { stdout: encode(stdout), stderr: EMPTY, exitCode: 0 };
+  return {
+    stdout: fromString(stdout),
+    stderr: emptyStream(),
+    exitCode: 0,
+  };
 }
 
 /**
  * Create a failure result with stderr message.
- *
- * @param stderr - Error message to include
- * @param exitCode - Exit code (default: 1)
- * @returns ExecResult with the specified exitCode
  */
 export function failure(stderr: string, exitCode = 1): ExecResult {
-  return { stdout: EMPTY, stderr: encode(stderr), exitCode };
+  return {
+    stdout: emptyStream(),
+    stderr: fromString(stderr),
+    exitCode,
+  };
 }
 
 /**
  * Create a result with all fields specified.
- *
- * @param stdout - Standard output bytes
- * @param stderr - Standard error bytes
- * @param exitCode - Exit code
- * @returns ExecResult with all fields
+ * Accepts Uint8Array or ByteStream for each; bytes are wrapped via fromBytes.
  */
 export function result(
-  stdout: Uint8Array,
-  stderr: Uint8Array,
+  stdout: Uint8Array | ByteStream,
+  stderr: Uint8Array | ByteStream,
   exitCode: number,
 ): ExecResult {
-  return { stdout, stderr, exitCode };
+  return {
+    stdout: stdout instanceof Uint8Array ? fromBytes(stdout) : stdout,
+    stderr: stderr instanceof Uint8Array ? fromBytes(stderr) : stderr,
+    exitCode,
+  };
 }
 
 /**
  * Convert a boolean test result to an ExecResult.
- * Useful for test/conditional commands where true = exit 0, false = exit 1.
- *
- * @param passed - Boolean test result
- * @returns ExecResult with exitCode 0 if passed, 1 otherwise
  */
 export function testResult(passed: boolean): ExecResult {
-  return { stdout: EMPTY, stderr: EMPTY, exitCode: passed ? 0 : 1 };
+  return {
+    stdout: emptyStream(),
+    stderr: emptyStream(),
+    exitCode: passed ? 0 : 1,
+  };
 }
 
 /**
  * Throw an ExecutionLimitError for execution limits (recursion, iterations, commands).
- *
- * @param message - Error message describing the limit exceeded
- * @param limitType - Type of limit exceeded
- * @param stdout - Accumulated stdout to include
- * @param stderr - Accumulated stderr to include
- * @throws ExecutionLimitError always
  */
 export function throwExecutionLimit(
   message: string,
   limitType: "recursion" | "iterations" | "commands",
-  stdout: Uint8Array = EMPTY,
-  stderr: Uint8Array = EMPTY,
+  stdout?: Uint8Array | ByteStream,
+  stderr?: Uint8Array | ByteStream,
 ): never {
-  throw new ExecutionLimitError(message, limitType, stdout, stderr);
+  const so =
+    stdout === undefined
+      ? emptyStream()
+      : stdout instanceof Uint8Array
+        ? fromBytes(stdout)
+        : stdout;
+  // Leave stderr undefined when not provided so the ExecutionLimitError
+  // constructor inserts the default `bash: ${message}\n` message.
+  const se =
+    stderr === undefined
+      ? undefined
+      : stderr instanceof Uint8Array
+        ? fromBytes(stderr)
+        : stderr;
+  throw new ExecutionLimitError(message, limitType, so, se);
 }

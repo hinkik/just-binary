@@ -10,7 +10,7 @@ describe("wc with binary files", () => {
       },
     });
 
-    const result = toText(await env.exec("wc -c /binary.bin"));
+    const result = await toText(await env.exec("wc -c /binary.bin"));
     expect(result.stdout).toContain("5");
     expect(result.exitCode).toBe(0);
   });
@@ -22,7 +22,7 @@ describe("wc with binary files", () => {
       },
     });
 
-    const result = toText(await env.exec("wc -l /binary.bin"));
+    const result = await toText(await env.exec("wc -l /binary.bin"));
     expect(result.stdout).toContain("3");
     expect(result.exitCode).toBe(0);
   });

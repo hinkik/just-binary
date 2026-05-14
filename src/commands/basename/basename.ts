@@ -1,5 +1,5 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const basenameHelp = {
@@ -43,8 +43,8 @@ export const basenameCommand: Command = {
 
     if (names.length === 0) {
       return {
-        stdout: EMPTY,
-        stderr: encode("basename: missing operand\n"),
+        stdout: emptyStream(),
+        stderr: fromString("basename: missing operand\n"),
         exitCode: 1,
       };
     }
@@ -66,13 +66,14 @@ export const basenameCommand: Command = {
     }
 
     return {
-      stdout: encode(`${results.join("\n")}\n`),
-      stderr: EMPTY,
+      stdout: fromString(`${results.join("\n")}\n`),
+      stderr: emptyStream(),
       exitCode: 0,
     };
   },
 };
 
+import { emptyStream, fromString } from "../../utils/stream.js";
 import type { CommandFuzzInfo } from "../fuzz-flags-types.js";
 
 export const flagsForFuzzing: CommandFuzzInfo = {

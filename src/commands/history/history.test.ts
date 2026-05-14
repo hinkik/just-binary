@@ -5,14 +5,14 @@ import { toText } from "../../test-utils.js";
 describe("history command", () => {
   it("should show empty history initially", async () => {
     const env = new Bash();
-    const result = toText(await env.exec("history"));
+    const result = await toText(await env.exec("history"));
     // History is empty at start
     expect(result.exitCode).toBe(0);
   });
 
   it("should show help with --help", async () => {
     const env = new Bash();
-    const result = toText(await env.exec("history --help"));
+    const result = await toText(await env.exec("history --help"));
     expect(result.stdout).toContain("history");
     expect(result.stdout).toContain("command history");
     expect(result.exitCode).toBe(0);
@@ -23,7 +23,7 @@ describe("history command", () => {
       env: { BASH_HISTORY: '["echo hello","ls -la"]' },
     });
     // history -c and verify in same exec (each exec is a new shell)
-    const result = toText(await env.exec("history -c; history"));
+    const result = await toText(await env.exec("history -c; history"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("");
   });
@@ -32,7 +32,7 @@ describe("history command", () => {
     const env = new Bash({
       env: { BASH_HISTORY: '["echo hello","ls -la"]' },
     });
-    const result = toText(await env.exec("history"));
+    const result = await toText(await env.exec("history"));
     expect(result.stdout).toBe("    1  echo hello\n    2  ls -la\n");
     expect(result.exitCode).toBe(0);
   });
@@ -41,7 +41,7 @@ describe("history command", () => {
     const env = new Bash({
       env: { BASH_HISTORY: '["cmd1","cmd2","cmd3","cmd4","cmd5"]' },
     });
-    const result = toText(await env.exec("history 2"));
+    const result = await toText(await env.exec("history 2"));
     expect(result.stdout).toBe("    4  cmd4\n    5  cmd5\n");
     expect(result.exitCode).toBe(0);
   });

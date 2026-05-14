@@ -24,7 +24,7 @@ describe("Prototype Pollution Edge Cases", () => {
     for (const keyword of DANGEROUS_KEYWORDS.slice(0, 3)) {
       it(`should eval assignment to ${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           eval "${keyword}=evalued_value"
           echo $${keyword}
@@ -36,7 +36,7 @@ describe("Prototype Pollution Edge Cases", () => {
 
       it(`should eval ${keyword} from variable`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           varname="${keyword}"
           eval "\${varname}=indirect_value"
@@ -49,7 +49,7 @@ describe("Prototype Pollution Edge Cases", () => {
 
       it(`should eval complex expression with ${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           eval "${keyword}=(); ${keyword}+=(a); ${keyword}+=(b)"
           echo "\${${keyword}[@]}"
@@ -61,7 +61,7 @@ describe("Prototype Pollution Edge Cases", () => {
 
       it(`should eval arithmetic with ${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           eval "(( ${keyword} = 5 + 3 ))"
           echo $${keyword}
@@ -74,7 +74,7 @@ describe("Prototype Pollution Edge Cases", () => {
 
     it("should eval multiple dangerous assignments", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         eval "constructor=c; __proto__=p; prototype=pr"
         echo "$constructor $__proto__ $prototype"
@@ -89,7 +89,7 @@ describe("Prototype Pollution Edge Cases", () => {
     for (const keyword of DANGEROUS_KEYWORDS.slice(0, 3)) {
       it(`should capture ${keyword} in BASH_REMATCH`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           [[ "${keyword}" =~ (.*) ]]
           echo "\${BASH_REMATCH[0]}"
@@ -102,7 +102,7 @@ describe("Prototype Pollution Edge Cases", () => {
 
       it(`should capture ${keyword} in named-like group`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           str="key=${keyword}"
           [[ $str =~ key=(.*) ]]
@@ -116,7 +116,7 @@ describe("Prototype Pollution Edge Cases", () => {
 
     it("should capture multiple dangerous keywords", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         str="constructor:__proto__:prototype"
         [[ $str =~ (.*):(.*):(.*)  ]]
@@ -129,7 +129,7 @@ describe("Prototype Pollution Edge Cases", () => {
 
     it("should iterate BASH_REMATCH with dangerous content", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         [[ "constructor" =~ (con)(struc)(tor) ]]
         for i in 0 1 2 3; do
@@ -146,7 +146,7 @@ describe("Prototype Pollution Edge Cases", () => {
     for (const keyword of DANGEROUS_KEYWORDS.slice(0, 3)) {
       it(`should test -v ${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           ${keyword}="set"
           [[ -v ${keyword} ]] && echo "is set" || echo "not set"
@@ -158,7 +158,7 @@ describe("Prototype Pollution Edge Cases", () => {
 
       it(`should test -v unset ${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           unset ${keyword}
           [[ -v ${keyword} ]] && echo "is set" || echo "not set"
@@ -170,7 +170,7 @@ describe("Prototype Pollution Edge Cases", () => {
 
       it(`should test -z ${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           ${keyword}=""
           [[ -z $${keyword} ]] && echo "empty" || echo "not empty"
@@ -182,7 +182,7 @@ describe("Prototype Pollution Edge Cases", () => {
 
       it(`should test -n ${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           ${keyword}="value"
           [[ -n $${keyword} ]] && echo "not empty" || echo "empty"
@@ -194,7 +194,7 @@ describe("Prototype Pollution Edge Cases", () => {
 
       it(`should compare ${keyword} with string`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           ${keyword}="test"
           [[ $${keyword} == "test" ]] && echo "equal" || echo "not equal"
@@ -206,7 +206,7 @@ describe("Prototype Pollution Edge Cases", () => {
 
       it(`should compare ${keyword} with pattern`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           ${keyword}="hello_world"
           [[ $${keyword} == hello_* ]] && echo "matches" || echo "no match"
@@ -219,7 +219,7 @@ describe("Prototype Pollution Edge Cases", () => {
 
     it("should test multiple dangerous vars in compound expression", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         constructor="a"
         __proto__="b"
@@ -234,7 +234,7 @@ describe("Prototype Pollution Edge Cases", () => {
   describe("Default REPLY Variable", () => {
     it("should read into default REPLY", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo "input_value" | { read; echo "$REPLY"; }
       `),
@@ -245,7 +245,7 @@ describe("Prototype Pollution Edge Cases", () => {
 
     it("should read dangerous keyword into REPLY", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo "constructor" | { read; echo "$REPLY"; }
       `),
@@ -256,7 +256,7 @@ describe("Prototype Pollution Edge Cases", () => {
 
     it("should read __proto__ into REPLY", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo "__proto__" | { read; echo "$REPLY"; }
       `),
@@ -267,7 +267,7 @@ describe("Prototype Pollution Edge Cases", () => {
 
     it("should read multiple dangerous lines into REPLY sequentially", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo -e "constructor\\n__proto__\\nprototype" | {
           while read; do
@@ -286,7 +286,7 @@ describe("Prototype Pollution Edge Cases", () => {
   describe("Default MAPFILE Array", () => {
     it("should mapfile into default MAPFILE", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         mapfile -t <<'EOF'
 line1
@@ -303,7 +303,7 @@ EOF
 
     it("should mapfile dangerous keywords into MAPFILE", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         mapfile -t <<'EOF'
 constructor
@@ -319,7 +319,7 @@ EOF
 
     it("should iterate MAPFILE with dangerous content", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         mapfile -t <<'EOF'
 hasOwnProperty
@@ -341,7 +341,7 @@ EOF
   describe("Set Positional Parameters", () => {
     it("should set dangerous keywords as positional parameters", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         set -- constructor __proto__ prototype
         echo "$1 $2 $3"
@@ -353,7 +353,7 @@ EOF
 
     it("should iterate positional parameters with dangerous values", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         set -- constructor __proto__ prototype hasOwnProperty
         for arg in "$@"; do
@@ -369,7 +369,7 @@ EOF
 
     it("should shift through dangerous positional parameters", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         set -- constructor __proto__ prototype
         echo "$1"
@@ -385,7 +385,7 @@ EOF
 
     it("should use $# with dangerous parameters", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         set -- constructor __proto__ prototype
         echo "$#"
@@ -397,7 +397,7 @@ EOF
 
     it("should use $* with dangerous parameters", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         set -- constructor __proto__
         echo "$*"
@@ -412,7 +412,7 @@ EOF
     for (const keyword of DANGEROUS_KEYWORDS.slice(0, 3)) {
       it(`should declare -p ${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           ${keyword}="value"
           declare -p ${keyword} 2>&1 || echo "declare -p handled"
@@ -424,7 +424,7 @@ EOF
 
       it(`should declare -f with function named ${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           ${keyword}() { echo "func"; }
           declare -f ${keyword} 2>&1 || echo "declare -f handled"
@@ -436,7 +436,7 @@ EOF
 
       it(`should export -p with ${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           export ${keyword}="exported"
           export -p | grep ${keyword} || echo "found or not"
@@ -448,7 +448,7 @@ EOF
 
     it("should declare -p multiple dangerous variables", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         constructor="c"
         __proto__="p"
@@ -464,7 +464,7 @@ EOF
     for (const keyword of DANGEROUS_KEYWORDS.slice(0, 3)) {
       it(`should here-string literal ${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           cat <<< "${keyword}"
         `),
@@ -475,7 +475,7 @@ EOF
 
       it(`should here-string variable containing ${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           ${keyword}="value_of_${keyword}"
           cat <<< "$${keyword}"
@@ -487,7 +487,7 @@ EOF
 
       it(`should here-string with ${keyword} in expansion`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           ${keyword}="hello"
           cat <<< "\${${keyword}^^}"
@@ -500,7 +500,7 @@ EOF
 
     it("should here-string multiple dangerous keywords", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         cat <<< "constructor __proto__ prototype"
       `),
@@ -514,7 +514,7 @@ EOF
     for (const keyword of DANGEROUS_KEYWORDS.slice(0, 3)) {
       it(`should compgen -v ${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           ${keyword}="value"
           compgen -v ${keyword} 2>&1 || echo "compgen handled"
@@ -526,7 +526,7 @@ EOF
 
       it(`should compgen -A variable with ${keyword} prefix`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           ${keyword}_one=1
           ${keyword}_two=2
@@ -539,7 +539,7 @@ EOF
 
     it("should compgen -W with dangerous words", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         compgen -W "constructor __proto__ prototype" -- con 2>&1 || echo "compgen handled"
       `),
@@ -552,7 +552,7 @@ EOF
     for (const keyword of DANGEROUS_KEYWORDS.slice(0, 3)) {
       it(`should type ${keyword} as function`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           ${keyword}() { echo "func"; }
           type ${keyword} 2>&1 || echo "type handled"
@@ -563,7 +563,7 @@ EOF
 
       it(`should type -t ${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           ${keyword}() { echo "func"; }
           type -t ${keyword} 2>&1 || echo "type -t handled"
@@ -578,7 +578,7 @@ EOF
     for (const keyword of DANGEROUS_KEYWORDS.slice(0, 3)) {
       it(`should use ${keyword} array in arithmetic`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           ${keyword}=(10 20 30)
           echo $((${keyword}[0] + ${keyword}[1] + ${keyword}[2]))
@@ -590,7 +590,7 @@ EOF
 
       it(`should use ${keyword} array index in arithmetic`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           arr=(a b c d e)
           ${keyword}=2
@@ -608,7 +608,7 @@ EOF
     for (const keyword of DANGEROUS_KEYWORDS.slice(0, 3)) {
       it(`should printf %q ${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           printf "%q\\n" "${keyword}"
         `),
@@ -619,7 +619,7 @@ EOF
 
       it(`should printf %q variable containing ${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           ${keyword}="value with spaces"
           printf "%q\\n" "$${keyword}"

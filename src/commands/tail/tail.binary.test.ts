@@ -20,7 +20,7 @@ describe("tail with binary files", () => {
       },
     });
 
-    const result = toText(await env.exec("tail -n 2 /binary.bin"));
+    const result = await toText(await env.exec("tail -n 2 /binary.bin"));
     expect(result.stdout).toBe("L2\nL3\n");
     expect(result.exitCode).toBe(0);
   });
@@ -32,7 +32,7 @@ describe("tail with binary files", () => {
       },
     });
 
-    const result = toText(await env.exec("tail -c 3 /binary.bin"));
+    const result = await toText(await env.exec("tail -c 3 /binary.bin"));
     expect(result.stdout).toBe("CDE");
     expect(result.exitCode).toBe(0);
   });

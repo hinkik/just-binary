@@ -10,10 +10,12 @@ describe("tee with binary files", () => {
       },
     });
 
-    const result = toText(await env.exec("cat /input.bin | tee /output.bin"));
+    const result = await toText(
+      await env.exec("cat /input.bin | tee /output.bin"),
+    );
     expect(result.stdout).toBe("Hi\n");
 
-    const check = toText(await env.exec("cat /output.bin"));
+    const check = await toText(await env.exec("cat /output.bin"));
     expect(check.stdout).toBe("Hi\n");
   });
 });

@@ -35,7 +35,9 @@ describe("Execution Protection", () => {
   describe("recursion depth protection", () => {
     it("should error on simple infinite recursion", async () => {
       const env = new Bash({ maxCallDepth: 50 });
-      const result = toText(await env.exec("recurse() { recurse; }; recurse"));
+      const result = await toText(
+        await env.exec("recurse() { recurse; }; recurse"),
+      );
 
       expect(result.exitCode).toBe(ExecutionLimitError.EXIT_CODE);
       expect(result.stderr).toContain("maximum recursion depth");
@@ -44,7 +46,7 @@ describe("Execution Protection", () => {
 
     it("should allow reasonable recursion depth", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           'echo 5 > /count.txt; countdown() { local n=$(cat /count.txt); if [ "$n" -gt 0 ]; then echo $n; echo $((n-1)) > /count.txt; countdown; fi; }; countdown',
         ),
@@ -54,7 +56,7 @@ describe("Execution Protection", () => {
 
     it("should include function name in recursion error", async () => {
       const env = new Bash({ maxCallDepth: 50 });
-      const result = toText(
+      const result = await toText(
         await env.exec("myinfinite() { myinfinite; }; myinfinite"),
       );
 
@@ -64,7 +66,7 @@ describe("Execution Protection", () => {
 
     it("should protect against mutual recursion (A calls B, B calls A)", async () => {
       const env = new Bash({ maxCallDepth: 50 });
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         ping() { pong; }
         pong() { ping; }
@@ -78,7 +80,7 @@ describe("Execution Protection", () => {
 
     it("should protect against three-way mutual recursion", async () => {
       const env = new Bash({ maxCallDepth: 50 });
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         a() { b; }
         b() { c; }
@@ -92,7 +94,7 @@ describe("Execution Protection", () => {
 
     it("should protect against recursion through eval", async () => {
       const env = new Bash({ maxCallDepth: 50 });
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         boom() { eval 'boom'; }
         boom
@@ -104,7 +106,7 @@ describe("Execution Protection", () => {
 
     it("should protect against recursion through command substitution", async () => {
       const env = new Bash({ maxCallDepth: 50 });
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         boom() { echo $(boom); }
         boom
@@ -116,7 +118,7 @@ describe("Execution Protection", () => {
 
     it("should protect against recursion with local variables", async () => {
       const env = new Bash({ maxCallDepth: 50 });
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         deep() {
           local depth=$1
@@ -132,7 +134,7 @@ describe("Execution Protection", () => {
 
     it("should protect against recursion through arithmetic expansion", async () => {
       const env = new Bash({ maxCallDepth: 50 });
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         counter=0
         boom() { echo $((counter++)); boom; }
@@ -147,7 +149,9 @@ describe("Execution Protection", () => {
   describe("command count protection", () => {
     it("should error on too many sequential commands", async () => {
       const env = new Bash({ maxLoopIterations: 100 });
-      const result = toText(await env.exec("while true; do echo x; done"));
+      const result = await toText(
+        await env.exec("while true; do echo x; done"),
+      );
 
       expect(result.exitCode).toBe(ExecutionLimitError.EXIT_CODE);
       expect(result.stderr).toContain("too many iterations");
@@ -156,7 +160,7 @@ describe("Execution Protection", () => {
     it("should reset command count between exec calls", async () => {
       const env = new Bash();
       await env.exec("echo 1; echo 2; echo 3");
-      const result = toText(await env.exec("echo done"));
+      const result = await toText(await env.exec("echo done"));
       expect(result.stdout).toBe("done\n");
       expect(result.exitCode).toBe(0);
     });
@@ -165,7 +169,7 @@ describe("Execution Protection", () => {
       const env = new Bash({ maxCommandCount: 100 });
       // Generate 200 echo commands
       const commands = Array(200).fill("echo x").join("; ");
-      const result = toText(await env.exec(commands));
+      const result = await toText(await env.exec(commands));
 
       expectProtectionTriggered(result);
       expect(result.stderr).toContain("too many commands");
@@ -174,7 +178,7 @@ describe("Execution Protection", () => {
     it("should protect against fork bomb pattern", async () => {
       const env = new Bash({ maxCallDepth: 20, maxCommandCount: 1000 });
       // Classic fork bomb pattern (limited by our protections)
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         bomb() { bomb | bomb & }
         bomb
@@ -190,7 +194,7 @@ describe("Execution Protection", () => {
     it("should error on infinite for loop", async () => {
       const env = new Bash({ maxLoopIterations: 100 });
       const longList = Array(200).fill("x").join(" ");
-      const result = toText(
+      const result = await toText(
         await env.exec(`for i in ${longList}; do echo $i; done`),
       );
 
@@ -200,7 +204,9 @@ describe("Execution Protection", () => {
 
     it("should error on infinite while loop", async () => {
       const env = new Bash({ maxLoopIterations: 100 });
-      const result = toText(await env.exec("while true; do echo loop; done"));
+      const result = await toText(
+        await env.exec("while true; do echo loop; done"),
+      );
 
       expect(result.exitCode).toBe(ExecutionLimitError.EXIT_CODE);
       expect(result.stderr).toContain("too many iterations");
@@ -208,7 +214,9 @@ describe("Execution Protection", () => {
 
     it("should error on infinite until loop", async () => {
       const env = new Bash({ maxLoopIterations: 100 });
-      const result = toText(await env.exec("until false; do echo loop; done"));
+      const result = await toText(
+        await env.exec("until false; do echo loop; done"),
+      );
 
       expect(result.exitCode).toBe(ExecutionLimitError.EXIT_CODE);
       expect(result.stderr).toContain("too many iterations");
@@ -216,7 +224,7 @@ describe("Execution Protection", () => {
 
     it("should protect against nested infinite loops", async () => {
       const env = new Bash({ maxLoopIterations: 100 });
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         while true; do
           while true; do
@@ -231,14 +239,16 @@ describe("Execution Protection", () => {
 
     it("should protect against C-style infinite loop", async () => {
       const env = new Bash({ maxLoopIterations: 100 });
-      const result = toText(await env.exec("for ((;;)); do echo x; done"));
+      const result = await toText(
+        await env.exec("for ((;;)); do echo x; done"),
+      );
 
       expectProtectionTriggered(result);
     });
 
     it("should protect against infinite loop with break that never triggers", async () => {
       const env = new Bash({ maxLoopIterations: 100 });
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         while true; do
           if false; then break; fi
@@ -252,7 +262,7 @@ describe("Execution Protection", () => {
 
     it("should protect against loop with continue abuse", async () => {
       const env = new Bash({ maxLoopIterations: 100 });
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         i=0
         while true; do
@@ -269,7 +279,7 @@ describe("Execution Protection", () => {
   describe("combined protection", () => {
     it("should protect against recursive function with loops", async () => {
       const env = new Bash({ maxCallDepth: 20, maxLoopIterations: 100 });
-      const result = toText(
+      const result = await toText(
         await env.exec(
           "dangerous() { for i in 1 2 3; do dangerous; done; }; dangerous",
         ),
@@ -280,7 +290,7 @@ describe("Execution Protection", () => {
 
     it("should protect against loop calling recursive function", async () => {
       const env = new Bash({ maxCallDepth: 20, maxLoopIterations: 100 });
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         recurse() { recurse; }
         for i in 1 2 3 4 5; do
@@ -294,7 +304,7 @@ describe("Execution Protection", () => {
 
     it("should protect against eval in loop", async () => {
       const env = new Bash({ maxLoopIterations: 100 });
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         while true; do
           eval 'echo x'
@@ -307,7 +317,7 @@ describe("Execution Protection", () => {
 
     it("should protect against recursive eval", async () => {
       const env = new Bash({ maxCallDepth: 20 });
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         cmd='eval "$cmd"'
         eval "$cmd"
@@ -322,7 +332,7 @@ describe("Execution Protection", () => {
     it("should protect against massive brace expansion", async () => {
       const env = new Bash();
       // {1..10000} would generate 10000 items
-      const result = toText(await env.exec("echo {1..100000}"));
+      const result = await toText(await env.exec("echo {1..100000}"));
 
       // Should either truncate or error, not hang
       expect(result.exitCode).toBe(0); // Brace expansion truncates, doesn't error
@@ -332,7 +342,7 @@ describe("Execution Protection", () => {
       const env = new Bash();
       // {a,b}{c,d}{e,f}{g,h}{i,j}{k,l}{m,n}{o,p} = 2^8 = 256 items
       // More nesting would cause exponential growth
-      const result = toText(
+      const result = await toText(
         await env.exec(
           "echo {a,b}{c,d}{e,f}{g,h}{i,j}{k,l}{m,n}{o,p}{q,r}{s,t}{u,v}{w,x}",
         ),
@@ -345,7 +355,7 @@ describe("Execution Protection", () => {
     it("should protect against deeply nested brace expansion", async () => {
       const env = new Bash();
       // Many levels of nesting
-      const result = toText(
+      const result = await toText(
         await env.exec(
           "echo {a,b,c,d,e}{1,2,3,4,5}{a,b,c,d,e}{1,2,3,4,5}{a,b,c,d,e}",
         ),
@@ -357,7 +367,7 @@ describe("Execution Protection", () => {
 
     it("should protect against range with huge step count", async () => {
       const env = new Bash();
-      const result = toText(await env.exec("echo {1..1000000..1}"));
+      const result = await toText(await env.exec("echo {1..1000000..1}"));
 
       // Should be limited, not hang
       expect(result.exitCode).toBe(0);
@@ -365,7 +375,9 @@ describe("Execution Protection", () => {
 
     it("should protect against character range explosion", async () => {
       const env = new Bash();
-      const result = toText(await env.exec("echo {a..z}{a..z}{a..z}{a..z}"));
+      const result = await toText(
+        await env.exec("echo {a..z}{a..z}{a..z}{a..z}"),
+      );
 
       // 26^4 = 456,976 items - should be limited
       expect(result.exitCode).toBe(0);
@@ -376,7 +388,7 @@ describe("Execution Protection", () => {
     it("should protect against deeply nested command substitution", async () => {
       const env = new Bash({ maxCallDepth: 50 });
       // Each level adds to call depth
-      const result = toText(
+      const result = await toText(
         await env.exec(
           "echo $(echo $(echo $(echo $(echo $(echo $(echo hi))))))",
         ),
@@ -389,7 +401,7 @@ describe("Execution Protection", () => {
 
     it("should protect against recursive command substitution via function", async () => {
       const env = new Bash({ maxCallDepth: 50 });
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         f() { echo "$(f)"; }
         f
@@ -402,7 +414,7 @@ describe("Execution Protection", () => {
     it("should protect against arithmetic expansion overflow attempts", async () => {
       const env = new Bash();
       // Very large numbers
-      const result = toText(
+      const result = await toText(
         await env.exec("echo $((999999999999999999 * 999999999999999999))"),
       );
 
@@ -415,7 +427,7 @@ describe("Execution Protection", () => {
     // is working - verified by "recursive command substitution via function" test.
     it.skip("should protect against recursive arithmetic in parameter expansion", async () => {
       const env = new Bash({ maxCallDepth: 50 });
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         f() { echo $(($(f))); }
         f
@@ -431,7 +443,7 @@ describe("Execution Protection", () => {
       const env = new Bash();
       // Create a very long command (over 1MB)
       const longVar = "x".repeat(1100000);
-      const result = toText(await env.exec(`echo "${longVar}"`));
+      const result = await toText(await env.exec(`echo "${longVar}"`));
 
       // Should be rejected by parser
       expect(result.exitCode).not.toBe(0);
@@ -442,7 +454,7 @@ describe("Execution Protection", () => {
       const env = new Bash();
       // Many separate arguments
       const manyArgs = Array(1000).fill("arg").join(" ");
-      const result = toText(await env.exec(`echo ${manyArgs}`));
+      const result = await toText(await env.exec(`echo ${manyArgs}`));
 
       // Should work - 1000 tokens is fine
       expect(result.exitCode).toBe(0);
@@ -452,7 +464,7 @@ describe("Execution Protection", () => {
   describe("subshell protection", () => {
     it("should protect against infinite subshell recursion", async () => {
       const env = new Bash({ maxCallDepth: 50, maxCommandCount: 1000 });
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         f() { (f); }
         f
@@ -464,7 +476,7 @@ describe("Execution Protection", () => {
 
     it("should protect against nested subshells in loop", async () => {
       const env = new Bash({ maxLoopIterations: 100 });
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         while true; do
           (echo nested)
@@ -479,7 +491,7 @@ describe("Execution Protection", () => {
   describe("pipeline protection", () => {
     it("should protect against infinite pipeline through function", async () => {
       const env = new Bash({ maxCallDepth: 50 });
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         infinite_pipe() { echo x | infinite_pipe; }
         infinite_pipe
@@ -493,7 +505,7 @@ describe("Execution Protection", () => {
       const env = new Bash();
       // Long but finite pipeline
       const pipeline = Array(50).fill("cat").join(" | ");
-      const result = toText(await env.exec(`echo test | ${pipeline}`));
+      const result = await toText(await env.exec(`echo test | ${pipeline}`));
 
       expect(result.exitCode).toBe(0);
       expect(result.stdout.trim()).toBe("test");
@@ -505,7 +517,7 @@ describe("Execution Protection", () => {
       const env = new Bash({ maxCallDepth: 50 });
       // PROMPT_COMMAND isn't executed in non-interactive mode
       // but we should handle it safely if set
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         PROMPT_COMMAND='echo prompt'
         echo done
@@ -518,7 +530,7 @@ describe("Execution Protection", () => {
     it("should protect against self-referential variable", async () => {
       const env = new Bash();
       // This shouldn't cause infinite loop - bash evaluates once
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         x='$x'
         echo "$x"
@@ -533,7 +545,9 @@ describe("Execution Protection", () => {
   describe("configurable limits", () => {
     it("should allow custom recursion depth", async () => {
       const env = new Bash({ maxCallDepth: 5 });
-      const result = toText(await env.exec("recurse() { recurse; }; recurse"));
+      const result = await toText(
+        await env.exec("recurse() { recurse; }; recurse"),
+      );
 
       expect(result.exitCode).toBe(ExecutionLimitError.EXIT_CODE);
       expect(result.stderr).toContain("(5)");
@@ -542,7 +556,9 @@ describe("Execution Protection", () => {
 
     it("should allow custom loop iterations", async () => {
       const env = new Bash({ maxLoopIterations: 50 });
-      const result = toText(await env.exec("while true; do echo x; done"));
+      const result = await toText(
+        await env.exec("while true; do echo x; done"),
+      );
 
       expect(result.exitCode).toBe(ExecutionLimitError.EXIT_CODE);
       expect(result.stderr).toContain("(50)");
@@ -552,7 +568,7 @@ describe("Execution Protection", () => {
     it("should allow custom command count", async () => {
       const env = new Bash({ maxCommandCount: 50 });
       const commands = Array(100).fill("echo x").join("; ");
-      const result = toText(await env.exec(commands));
+      const result = await toText(await env.exec(commands));
 
       expectProtectionTriggered(result);
     });
@@ -562,7 +578,7 @@ describe("Execution Protection", () => {
       let cmd = "for i in";
       for (let i = 0; i < 150; i++) cmd += " x";
       cmd += "; do echo $i; done";
-      const result = toText(await env.exec(cmd));
+      const result = await toText(await env.exec(cmd));
 
       expect(result.exitCode).toBe(0);
     });
@@ -575,7 +591,7 @@ describe("Execution Protection", () => {
       });
 
       // Even simple recursion should fail
-      const result = toText(await env.exec("f() { f; }; f"));
+      const result = await toText(await env.exec("f() { f; }; f"));
       expectProtectionTriggered(result);
     });
   });
@@ -583,14 +599,14 @@ describe("Execution Protection", () => {
   describe("edge cases", () => {
     it("should handle empty loop body", async () => {
       const env = new Bash({ maxLoopIterations: 100 });
-      const result = toText(await env.exec("while true; do :; done"));
+      const result = await toText(await env.exec("while true; do :; done"));
 
       expectProtectionTriggered(result);
     });
 
     it("should handle loop with only comments", async () => {
       const env = new Bash({ maxLoopIterations: 100 });
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         while true; do
           # just a comment
@@ -604,7 +620,7 @@ describe("Execution Protection", () => {
 
     it("should protect against infinite case recursion", async () => {
       const env = new Bash({ maxCallDepth: 50 });
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         f() {
           case x in
@@ -621,7 +637,7 @@ describe("Execution Protection", () => {
     it("should protect against select loop (simulated)", async () => {
       const env = new Bash({ maxLoopIterations: 100 });
       // select is typically interactive, simulate with while
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         PS3='Choose: '
         i=0
@@ -637,7 +653,7 @@ describe("Execution Protection", () => {
 
     it("should handle trap in infinite loop", async () => {
       const env = new Bash({ maxLoopIterations: 100 });
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         trap 'echo trapped' EXIT
         while true; do echo x; done

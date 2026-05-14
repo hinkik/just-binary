@@ -12,7 +12,14 @@
 
 import type { RedirectionNode, WordNode } from "../ast/types.js";
 import type { ExecResult } from "../types.js";
-import { concat, EMPTY, encode, envGet, envSet } from "../utils/bytes.js";
+import { envGet, envSet } from "../utils/bytes.js";
+import {
+  type ByteStream,
+  collectBytes,
+  concatStreams,
+  emptyStream,
+  fromString,
+} from "../utils/stream.js";
 import {
   expandRedirectTarget,
   expandWord,
@@ -224,7 +231,7 @@ export async function processFdVariableRedirections(
           redir.operator === ">|" ||
           redir.operator === "&>"
         ) {
-          await ctx.fs.writeFile(filePath, EMPTY);
+          await ctx.fs.writeFile(filePath, "");
         }
         ctx.state.fileDescriptors.set(fd, `__file__:${filePath}`);
       } else if (redir.operator === "<<<") {
@@ -234,12 +241,12 @@ export async function processFdVariableRedirections(
         // For input redirections, read the file content
         try {
           const filePath = ctx.fs.resolvePath(ctx.state.cwd, target);
-          const content = await ctx.fs.readFile(filePath);
+          const content = await ctx.fs.readFileText(filePath);
           ctx.state.fileDescriptors.set(fd, content);
         } catch {
           return makeResult(
-            EMPTY,
-            encode(`bash: ${target}: No such file or directory\n`),
+            emptyStream(),
+            fromString(`bash: ${target}: No such file or directory\n`),
             1,
           );
         }
@@ -306,7 +313,7 @@ export async function preOpenOutputRedirects(
         redir.target as WordNode,
       );
       if ("error" in expandResult) {
-        return makeResult(EMPTY, encode(expandResult.error), 1);
+        return makeResult(emptyStream(), fromString(expandResult.error), 1);
       }
       target = expandResult.target;
     }
@@ -317,8 +324,8 @@ export async function preOpenOutputRedirects(
     // and are never valid in bash
     if (filePath.includes("\0")) {
       return makeResult(
-        EMPTY,
-        encode(`bash: ${target}: No such file or directory\n`),
+        emptyStream(),
+        fromString(`bash: ${target}: No such file or directory\n`),
         1,
       );
     }
@@ -328,8 +335,8 @@ export async function preOpenOutputRedirects(
       const stat = await ctx.fs.stat(filePath);
       if (stat.isDirectory) {
         return makeResult(
-          EMPTY,
-          encode(`bash: ${target}: Is a directory\n`),
+          emptyStream(),
+          fromString(`bash: ${target}: Is a directory\n`),
           1,
         );
       }
@@ -342,8 +349,8 @@ export async function preOpenOutputRedirects(
         target !== "/dev/null"
       ) {
         return makeResult(
-          EMPTY,
-          encode(`bash: ${target}: cannot overwrite existing file\n`),
+          emptyStream(),
+          fromString(`bash: ${target}: cannot overwrite existing file\n`),
           1,
         );
       }
@@ -367,8 +374,8 @@ export async function preOpenOutputRedirects(
     // /dev/full always returns ENOSPC when written to
     if (target === "/dev/full") {
       return makeResult(
-        EMPTY,
-        encode(`bash: /dev/full: No space left on device\n`),
+        emptyStream(),
+        fromString(`bash: /dev/full: No space left on device\n`),
         1,
       );
     }
@@ -383,7 +390,9 @@ export async function applyRedirections(
   redirections: RedirectionNode[],
   preExpandedTargets?: ExpandedRedirectTargets,
 ): Promise<ExecResult> {
-  let { stdout, stderr, exitCode } = result;
+  let stdout: ByteStream = result.stdout;
+  let stderr: ByteStream = result.stderr;
+  let exitCode = result.exitCode;
 
   for (let i = 0; i < redirections.length; i++) {
     const redir = redirections[i];
@@ -403,9 +412,12 @@ export async function applyRedirections(
       if (isFdRedirect) {
         // Check for "$@" with multiple positional params - this is an ambiguous redirect
         if (hasQuotedMultiValueAt(ctx, redir.target as WordNode)) {
-          stderr = concat(stderr, encode("bash: $@: ambiguous redirect\n"));
+          stderr = concatStreams(
+            stderr,
+            fromString("bash: $@: ambiguous redirect\n"),
+          );
           exitCode = 1;
-          stdout = EMPTY;
+          stdout = emptyStream();
           continue;
         }
         target = await expandWord(ctx, redir.target as WordNode);
@@ -415,10 +427,10 @@ export async function applyRedirections(
           redir.target as WordNode,
         );
         if ("error" in expandResult) {
-          stderr = concat(stderr, encode(expandResult.error));
+          stderr = concatStreams(stderr, fromString(expandResult.error));
           exitCode = 1;
           // When redirect fails, discard the output that would have been redirected
-          stdout = EMPTY;
+          stdout = emptyStream();
           continue;
         }
         target = expandResult.target;
@@ -433,14 +445,14 @@ export async function applyRedirections(
 
     // Reject paths containing null bytes - these cause filesystem errors
     if (target.includes("\0")) {
-      stderr = concat(
+      stderr = concatStreams(
         stderr,
-        encode(
+        fromString(
           `bash: ${target.replace(/\0/g, "")}: No such file or directory\n`,
         ),
       );
       exitCode = 1;
-      stdout = EMPTY;
+      stdout = emptyStream();
       continue;
     }
 
@@ -456,18 +468,18 @@ export async function applyRedirections(
           }
           // /dev/stderr redirects stdout to stderr
           if (target === "/dev/stderr") {
-            stderr = concat(stderr, stdout);
-            stdout = EMPTY;
+            stderr = concatStreams(stderr, stdout);
+            stdout = emptyStream();
             break;
           }
           // /dev/full always returns ENOSPC when written to
           if (target === "/dev/full") {
-            stderr = concat(
+            stderr = concatStreams(
               stderr,
-              encode(`bash: echo: write error: No space left on device\n`),
+              fromString(`bash: echo: write error: No space left on device\n`),
             );
             exitCode = 1;
-            stdout = EMPTY;
+            stdout = emptyStream();
             break;
           }
           const filePath = ctx.fs.resolvePath(ctx.state.cwd, target);
@@ -476,14 +488,14 @@ export async function applyRedirections(
             isClobber,
           });
           if (error) {
-            stderr = concat(stderr, encode(error));
+            stderr = concatStreams(stderr, fromString(error));
             exitCode = 1;
-            stdout = EMPTY;
+            stdout = emptyStream();
             break;
           }
           // Smart encoding: binary for byte data, UTF-8 for Unicode text
           await ctx.fs.writeFile(filePath, stdout);
-          stdout = EMPTY;
+          stdout = emptyStream();
         } else if (fd === 2) {
           // /dev/stderr is a no-op for stderr - output stays on stderr
           if (target === "/dev/stderr") {
@@ -491,21 +503,21 @@ export async function applyRedirections(
           }
           // /dev/stdout redirects stderr to stdout
           if (target === "/dev/stdout") {
-            stdout = concat(stdout, stderr);
-            stderr = EMPTY;
+            stdout = concatStreams(stdout, stderr);
+            stderr = emptyStream();
             break;
           }
           // /dev/full always returns ENOSPC when written to
           if (target === "/dev/full") {
-            stderr = concat(
+            stderr = concatStreams(
               stderr,
-              encode(`bash: echo: write error: No space left on device\n`),
+              fromString(`bash: echo: write error: No space left on device\n`),
             );
             exitCode = 1;
             break;
           }
           if (target === "/dev/null") {
-            stderr = EMPTY;
+            stderr = emptyStream();
           } else {
             const filePath = ctx.fs.resolvePath(ctx.state.cwd, target);
             const error = await checkOutputRedirectTarget(
@@ -518,13 +530,13 @@ export async function applyRedirections(
               },
             );
             if (error) {
-              stderr = concat(stderr, encode(error));
+              stderr = concatStreams(stderr, fromString(error));
               exitCode = 1;
               break;
             }
             // Smart encoding: binary for byte data, UTF-8 for Unicode text
             await ctx.fs.writeFile(filePath, stderr);
-            stderr = EMPTY;
+            stderr = emptyStream();
           }
         }
         break;
@@ -539,18 +551,18 @@ export async function applyRedirections(
           }
           // /dev/stderr redirects stdout to stderr
           if (target === "/dev/stderr") {
-            stderr = concat(stderr, stdout);
-            stdout = EMPTY;
+            stderr = concatStreams(stderr, stdout);
+            stdout = emptyStream();
             break;
           }
           // /dev/full always returns ENOSPC when written to
           if (target === "/dev/full") {
-            stderr = concat(
+            stderr = concatStreams(
               stderr,
-              encode(`bash: echo: write error: No space left on device\n`),
+              fromString(`bash: echo: write error: No space left on device\n`),
             );
             exitCode = 1;
-            stdout = EMPTY;
+            stdout = emptyStream();
             break;
           }
           const filePath = ctx.fs.resolvePath(ctx.state.cwd, target);
@@ -561,14 +573,14 @@ export async function applyRedirections(
             {},
           );
           if (error) {
-            stderr = concat(stderr, encode(error));
+            stderr = concatStreams(stderr, fromString(error));
             exitCode = 1;
-            stdout = EMPTY;
+            stdout = emptyStream();
             break;
           }
           // Smart encoding: binary for byte data, UTF-8 for Unicode text
           await ctx.fs.appendFile(filePath, stdout);
-          stdout = EMPTY;
+          stdout = emptyStream();
         } else if (fd === 2) {
           // /dev/stderr is a no-op for stderr - output stays on stderr
           if (target === "/dev/stderr") {
@@ -576,15 +588,15 @@ export async function applyRedirections(
           }
           // /dev/stdout redirects stderr to stdout
           if (target === "/dev/stdout") {
-            stdout = concat(stdout, stderr);
-            stderr = EMPTY;
+            stdout = concatStreams(stdout, stderr);
+            stderr = emptyStream();
             break;
           }
           // /dev/full always returns ENOSPC when written to
           if (target === "/dev/full") {
-            stderr = concat(
+            stderr = concatStreams(
               stderr,
-              encode(`bash: echo: write error: No space left on device\n`),
+              fromString(`bash: echo: write error: No space left on device\n`),
             );
             exitCode = 1;
             break;
@@ -597,13 +609,13 @@ export async function applyRedirections(
             {},
           );
           if (error2) {
-            stderr = concat(stderr, encode(error2));
+            stderr = concatStreams(stderr, fromString(error2));
             exitCode = 1;
             break;
           }
           // Smart encoding: binary for byte data, UTF-8 for Unicode text
           await ctx.fs.appendFile(filePath2, stderr);
-          stderr = EMPTY;
+          stderr = emptyStream();
         }
         break;
       }
@@ -654,9 +666,9 @@ export async function applyRedirections(
               ctx.state.fileDescriptors.set(fd, `__dupin__:${sourceFd}`);
             } else if (sourceFd >= 3) {
               // Source FD is a user FD (3+) that's not in fileDescriptors - bad file descriptor
-              stderr = concat(
+              stderr = concatStreams(
                 stderr,
-                encode(`bash: ${sourceFd}: Bad file descriptor\n`),
+                fromString(`bash: ${sourceFd}: Bad file descriptor\n`),
               );
               exitCode = 1;
             }
@@ -666,19 +678,19 @@ export async function applyRedirections(
         // >&2, 1>&2, 1<&2: redirect stdout to stderr
         if (target === "2" || target === "&2") {
           if (fd === 1) {
-            stderr = concat(stderr, stdout);
-            stdout = EMPTY;
+            stderr = concatStreams(stderr, stdout);
+            stdout = emptyStream();
           }
         }
         // 2>&1, 2<&1: redirect stderr to stdout
         else if (target === "1" || target === "&1") {
           if (fd === 2) {
-            stdout = concat(stdout, stderr);
-            stderr = EMPTY;
+            stdout = concatStreams(stdout, stderr);
+            stderr = emptyStream();
           } else {
             // 1>&1 is a no-op, but other fds redirect to stdout
-            stdout = concat(stdout, stderr);
-            stderr = EMPTY;
+            stdout = concatStreams(stdout, stderr);
+            stderr = emptyStream();
           }
         }
         // Handle writing to a user-allocated FD (>&$fd)
@@ -693,10 +705,10 @@ export async function applyRedirections(
               const resolvedPath = fdInfo.slice(9); // Remove "__file__:" prefix
               if (fd === 1) {
                 await ctx.fs.appendFile(resolvedPath, stdout);
-                stdout = EMPTY;
+                stdout = emptyStream();
               } else if (fd === 2) {
                 await ctx.fs.appendFile(resolvedPath, stderr);
-                stderr = EMPTY;
+                stderr = emptyStream();
               }
             } else if (fdInfo?.startsWith("__rw__:")) {
               // Read/write FD - extract path using proper format parsing
@@ -705,10 +717,10 @@ export async function applyRedirections(
               if (parsed) {
                 if (fd === 1) {
                   await ctx.fs.appendFile(parsed.path, stdout);
-                  stdout = EMPTY;
+                  stdout = emptyStream();
                 } else if (fd === 2) {
                   await ctx.fs.appendFile(parsed.path, stderr);
-                  stderr = EMPTY;
+                  stderr = emptyStream();
                 }
               }
             } else if (fdInfo?.startsWith("__dupout__:")) {
@@ -721,8 +733,8 @@ export async function applyRedirections(
               } else if (sourceFd === 2) {
                 // Target FD duplicates stderr - redirect stdout to stderr
                 if (fd === 1) {
-                  stderr = concat(stderr, stdout);
-                  stdout = EMPTY;
+                  stderr = concatStreams(stderr, stdout);
+                  stdout = emptyStream();
                 }
               } else {
                 // Check if sourceFd points to a file
@@ -731,31 +743,31 @@ export async function applyRedirections(
                   const resolvedPath = sourceInfo.slice(9);
                   if (fd === 1) {
                     await ctx.fs.appendFile(resolvedPath, stdout);
-                    stdout = EMPTY;
+                    stdout = emptyStream();
                   } else if (fd === 2) {
                     await ctx.fs.appendFile(resolvedPath, stderr);
-                    stderr = EMPTY;
+                    stderr = emptyStream();
                   }
                 }
               }
             } else if (fdInfo?.startsWith("__dupin__:")) {
               // FD is duplicated for input - writing to it is an error
-              stderr = concat(
+              stderr = concatStreams(
                 stderr,
-                encode(`bash: ${targetFd}: Bad file descriptor\n`),
+                fromString(`bash: ${targetFd}: Bad file descriptor\n`),
               );
               exitCode = 1;
-              stdout = EMPTY;
+              stdout = emptyStream();
             } else if (targetFd >= 3) {
               // User FD range (3+) but FD not found - bad file descriptor
               // For FDs 3-9 (manually allocated) and 10+ (auto-allocated),
               // if the FD is not in fileDescriptors, it means it was closed or never opened
-              stderr = concat(
+              stderr = concatStreams(
                 stderr,
-                encode(`bash: ${targetFd}: Bad file descriptor\n`),
+                fromString(`bash: ${targetFd}: Bad file descriptor\n`),
               );
               exitCode = 1;
-              stdout = EMPTY;
+              stdout = emptyStream();
             }
           } else if (redir.operator === ">&") {
             // In bash, N>&word where word is not a number or '-' is treated as a file redirect
@@ -771,25 +783,28 @@ export async function applyRedirections(
               },
             );
             if (error) {
-              stderr = encode(error);
+              stderr = fromString(error);
               exitCode = 1;
-              stdout = EMPTY;
+              stdout = emptyStream();
               break;
             }
             if (redir.fd == null) {
               // >&word (no explicit fd) - write both stdout and stderr to the file
-              const combined = concat(stdout, stderr);
-              await ctx.fs.writeFile(filePath, combined);
-              stdout = EMPTY;
-              stderr = EMPTY;
+              // Need to collect bytes since we need to merge two streams into one write
+              const stdoutBytes = await collectBytes(stdout);
+              const stderrBytes = await collectBytes(stderr);
+              await ctx.fs.writeFile(filePath, stdoutBytes);
+              await ctx.fs.appendFile(filePath, stderrBytes);
+              stdout = emptyStream();
+              stderr = emptyStream();
             } else if (fd === 1) {
               // 1>&word - redirect stdout to file
               await ctx.fs.writeFile(filePath, stdout);
-              stdout = EMPTY;
+              stdout = emptyStream();
             } else if (fd === 2) {
               // 2>&word - redirect stderr to file
               await ctx.fs.writeFile(filePath, stderr);
-              stderr = EMPTY;
+              stderr = emptyStream();
             }
           }
         }
@@ -799,9 +814,11 @@ export async function applyRedirections(
       case "&>": {
         // /dev/full always returns ENOSPC when written to
         if (target === "/dev/full") {
-          stderr = encode(`bash: echo: write error: No space left on device\n`);
+          stderr = fromString(
+            `bash: echo: write error: No space left on device\n`,
+          );
           exitCode = 1;
-          stdout = EMPTY;
+          stdout = emptyStream();
           break;
         }
         const filePath = ctx.fs.resolvePath(ctx.state.cwd, target);
@@ -809,25 +826,29 @@ export async function applyRedirections(
           checkNoclobber: true,
         });
         if (error) {
-          stderr = encode(error);
+          stderr = fromString(error);
           exitCode = 1;
-          stdout = EMPTY;
+          stdout = emptyStream();
           break;
         }
         // Smart encoding: binary for byte data, UTF-8 for Unicode text
-        const combined = concat(stdout, stderr);
-        await ctx.fs.writeFile(filePath, combined);
-        stdout = EMPTY;
-        stderr = EMPTY;
+        const stdoutBytes = await collectBytes(stdout);
+        const stderrBytes = await collectBytes(stderr);
+        await ctx.fs.writeFile(filePath, stdoutBytes);
+        await ctx.fs.appendFile(filePath, stderrBytes);
+        stdout = emptyStream();
+        stderr = emptyStream();
         break;
       }
 
       case "&>>": {
         // /dev/full always returns ENOSPC when written to
         if (target === "/dev/full") {
-          stderr = encode(`bash: echo: write error: No space left on device\n`);
+          stderr = fromString(
+            `bash: echo: write error: No space left on device\n`,
+          );
           exitCode = 1;
-          stdout = EMPTY;
+          stdout = emptyStream();
           break;
         }
         const filePath = ctx.fs.resolvePath(ctx.state.cwd, target);
@@ -838,16 +859,16 @@ export async function applyRedirections(
           {},
         );
         if (error) {
-          stderr = encode(error);
+          stderr = fromString(error);
           exitCode = 1;
-          stdout = EMPTY;
+          stdout = emptyStream();
           break;
         }
         // Smart encoding: binary for byte data, UTF-8 for Unicode text
-        const combined = concat(stdout, stderr);
-        await ctx.fs.appendFile(filePath, combined);
-        stdout = EMPTY;
-        stderr = EMPTY;
+        await ctx.fs.appendFile(filePath, stdout);
+        await ctx.fs.appendFile(filePath, stderr);
+        stdout = emptyStream();
+        stderr = emptyStream();
         break;
       }
     }
@@ -859,17 +880,17 @@ export async function applyRedirections(
   if (fd1Info) {
     if (fd1Info === "__dupout__:2") {
       // fd 1 is duplicated to fd 2 - stdout goes to stderr
-      stderr = concat(stderr, stdout);
-      stdout = EMPTY;
+      stderr = concatStreams(stderr, stdout);
+      stdout = emptyStream();
     } else if (fd1Info.startsWith("__file__:")) {
       // fd 1 is redirected to a file
       const filePath = fd1Info.slice(9);
       await ctx.fs.appendFile(filePath, stdout);
-      stdout = EMPTY;
+      stdout = emptyStream();
     } else if (fd1Info.startsWith("__file_append__:")) {
       const filePath = fd1Info.slice(16);
       await ctx.fs.appendFile(filePath, stdout);
-      stdout = EMPTY;
+      stdout = emptyStream();
     }
   }
 
@@ -878,16 +899,16 @@ export async function applyRedirections(
   if (fd2Info) {
     if (fd2Info === "__dupout__:1") {
       // fd 2 is duplicated to fd 1 - stderr goes to stdout
-      stdout = concat(stdout, stderr);
-      stderr = EMPTY;
+      stdout = concatStreams(stdout, stderr);
+      stderr = emptyStream();
     } else if (fd2Info.startsWith("__file__:")) {
       const filePath = fd2Info.slice(9);
       await ctx.fs.appendFile(filePath, stderr);
-      stderr = EMPTY;
+      stderr = emptyStream();
     } else if (fd2Info.startsWith("__file_append__:")) {
       const filePath = fd2Info.slice(16);
       await ctx.fs.appendFile(filePath, stderr);
-      stderr = EMPTY;
+      stderr = emptyStream();
     }
   }
 

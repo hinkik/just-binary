@@ -12,7 +12,9 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "foo=bar\nbaz=qux\n" },
         });
-        const result = toText(await env.exec("grep -oP '=\\K\\w+' /test.txt"));
+        const result = await toText(
+          await env.exec("grep -oP '=\\K\\w+' /test.txt"),
+        );
         expect(result.stdout).toBe("bar\nqux\n");
         expect(result.exitCode).toBe(0);
       });
@@ -24,7 +26,7 @@ describe("grep Perl regex (-P)", () => {
               "useEffect(() => { }, [count]);\nuseEffect(() => { }, [name, id]);\n",
           },
         });
-        const result = toText(
+        const result = await toText(
           await env.exec('grep -oP "useEffect\\(.*?\\[\\K[^\\]]+" /app.tsx'),
         );
         expect(result.stdout).toBe("count\nname, id\n");
@@ -38,7 +40,7 @@ describe("grep Perl regex (-P)", () => {
               "http://example.com\nhttps://test.org\nftp://files.net\n",
           },
         });
-        const result = toText(
+        const result = await toText(
           await env.exec("grep -oP 'https?://\\K[^\\s]+' /test.txt"),
         );
         expect(result.stdout).toBe("example.com\ntest.org\n");
@@ -51,7 +53,9 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "prefix\n" },
         });
-        const result = toText(await env.exec("grep -oP 'prefix\\K' /test.txt"));
+        const result = await toText(
+          await env.exec("grep -oP 'prefix\\K' /test.txt"),
+        );
         expect(result.stdout).toBe("\n");
         expect(result.exitCode).toBe(0);
       });
@@ -60,7 +64,9 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "hello world\n" },
         });
-        const result = toText(await env.exec("grep -oP '\\K\\w+' /test.txt"));
+        const result = await toText(
+          await env.exec("grep -oP '\\K\\w+' /test.txt"),
+        );
         // \K at start means entire match is kept
         expect(result.stdout).toBe("hello\nworld\n");
         expect(result.exitCode).toBe(0);
@@ -70,7 +76,7 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "foo123bar\n" },
         });
-        const result = toText(
+        const result = await toText(
           await env.exec("grep -oP '(foo)\\K\\d+' /test.txt"),
         );
         expect(result.stdout).toBe("123\n");
@@ -81,7 +87,7 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "foo123bar\n" },
         });
-        const result = toText(
+        const result = await toText(
           await env.exec("grep -oP 'foo\\K(\\d+)' /test.txt"),
         );
         expect(result.stdout).toBe("123\n");
@@ -92,7 +98,7 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "foo=1\nbar:2\n" },
         });
-        const result = toText(
+        const result = await toText(
           await env.exec("grep -oP '(?:foo=|bar:)\\K\\d+' /test.txt"),
         );
         expect(result.stdout).toBe("1\n2\n");
@@ -103,7 +109,9 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "aaabbb\nabbbb\n" },
         });
-        const result = toText(await env.exec("grep -oP 'a+\\Kb+' /test.txt"));
+        const result = await toText(
+          await env.exec("grep -oP 'a+\\Kb+' /test.txt"),
+        );
         expect(result.stdout).toBe("bbb\nbbbb\n");
         expect(result.exitCode).toBe(0);
       });
@@ -113,7 +121,7 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "foo123\nfooabc\n" },
         });
-        const result = toText(
+        const result = await toText(
           await env.exec("grep -oP 'foo\\K\\d+(?=\\d)' /test.txt"),
         );
         expect(result.stdout).toBe("12\n");
@@ -125,7 +133,7 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "price: $100\ncost: $200\n" },
         });
-        const result = toText(
+        const result = await toText(
           await env.exec("grep -oP '(?<=price: )\\$\\K\\d+' /test.txt"),
         );
         expect(result.stdout).toBe("100\n");
@@ -141,7 +149,7 @@ describe("grep Perl regex (-P)", () => {
             "/b.txt": "key=value2\n",
           },
         });
-        const result = toText(
+        const result = await toText(
           await env.exec("grep -oP 'key=\\K\\w+' /a.txt /b.txt"),
         );
         expect(result.stdout).toBe("/a.txt:value1\n/b.txt:value2\n");
@@ -155,7 +163,7 @@ describe("grep Perl regex (-P)", () => {
             "/b.txt": "x=2\n",
           },
         });
-        const result = toText(
+        const result = await toText(
           await env.exec("grep -ohP 'x=\\K\\d+' /a.txt /b.txt"),
         );
         expect(result.stdout).toBe("1\n2\n");
@@ -166,7 +174,7 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "skip\nfoo=bar\nskip\nfoo=baz\n" },
         });
-        const result = toText(
+        const result = await toText(
           await env.exec("grep -onP 'foo=\\K\\w+' /test.txt"),
         );
         expect(result.stdout).toBe("2:bar\n4:baz\n");
@@ -184,7 +192,9 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "foo.bar\nfooxbar\n" },
         });
-        const result = toText(await env.exec("grep -oP '\\Q.\\E' /test.txt"));
+        const result = await toText(
+          await env.exec("grep -oP '\\Q.\\E' /test.txt"),
+        );
         expect(result.stdout).toBe(".\n");
         expect(result.exitCode).toBe(0);
       });
@@ -193,7 +203,9 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "a*b\naaab\n" },
         });
-        const result = toText(await env.exec("grep -oP '\\Q*\\E' /test.txt"));
+        const result = await toText(
+          await env.exec("grep -oP '\\Q*\\E' /test.txt"),
+        );
         expect(result.stdout).toBe("*\n");
         expect(result.exitCode).toBe(0);
       });
@@ -202,7 +214,7 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "foo.bar*baz\nfooxbarybaz\n" },
         });
-        const result = toText(
+        const result = await toText(
           await env.exec("grep -oP '\\Qfoo.bar*\\E' /test.txt"),
         );
         expect(result.stdout).toBe("foo.bar*\n");
@@ -213,7 +225,7 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "test^$.*+?end\nother\n" },
         });
-        const result = toText(
+        const result = await toText(
           await env.exec("grep -oP '\\Q^$.*+?\\E' /test.txt"),
         );
         expect(result.stdout).toBe("^$.*+?\n");
@@ -226,7 +238,9 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "test[0]++\ntest0\n" },
         });
-        const result = toText(await env.exec("grep -oP '\\Q[0]++' /test.txt"));
+        const result = await toText(
+          await env.exec("grep -oP '\\Q[0]++' /test.txt"),
+        );
         expect(result.stdout).toBe("[0]++\n");
         expect(result.exitCode).toBe(0);
       });
@@ -235,7 +249,9 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "abc\n" },
         });
-        const result = toText(await env.exec("grep -oP 'a\\Q\\Ebc' /test.txt"));
+        const result = await toText(
+          await env.exec("grep -oP 'a\\Q\\Ebc' /test.txt"),
+        );
         expect(result.stdout).toBe("abc\n");
         expect(result.exitCode).toBe(0);
       });
@@ -244,7 +260,7 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "a+b=c*d\na1b2c3d\n" },
         });
-        const result = toText(
+        const result = await toText(
           await env.exec("grep -oP '\\Q+\\E.\\Q=\\E.\\Q*\\E' /test.txt"),
         );
         expect(result.stdout).toBe("+b=c*\n");
@@ -255,7 +271,7 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "^start\nstart\n" },
         });
-        const result = toText(
+        const result = await toText(
           await env.exec("grep -oP '\\Q^\\Estart' /test.txt"),
         );
         expect(result.stdout).toBe("^start\n");
@@ -266,7 +282,7 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "end$\nend\n" },
         });
-        const result = toText(
+        const result = await toText(
           await env.exec("grep -oP 'end\\Q$\\E' /test.txt"),
         );
         expect(result.stdout).toBe("end$\n");
@@ -278,7 +294,7 @@ describe("grep Perl regex (-P)", () => {
           files: { "/test.txt": "test\\Evalue\nother\n" },
         });
         // \E alone should be passed through and likely treated as literal E or error
-        const result = toText(await env.exec("grep -P 'test' /test.txt"));
+        const result = await toText(await env.exec("grep -P 'test' /test.txt"));
         expect(result.stdout).toBe("test\\Evalue\n");
         expect(result.exitCode).toBe(0);
       });
@@ -289,7 +305,7 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "price: $100\nprice: $250\n" },
         });
-        const result = toText(
+        const result = await toText(
           await env.exec("grep -oP '\\Q$\\E\\d+' /test.txt"),
         );
         expect(result.stdout).toBe("$100\n$250\n");
@@ -300,7 +316,7 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "file.txt\nfile.doc\n" },
         });
-        const result = toText(
+        const result = await toText(
           await env.exec("grep -oP '\\w+\\Q.txt\\E' /test.txt"),
         );
         expect(result.stdout).toBe("file.txt\n");
@@ -311,7 +327,7 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "var=value\nother\n" },
         });
-        const result = toText(
+        const result = await toText(
           await env.exec("grep -oP '\\Qvar=\\E\\K\\w+' /test.txt"),
         );
         expect(result.stdout).toBe("value\n");
@@ -322,7 +338,7 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "a+1\na+2\nb+1\n" },
         });
-        const result = toText(
+        const result = await toText(
           await env.exec("grep -oP '[ab]\\Q+\\E\\d' /test.txt"),
         );
         expect(result.stdout).toBe("a+1\na+2\nb+1\n");
@@ -340,7 +356,9 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "Hello\n" },
         });
-        const result = toText(await env.exec("grep -oP '\\x{48}' /test.txt"));
+        const result = await toText(
+          await env.exec("grep -oP '\\x{48}' /test.txt"),
+        );
         expect(result.stdout).toBe("H\n");
         expect(result.exitCode).toBe(0);
       });
@@ -349,7 +367,9 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "Hello ☃ World\n" },
         });
-        const result = toText(await env.exec("grep -oP '\\x{2603}' /test.txt"));
+        const result = await toText(
+          await env.exec("grep -oP '\\x{2603}' /test.txt"),
+        );
         expect(result.stdout).toBe("☃\n");
         expect(result.exitCode).toBe(0);
       });
@@ -358,7 +378,7 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "Test 😀 emoji\n" },
         });
-        const result = toText(
+        const result = await toText(
           await env.exec("grep -oP '\\x{1F600}' /test.txt"),
         );
         expect(result.stdout).toBe("😀\n");
@@ -369,7 +389,9 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "Sum: ∑ Integral: ∫\n" },
         });
-        const result = toText(await env.exec("grep -oP '\\x{2211}' /test.txt"));
+        const result = await toText(
+          await env.exec("grep -oP '\\x{2211}' /test.txt"),
+        );
         expect(result.stdout).toBe("∑\n");
         expect(result.exitCode).toBe(0);
       });
@@ -380,7 +402,7 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "Stars: ★☆★\n" },
         });
-        const result = toText(
+        const result = await toText(
           await env.exec("grep -oP '[\\x{2605}\\x{2606}]+' /test.txt"),
         );
         expect(result.stdout).toBe("★☆★\n");
@@ -391,7 +413,7 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "Card: ♠♥♦♣\n" },
         });
-        const result = toText(
+        const result = await toText(
           await env.exec(
             "grep -oP '\\x{2660}\\x{2665}\\x{2666}\\x{2663}' /test.txt",
           ),
@@ -404,7 +426,7 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "Price: €100\nPrice: €50\n" },
         });
-        const result = toText(
+        const result = await toText(
           await env.exec("grep -oP '\\x{20AC}\\d+' /test.txt"),
         );
         expect(result.stdout).toBe("€100\n€50\n");
@@ -415,7 +437,7 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "€100\n€200\n" },
         });
-        const result = toText(
+        const result = await toText(
           await env.exec("grep -oP '\\x{20AC}\\K\\d+' /test.txt"),
         );
         expect(result.stdout).toBe("100\n200\n");
@@ -428,7 +450,9 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "Test ñ char\n" },
         });
-        const result = toText(await env.exec("grep -oP '\\x{f1}' /test.txt"));
+        const result = await toText(
+          await env.exec("grep -oP '\\x{f1}' /test.txt"),
+        );
         expect(result.stdout).toBe("ñ\n");
         expect(result.exitCode).toBe(0);
       });
@@ -437,7 +461,9 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "Hello ☃ World\n" },
         });
-        const result = toText(await env.exec("grep -oP '\\x{26Fa}' /test.txt"));
+        const result = await toText(
+          await env.exec("grep -oP '\\x{26Fa}' /test.txt"),
+        );
         // 0x26FA is ⛺ (tent), not in file
         expect(result.stdout).toBe("");
         expect(result.exitCode).toBe(1);
@@ -447,7 +473,9 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "Tab:\there\n" },
         });
-        const result = toText(await env.exec("grep -oP '\\x{9}' /test.txt"));
+        const result = await toText(
+          await env.exec("grep -oP '\\x{9}' /test.txt"),
+        );
         expect(result.stdout).toBe("\t\n");
         expect(result.exitCode).toBe(0);
       });
@@ -457,7 +485,9 @@ describe("grep Perl regex (-P)", () => {
           files: { "/test.txt": "test\n" },
         });
         // Search for 'e' using code point
-        const result = toText(await env.exec("grep -oP '\\x{65}' /test.txt"));
+        const result = await toText(
+          await env.exec("grep -oP '\\x{65}' /test.txt"),
+        );
         expect(result.stdout).toBe("e\n");
         expect(result.exitCode).toBe(0);
       });
@@ -475,7 +505,7 @@ describe("grep Perl regex (-P)", () => {
             "/test.txt": "Hello world\nhello world\nHELLO world\nHello WORLD\n",
           },
         });
-        const result = toText(
+        const result = await toText(
           await env.exec("grep -oP '(?i:hello) world' /test.txt"),
         );
         expect(result.stdout).toBe("Hello world\nhello world\nHELLO world\n");
@@ -486,7 +516,7 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "Apple\napple\nAPPLE\n" },
         });
-        const result = toText(
+        const result = await toText(
           await env.exec("grep -oP '(?i:a)pple' /test.txt"),
         );
         expect(result.stdout).toBe("Apple\napple\n");
@@ -497,7 +527,7 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "CamelCase\ncamelcase\nCAMELCASE\n" },
         });
-        const result = toText(
+        const result = await toText(
           await env.exec("grep -oP '(?i:CamelCase)' /test.txt"),
         );
         expect(result.stdout).toBe("CamelCase\ncamelcase\nCAMELCASE\n");
@@ -510,7 +540,7 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "abc123\nABC123\naBc456\n" },
         });
-        const result = toText(
+        const result = await toText(
           await env.exec("grep -oP '(?i:abc)\\d+' /test.txt"),
         );
         expect(result.stdout).toBe("abc123\nABC123\naBc456\n");
@@ -521,7 +551,7 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "cat\nCAT\nCat\ndog\n" },
         });
-        const result = toText(
+        const result = await toText(
           await env.exec("grep -oP '(?i:[cd]at)' /test.txt"),
         );
         expect(result.stdout).toBe("cat\nCAT\nCat\n");
@@ -532,7 +562,9 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "aaa\nAAA\nAaA\nbbb\n" },
         });
-        const result = toText(await env.exec("grep -oP '(?i:a+)' /test.txt"));
+        const result = await toText(
+          await env.exec("grep -oP '(?i:a+)' /test.txt"),
+        );
         expect(result.stdout).toBe("aaa\nAAA\nAaA\n");
         expect(result.exitCode).toBe(0);
       });
@@ -541,7 +573,7 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "yes\nYES\nno\nNO\nmaybe\n" },
         });
-        const result = toText(
+        const result = await toText(
           await env.exec("grep -oP '(?i:yes|no)' /test.txt"),
         );
         expect(result.stdout).toBe("yes\nYES\nno\nNO\n");
@@ -554,7 +586,7 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "TestCase\ntestcase\nTESTCASE\ntestCASE\n" },
         });
-        const result = toText(
+        const result = await toText(
           await env.exec("grep -oP '(?i:test)(?i:case)' /test.txt"),
         );
         expect(result.stdout).toBe("TestCase\ntestcase\nTESTCASE\ntestCASE\n");
@@ -565,7 +597,7 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "ABCdef\nabcdef\nABCDEF\n" },
         });
-        const result = toText(
+        const result = await toText(
           await env.exec("grep -oP '(?i:abc)def' /test.txt"),
         );
         expect(result.stdout).toBe("ABCdef\nabcdef\n");
@@ -576,7 +608,7 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "abcDEF\nabcdef\nABCDEF\n" },
         });
-        const result = toText(
+        const result = await toText(
           await env.exec("grep -oP 'abc(?i:def)' /test.txt"),
         );
         expect(result.stdout).toBe("abcDEF\nabcdef\n");
@@ -589,7 +621,9 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "test\n" },
         });
-        const result = toText(await env.exec("grep -oP 'te(?i:)st' /test.txt"));
+        const result = await toText(
+          await env.exec("grep -oP 'te(?i:)st' /test.txt"),
+        );
         expect(result.stdout).toBe("test\n");
         expect(result.exitCode).toBe(0);
       });
@@ -598,7 +632,7 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "abc123\nABC123\n" },
         });
-        const result = toText(
+        const result = await toText(
           await env.exec("grep -oP '(?i:abc123)' /test.txt"),
         );
         expect(result.stdout).toBe("abc123\nABC123\n");
@@ -609,7 +643,7 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "a.b\nA.B\na.B\n" },
         });
-        const result = toText(
+        const result = await toText(
           await env.exec("grep -oP '(?i:a\\.b)' /test.txt"),
         );
         expect(result.stdout).toBe("a.b\nA.B\na.B\n");
@@ -620,7 +654,7 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "a1b\nA2B\na3B\n" },
         });
-        const result = toText(
+        const result = await toText(
           await env.exec("grep -oP '(?i:a)\\d(?i:b)' /test.txt"),
         );
         expect(result.stdout).toBe("a1b\nA2B\na3B\n");
@@ -631,7 +665,7 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "a-b_c\nA-B_C\n" },
         });
-        const result = toText(
+        const result = await toText(
           await env.exec("grep -oP '(?i:a-b_c)' /test.txt"),
         );
         expect(result.stdout).toBe("a-b_c\nA-B_C\n");
@@ -644,7 +678,7 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "Key=value\nKEY=VALUE\nkey=data\n" },
         });
-        const result = toText(
+        const result = await toText(
           await env.exec("grep -oP '(?i:key)=\\K\\w+' /test.txt"),
         );
         expect(result.stdout).toBe("value\nVALUE\ndata\n");
@@ -655,7 +689,7 @@ describe("grep Perl regex (-P)", () => {
         const env = new Bash({
           files: { "/test.txt": "prefix:VALUE\nPREFIX:value\n" },
         });
-        const result = toText(
+        const result = await toText(
           await env.exec("grep -oP '(?i:prefix:\\K\\w+)' /test.txt"),
         );
         expect(result.stdout).toBe("VALUE\nvalue\n");
@@ -672,7 +706,7 @@ describe("grep Perl regex (-P)", () => {
       const env = new Bash({
         files: { "/test.txt": "hello world\n" },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec("grep -P '(?P<word>\\w+)' /test.txt"),
       );
       expect(result.stdout).toBe("hello world\n");
@@ -683,7 +717,7 @@ describe("grep Perl regex (-P)", () => {
       const env = new Bash({
         files: { "/test.txt": "John:25\nJane:30\n" },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec("grep -P '(?P<name>\\w+):(?P<age>\\d+)' /test.txt"),
       );
       expect(result.stdout).toBe("John:25\nJane:30\n");
@@ -694,7 +728,7 @@ describe("grep Perl regex (-P)", () => {
       const env = new Bash({
         files: { "/test.txt": "email: test@example.com\n" },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec(
           "grep -oP '(?P<user>\\w+)@(?P<domain>[\\w.]+)' /test.txt",
         ),
@@ -712,7 +746,7 @@ describe("grep Perl regex (-P)", () => {
       const env = new Bash({
         files: { "/test.txt": "<a>text</a>\n" },
       });
-      const result = toText(await env.exec("grep -oP '<.*?>' /test.txt"));
+      const result = await toText(await env.exec("grep -oP '<.*?>' /test.txt"));
       expect(result.stdout).toBe("<a>\n</a>\n");
       expect(result.exitCode).toBe(0);
     });
@@ -722,7 +756,7 @@ describe("grep Perl regex (-P)", () => {
       const env = new Bash({
         files: { "/test.txt": "aaab\n" },
       });
-      const result = toText(await env.exec("grep -oP 'a++' /test.txt"));
+      const result = await toText(await env.exec("grep -oP 'a++' /test.txt"));
       expect(result.stdout).toBe("aaa\n");
       expect(result.exitCode).toBe(0);
     });
@@ -732,7 +766,9 @@ describe("grep Perl regex (-P)", () => {
       const env = new Bash({
         files: { "/test.txt": "foo1\nfoo\nfoo2\n" },
       });
-      const result = toText(await env.exec("grep -oP 'foo(?=\\d)' /test.txt"));
+      const result = await toText(
+        await env.exec("grep -oP 'foo(?=\\d)' /test.txt"),
+      );
       expect(result.stdout).toBe("foo\nfoo\n");
       expect(result.exitCode).toBe(0);
     });
@@ -742,7 +778,9 @@ describe("grep Perl regex (-P)", () => {
       const env = new Bash({
         files: { "/test.txt": "foo1\nfoo\nfoobar\n" },
       });
-      const result = toText(await env.exec("grep -oP 'foo(?!\\d)' /test.txt"));
+      const result = await toText(
+        await env.exec("grep -oP 'foo(?!\\d)' /test.txt"),
+      );
       expect(result.stdout).toBe("foo\nfoo\n");
       expect(result.exitCode).toBe(0);
     });
@@ -752,7 +790,7 @@ describe("grep Perl regex (-P)", () => {
       const env = new Bash({
         files: { "/test.txt": "$100\n100\n€100\n" },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec("grep -oP '(?<=\\$)\\d+' /test.txt"),
       );
       expect(result.stdout).toBe("100\n");
@@ -764,7 +802,7 @@ describe("grep Perl regex (-P)", () => {
       const env = new Bash({
         files: { "/test.txt": "$100\n100\n€100\n" },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec("grep -oP '(?<!\\$)\\b\\d+' /test.txt"),
       );
       expect(result.stdout).toBe("100\n100\n");
@@ -776,7 +814,7 @@ describe("grep Perl regex (-P)", () => {
         files: { "/test.txt": "aaab\n" },
       });
       // Atomic group (?>...) - JS doesn't support natively, may pass through
-      const result = toText(await env.exec("grep -P 'a+b' /test.txt"));
+      const result = await toText(await env.exec("grep -P 'a+b' /test.txt"));
       expect(result.stdout).toBe("aaab\n");
       expect(result.exitCode).toBe(0);
     });
@@ -790,7 +828,7 @@ describe("grep Perl regex (-P)", () => {
       const env = new Bash({
         files: { "/test.txt": "Price: €100.00\nCost: €50.50\n" },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec("grep -oP '\\Q€\\E\\K\\d+\\Q.\\E\\d+' /test.txt"),
       );
       expect(result.stdout).toBe("100.00\n50.50\n");
@@ -801,7 +839,7 @@ describe("grep Perl regex (-P)", () => {
       const env = new Bash({
         files: { "/test.txt": "Name: John\nNAME: Jane\nname: Bob\n" },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec("grep -oP '(?i:name): \\K\\w+' /test.txt"),
       );
       expect(result.stdout).toBe("John\nJane\nBob\n");
@@ -812,7 +850,7 @@ describe("grep Perl regex (-P)", () => {
       const env = new Bash({
         files: { "/test.txt": "Café\ncafé\nCAFÉ\n" },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec("grep -oP '(?i:caf)\\x{e9}' /test.txt"),
       );
       expect(result.stdout).toBe("Café\ncafé\n");
@@ -826,7 +864,7 @@ describe("grep Perl regex (-P)", () => {
             'Link: <a href="https://example.com/path?q=1">click</a>\n',
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec("grep -oP 'href=\"\\Khttps?://[^\"]+' /test.txt"),
       );
       expect(result.stdout).toBe("https://example.com/path?q=1\n");
@@ -841,7 +879,7 @@ describe("grep Perl regex (-P)", () => {
             "[2024-01-15 10:30:45] ERROR: Connection failed\n[2024-01-15 10:31:00] INFO: Retry successful\n",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec("grep -oP '\\[\\K[^\\]]+(?=\\] ERROR)' /test.txt"),
       );
       expect(result.stdout).toBe("2024-01-15 10:30:45\n");
@@ -854,7 +892,7 @@ describe("grep Perl regex (-P)", () => {
           "/test.txt": '{"name": "John", "age": 30, "city": "NYC"}\n',
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('grep -oP \'"name":\\s*"\\K[^"]+\' /test.txt'),
       );
       expect(result.stdout).toBe("John\n");

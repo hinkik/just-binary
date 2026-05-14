@@ -3,7 +3,7 @@
  */
 
 import { Bash } from "../../Bash.js";
-import { decode } from "../../utils/bytes.js";
+import { collectText } from "../../utils/stream.js";
 import type { SedTestCase } from "./parser.js";
 
 export interface SedTestResult {
@@ -75,15 +75,19 @@ export async function runSedTestCase(
     }
 
     const result = await env.exec(script);
+    const [stdoutText, stderrText] = await Promise.all([
+      collectText(result.stdout),
+      collectText(result.stderr),
+    ]);
 
-    const actualOutput = decode(result.stdout);
+    const actualOutput = stdoutText;
     const expectedOutput = testCase.expectedOutput;
 
     // Handle special "???" marker meaning "expect error"
     // Test passes if there's an error (non-empty stderr or non-zero exit code)
     const expectError = expectedOutput === "???";
     const passed = expectError
-      ? result.stderr.length > 0 || result.exitCode !== 0
+      ? stderrText.length > 0 || result.exitCode !== 0
       : actualOutput === expectedOutput;
 
     // Handle skip tests
@@ -95,7 +99,7 @@ export async function runSedTestCase(
           skipped: false,
           unexpectedPass: true,
           actualOutput,
-          actualStderr: decode(result.stderr),
+          actualStderr: stderrText,
           actualStatus: result.exitCode,
           expectedOutput,
           error: `UNEXPECTED PASS: This test was marked skip (${skipReason}) but now passes. Please remove the skip.`,
@@ -107,7 +111,7 @@ export async function runSedTestCase(
         skipped: true,
         skipReason: `skip: ${skipReason}`,
         actualOutput,
-        actualStderr: decode(result.stderr),
+        actualStderr: stderrText,
         actualStatus: result.exitCode,
         expectedOutput,
       };
@@ -118,7 +122,7 @@ export async function runSedTestCase(
       passed,
       skipped: false,
       actualOutput,
-      actualStderr: decode(result.stderr),
+      actualStderr: stderrText,
       actualStatus: result.exitCode,
       expectedOutput,
       error: passed

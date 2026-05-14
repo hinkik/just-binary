@@ -20,7 +20,7 @@ describe("head with binary files", () => {
       },
     });
 
-    const result = toText(await env.exec("head -n 2 /binary.bin"));
+    const result = await toText(await env.exec("head -n 2 /binary.bin"));
     expect(result.stdout).toBe("L1\nL2\n");
     expect(result.exitCode).toBe(0);
   });
@@ -32,7 +32,7 @@ describe("head with binary files", () => {
       },
     });
 
-    const result = toText(await env.exec("head -c 3 /binary.bin"));
+    const result = await toText(await env.exec("head -c 3 /binary.bin"));
     expect(result.stdout).toBe("ABC");
     expect(result.exitCode).toBe(0);
   });

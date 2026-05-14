@@ -5,7 +5,7 @@ import type {
   ExecResult,
   TraceCallback,
 } from "../../types.js";
-import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs } from "../../utils/bytes.js";
 
 // Use a larger batch size for find to maximize parallel I/O
 const FIND_BATCH_SIZE = 500;
@@ -215,7 +215,7 @@ export const findCommand: Command = {
 
     // Return error for unknown predicates
     if (error) {
-      return { stdout: EMPTY, stderr: encode(error), exitCode: 1 };
+      return { stdout: emptyStream(), stderr: fromString(error), exitCode: 1 };
     }
 
     // Check if there's an explicit -print in the expression
@@ -863,8 +863,10 @@ export const findCommand: Command = {
           case "exec":
             if (!ctx.exec) {
               return {
-                stdout: EMPTY,
-                stderr: encode("find: -exec not supported in this context\n"),
+                stdout: emptyStream(),
+                stderr: fromString(
+                  "find: -exec not supported in this context\n",
+                ),
                 exitCode: 1,
               };
             }
@@ -880,8 +882,8 @@ export const findCommand: Command = {
               }
               const cmd = cmdWithFiles.map((p) => `"${p}"`).join(" ");
               const result = await ctx.exec(cmd, { cwd: ctx.cwd });
-              stdout += decode(result.stdout);
-              stderr += decode(result.stderr);
+              stdout += await collectText(result.stdout);
+              stderr += await collectText(result.stderr);
               if (result.exitCode !== 0) {
                 exitCode = result.exitCode;
               }
@@ -893,8 +895,8 @@ export const findCommand: Command = {
                 );
                 const cmd = cmdWithFile.map((p) => `"${p}"`).join(" ");
                 const result = await ctx.exec(cmd, { cwd: ctx.cwd });
-                stdout += decode(result.stdout);
-                stderr += decode(result.stderr);
+                stdout += await collectText(result.stdout);
+                stderr += await collectText(result.stderr);
                 if (result.exitCode !== 0) {
                   exitCode = result.exitCode;
                 }
@@ -908,7 +910,7 @@ export const findCommand: Command = {
       stdout = results.length > 0 ? `${results.join("\n")}\n` : "";
     }
 
-    return { stdout: encode(stdout), stderr: encode(stderr), exitCode };
+    return { stdout: fromString(stdout), stderr: fromString(stderr), exitCode };
   },
 };
 
@@ -1155,6 +1157,7 @@ function formatTimeDirective(date: Date, format: string): string {
   }
 }
 
+import { collectText, emptyStream, fromString } from "../../utils/stream.js";
 import type { CommandFuzzInfo } from "../fuzz-flags-types.js";
 
 export const flagsForFuzzing: CommandFuzzInfo = {

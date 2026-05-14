@@ -1,7 +1,12 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
-import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
-import { readAndConcat } from "../../utils/file-reader.js";
+import { decodeArgs } from "../../utils/bytes.js";
+import {
+  type ByteStream,
+  emptyStream,
+  fromString,
+  streamLines,
+} from "../../utils/stream.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const uniqHelp = {
@@ -39,66 +44,105 @@ export const uniqCommand: Command = {
       parsed.result.flags;
     const files = parsed.result.positional;
 
-    // Read from files or stdin
-    const readResult = await readAndConcat(ctx, files, { cmdName: "uniq" });
-    if (!readResult.ok) return readResult.error;
-    const content = decode(readResult.content);
-
-    // Split into lines
-    const lines = content.split("\n");
-
-    // Remove last empty element if content ends with newline
-    if (lines.length > 0 && lines[lines.length - 1] === "") {
-      lines.pop();
-    }
-
-    if (lines.length === 0) {
-      return { stdout: EMPTY, stderr: EMPTY, exitCode: 0 };
-    }
-
-    // Process adjacent duplicates
-    const result: Array<{ line: string; count: number }> = [];
-    let currentLine = lines[0];
-    let currentCount = 1;
-
-    const compareLines = (a: string, b: string): boolean => {
-      if (ignoreCase) {
-        return a.toLowerCase() === b.toLowerCase();
+    // Resolve input stream — file or stdin.
+    let input: ByteStream;
+    const openError = "";
+    if (files.length === 0) {
+      input = ctx.stdin;
+    } else {
+      const file = files[0];
+      if (file === "-") {
+        input = ctx.stdin;
+      } else {
+        try {
+          input = await ctx.fs.readFile(ctx.fs.resolvePath(ctx.cwd, file));
+        } catch {
+          return {
+            stdout: emptyStream(),
+            stderr: fromString(`uniq: ${file}: No such file or directory\n`),
+            exitCode: 1,
+          };
+        }
       }
-      return a === b;
+    }
+
+    // Stream lines. Track current line + run count, emit groups as they
+    // close. Memory is bounded by the longest run of identical adjacent
+    // lines (typically a single line).
+    const decoder = new TextDecoder();
+    const encoder = new TextEncoder();
+    const formatOut = (line: string, c: number): string => {
+      if (duplicatesOnly && c <= 1) return "";
+      if (uniqueOnly && c !== 1) return "";
+      return count ? `${String(c).padStart(4)} ${line}\n` : `${line}\n`;
     };
 
-    for (let i = 1; i < lines.length; i++) {
-      if (compareLines(lines[i], currentLine)) {
-        currentCount++;
-      } else {
-        result.push({ line: currentLine, count: currentCount });
-        currentLine = lines[i];
-        currentCount = 1;
-      }
-    }
-    result.push({ line: currentLine, count: currentCount });
+    const keyOf = (s: string) => (ignoreCase ? s.toLowerCase() : s);
 
-    // Filter based on options
-    let filtered = result;
-    if (duplicatesOnly) {
-      filtered = result.filter((r) => r.count > 1);
-    } else if (uniqueOnly) {
-      filtered = result.filter((r) => r.count === 1);
-    }
+    // Pull-based: a single async generator iterates lines and yields output
+    // lazily. Cancellation propagates back into the streamLines reader.
+    let lineIter: AsyncIterator<Uint8Array> | null = null;
+    let currentLine: string | null = null;
+    let currentKey = "";
+    let currentCount = 0;
+    let flushed = false;
+    const stream: ByteStream = new ReadableStream<Uint8Array>({
+      async pull(controller) {
+        if (lineIter === null) {
+          lineIter = streamLines(input)[Symbol.asyncIterator]();
+        }
+        while (true) {
+          const { done, value } = await lineIter.next();
+          if (done) {
+            if (!flushed && currentLine !== null) {
+              flushed = true;
+              const out = formatOut(currentLine, currentCount);
+              if (out.length > 0) {
+                controller.enqueue(encoder.encode(out) as Uint8Array);
+                return;
+              }
+            }
+            controller.close();
+            return;
+          }
+          const line = decoder.decode(value);
+          const key = keyOf(line);
+          if (currentLine === null) {
+            currentLine = line;
+            currentKey = key;
+            currentCount = 1;
+            continue;
+          }
+          if (key === currentKey) {
+            currentCount++;
+            continue;
+          }
+          const out = formatOut(currentLine, currentCount);
+          currentLine = line;
+          currentKey = key;
+          currentCount = 1;
+          if (out.length > 0) {
+            controller.enqueue(encoder.encode(out) as Uint8Array);
+            return;
+          }
+        }
+      },
+      async cancel() {
+        if (lineIter?.return) {
+          try {
+            await lineIter.return();
+          } catch {
+            // ignore
+          }
+        }
+      },
+    });
 
-    // Format output
-    let output = "";
-    for (const { line, count: c } of filtered) {
-      if (count) {
-        // Real bash right-justifies count in 4-char field followed by space
-        output += `${String(c).padStart(4)} ${line}\n`;
-      } else {
-        output += `${line}\n`;
-      }
-    }
-
-    return { stdout: encode(output), stderr: EMPTY, exitCode: 0 };
+    return {
+      stdout: stream,
+      stderr: openError.length > 0 ? fromString(openError) : emptyStream(),
+      exitCode: 0,
+    };
   },
 };
 

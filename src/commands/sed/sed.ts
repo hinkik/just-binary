@@ -6,7 +6,8 @@ import type {
   ExecResult,
   FeatureCoverageWriter,
 } from "../../types.js";
-import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs } from "../../utils/bytes.js";
+import { collectText, emptyStream, fromString } from "../../utils/stream.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 import {
   createInitialState,
@@ -167,12 +168,12 @@ async function processContent(
           try {
             if (read.wholeFile) {
               // r command - read entire file, append after current line
-              const fileContent = await fs.readFile(filePath);
+              const fileContent = await fs.readFileText(filePath);
               state.appendBuffer.push(fileContent.replace(/\n$/, ""));
             } else {
               // R command - read one line from file
               if (!fileLineCache.has(filePath)) {
-                const fileContent = await fs.readFile(filePath);
+                const fileContent = await fs.readFileText(filePath);
                 fileLineCache.set(filePath, fileContent.split("\n"));
                 fileLinePositions.set(filePath, 0);
               }
@@ -389,7 +390,7 @@ export const sedCommand: Command = {
     for (const scriptFile of scriptFiles) {
       const scriptPath = ctx.fs.resolvePath(ctx.cwd, scriptFile);
       try {
-        const scriptContent = await ctx.fs.readFile(scriptPath);
+        const scriptContent = await ctx.fs.readFileText(scriptPath);
         // Split by newlines and add each line as a separate script
         for (const line of scriptContent.split("\n")) {
           const trimmed = line.trim();
@@ -399,8 +400,8 @@ export const sedCommand: Command = {
         }
       } catch {
         return {
-          stdout: EMPTY,
-          stderr: encode(
+          stdout: emptyStream(),
+          stderr: fromString(
             `sed: couldn't open file ${scriptFile}: No such file or directory\n`,
           ),
           exitCode: 1,
@@ -410,8 +411,8 @@ export const sedCommand: Command = {
 
     if (scripts.length === 0) {
       return {
-        stdout: EMPTY,
-        stderr: encode("sed: no script specified\n"),
+        stdout: emptyStream(),
+        stderr: fromString("sed: no script specified\n"),
         exitCode: 1,
       };
     }
@@ -423,8 +424,8 @@ export const sedCommand: Command = {
     );
     if (error) {
       return {
-        stdout: EMPTY,
-        stderr: encode(`sed: ${error}\n`),
+        stdout: emptyStream(),
+        stderr: fromString(`sed: ${error}\n`),
         exitCode: 1,
       };
     }
@@ -439,8 +440,8 @@ export const sedCommand: Command = {
       // -i requires at least one file argument
       if (files.length === 0) {
         return {
-          stdout: EMPTY,
-          stderr: encode("sed: -i requires at least one file argument\n"),
+          stdout: emptyStream(),
+          stderr: fromString("sed: -i requires at least one file argument\n"),
           exitCode: 1,
         };
       }
@@ -451,7 +452,7 @@ export const sedCommand: Command = {
         }
         const filePath = ctx.fs.resolvePath(ctx.cwd, file);
         try {
-          const fileContent = await ctx.fs.readFile(filePath);
+          const fileContent = await ctx.fs.readFileText(filePath);
           const result = await processContent(
             fileContent,
             commands,
@@ -466,8 +467,8 @@ export const sedCommand: Command = {
           );
           if (result.errorMessage) {
             return {
-              stdout: EMPTY,
-              stderr: encode(`${result.errorMessage}\n`),
+              stdout: emptyStream(),
+              stderr: fromString(`${result.errorMessage}\n`),
               exitCode: result.exitCode ?? 1,
             };
           }
@@ -475,26 +476,26 @@ export const sedCommand: Command = {
         } catch (e) {
           if (e instanceof ExecutionLimitError) {
             return {
-              stdout: EMPTY,
-              stderr: encode(`sed: ${e.message}\n`),
+              stdout: emptyStream(),
+              stderr: fromString(`sed: ${e.message}\n`),
               exitCode: ExecutionLimitError.EXIT_CODE,
             };
           }
           return {
-            stdout: EMPTY,
-            stderr: encode(`sed: ${file}: No such file or directory\n`),
+            stdout: emptyStream(),
+            stderr: fromString(`sed: ${file}: No such file or directory\n`),
             exitCode: 1,
           };
         }
       }
-      return { stdout: EMPTY, stderr: EMPTY, exitCode: 0 };
+      return { stdout: emptyStream(), stderr: emptyStream(), exitCode: 0 };
     }
 
     let content = "";
 
     // Read from files or stdin
     if (files.length === 0) {
-      content = decode(ctx.stdin);
+      content = await collectText(ctx.stdin);
       try {
         const result = await processContent(
           content,
@@ -508,15 +509,17 @@ export const sedCommand: Command = {
           },
         );
         return {
-          stdout: encode(result.output),
-          stderr: encode(result.errorMessage ? `${result.errorMessage}\n` : ""),
+          stdout: fromString(result.output),
+          stderr: fromString(
+            result.errorMessage ? `${result.errorMessage}\n` : "",
+          ),
           exitCode: result.exitCode ?? 0,
         };
       } catch (e) {
         if (e instanceof ExecutionLimitError) {
           return {
-            stdout: EMPTY,
-            stderr: encode(`sed: ${e.message}\n`),
+            stdout: emptyStream(),
+            stderr: fromString(`sed: ${e.message}\n`),
             exitCode: ExecutionLimitError.EXIT_CODE,
           };
         }
@@ -534,24 +537,24 @@ export const sedCommand: Command = {
         if (stdinConsumed) {
           fileContent = "";
         } else {
-          fileContent = decode(ctx.stdin);
+          fileContent = await collectText(ctx.stdin);
           stdinConsumed = true;
         }
       } else {
         const filePath = ctx.fs.resolvePath(ctx.cwd, file);
         try {
-          fileContent = await ctx.fs.readFile(filePath);
+          fileContent = await ctx.fs.readFileText(filePath);
         } catch (e) {
           if (e instanceof ExecutionLimitError) {
             return {
-              stdout: EMPTY,
-              stderr: encode(`sed: ${e.message}\n`),
+              stdout: emptyStream(),
+              stderr: fromString(`sed: ${e.message}\n`),
               exitCode: ExecutionLimitError.EXIT_CODE,
             };
           }
           return {
-            stdout: EMPTY,
-            stderr: encode(`sed: ${file}: No such file or directory\n`),
+            stdout: emptyStream(),
+            stderr: fromString(`sed: ${file}: No such file or directory\n`),
             exitCode: 1,
           };
         }
@@ -577,15 +580,17 @@ export const sedCommand: Command = {
         coverage: ctx.coverage,
       });
       return {
-        stdout: encode(result.output),
-        stderr: encode(result.errorMessage ? `${result.errorMessage}\n` : ""),
+        stdout: fromString(result.output),
+        stderr: fromString(
+          result.errorMessage ? `${result.errorMessage}\n` : "",
+        ),
         exitCode: result.exitCode ?? 0,
       };
     } catch (e) {
       if (e instanceof ExecutionLimitError) {
         return {
-          stdout: EMPTY,
-          stderr: encode(`sed: ${e.message}\n`),
+          stdout: emptyStream(),
+          stderr: fromString(`sed: ${e.message}\n`),
           exitCode: ExecutionLimitError.EXIT_CODE,
         };
       }

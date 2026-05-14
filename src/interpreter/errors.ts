@@ -8,11 +8,12 @@
  * - errexit: Exit on error (set -e)
  * - nounset: Error on unset variables (set -u)
  *
- * All control flow errors carry stdout/stderr to accumulate output
- * as they propagate through the execution stack.
+ * All control flow errors carry stdout/stderr ByteStreams to accumulate
+ * output as they propagate through the execution stack.
  */
 
-import { concat, EMPTY, encode } from "../utils/bytes.js";
+import type { ByteStream } from "../utils/stream.js";
+import { concatStreams, emptyStream, fromString } from "../utils/stream.js";
 
 /**
  * Base class for all control flow errors.
@@ -21,8 +22,8 @@ import { concat, EMPTY, encode } from "../utils/bytes.js";
 abstract class ControlFlowError extends Error {
   constructor(
     message: string,
-    public stdout: Uint8Array = EMPTY,
-    public stderr: Uint8Array = EMPTY,
+    public stdout: ByteStream = emptyStream(),
+    public stderr: ByteStream = emptyStream(),
   ) {
     super(message);
   }
@@ -30,9 +31,9 @@ abstract class ControlFlowError extends Error {
   /**
    * Prepend output from the current context before re-throwing.
    */
-  prependOutput(stdout: Uint8Array, stderr: Uint8Array): void {
-    this.stdout = concat(stdout, this.stdout);
-    this.stderr = concat(stderr, this.stderr);
+  prependOutput(stdout: ByteStream, stderr: ByteStream): void {
+    this.stdout = concatStreams(stdout, this.stdout);
+    this.stderr = concatStreams(stderr, this.stderr);
   }
 }
 
@@ -44,8 +45,8 @@ export class BreakError extends ControlFlowError {
 
   constructor(
     public levels: number = 1,
-    stdout: Uint8Array = EMPTY,
-    stderr: Uint8Array = EMPTY,
+    stdout: ByteStream = emptyStream(),
+    stderr: ByteStream = emptyStream(),
   ) {
     super("break", stdout, stderr);
   }
@@ -59,8 +60,8 @@ export class ContinueError extends ControlFlowError {
 
   constructor(
     public levels: number = 1,
-    stdout: Uint8Array = EMPTY,
-    stderr: Uint8Array = EMPTY,
+    stdout: ByteStream = emptyStream(),
+    stderr: ByteStream = emptyStream(),
   ) {
     super("continue", stdout, stderr);
   }
@@ -74,8 +75,8 @@ export class ReturnError extends ControlFlowError {
 
   constructor(
     public exitCode: number = 0,
-    stdout: Uint8Array = EMPTY,
-    stderr: Uint8Array = EMPTY,
+    stdout: ByteStream = emptyStream(),
+    stderr: ByteStream = emptyStream(),
   ) {
     super("return", stdout, stderr);
   }
@@ -89,8 +90,8 @@ export class ErrexitError extends ControlFlowError {
 
   constructor(
     public readonly exitCode: number,
-    stdout: Uint8Array = EMPTY,
-    stderr: Uint8Array = EMPTY,
+    stdout: ByteStream = emptyStream(),
+    stderr: ByteStream = emptyStream(),
   ) {
     super(`errexit: command exited with status ${exitCode}`, stdout, stderr);
   }
@@ -104,12 +105,12 @@ export class NounsetError extends ControlFlowError {
 
   constructor(
     public varName: string,
-    stdout: Uint8Array = EMPTY,
+    stdout: ByteStream = emptyStream(),
   ) {
     super(
       `${varName}: unbound variable`,
       stdout,
-      encode(`bash: ${varName}: unbound variable\n`),
+      fromString(`bash: ${varName}: unbound variable\n`),
     );
   }
 }
@@ -122,8 +123,8 @@ export class ExitError extends ControlFlowError {
 
   constructor(
     public readonly exitCode: number,
-    stdout: Uint8Array = EMPTY,
-    stderr: Uint8Array = EMPTY,
+    stdout: ByteStream = emptyStream(),
+    stderr: ByteStream = emptyStream(),
   ) {
     super(`exit`, stdout, stderr);
   }
@@ -144,12 +145,11 @@ export class ArithmeticError extends ControlFlowError {
 
   constructor(
     message: string,
-    stdout: Uint8Array = EMPTY,
-    stderr: Uint8Array = EMPTY,
+    stdout: ByteStream = emptyStream(),
+    stderr?: ByteStream,
     fatal = false,
   ) {
-    super(message, stdout, stderr);
-    this.stderr = stderr.length > 0 ? stderr : encode(`bash: ${message}\n`);
+    super(message, stdout, stderr ?? fromString(`bash: ${message}\n`));
     this.fatal = fatal;
   }
 }
@@ -163,14 +163,14 @@ export class BadSubstitutionError extends ControlFlowError {
 
   constructor(
     message: string,
-    stdout: Uint8Array = EMPTY,
-    stderr: Uint8Array = EMPTY,
+    stdout: ByteStream = emptyStream(),
+    stderr?: ByteStream,
   ) {
-    super(message, stdout, stderr);
-    this.stderr =
-      stderr.length > 0
-        ? stderr
-        : encode(`bash: ${message}: bad substitution\n`);
+    super(
+      message,
+      stdout,
+      stderr ?? fromString(`bash: ${message}: bad substitution\n`),
+    );
   }
 }
 
@@ -183,12 +183,14 @@ export class GlobError extends ControlFlowError {
 
   constructor(
     pattern: string,
-    stdout: Uint8Array = EMPTY,
-    stderr: Uint8Array = EMPTY,
+    stdout: ByteStream = emptyStream(),
+    stderr?: ByteStream,
   ) {
-    super(`no match: ${pattern}`, stdout, stderr);
-    this.stderr =
-      stderr.length > 0 ? stderr : encode(`bash: no match: ${pattern}\n`);
+    super(
+      `no match: ${pattern}`,
+      stdout,
+      stderr ?? fromString(`bash: no match: ${pattern}\n`),
+    );
   }
 }
 
@@ -201,11 +203,10 @@ export class BraceExpansionError extends ControlFlowError {
 
   constructor(
     message: string,
-    stdout: Uint8Array = EMPTY,
-    stderr: Uint8Array = EMPTY,
+    stdout: ByteStream = emptyStream(),
+    stderr?: ByteStream,
   ) {
-    super(message, stdout, stderr);
-    this.stderr = stderr.length > 0 ? stderr : encode(`bash: ${message}\n`);
+    super(message, stdout, stderr ?? fromString(`bash: ${message}\n`));
   }
 }
 
@@ -227,11 +228,15 @@ export class ExecutionLimitError extends ControlFlowError {
       | "string_length"
       | "glob_operations"
       | "substitution_depth",
-    stdout: Uint8Array = EMPTY,
-    stderr: Uint8Array = EMPTY,
+    stdout: ByteStream = emptyStream(),
+    stderr?: ByteStream,
   ) {
-    super(message, stdout, stderr);
-    this.stderr = stderr.length > 0 ? stderr : encode(`bash: ${message}\n`);
+    // Always append the bash-formatted limit message to stderr — callers
+    // pass accumulated output here, and we must surface the limit reason.
+    const formatted = fromString(`bash: ${message}\n`);
+    const finalStderr =
+      stderr === undefined ? formatted : concatStreams(stderr, formatted);
+    super(message, stdout, finalStderr);
   }
 }
 
@@ -242,7 +247,10 @@ export class ExecutionLimitError extends ControlFlowError {
 export class SubshellExitError extends ControlFlowError {
   readonly name = "SubshellExitError";
 
-  constructor(stdout: Uint8Array = EMPTY, stderr: Uint8Array = EMPTY) {
+  constructor(
+    stdout: ByteStream = emptyStream(),
+    stderr: ByteStream = emptyStream(),
+  ) {
     super("subshell exit", stdout, stderr);
   }
 }
@@ -263,20 +271,14 @@ export function isScopeExitError(
 
 /**
  * Error thrown when a POSIX special builtin fails in POSIX mode.
- * In POSIX mode (set -o posix), errors in special builtins like
- * shift, set, readonly, export, etc. cause the entire script to exit.
- *
- * Per POSIX 2.8.1 - Consequences of Shell Errors:
- * "A special built-in utility causes an interactive or non-interactive shell
- * to exit when an error occurs."
  */
 export class PosixFatalError extends ControlFlowError {
   readonly name = "PosixFatalError";
 
   constructor(
     public readonly exitCode: number,
-    stdout: Uint8Array = EMPTY,
-    stderr: Uint8Array = EMPTY,
+    stdout: ByteStream = emptyStream(),
+    stderr: ByteStream = emptyStream(),
   ) {
     super("posix fatal error", stdout, stderr);
   }

@@ -1,5 +1,5 @@
 import type { ExecResult } from "../types.js";
-import { EMPTY, encode } from "../utils/bytes.js";
+import { emptyStream, fromString } from "../utils/stream.js";
 
 export interface HelpInfo {
   name: string;
@@ -46,7 +46,7 @@ export function showHelp(info: HelpInfo): ExecResult {
       output += `  ${note}\n`;
     }
   }
-  return { stdout: encode(output), stderr: EMPTY, exitCode: 0 };
+  return { stdout: fromString(output), stderr: emptyStream(), exitCode: 0 };
 }
 
 export function hasHelpFlag(args: string[]): boolean {
@@ -62,5 +62,5 @@ export function unknownOption(cmdName: string, option: string): ExecResult {
   const msg = option.startsWith("--")
     ? `${cmdName}: unrecognized option '${option}'\n`
     : `${cmdName}: invalid option -- '${option.replace(/^-/, "")}'\n`;
-  return { stdout: EMPTY, stderr: encode(msg), exitCode: 1 };
+  return { stdout: emptyStream(), stderr: fromString(msg), exitCode: 1 };
 }

@@ -29,7 +29,7 @@ describe("AWK prototype pollution defense", () => {
     for (const keyword of DANGEROUS_KEYWORDS.slice(0, 4)) {
       it(`should access ENVIRON["${keyword}"] safely`, async () => {
         const env = new Bash();
-        const result = toText(
+        const result = await toText(
           await env.exec(
             `export ${keyword}=env_value; echo | awk 'BEGIN { print ENVIRON["${keyword}"] }'`,
           ),
@@ -41,7 +41,7 @@ describe("AWK prototype pollution defense", () => {
 
     it("should access ENVIRON with constructor key", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `export constructor=ctor_val; echo | awk 'BEGIN { print ENVIRON["constructor"] }'`,
         ),
@@ -55,7 +55,7 @@ describe("AWK prototype pollution defense", () => {
     for (const keyword of DANGEROUS_KEYWORDS) {
       it(`should allow variable named '${keyword}'`, async () => {
         const env = new Bash();
-        const result = toText(
+        const result = await toText(
           await env.exec(
             `echo | awk 'BEGIN { ${keyword} = "test_value"; print ${keyword} }'`,
           ),
@@ -67,7 +67,7 @@ describe("AWK prototype pollution defense", () => {
 
     it("should handle multiple dangerous keyword variables", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         echo | awk 'BEGIN {
           __proto__ = "a"
@@ -86,7 +86,7 @@ describe("AWK prototype pollution defense", () => {
     for (const keyword of DANGEROUS_KEYWORDS.slice(0, 4)) {
       it(`should allow array key '${keyword}'`, async () => {
         const env = new Bash();
-        const result = toText(
+        const result = await toText(
           await env.exec(
             `echo | awk 'BEGIN { arr["${keyword}"] = "value"; print arr["${keyword}"] }'`,
           ),
@@ -98,7 +98,7 @@ describe("AWK prototype pollution defense", () => {
 
     it("should iterate array with dangerous keys", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         echo | awk 'BEGIN {
           arr["__proto__"] = 1
@@ -116,7 +116,7 @@ describe("AWK prototype pollution defense", () => {
 
     it("should handle 'in' operator with dangerous keys", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         echo | awk 'BEGIN {
           arr["__proto__"] = 1
@@ -131,7 +131,7 @@ describe("AWK prototype pollution defense", () => {
 
     it("should delete array element with dangerous key", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         echo | awk 'BEGIN {
           arr["__proto__"] = 1
@@ -150,7 +150,7 @@ describe("AWK prototype pollution defense", () => {
     for (const keyword of DANGEROUS_KEYWORDS.slice(0, 4)) {
       it(`should handle -v ${keyword}=value`, async () => {
         const env = new Bash();
-        const result = toText(
+        const result = await toText(
           await env.exec(
             `echo | awk -v ${keyword}=injected 'BEGIN { print ${keyword} }'`,
           ),
@@ -164,7 +164,7 @@ describe("AWK prototype pollution defense", () => {
   describe("AWK field data with dangerous keywords", () => {
     it("should handle input containing __proto__", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo '__proto__' | awk '{ print $1 }'`),
       );
       expect(result.exitCode).toBe(0);
@@ -173,7 +173,7 @@ describe("AWK prototype pollution defense", () => {
 
     it("should handle input containing constructor", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo 'constructor' | awk '{ print $1 }'`),
       );
       expect(result.exitCode).toBe(0);
@@ -182,7 +182,7 @@ describe("AWK prototype pollution defense", () => {
 
     it("should handle CSV-like data with dangerous keywords", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         echo '__proto__,constructor,prototype' | awk -F, '{ print $1, $2, $3 }'
       `),
@@ -193,7 +193,7 @@ describe("AWK prototype pollution defense", () => {
 
     it("should use dangerous keyword as field value in array", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         echo '__proto__ value1
 constructor value2' | awk '{ data[$1] = $2 } END { print data["__proto__"], data["constructor"] }'
@@ -207,7 +207,7 @@ constructor value2' | awk '{ data[$1] = $2 } END { print data["__proto__"], data
   describe("AWK string functions with dangerous keywords", () => {
     it("should handle gsub with dangerous keyword pattern", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         echo '__proto__ test __proto__' | awk '{ gsub(/__proto__/, "replaced"); print }'
       `),
@@ -218,7 +218,7 @@ constructor value2' | awk '{ data[$1] = $2 } END { print data["__proto__"], data
 
     it("should handle split with dangerous keyword", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         echo | awk 'BEGIN {
           str = "__proto__:constructor:prototype"
@@ -233,7 +233,7 @@ constructor value2' | awk '{ data[$1] = $2 } END { print data["__proto__"], data
 
     it("should handle match with dangerous keyword", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         echo '__proto__' | awk '{ if (match($0, /__proto__/)) print "matched" }'
       `),
@@ -246,7 +246,7 @@ constructor value2' | awk '{ data[$1] = $2 } END { print data["__proto__"], data
   describe("AWK printf with dangerous keywords", () => {
     it("should printf dangerous keywords safely", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         echo | awk 'BEGIN { printf "%s %s\\n", "__proto__", "constructor" }'
       `),
@@ -257,7 +257,7 @@ constructor value2' | awk '{ data[$1] = $2 } END { print data["__proto__"], data
 
     it("should sprintf dangerous keywords safely", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         echo | awk 'BEGIN {
           s = sprintf("%s", "__proto__")
@@ -273,7 +273,7 @@ constructor value2' | awk '{ data[$1] = $2 } END { print data["__proto__"], data
   describe("AWK user-defined functions with dangerous names", () => {
     it("should allow function named with prefix of dangerous keyword", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         echo | awk '
           function proto_func() { return "__proto__" }
@@ -287,7 +287,7 @@ constructor value2' | awk '{ data[$1] = $2 } END { print data["__proto__"], data
 
     it("should pass dangerous keyword as function argument", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         echo | awk '
           function echo_val(v) { return v }
@@ -303,7 +303,7 @@ constructor value2' | awk '{ data[$1] = $2 } END { print data["__proto__"], data
   describe("AWK special variables with dangerous content", () => {
     it("should handle FS as dangerous keyword", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         echo 'a__proto__b' | awk -F '__proto__' '{ print $1, $2 }'
       `),
@@ -314,7 +314,7 @@ constructor value2' | awk '{ data[$1] = $2 } END { print data["__proto__"], data
 
     it("should handle RS containing dangerous keyword", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         echo 'a b' | awk 'BEGIN { RS="__proto__" } { print $0 }'
       `),
@@ -325,7 +325,7 @@ constructor value2' | awk '{ data[$1] = $2 } END { print data["__proto__"], data
 
     it("should handle OFS as dangerous keyword", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         echo 'a b' | awk 'BEGIN { OFS="__proto__" } { print $1, $2 }'
       `),

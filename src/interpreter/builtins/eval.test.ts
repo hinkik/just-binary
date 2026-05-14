@@ -6,27 +6,27 @@ describe("eval builtin", () => {
   describe("basic evaluation", () => {
     it("should execute a simple command", async () => {
       const env = new Bash();
-      const result = toText(await env.exec('eval "echo hello"'));
+      const result = await toText(await env.exec('eval "echo hello"'));
       expect(result.stdout).toBe("hello\n");
       expect(result.exitCode).toBe(0);
     });
 
     it("should execute multiple words as single command", async () => {
       const env = new Bash();
-      const result = toText(await env.exec("eval echo hello world"));
+      const result = await toText(await env.exec("eval echo hello world"));
       expect(result.stdout).toBe("hello world\n");
     });
 
     it("should return 0 for empty argument", async () => {
       const env = new Bash();
-      const result = toText(await env.exec('eval ""'));
+      const result = await toText(await env.exec('eval ""'));
       expect(result.stdout).toBe("");
       expect(result.exitCode).toBe(0);
     });
 
     it("should return 0 for no arguments", async () => {
       const env = new Bash();
-      const result = toText(await env.exec("eval"));
+      const result = await toText(await env.exec("eval"));
       expect(result.stdout).toBe("");
       expect(result.exitCode).toBe(0);
     });
@@ -35,7 +35,7 @@ describe("eval builtin", () => {
   describe("variable expansion", () => {
     it("should expand variables before execution", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         cmd="echo hello"
         eval $cmd
@@ -46,7 +46,7 @@ describe("eval builtin", () => {
 
     it("should allow dynamic variable names", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         name="FOO"
         FOO="bar"
@@ -58,7 +58,7 @@ describe("eval builtin", () => {
 
     it("should allow setting variables dynamically", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         name="MYVAR"
         eval "$name=hello"
@@ -72,7 +72,7 @@ describe("eval builtin", () => {
   describe("command construction", () => {
     it("should handle command from array-like variables", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         args="a b c"
         eval "for x in $args; do echo item: \\$x; done"
@@ -83,13 +83,15 @@ describe("eval builtin", () => {
 
     it("should execute piped commands", async () => {
       const env = new Bash();
-      const result = toText(await env.exec('eval "echo hello | tr a-z A-Z"'));
+      const result = await toText(
+        await env.exec('eval "echo hello | tr a-z A-Z"'),
+      );
       expect(result.stdout).toBe("HELLO\n");
     });
 
     it("should handle command substitution", async () => {
       const env = new Bash();
-      const result = toText(await env.exec('eval "echo $(echo nested)"'));
+      const result = await toText(await env.exec('eval "echo $(echo nested)"'));
       expect(result.stdout).toBe("nested\n");
     });
   });
@@ -97,13 +99,13 @@ describe("eval builtin", () => {
   describe("exit codes", () => {
     it("should return exit code of executed command", async () => {
       const env = new Bash();
-      const result = toText(await env.exec("eval false"));
+      const result = await toText(await env.exec("eval false"));
       expect(result.exitCode).toBe(1);
     });
 
     it("should return exit code of last command", async () => {
       const env = new Bash();
-      const result = toText(await env.exec('eval "true; false; true"'));
+      const result = await toText(await env.exec('eval "true; false; true"'));
       expect(result.exitCode).toBe(0);
     });
 
@@ -111,7 +113,7 @@ describe("eval builtin", () => {
       const env = new Bash();
       // Use "for do done" which is a syntax error (missing variable name)
       // Bash returns exit code 1 for eval syntax errors
-      const result = toText(await env.exec('eval "for do done"'));
+      const result = await toText(await env.exec('eval "for do done"'));
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("Parse error");
     });
@@ -120,7 +122,7 @@ describe("eval builtin", () => {
   describe("scope and environment", () => {
     it("should execute in current environment", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         FOO=original
         eval "FOO=modified"
@@ -132,7 +134,7 @@ describe("eval builtin", () => {
 
     it("should have access to functions", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         myfunc() { echo "called"; }
         eval "myfunc"
@@ -143,7 +145,7 @@ describe("eval builtin", () => {
 
     it("should define functions that persist", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         eval 'greet() { echo "hello $1"; }'
         greet world
@@ -156,19 +158,25 @@ describe("eval builtin", () => {
   describe("quoting and escaping", () => {
     it("should handle single quotes", async () => {
       const env = new Bash();
-      const result = toText(await env.exec(`eval "echo 'single quoted'"`));
+      const result = await toText(
+        await env.exec(`eval "echo 'single quoted'"`),
+      );
       expect(result.stdout).toBe("single quoted\n");
     });
 
     it("should handle double quotes", async () => {
       const env = new Bash();
-      const result = toText(await env.exec(`eval 'echo "double quoted"'`));
+      const result = await toText(
+        await env.exec(`eval 'echo "double quoted"'`),
+      );
       expect(result.stdout).toBe("double quoted\n");
     });
 
     it("should handle escaped characters", async () => {
       const env = new Bash();
-      const result = toText(await env.exec('eval "echo hello\\\\nworld"'));
+      const result = await toText(
+        await env.exec('eval "echo hello\\\\nworld"'),
+      );
       // The \\n should be interpreted as literal backslash-n
       expect(result.stdout).toContain("hello");
     });

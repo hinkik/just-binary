@@ -80,7 +80,7 @@ describe('capitalize', () => {
 
   it("should find all files containing the function to rename", async () => {
     const env = createEnv();
-    const result = toText(
+    const result = await toText(
       await env.exec(
         'grep -r "formatUserName" /project/src --include="*.ts" --include="*.tsx"',
       ),
@@ -105,7 +105,7 @@ describe('capitalize', () => {
 
   it("should count occurrences per file", async () => {
     const env = createEnv();
-    const result = toText(
+    const result = await toText(
       await env.exec('grep -r -c "formatUserName" /project/src'),
     );
     expect(result.stdout).toBe(`/project/src/components/UserCard.tsx:2
@@ -121,7 +121,7 @@ describe('capitalize', () => {
 
   it("should find export statements to update", async () => {
     const env = createEnv();
-    const result = toText(
+    const result = await toText(
       await env.exec('grep -r "export.*formatUserName" /project/src'),
     );
     expect(
@@ -135,7 +135,7 @@ describe('capitalize', () => {
 
   it("should find import statements to update", async () => {
     const env = createEnv();
-    const result = toText(
+    const result = await toText(
       await env.exec('grep -r "import.*formatUserName" /project/src'),
     );
     expect(
@@ -160,7 +160,7 @@ describe('capitalize', () => {
     );
 
     // Verify the change
-    const result = toText(
+    const result = await toText(
       await env.exec('grep "formatFullName" /project/src/utils/string.ts'),
     );
     expect(
@@ -192,7 +192,7 @@ export function formatFullName_deprecated(name: string): string {
     }
 
     // Verify old name no longer exists (except in _deprecated suffix)
-    const result = toText(
+    const result = await toText(
       await env.exec(
         'grep -r "formatUserName[^_]" /project/src || echo "No orphaned references"',
       ),
@@ -203,7 +203,7 @@ export function formatFullName_deprecated(name: string): string {
 
   it("should find deprecated functions for cleanup", async () => {
     const env = createEnv();
-    const result = toText(
+    const result = await toText(
       await env.exec('grep -rn "_deprecated" /project/src'),
     );
     expect(result.stdout).toBe(
@@ -216,7 +216,7 @@ export function formatFullName_deprecated(name: string): string {
     const env = createEnv();
 
     // Find all function calls (simplified pattern)
-    const result = toText(
+    const result = await toText(
       await env.exec('grep -r "formatUserName(" /project/src'),
     );
     expect(
@@ -232,7 +232,7 @@ export function formatFullName_deprecated(name: string): string {
 
   it("should list all TypeScript/TSX files in project", async () => {
     const env = createEnv();
-    const result = toText(
+    const result = await toText(
       await env.exec('find /project/src -name "*.ts" -o -name "*.tsx" | sort'),
     );
     expect(result.stdout).toBe(`/project/src/components/UserCard.tsx
@@ -248,7 +248,7 @@ export function formatFullName_deprecated(name: string): string {
 
   it("should count total lines of code to refactor", async () => {
     const env = createEnv();
-    const result = toText(
+    const result = await toText(
       await env.exec(
         "cat /project/src/utils/string.ts /project/src/components/UserCard.tsx /project/src/components/UserList.tsx | wc -l",
       ),
@@ -311,7 +311,7 @@ fifth line
     it("should join consecutive import lines", async () => {
       const env = createAdvancedEnv();
       // N appends next line to pattern space, allowing multiline matching
-      const result = toText(
+      const result = await toText(
         await env.exec("sed 'N;s/\\n/, /' /code/imports.ts | head -2"),
       );
       expect(result.stdout).toContain("foo");
@@ -322,7 +322,7 @@ fifth line
     it("should combine object properties on single line", async () => {
       const env = createAdvancedEnv();
       // Use grep -A1 to show name with following line
-      const result = toText(
+      const result = await toText(
         await env.exec("grep -A1 'name:' /code/multiline.ts"),
       );
       expect(result.stdout).toContain("name:");
@@ -334,7 +334,7 @@ fifth line
   describe("Using sed y for character transliteration", () => {
     it("should convert hex colors to uppercase", async () => {
       const env = createAdvancedEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec("sed 'y/abcdef/ABCDEF/' /code/css-vars.css"),
       );
       expect(result.stdout).toContain("#333333");
@@ -346,7 +346,7 @@ fifth line
     it("should convert camelCase to snake_case style markers", async () => {
       const env = createAdvancedEnv();
       // Replace capital letters with markers for further processing
-      const result = toText(
+      const result = await toText(
         await env.exec(
           "sed 'y/ABCDEFGHIJKLMNOPQRSTUVWXYZ/abcdefghijklmnopqrstuvwxyz/' /code/case-conv.txt",
         ),
@@ -360,7 +360,7 @@ fifth line
   describe("Using sed = for line numbering", () => {
     it("should add line numbers to code", async () => {
       const env = createAdvancedEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec("sed '=' /code/numbered.txt | head -6"),
       );
       expect(result.stdout).toContain("1");
@@ -373,7 +373,7 @@ fifth line
     it("should number only lines matching a pattern", async () => {
       const env = createAdvancedEnv();
       // Use grep -n to show line numbers for matching lines
-      const result = toText(
+      const result = await toText(
         await env.exec("grep -n 'deprecated' /code/deprecated.ts"),
       );
       // Should show line numbers for deprecated comments
@@ -387,7 +387,7 @@ fifth line
     it("should find active functions (not deprecated)", async () => {
       const env = createAdvancedEnv();
       // Use grep to find functions, then filter out those near @deprecated
-      const result = toText(
+      const result = await toText(
         await env.exec("grep 'function activeFunc' /code/deprecated.ts"),
       );
       expect(result.stdout).toContain("function activeFunc");
@@ -397,7 +397,7 @@ fifth line
     it("should identify deprecated functions", async () => {
       const env = createAdvancedEnv();
       // Show deprecated functions with context
-      const result = toText(
+      const result = await toText(
         await env.exec("grep -A2 '@deprecated' /code/deprecated.ts"),
       );
       expect(result.stdout).toContain("@deprecated");
@@ -410,7 +410,7 @@ fifth line
     it("should convert single imports to barrel export", async () => {
       const env = createAdvancedEnv();
       // Transform import to export (simpler pattern)
-      const result = toText(
+      const result = await toText(
         await env.exec("sed 's/import/export/' /code/imports.ts"),
       );
       expect(result.stdout).toContain("export { foo }");
@@ -421,7 +421,7 @@ fifth line
     it("should find functions that need documentation", async () => {
       const env = createAdvancedEnv();
       // Find function declarations that could use JSDoc
-      const result = toText(
+      const result = await toText(
         await env.exec("grep -n '^function' /code/deprecated.ts"),
       );
       expect(result.stdout).toContain("function oldFunc");
@@ -432,7 +432,9 @@ fifth line
     it("should indent code blocks", async () => {
       const env = createAdvancedEnv();
       // Add two spaces indent to all lines
-      const result = toText(await env.exec("sed 's/^/  /' /code/numbered.txt"));
+      const result = await toText(
+        await env.exec("sed 's/^/  /' /code/numbered.txt"),
+      );
       expect(result.stdout).toBe(
         "  first line\n  second line\n  third line\n  fourth line\n  fifth line\n",
       );

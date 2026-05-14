@@ -1,11 +1,5 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import {
-  decodeArgs,
-  EMPTY,
-  encode,
-  envGet,
-  envSet,
-} from "../../utils/bytes.js";
+import { decodeArgs, envGet, envSet } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const historyHelp = {
@@ -42,7 +36,7 @@ export const historyCommand: Command = {
     // Handle -c (clear)
     if (a[0] === "-c") {
       envSet(ctx.env, HISTORY_KEY, "[]");
-      return { stdout: EMPTY, stderr: EMPTY, exitCode: 0 };
+      return { stdout: emptyStream(), stderr: emptyStream(), exitCode: 0 };
     }
 
     // Get optional count
@@ -59,10 +53,11 @@ export const historyCommand: Command = {
       stdout += `${lineNum}  ${history[i]}\n`;
     }
 
-    return { stdout: encode(stdout), stderr: EMPTY, exitCode: 0 };
+    return { stdout: fromString(stdout), stderr: emptyStream(), exitCode: 0 };
   },
 };
 
+import { emptyStream, fromString } from "../../utils/stream.js";
 import type { CommandFuzzInfo } from "../fuzz-flags-types.js";
 
 export const flagsForFuzzing: CommandFuzzInfo = {

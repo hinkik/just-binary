@@ -3,7 +3,7 @@
  */
 
 import { Bash } from "../Bash.js";
-import { decode } from "../utils/bytes.js";
+import { collectText } from "../utils/stream.js";
 import {
   getAcceptableStatuses,
   getAcceptableStderrs,
@@ -112,6 +112,10 @@ export async function runTestCase(
   try {
     // Use rawScript to preserve leading whitespace for here-docs
     const result = await env.exec(testCase.script, { rawScript: true });
+    const [stdoutText, stderrText] = await Promise.all([
+      collectText(result.stdout),
+      collectText(result.stderr),
+    ]);
 
     const expectedStdout = getExpectedStdout(testCase);
     const expectedStderr = getExpectedStderr(testCase);
@@ -124,7 +128,7 @@ export async function runTestCase(
     // Use getAcceptableStdouts to handle OK variants (e.g., "## OK bash stdout-json: ...")
     const acceptableStdouts = getAcceptableStdouts(testCase);
     if (acceptableStdouts.length > 0) {
-      const normalizedActual = normalizeOutput(decode(result.stdout));
+      const normalizedActual = normalizeOutput(stdoutText);
       const normalizedAcceptable = acceptableStdouts.map((s) =>
         normalizeOutput(s),
       );
@@ -145,7 +149,7 @@ export async function runTestCase(
     // Use getAcceptableStderrs to handle OK variants (e.g., "## OK bash STDERR: ...")
     const acceptableStderrs = getAcceptableStderrs(testCase);
     if (acceptableStderrs.length > 0) {
-      const normalizedActual = normalizeOutput(decode(result.stderr));
+      const normalizedActual = normalizeOutput(stderrText);
       const normalizedAcceptable = acceptableStderrs.map((s) =>
         normalizeOutput(s),
       );
@@ -190,8 +194,8 @@ export async function runTestCase(
           passed: false,
           skipped: false,
           unexpectedPass: true,
-          actualStdout: decode(result.stdout),
-          actualStderr: decode(result.stderr),
+          actualStdout: stdoutText,
+          actualStderr: stderrText,
           actualStatus: result.exitCode,
           expectedStdout,
           expectedStderr,
@@ -206,8 +210,8 @@ export async function runTestCase(
         passed: true,
         skipped: true,
         skipReason: `## SKIP: ${skipReason}`,
-        actualStdout: decode(result.stdout),
-        actualStderr: decode(result.stderr),
+        actualStdout: stdoutText,
+        actualStderr: stderrText,
         actualStatus: result.exitCode,
         expectedStdout,
         expectedStderr,
@@ -219,8 +223,8 @@ export async function runTestCase(
       testCase,
       passed,
       skipped: false,
-      actualStdout: decode(result.stdout),
-      actualStderr: decode(result.stderr),
+      actualStdout: stdoutText,
+      actualStderr: stderrText,
       actualStatus: result.exitCode,
       expectedStdout,
       expectedStderr,

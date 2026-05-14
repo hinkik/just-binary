@@ -1,6 +1,7 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
-import { decodeArgs, EMPTY, encode, envGet } from "../../utils/bytes.js";
+import { decodeArgs, envGet } from "../../utils/bytes.js";
+import { emptyStream, fromString } from "../../utils/stream.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const whichHelp = {
@@ -36,7 +37,7 @@ export const whichCommand: Command = {
     const names = parsed.result.positional;
 
     if (names.length === 0) {
-      return { stdout: EMPTY, stderr: EMPTY, exitCode: 1 };
+      return { stdout: emptyStream(), stderr: emptyStream(), exitCode: 1 };
     }
 
     const pathEnv = envGet(ctx.env, "PATH", "/usr/bin:/bin");
@@ -68,8 +69,8 @@ export const whichCommand: Command = {
     }
 
     return {
-      stdout: encode(stdout),
-      stderr: EMPTY,
+      stdout: fromString(stdout),
+      stderr: emptyStream(),
       exitCode: allFound ? 0 : 1,
     };
   },

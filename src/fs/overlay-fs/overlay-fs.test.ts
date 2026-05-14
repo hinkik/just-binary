@@ -53,7 +53,7 @@ describe("OverlayFs", () => {
       fs.writeFileSync(path.join(tempDir, "test.txt"), "content");
       const overlay = new OverlayFs({ root: tempDir });
 
-      const content = await overlay.readFile("/home/user/project/test.txt");
+      const content = await overlay.readFileText("/home/user/project/test.txt");
       expect(content).toBe("content");
     });
 
@@ -61,7 +61,7 @@ describe("OverlayFs", () => {
       fs.writeFileSync(path.join(tempDir, "test.txt"), "content");
       const overlay = new OverlayFs({ root: tempDir });
 
-      await expect(overlay.readFile("/test.txt")).rejects.toThrow("ENOENT");
+      await expect(overlay.readFileText("/test.txt")).rejects.toThrow("ENOENT");
     });
 
     it("should list files at mount point", async () => {
@@ -87,7 +87,7 @@ describe("OverlayFs", () => {
       const overlay = new OverlayFs({ root: tempDir });
       const env = new Bash({ fs: overlay, cwd: overlay.getMountPoint() });
 
-      const result = toText(await env.exec("cat file.txt"));
+      const result = await toText(await env.exec("cat file.txt"));
       expect(result.stdout).toBe("hello");
     });
   });
@@ -97,7 +97,7 @@ describe("OverlayFs", () => {
       fs.writeFileSync(path.join(tempDir, "test.txt"), "real content");
       const overlay = new OverlayFs({ root: tempDir, mountPoint: "/" });
 
-      const content = await overlay.readFile("/test.txt");
+      const content = await overlay.readFileText("/test.txt");
       expect(content).toBe("real content");
     });
 
@@ -106,7 +106,7 @@ describe("OverlayFs", () => {
       fs.writeFileSync(path.join(tempDir, "subdir", "file.txt"), "nested");
       const overlay = new OverlayFs({ root: tempDir, mountPoint: "/" });
 
-      const content = await overlay.readFile("/subdir/file.txt");
+      const content = await overlay.readFileText("/subdir/file.txt");
       expect(content).toBe("nested");
     });
 
@@ -140,7 +140,7 @@ describe("OverlayFs", () => {
       await overlay.writeFile("/new.txt", "memory content");
 
       // Should read from memory
-      const content = await overlay.readFile("/new.txt");
+      const content = await overlay.readFileText("/new.txt");
       expect(content).toBe("memory content");
 
       // Real filesystem should not have the file
@@ -152,7 +152,7 @@ describe("OverlayFs", () => {
       const overlay = new OverlayFs({ root: tempDir, mountPoint: "/" });
 
       await overlay.writeFile("/test.txt", "modified");
-      const content = await overlay.readFile("/test.txt");
+      const content = await overlay.readFileText("/test.txt");
       expect(content).toBe("modified");
 
       // Real file should be unchanged
@@ -177,7 +177,7 @@ describe("OverlayFs", () => {
       const overlay = new OverlayFs({ root: tempDir, mountPoint: "/" });
 
       await overlay.appendFile("/append.txt", "-end");
-      const content = await overlay.readFile("/append.txt");
+      const content = await overlay.readFileText("/append.txt");
       expect(content).toBe("start-end");
 
       // Real file unchanged
@@ -220,7 +220,7 @@ describe("OverlayFs", () => {
       await overlay.rm("/recreate.txt");
       await overlay.writeFile("/recreate.txt", "new content");
 
-      const content = await overlay.readFile("/recreate.txt");
+      const content = await overlay.readFileText("/recreate.txt");
       expect(content).toBe("new content");
     });
 
@@ -265,9 +265,9 @@ describe("OverlayFs", () => {
     it("should prevent reading outside root with ..", async () => {
       const overlay = new OverlayFs({ root: tempDir, mountPoint: "/" });
 
-      await expect(overlay.readFile("/../../../etc/passwd")).rejects.toThrow(
-        "ENOENT",
-      );
+      await expect(
+        overlay.readFileText("/../../../etc/passwd"),
+      ).rejects.toThrow("ENOENT");
     });
 
     it("should normalize paths with .. correctly", async () => {
@@ -275,7 +275,7 @@ describe("OverlayFs", () => {
       fs.writeFileSync(path.join(tempDir, "root.txt"), "root content");
       const overlay = new OverlayFs({ root: tempDir, mountPoint: "/" });
 
-      const content = await overlay.readFile("/subdir/../root.txt");
+      const content = await overlay.readFileText("/subdir/../root.txt");
       expect(content).toBe("root content");
     });
 
@@ -286,7 +286,9 @@ describe("OverlayFs", () => {
       await overlay.symlink("/etc/passwd", "/escape-link");
 
       // Reading should fail because /etc/passwd doesn't exist in our overlay
-      await expect(overlay.readFile("/escape-link")).rejects.toThrow("ENOENT");
+      await expect(overlay.readFileText("/escape-link")).rejects.toThrow(
+        "ENOENT",
+      );
     });
   });
 
@@ -297,7 +299,7 @@ describe("OverlayFs", () => {
       await overlay.writeFile("/target.txt", "target content");
       await overlay.symlink("/target.txt", "/link");
 
-      const content = await overlay.readFile("/link");
+      const content = await overlay.readFileText("/link");
       expect(content).toBe("target content");
     });
 
@@ -325,7 +327,7 @@ describe("OverlayFs", () => {
 
       await overlay.cp("/source.txt", "/copy.txt");
 
-      const content = await overlay.readFile("/copy.txt");
+      const content = await overlay.readFileText("/copy.txt");
       expect(content).toBe("content");
 
       // Real filesystem should not have the copy
@@ -339,7 +341,7 @@ describe("OverlayFs", () => {
       await overlay.mv("/source.txt", "/moved.txt");
 
       expect(await overlay.exists("/source.txt")).toBe(false);
-      expect(await overlay.readFile("/moved.txt")).toBe("content");
+      expect(await overlay.readFileText("/moved.txt")).toBe("content");
     });
 
     it("should copy directories recursively", async () => {
@@ -349,7 +351,7 @@ describe("OverlayFs", () => {
 
       await overlay.cp("/srcdir", "/destdir", { recursive: true });
 
-      const content = await overlay.readFile("/destdir/file.txt");
+      const content = await overlay.readFileText("/destdir/file.txt");
       expect(content).toBe("content");
     });
   });
@@ -372,7 +374,7 @@ describe("OverlayFs", () => {
       await overlay.writeFile("/original.txt", "content");
       await overlay.link("/original.txt", "/hardlink.txt");
 
-      const content = await overlay.readFile("/hardlink.txt");
+      const content = await overlay.readFileText("/hardlink.txt");
       expect(content).toBe("content");
     });
   });
@@ -531,7 +533,7 @@ describe("OverlayFs", () => {
       });
 
       // All read operations should work
-      expect(await overlay.readFile("/test.txt")).toBe("content");
+      expect(await overlay.readFileText("/test.txt")).toBe("content");
       expect(await overlay.exists("/test.txt")).toBe(true);
       expect(await overlay.stat("/test.txt")).toBeDefined();
       expect(await overlay.readdir("/")).toContain("test.txt");
@@ -542,7 +544,7 @@ describe("OverlayFs", () => {
 
       // Should not throw
       await overlay.writeFile("/test.txt", "content");
-      expect(await overlay.readFile("/test.txt")).toBe("content");
+      expect(await overlay.readFileText("/test.txt")).toBe("content");
     });
 
     it("should work with BashEnv in readOnly mode", async () => {
@@ -555,7 +557,7 @@ describe("OverlayFs", () => {
       const env = new Bash({ fs: overlay, cwd: "/" });
 
       // Read should work
-      const readResult = toText(await env.exec("cat /data.txt"));
+      const readResult = await toText(await env.exec("cat /data.txt"));
       expect(readResult.stdout).toBe("hello");
       expect(readResult.exitCode).toBe(0);
 
@@ -575,7 +577,7 @@ describe("OverlayFs", () => {
       const overlay = new OverlayFs({ root: tempDir, mountPoint: "/" });
       const env = new Bash({ fs: overlay });
 
-      const result = toText(await env.exec("cat /input.txt"));
+      const result = await toText(await env.exec("cat /input.txt"));
       expect(result.stdout).toBe("hello world");
       expect(result.exitCode).toBe(0);
     });
@@ -586,7 +588,7 @@ describe("OverlayFs", () => {
 
       await env.exec('echo "new content" > /output.txt');
 
-      const result = toText(await env.exec("cat /output.txt"));
+      const result = await toText(await env.exec("cat /output.txt"));
       expect(result.stdout).toBe("new content\n");
 
       // Real fs should not have the file
@@ -598,7 +600,7 @@ describe("OverlayFs", () => {
       const overlay = new OverlayFs({ root: tempDir, mountPoint: "/" });
       const env = new Bash({ fs: overlay });
 
-      const result = toText(await env.exec("grep banana /data.txt"));
+      const result = await toText(await env.exec("grep banana /data.txt"));
       expect(result.stdout).toBe("banana\n");
     });
 
@@ -609,7 +611,7 @@ describe("OverlayFs", () => {
 
       await env.exec('echo "memory" > /memory.txt');
 
-      const result = toText(await env.exec('find / -name "*.txt"'));
+      const result = await toText(await env.exec('find / -name "*.txt"'));
       expect(result.stdout).toContain("real.txt");
       expect(result.stdout).toContain("memory.txt");
     });

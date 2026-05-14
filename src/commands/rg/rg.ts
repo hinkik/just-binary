@@ -10,7 +10,7 @@
  */
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 import { formatTypeList } from "./file-types.js";
 import { parseArgs } from "./rg-parser.js";
@@ -95,8 +95,8 @@ export const rgCommand: Command = {
 
     if (a.includes("--type-list")) {
       return {
-        stdout: encode(formatTypeList()),
-        stderr: EMPTY,
+        stdout: fromString(formatTypeList()),
+        stderr: emptyStream(),
         exitCode: 0,
       };
     }
@@ -115,6 +115,7 @@ export const rgCommand: Command = {
   },
 };
 
+import { emptyStream, fromString } from "../../utils/stream.js";
 import type { CommandFuzzInfo } from "../fuzz-flags-types.js";
 
 export const flagsForFuzzing: CommandFuzzInfo = {

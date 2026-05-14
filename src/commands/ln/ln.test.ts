@@ -8,11 +8,13 @@ describe("ln command", () => {
       const env = new Bash({
         files: { "/target.txt": "hello world\n" },
       });
-      const result = toText(await env.exec("ln -s /target.txt /link.txt"));
+      const result = await toText(
+        await env.exec("ln -s /target.txt /link.txt"),
+      );
       expect(result.exitCode).toBe(0);
 
       // Verify link exists and points to target
-      const catResult = toText(await env.exec("cat /link.txt"));
+      const catResult = await toText(await env.exec("cat /link.txt"));
       expect(catResult.stdout).toBe("hello world\n");
     });
 
@@ -20,21 +22,25 @@ describe("ln command", () => {
       const env = new Bash({
         files: { "/dir/target.txt": "content\n" },
       });
-      const result = toText(await env.exec("ln -s target.txt /dir/link.txt"));
+      const result = await toText(
+        await env.exec("ln -s target.txt /dir/link.txt"),
+      );
       expect(result.exitCode).toBe(0);
 
-      const catResult = toText(await env.exec("cat /dir/link.txt"));
+      const catResult = await toText(await env.exec("cat /dir/link.txt"));
       expect(catResult.stdout).toBe("content\n");
     });
 
     it("should allow dangling symlinks", async () => {
       const env = new Bash();
       // ln -s should succeed even if target doesn't exist
-      const result = toText(await env.exec("ln -s /nonexistent /link.txt"));
+      const result = await toText(
+        await env.exec("ln -s /nonexistent /link.txt"),
+      );
       expect(result.exitCode).toBe(0);
 
       // But trying to read it should fail
-      const catResult = toText(await env.exec("cat /link.txt"));
+      const catResult = await toText(await env.exec("cat /link.txt"));
       expect(catResult.exitCode).toBe(1);
     });
 
@@ -45,7 +51,9 @@ describe("ln command", () => {
           "/link.txt": "existing\n",
         },
       });
-      const result = toText(await env.exec("ln -s /target.txt /link.txt"));
+      const result = await toText(
+        await env.exec("ln -s /target.txt /link.txt"),
+      );
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("File exists");
     });
@@ -57,10 +65,12 @@ describe("ln command", () => {
           "/link.txt": "old content\n",
         },
       });
-      const result = toText(await env.exec("ln -sf /target.txt /link.txt"));
+      const result = await toText(
+        await env.exec("ln -sf /target.txt /link.txt"),
+      );
       expect(result.exitCode).toBe(0);
 
-      const catResult = toText(await env.exec("cat /link.txt"));
+      const catResult = await toText(await env.exec("cat /link.txt"));
       expect(catResult.stdout).toBe("new content\n");
     });
   });
@@ -70,18 +80,22 @@ describe("ln command", () => {
       const env = new Bash({
         files: { "/original.txt": "hello world\n" },
       });
-      const result = toText(await env.exec("ln /original.txt /hardlink.txt"));
+      const result = await toText(
+        await env.exec("ln /original.txt /hardlink.txt"),
+      );
       expect(result.exitCode).toBe(0);
 
       // Verify both files have same content
-      const orig = toText(await env.exec("cat /original.txt"));
-      const link = toText(await env.exec("cat /hardlink.txt"));
+      const orig = await toText(await env.exec("cat /original.txt"));
+      const link = await toText(await env.exec("cat /hardlink.txt"));
       expect(link.stdout).toBe(orig.stdout);
     });
 
     it("should error when target does not exist", async () => {
       const env = new Bash();
-      const result = toText(await env.exec("ln /nonexistent.txt /link.txt"));
+      const result = await toText(
+        await env.exec("ln /nonexistent.txt /link.txt"),
+      );
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("No such file");
     });
@@ -90,7 +104,7 @@ describe("ln command", () => {
       const env = new Bash({
         files: { "/dir/file.txt": "test\n" },
       });
-      const result = toText(await env.exec("ln /dir /dirlink"));
+      const result = await toText(await env.exec("ln /dir /dirlink"));
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("not allowed");
     });
@@ -99,14 +113,14 @@ describe("ln command", () => {
   describe("error handling", () => {
     it("should error on missing operand", async () => {
       const env = new Bash();
-      const result = toText(await env.exec("ln"));
+      const result = await toText(await env.exec("ln"));
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("missing file operand");
     });
 
     it("should show help with --help", async () => {
       const env = new Bash();
-      const result = toText(await env.exec("ln --help"));
+      const result = await toText(await env.exec("ln --help"));
       expect(result.stdout).toContain("ln");
       expect(result.stdout).toContain("link");
       expect(result.exitCode).toBe(0);
@@ -120,7 +134,7 @@ describe("readlink command", () => {
       files: { "/target.txt": "hello\n" },
     });
     await env.exec("ln -s /target.txt /link.txt");
-    const result = toText(await env.exec("readlink /link.txt"));
+    const result = await toText(await env.exec("readlink /link.txt"));
     expect(result.stdout).toBe("/target.txt\n");
     expect(result.exitCode).toBe(0);
   });
@@ -130,7 +144,7 @@ describe("readlink command", () => {
       files: { "/dir/target.txt": "hello\n" },
     });
     await env.exec("ln -s target.txt /dir/link.txt");
-    const result = toText(await env.exec("readlink /dir/link.txt"));
+    const result = await toText(await env.exec("readlink /dir/link.txt"));
     expect(result.stdout).toBe("target.txt\n");
     expect(result.exitCode).toBe(0);
   });
@@ -140,7 +154,7 @@ describe("readlink command", () => {
       files: { "/dir/target.txt": "hello\n" },
     });
     await env.exec("ln -s target.txt /dir/link.txt");
-    const result = toText(await env.exec("readlink -f /dir/link.txt"));
+    const result = await toText(await env.exec("readlink -f /dir/link.txt"));
     expect(result.stdout).toBe("/dir/target.txt\n");
     expect(result.exitCode).toBe(0);
   });
@@ -149,13 +163,13 @@ describe("readlink command", () => {
     const env = new Bash({
       files: { "/regular.txt": "hello\n" },
     });
-    const result = toText(await env.exec("readlink /regular.txt"));
+    const result = await toText(await env.exec("readlink /regular.txt"));
     expect(result.exitCode).toBe(1);
   });
 
   it("should show help with --help", async () => {
     const env = new Bash();
-    const result = toText(await env.exec("readlink --help"));
+    const result = await toText(await env.exec("readlink --help"));
     expect(result.stdout).toContain("readlink");
     expect(result.exitCode).toBe(0);
   });

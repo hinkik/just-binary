@@ -3,7 +3,7 @@
  */
 
 import type { CommandContext, ExecResult } from "../../types.js";
-import { EMPTY, encode } from "../../utils/bytes.js";
+import { emptyStream, fromString } from "../../utils/stream.js";
 import { parseColumnSpec } from "./column-selection.js";
 import {
   type CsvRow,
@@ -32,8 +32,8 @@ export async function cmdSelect(
 
   if (!colSpec) {
     return {
-      stdout: EMPTY,
-      stderr: encode("xan select: no columns specified\n"),
+      stdout: emptyStream(),
+      stderr: fromString("xan select: no columns specified\n"),
       exitCode: 1,
     };
   }
@@ -52,8 +52,8 @@ export async function cmdSelect(
   });
 
   return {
-    stdout: encode(formatCsv(newHeaders, newData)),
-    stderr: EMPTY,
+    stdout: fromString(formatCsv(newHeaders, newData)),
+    stderr: emptyStream(),
     exitCode: 0,
   };
 }
@@ -77,8 +77,8 @@ export async function cmdDrop(
 
   if (!colSpec) {
     return {
-      stdout: EMPTY,
-      stderr: encode("xan drop: no columns specified\n"),
+      stdout: emptyStream(),
+      stderr: fromString("xan drop: no columns specified\n"),
       exitCode: 1,
     };
   }
@@ -98,8 +98,8 @@ export async function cmdDrop(
   });
 
   return {
-    stdout: encode(formatCsv(newHeaders, newData)),
-    stderr: EMPTY,
+    stdout: fromString(formatCsv(newHeaders, newData)),
+    stderr: emptyStream(),
     exitCode: 0,
   };
 }
@@ -130,8 +130,8 @@ export async function cmdRename(
 
   if (!newNames) {
     return {
-      stdout: EMPTY,
-      stderr: encode("xan rename: no new name(s) specified\n"),
+      stdout: emptyStream(),
+      stderr: fromString("xan rename: no new name(s) specified\n"),
       exitCode: 1,
     };
   }
@@ -166,8 +166,8 @@ export async function cmdRename(
   });
 
   return {
-    stdout: encode(formatCsv(newHeaders, newData)),
-    stderr: EMPTY,
+    stdout: fromString(formatCsv(newHeaders, newData)),
+    stderr: emptyStream(),
     exitCode: 0,
   };
 }
@@ -201,8 +201,8 @@ export async function cmdEnum(
   });
 
   return {
-    stdout: encode(formatCsv(newHeaders, newData)),
-    stderr: EMPTY,
+    stdout: fromString(formatCsv(newHeaders, newData)),
+    stderr: emptyStream(),
     exitCode: 0,
   };
 }

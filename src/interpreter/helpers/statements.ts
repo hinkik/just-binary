@@ -7,7 +7,12 @@
 
 import type { StatementNode } from "../../ast/types.js";
 import type { ExecResult } from "../../types.js";
-import { concat, EMPTY, encode } from "../../utils/bytes.js";
+import {
+  type ByteStream,
+  concatStreams,
+  emptyStream,
+  fromString,
+} from "../../utils/stream.js";
 import {
   ErrexitError,
   ExecutionLimitError,
@@ -24,25 +29,25 @@ import { getErrorMessage } from "./errors.js";
  *
  * @param ctx - Interpreter context
  * @param statements - Statements to execute
- * @param initialStdout - Initial stdout to prepend (default EMPTY)
- * @param initialStderr - Initial stderr to prepend (default EMPTY)
+ * @param initialStdout - Initial stdout to prepend (default empty)
+ * @param initialStderr - Initial stderr to prepend (default empty)
  * @returns Accumulated stdout, stderr, and final exit code
  */
 export async function executeStatements(
   ctx: InterpreterContext,
   statements: StatementNode[],
-  initialStdout: Uint8Array = EMPTY,
-  initialStderr: Uint8Array = EMPTY,
+  initialStdout: ByteStream = emptyStream(),
+  initialStderr: ByteStream = emptyStream(),
 ): Promise<ExecResult> {
-  let stdout = initialStdout;
-  let stderr = initialStderr;
+  let stdout: ByteStream = initialStdout;
+  let stderr: ByteStream = initialStderr;
   let exitCode = 0;
 
   try {
     for (const stmt of statements) {
       const result = await ctx.executeStatement(stmt);
-      stdout = concat(stdout, result.stdout);
-      stderr = concat(stderr, result.stderr);
+      stdout = concatStreams(stdout, result.stdout);
+      stderr = concatStreams(stderr, result.stderr);
       exitCode = result.exitCode;
     }
   } catch (error) {
@@ -58,7 +63,7 @@ export async function executeStatements(
     }
     return {
       stdout,
-      stderr: concat(stderr, encode(`${getErrorMessage(error)}\n`)),
+      stderr: concatStreams(stderr, fromString(`${getErrorMessage(error)}\n`)),
       exitCode: 1,
     };
   }

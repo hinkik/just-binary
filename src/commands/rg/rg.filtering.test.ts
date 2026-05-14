@@ -12,7 +12,7 @@ describe("rg file type filtering", () => {
         "/home/user/style.css": "foo { }\n",
       },
     });
-    const result = toText(await bash.exec("rg -t ts foo"));
+    const result = await toText(await bash.exec("rg -t ts foo"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("app.ts:1:const foo = 1;\n");
     expect(result.stderr).toBe("");
@@ -26,7 +26,7 @@ describe("rg file type filtering", () => {
         "/home/user/app.js": "const foo = 2;\n",
       },
     });
-    const result = toText(await bash.exec("rg -T ts foo"));
+    const result = await toText(await bash.exec("rg -T ts foo"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("app.js:1:const foo = 2;\n");
     expect(result.stderr).toBe("");
@@ -34,7 +34,7 @@ describe("rg file type filtering", () => {
 
   it("should list types with --type-list", async () => {
     const bash = new Bash();
-    const result = toText(await bash.exec("rg --type-list"));
+    const result = await toText(await bash.exec("rg --type-list"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("js:");
     expect(result.stdout).toContain("ts:");
@@ -52,7 +52,7 @@ describe("rg glob filtering", () => {
         "/home/user/app.js": "const foo = 2;\n",
       },
     });
-    const result = toText(await bash.exec("rg -g '*.ts' foo"));
+    const result = await toText(await bash.exec("rg -g '*.ts' foo"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("app.ts:1:const foo = 1;\n");
     expect(result.stderr).toBe("");
@@ -66,7 +66,7 @@ describe("rg glob filtering", () => {
         "/home/user/test.ts": "const foo = 2;\n",
       },
     });
-    const result = toText(await bash.exec("rg -g '!test.ts' foo"));
+    const result = await toText(await bash.exec("rg -g '!test.ts' foo"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("app.ts:1:const foo = 1;\n");
     expect(result.stderr).toBe("");
@@ -81,7 +81,7 @@ describe("rg glob filtering", () => {
         "/home/user/c.js": "foo\n",
       },
     });
-    const result = toText(await bash.exec("rg -g '*.ts' foo"));
+    const result = await toText(await bash.exec("rg -g '*.ts' foo"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("a.ts:1:foo\nb.ts:1:foo\n");
     expect(result.stderr).toBe("");
@@ -97,7 +97,7 @@ describe("rg hidden files", () => {
         "/home/user/.hidden.txt": "hello\n",
       },
     });
-    const result = toText(await bash.exec("rg hello"));
+    const result = await toText(await bash.exec("rg hello"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("visible.txt:1:hello\n");
     expect(result.stderr).toBe("");
@@ -111,7 +111,7 @@ describe("rg hidden files", () => {
         "/home/user/.hidden.txt": "hello\n",
       },
     });
-    const result = toText(await bash.exec("rg --hidden hello"));
+    const result = await toText(await bash.exec("rg --hidden hello"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(".hidden.txt:1:hello\nvisible.txt:1:hello\n");
     expect(result.stderr).toBe("");
@@ -128,7 +128,7 @@ describe("rg gitignore", () => {
         "/home/user/debug.log": "hello\n",
       },
     });
-    const result = toText(await bash.exec("rg hello"));
+    const result = await toText(await bash.exec("rg hello"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("app.ts:1:hello\n");
     expect(result.stderr).toBe("");
@@ -143,7 +143,7 @@ describe("rg gitignore", () => {
         "/home/user/debug.log": "hello\n",
       },
     });
-    const result = toText(await bash.exec("rg --no-ignore hello"));
+    const result = await toText(await bash.exec("rg --no-ignore hello"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("app.ts:1:hello\ndebug.log:1:hello\n");
     expect(result.stderr).toBe("");
@@ -158,7 +158,7 @@ describe("rg gitignore", () => {
         "/home/user/important.log": "hello\n",
       },
     });
-    const result = toText(await bash.exec("rg hello"));
+    const result = await toText(await bash.exec("rg hello"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("important.log:1:hello\n");
     expect(result.stderr).toBe("");
@@ -173,7 +173,7 @@ describe("rg gitignore", () => {
         "/home/user/build/output.js": "hello\n",
       },
     });
-    const result = toText(await bash.exec("rg hello"));
+    const result = await toText(await bash.exec("rg hello"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("src/app.ts:1:hello\n");
     expect(result.stderr).toBe("");
@@ -189,7 +189,7 @@ describe("rg gitignore", () => {
         "/home/user/subdir/debug.log": "hello\n",
       },
     });
-    const result = toText(await bash.exec("rg hello"));
+    const result = await toText(await bash.exec("rg hello"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("app.ts:1:hello\nsubdir/file.ts:1:hello\n");
     expect(result.stderr).toBe("");
@@ -204,7 +204,7 @@ describe("rg gitignore", () => {
         "/home/user/node_modules_backup/file.js": "hello\n",
       },
     });
-    const result = toText(await bash.exec("rg hello"));
+    const result = await toText(await bash.exec("rg hello"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("node_modules_backup/file.js:1:hello\n");
     expect(result.stderr).toBe("");
@@ -220,7 +220,7 @@ describe("rg gitignore", () => {
         "/home/user/cache/index.json": "hello\n",
       },
     });
-    const result = toText(await bash.exec("rg hello"));
+    const result = await toText(await bash.exec("rg hello"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("src/app.ts:1:hello\n");
     expect(result.stderr).toBe("");

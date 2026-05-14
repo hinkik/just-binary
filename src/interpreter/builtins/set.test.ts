@@ -6,7 +6,7 @@ describe("set builtin", () => {
   describe("set with no args (variable listing)", () => {
     it("should output associative arrays in bash format", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         typeset -A __assoc
         __assoc['k e y']='v a l'
@@ -22,7 +22,7 @@ describe("set builtin", () => {
 
     it("should not show assoc array elements as separate scalars", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         typeset -A __assoc
         __assoc[a]=b
@@ -38,7 +38,7 @@ describe("set builtin", () => {
   describe("set -u (nounset)", () => {
     it("should error on unset variable when enabled", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -u
         echo $UNDEFINED_VAR
@@ -50,7 +50,7 @@ describe("set builtin", () => {
 
     it("should not error on set variable", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -u
         MYVAR=hello
@@ -63,7 +63,7 @@ describe("set builtin", () => {
 
     it("should allow empty string as valid value", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -u
         MYVAR=""
@@ -76,7 +76,7 @@ describe("set builtin", () => {
 
     it("should be disabled by +u", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -u
         set +u
@@ -89,7 +89,7 @@ describe("set builtin", () => {
 
     it("should work with -o nounset", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -o nounset
         echo $UNDEFINED
@@ -101,7 +101,7 @@ describe("set builtin", () => {
 
     it("should be disabled with +o nounset", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -o nounset
         set +o nounset
@@ -116,7 +116,7 @@ describe("set builtin", () => {
   describe("special variables with nounset", () => {
     it("should not error on $? with nounset", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -u
         echo $?
@@ -128,7 +128,7 @@ describe("set builtin", () => {
 
     it("should not error on $$ with nounset", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -u
         echo $$
@@ -140,7 +140,7 @@ describe("set builtin", () => {
 
     it("should not error on $# with nounset", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -u
         echo $#
@@ -152,7 +152,7 @@ describe("set builtin", () => {
 
     it("should not error on $@ with nounset when no args", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -u
         echo "$@"
@@ -166,7 +166,7 @@ describe("set builtin", () => {
   describe("positional parameters with nounset", () => {
     it("should error on unset positional parameter", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         myfunc() {
           set -u
@@ -181,7 +181,7 @@ describe("set builtin", () => {
 
     it("should not error on set positional parameter", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         myfunc() {
           set -u
@@ -198,7 +198,7 @@ describe("set builtin", () => {
   describe("default value expansion with nounset", () => {
     it("should allow ${var:-default} with unset var", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -u
         echo \${UNSET:-default}
@@ -210,7 +210,7 @@ describe("set builtin", () => {
 
     it("should allow ${var:=default} with unset var", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -u
         echo \${UNSET:=default}
@@ -223,7 +223,7 @@ describe("set builtin", () => {
 
     it("should allow ${var:+value} with unset var", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -u
         echo ":\${UNSET:+alt}:"
@@ -237,7 +237,7 @@ describe("set builtin", () => {
   describe("set -e and set -u combined", () => {
     it("should handle both options together", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -eu
         VAR=hello
@@ -250,7 +250,7 @@ describe("set builtin", () => {
 
     it("should exit on unset var with -eu", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -eu
         echo $UNDEFINED
@@ -266,7 +266,7 @@ describe("set builtin", () => {
   describe("set -e (errexit)", () => {
     it("should exit immediately when command fails", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -e
         echo before
@@ -280,7 +280,7 @@ describe("set builtin", () => {
 
     it("should continue execution without set -e", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         echo before
         false
@@ -293,7 +293,7 @@ describe("set builtin", () => {
 
     it("should not exit if command succeeds", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -e
         echo one
@@ -307,7 +307,7 @@ describe("set builtin", () => {
 
     it("should disable errexit with set +e", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -e
         set +e
@@ -322,7 +322,7 @@ describe("set builtin", () => {
 
     it("should enable errexit with set -o errexit", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -o errexit
         echo before
@@ -336,7 +336,7 @@ describe("set builtin", () => {
 
     it("should disable errexit with set +o errexit", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -o errexit
         set +o errexit
@@ -353,7 +353,7 @@ describe("set builtin", () => {
   describe("errexit exceptions", () => {
     it("should not exit on failed command in && short-circuit", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -e
         false && echo "not reached"
@@ -366,7 +366,7 @@ describe("set builtin", () => {
 
     it("should not exit on failed command in || short-circuit", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -e
         false || echo "fallback"
@@ -379,7 +379,7 @@ describe("set builtin", () => {
 
     it("should exit if final command in && list fails", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -e
         echo before
@@ -393,7 +393,7 @@ describe("set builtin", () => {
 
     it("should not exit on negated failed command", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -e
         ! false
@@ -406,7 +406,7 @@ describe("set builtin", () => {
 
     it("should not exit on failed command in if condition", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -e
         if false; then
@@ -423,7 +423,7 @@ describe("set builtin", () => {
 
     it("should exit on failed command in if body", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -e
         if true; then
@@ -440,7 +440,7 @@ describe("set builtin", () => {
 
     it("should not exit on failed condition that terminates while loop", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -e
         x=0
@@ -457,7 +457,7 @@ describe("set builtin", () => {
 
     it("should exit on failed command in while body", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -e
         x=0
@@ -477,7 +477,7 @@ describe("set builtin", () => {
   describe("set -o pipefail", () => {
     it("should return success when all commands succeed", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -o pipefail
         echo hello | cat | cat
@@ -490,7 +490,7 @@ describe("set builtin", () => {
 
     it("should return failure when first command fails", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -o pipefail
         false | true
@@ -503,7 +503,7 @@ describe("set builtin", () => {
 
     it("should return failure when middle command fails", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -o pipefail
         echo hello | false | cat
@@ -516,7 +516,7 @@ describe("set builtin", () => {
 
     it("should return rightmost failing exit code", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -o pipefail
         exit 2 | exit 3 | true
@@ -529,7 +529,7 @@ describe("set builtin", () => {
 
     it("should return last command exit code without pipefail", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         false | true
         echo "exit: $?"
@@ -541,7 +541,7 @@ describe("set builtin", () => {
 
     it("should disable pipefail with +o pipefail", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -o pipefail
         set +o pipefail
@@ -555,7 +555,7 @@ describe("set builtin", () => {
 
     it("should trigger errexit when pipeline fails with pipefail", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -e
         set -o pipefail
@@ -572,7 +572,7 @@ describe("set builtin", () => {
   describe("set error handling", () => {
     it("should show help with --help", async () => {
       const env = new Bash();
-      const result = toText(await env.exec("set --help"));
+      const result = await toText(await env.exec("set --help"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("usage:");
       expect(result.stdout).toContain("-e");
@@ -580,7 +580,7 @@ describe("set builtin", () => {
 
     it("should error on unknown short option", async () => {
       const env = new Bash();
-      const result = toText(await env.exec("set -z"));
+      const result = await toText(await env.exec("set -z"));
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("-z");
       expect(result.stderr).toContain("invalid option");
@@ -588,7 +588,7 @@ describe("set builtin", () => {
 
     it("should error on unknown long option", async () => {
       const env = new Bash();
-      const result = toText(await env.exec("set -o unknownoption"));
+      const result = await toText(await env.exec("set -o unknownoption"));
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("unknownoption");
       expect(result.stderr).toContain("invalid option name");
@@ -597,7 +597,7 @@ describe("set builtin", () => {
     it("should list options when -o has no argument", async () => {
       // In bash, `set -o` without argument lists all options
       const env = new Bash();
-      const result = toText(await env.exec("set -o"));
+      const result = await toText(await env.exec("set -o"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("errexit");
     });

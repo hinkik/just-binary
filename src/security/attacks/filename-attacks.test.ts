@@ -18,18 +18,20 @@ describe("Filename Attack Prevention", () => {
 
   describe("Null Byte Injection", () => {
     it("should reject null bytes in file paths", async () => {
-      const result = toText(await bash.exec('cat "/etc\\x00/passwd"'));
+      const result = await toText(await bash.exec('cat "/etc\\x00/passwd"'));
       expect(result.exitCode).not.toBe(0);
     });
 
     it("should reject null bytes in directory names", async () => {
-      const result = toText(await bash.exec('mkdir -p "/tmp/test\\x00dir"'));
+      const result = await toText(
+        await bash.exec('mkdir -p "/tmp/test\\x00dir"'),
+      );
       // Should either reject or sanitize the null byte
       expect(typeof result.exitCode).toBe("number");
     });
 
     it("should handle C-style escapes safely", async () => {
-      const result = toText(await bash.exec("echo $'\\x00' | xxd"));
+      const result = await toText(await bash.exec("echo $'\\x00' | xxd"));
       // Should not crash and should handle null bytes
       expect(typeof result.exitCode).toBe("number");
     });
@@ -37,7 +39,7 @@ describe("Filename Attack Prevention", () => {
 
   describe("Special Character Filenames", () => {
     it("should handle filenames starting with -", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         touch /tmp/-dashfile
         ls /tmp/-dashfile
@@ -48,7 +50,7 @@ describe("Filename Attack Prevention", () => {
     });
 
     it("should handle filenames with newlines", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         touch $'/tmp/file\\nwith\\nnewlines'
         ls -la /tmp | grep -c 'file'
@@ -59,7 +61,7 @@ describe("Filename Attack Prevention", () => {
     });
 
     it("should handle filenames with spaces", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         touch "/tmp/file with spaces.txt"
         cat "/tmp/file with spaces.txt"
@@ -70,7 +72,7 @@ describe("Filename Attack Prevention", () => {
     });
 
     it("should handle filenames with quotes", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         touch '/tmp/file"with"quotes.txt'
         ls '/tmp/file"with"quotes.txt'
@@ -81,7 +83,7 @@ describe("Filename Attack Prevention", () => {
     });
 
     it("should handle filenames with backticks", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         touch '/tmp/file\`backticks\`.txt'
         ls '/tmp/file\`backticks\`.txt'
@@ -92,7 +94,7 @@ describe("Filename Attack Prevention", () => {
     });
 
     it("should handle filenames with $", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         touch '/tmp/file$dollar.txt'
         ls '/tmp/file$dollar.txt'
@@ -103,7 +105,7 @@ describe("Filename Attack Prevention", () => {
     });
 
     it("should handle filenames with glob chars when quoted", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         touch '/tmp/file*with[glob]?.txt'
         ls '/tmp/file*with[glob]?.txt'
@@ -116,7 +118,7 @@ describe("Filename Attack Prevention", () => {
 
   describe("Path Traversal", () => {
     it("should normalize paths with ..", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         mkdir -p /tmp/a/b/c
         cd /tmp/a/b/c
@@ -128,7 +130,7 @@ describe("Filename Attack Prevention", () => {
     });
 
     it("should normalize /./././ paths correctly", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         mkdir -p /tmp/normalize
         ls /tmp/./normalize/./
@@ -138,7 +140,7 @@ describe("Filename Attack Prevention", () => {
     });
 
     it("should handle trailing slashes correctly", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         mkdir -p /tmp/trailing
         touch /tmp/trailing/file.txt
@@ -150,7 +152,7 @@ describe("Filename Attack Prevention", () => {
     });
 
     it("should handle double slashes", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         mkdir -p /tmp/doubleslash
         touch /tmp//doubleslash//file.txt
@@ -163,7 +165,7 @@ describe("Filename Attack Prevention", () => {
 
   describe("Unicode Filenames", () => {
     it("should handle unicode filenames", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         touch /tmp/файл.txt
         ls /tmp/файл.txt
@@ -174,7 +176,7 @@ describe("Filename Attack Prevention", () => {
     });
 
     it("should handle emoji filenames", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         touch '/tmp/📁file.txt'
         ls '/tmp/📁file.txt'
@@ -185,7 +187,7 @@ describe("Filename Attack Prevention", () => {
     });
 
     it("should handle mixed unicode", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         touch '/tmp/日本語_한국어_العربية.txt'
         ls '/tmp/日本語_한국어_العربية.txt'
@@ -197,7 +199,7 @@ describe("Filename Attack Prevention", () => {
 
     it("should handle combining characters", async () => {
       // é can be represented as e + combining acute accent
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         touch $'/tmp/cafe\\xCC\\x81.txt'
         ls /tmp/café.txt 2>/dev/null || ls /tmp/cafe*.txt
@@ -212,13 +214,13 @@ describe("Filename Attack Prevention", () => {
     it("should handle empty filename safely", async () => {
       // touch "" may succeed (creating no file) or fail
       // The important thing is it doesn't crash
-      const result = toText(await bash.exec('touch ""'));
+      const result = await toText(await bash.exec('touch ""'));
       expect(typeof result.exitCode).toBe("number");
     });
 
     it("should handle very long filenames", async () => {
       const longName = "a".repeat(255);
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         touch "/tmp/${longName}"
         ls "/tmp/${longName}"
@@ -231,7 +233,7 @@ describe("Filename Attack Prevention", () => {
     it("should handle very long filenames up to system limit", async () => {
       // 255 is typically the max filename length on most filesystems
       const maxLength = "a".repeat(255);
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         touch "/tmp/${maxLength}" 2>/dev/null && rm "/tmp/${maxLength}"
         echo "handled"
@@ -241,7 +243,7 @@ describe("Filename Attack Prevention", () => {
     });
 
     it("should handle dot files", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         touch /tmp/.hidden
         ls -a /tmp/.hidden
@@ -252,7 +254,7 @@ describe("Filename Attack Prevention", () => {
     });
 
     it("should handle ... filename", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         touch '/tmp/...'
         ls '/tmp/...'
@@ -265,7 +267,7 @@ describe("Filename Attack Prevention", () => {
 
   describe("Command Injection via Filenames", () => {
     it("should not execute commands in filename with backticks", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         touch '/tmp/\`echo pwned\`.txt'
         cat '/tmp/\`echo pwned\`.txt'
@@ -277,7 +279,7 @@ describe("Filename Attack Prevention", () => {
     });
 
     it("should not execute commands in filename with $()", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         touch '/tmp/$(echo pwned).txt'
         cat '/tmp/$(echo pwned).txt'
@@ -290,7 +292,7 @@ describe("Filename Attack Prevention", () => {
 
     it("should handle semicolon in filename when quoted", async () => {
       // Single quotes prevent semicolon from being interpreted
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         touch '/tmp/filesemi.txt'
         ls '/tmp/filesemi.txt'
@@ -302,7 +304,7 @@ describe("Filename Attack Prevention", () => {
 
     it("should handle pipe in filename when quoted", async () => {
       // Single quotes prevent pipe from being interpreted
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         touch '/tmp/filepipe.txt'
         ls '/tmp/filepipe.txt'
@@ -315,7 +317,7 @@ describe("Filename Attack Prevention", () => {
 
   describe("Symlink Security", () => {
     it("should create and follow valid symlinks", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo "content" > /tmp/original.txt
         ln -s /tmp/original.txt /tmp/link.txt
@@ -328,7 +330,7 @@ describe("Filename Attack Prevention", () => {
     });
 
     it("should handle broken symlinks gracefully", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         ln -s /tmp/nonexistent /tmp/broken_link
         cat /tmp/broken_link 2>&1
@@ -347,7 +349,7 @@ describe("Filename Attack Prevention", () => {
         ln -s /tmp/circlink1 /tmp/circlink2
       `);
 
-      const result = toText(await bash.exec("cat /tmp/circlink1"));
+      const result = await toText(await bash.exec("cat /tmp/circlink1"));
       // Should fail - either ELOOP or ENOENT depending on implementation
       expect(result.exitCode).not.toBe(0);
 
@@ -360,7 +362,7 @@ describe("Filename Attack Prevention", () => {
 
   describe("Glob Pattern Safety", () => {
     it("should expand globs safely", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         mkdir -p /tmp/globsafe
         touch /tmp/globsafe/a.txt /tmp/globsafe/b.txt
@@ -372,7 +374,7 @@ describe("Filename Attack Prevention", () => {
     });
 
     it("should handle no glob matches gracefully", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         ls /tmp/nomatch*.xyz 2>&1
       `),
@@ -382,7 +384,7 @@ describe("Filename Attack Prevention", () => {
     });
 
     it("should handle character classes in globs", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         mkdir -p /tmp/charclass
         touch /tmp/charclass/file1.txt /tmp/charclass/file2.txt

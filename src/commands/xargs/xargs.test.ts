@@ -6,7 +6,7 @@ describe("xargs command", () => {
   describe("basic usage", () => {
     it("should execute echo by default", async () => {
       const env = new Bash();
-      const result = toText(await env.exec('echo "a b c" | xargs'));
+      const result = await toText(await env.exec('echo "a b c" | xargs'));
       expect(result.stdout).toBe("a b c\n");
       expect(result.exitCode).toBe(0);
     });
@@ -18,7 +18,7 @@ describe("xargs command", () => {
           "/file2.txt": "content2",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('echo "/file1.txt /file2.txt" | xargs cat'),
       );
       expect(result.stdout).toBe("content1content2");
@@ -26,7 +26,7 @@ describe("xargs command", () => {
 
     it("should handle empty input", async () => {
       const env = new Bash();
-      const result = toText(await env.exec('echo "" | xargs'));
+      const result = await toText(await env.exec('echo "" | xargs'));
       expect(result.stdout).toBe("");
       expect(result.exitCode).toBe(0);
     });
@@ -35,19 +35,25 @@ describe("xargs command", () => {
   describe("-n option (batch size)", () => {
     it("should batch with -n 1", async () => {
       const env = new Bash();
-      const result = toText(await env.exec('echo "a b c" | xargs -n 1 echo'));
+      const result = await toText(
+        await env.exec('echo "a b c" | xargs -n 1 echo'),
+      );
       expect(result.stdout).toBe("a\nb\nc\n");
     });
 
     it("should batch with -n 2", async () => {
       const env = new Bash();
-      const result = toText(await env.exec('echo "a b c d" | xargs -n 2 echo'));
+      const result = await toText(
+        await env.exec('echo "a b c d" | xargs -n 2 echo'),
+      );
       expect(result.stdout).toBe("a b\nc d\n");
     });
 
     it("should handle partial last batch", async () => {
       const env = new Bash();
-      const result = toText(await env.exec('echo "a b c" | xargs -n 2 echo'));
+      const result = await toText(
+        await env.exec('echo "a b c" | xargs -n 2 echo'),
+      );
       expect(result.stdout).toBe("a b\nc\n");
     });
   });
@@ -55,7 +61,7 @@ describe("xargs command", () => {
   describe("-I option (replace string)", () => {
     it("should replace placeholder with input", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec('echo "a\nb\nc" | xargs -I {} echo file-{}'),
       );
       expect(result.stdout).toBe("file-a\nfile-b\nfile-c\n");
@@ -63,7 +69,9 @@ describe("xargs command", () => {
 
     it("should replace multiple occurrences", async () => {
       const env = new Bash();
-      const result = toText(await env.exec('echo "x" | xargs -I % echo %-%'));
+      const result = await toText(
+        await env.exec('echo "x" | xargs -I % echo %-%'),
+      );
       expect(result.stdout).toBe("x-x\n");
     });
 
@@ -74,7 +82,7 @@ describe("xargs command", () => {
           "/src/b.txt": "content-b",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('echo "/src/a.txt\n/src/b.txt" | xargs -I {} cat {}'),
       );
       expect(result.stdout).toBe("content-acontent-b");
@@ -87,7 +95,7 @@ describe("xargs command", () => {
       // Create input with null-separated items (simulated via file)
       await env.exec('echo -n "a" > /items.txt');
       // Note: Our echo doesn't handle -n yet, so let's test differently
-      const result = toText(
+      const result = await toText(
         await env.exec('echo "a\x00b\x00c" | xargs -0 echo'),
       );
       // Without proper null-separated input, this tests the flag parsing
@@ -98,14 +106,16 @@ describe("xargs command", () => {
   describe("-d option (custom delimiter)", () => {
     it("should split on custom delimiter", async () => {
       const env = new Bash();
-      const result = toText(await env.exec('echo "a:b:c" | xargs -d : echo'));
+      const result = await toText(
+        await env.exec('echo "a:b:c" | xargs -d : echo'),
+      );
       expect(result.stdout).toBe("a b c\n");
       expect(result.exitCode).toBe(0);
     });
 
     it("should handle newline delimiter with escape sequence", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           "echo -e \"file1.txt\\nfile2.txt\\nfile3.txt\" | xargs -d '\\n' echo",
         ),
@@ -116,7 +126,7 @@ describe("xargs command", () => {
 
     it("should handle tab delimiter with escape sequence", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec("printf \"a\\tb\\tc\" | xargs -d '\\t' echo"),
       );
       expect(result.stdout).toBe("a b c\n");
@@ -125,7 +135,7 @@ describe("xargs command", () => {
 
     it("should work with -n option for batching", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec('echo "a:b:c:d:e" | xargs -d : -n 2 echo'),
       );
       expect(result.stdout).toBe("a b\nc d\ne\n");
@@ -134,7 +144,7 @@ describe("xargs command", () => {
 
     it("should work with -I option for replacement", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec('echo "x:y:z" | xargs -d : -I {} echo "item: {}"'),
       );
       expect(result.stdout).toBe("item: x\nitem: y\nitem: z\n");
@@ -143,7 +153,7 @@ describe("xargs command", () => {
 
     it("should preserve spaces in items when using delimiter", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           'echo "hello world:foo bar:test" | xargs -d : -n 1 echo',
         ),
@@ -154,7 +164,9 @@ describe("xargs command", () => {
 
     it("should handle empty items", async () => {
       const env = new Bash();
-      const result = toText(await env.exec('echo "a::b" | xargs -d : echo'));
+      const result = await toText(
+        await env.exec('echo "a::b" | xargs -d : echo'),
+      );
       // Empty items are filtered out
       expect(result.stdout).toBe("a b\n");
       expect(result.exitCode).toBe(0);
@@ -162,7 +174,7 @@ describe("xargs command", () => {
 
     it("should handle backslash escape", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec("echo \"a\\\\b\\\\c\" | xargs -d '\\\\' echo"),
       );
       expect(result.stdout).toBe("a b c\n");
@@ -177,7 +189,7 @@ describe("xargs command", () => {
           "/data/file3.txt": "content3",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec(
           'echo "/data/file1.txt:/data/file2.txt:/data/file3.txt" | xargs -d : cat',
         ),
@@ -193,7 +205,7 @@ describe("xargs command", () => {
           "/src/b.ts": "const b = 2;",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec("find /src -name '*.ts' | xargs -d '\\n' wc -l"),
       );
       expect(result.stdout).toContain("total");
@@ -204,7 +216,7 @@ describe("xargs command", () => {
   describe("-t option (verbose)", () => {
     it("should print commands to stderr", async () => {
       const env = new Bash();
-      const result = toText(await env.exec('echo "x y" | xargs -t echo'));
+      const result = await toText(await env.exec('echo "x y" | xargs -t echo'));
       expect(result.stdout).toBe("x y\n");
       expect(result.stderr).toBe("echo x y\n");
     });
@@ -213,7 +225,7 @@ describe("xargs command", () => {
   describe("-r option (no-run-if-empty)", () => {
     it("should not run command when input is empty", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec('echo "" | xargs -r echo "nonempty"'),
       );
       expect(result.stdout).toBe("");
@@ -230,7 +242,7 @@ describe("xargs command", () => {
         },
       });
       // Find files with "const" and count lines
-      const result = toText(
+      const result = await toText(
         await env.exec("grep -l const /src/*.ts | xargs wc -l"),
       );
       // wc -l outputs line counts per file with filenames
@@ -250,10 +262,10 @@ describe("xargs command", () => {
       });
       await env.exec('echo "/tmp/file1.tmp /tmp/file2.tmp" | xargs rm');
 
-      const result1 = toText(await env.exec("cat /tmp/file1.tmp"));
+      const result1 = await toText(await env.exec("cat /tmp/file1.tmp"));
       expect(result1.exitCode).toBe(1); // File should be deleted
 
-      const result2 = toText(await env.exec("cat /keep/file.txt"));
+      const result2 = await toText(await env.exec("cat /keep/file.txt"));
       expect(result2.stdout).toBe("keep"); // This file should still exist
     });
 
@@ -268,10 +280,10 @@ describe("xargs command", () => {
       await env.exec("mkdir /backup");
       await env.exec('echo "a\nb" | xargs -I {} cp /files/{} /backup/{}');
 
-      const resultA = toText(await env.exec("cat /backup/a"));
+      const resultA = await toText(await env.exec("cat /backup/a"));
       expect(resultA.stdout).toBe("original-a");
 
-      const resultB = toText(await env.exec("cat /backup/b"));
+      const resultB = await toText(await env.exec("cat /backup/b"));
       expect(resultB.stdout).toBe("original-b");
     });
 
@@ -283,7 +295,7 @@ describe("xargs command", () => {
         },
       });
       // This pattern failed before the fix - xargs didn't pass cwd to subcommands
-      const result = toText(
+      const result = await toText(
         await env.exec('cd /project && find src -name "*.ts" | xargs wc -l'),
       );
       expect(result.stdout).toContain("src/file1.ts");
@@ -299,7 +311,7 @@ describe("xargs command", () => {
           "/project/data/b.txt": "content-b",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec(
           'cd /project && find data -name "*.txt" | sort | xargs cat',
         ),
@@ -312,7 +324,7 @@ describe("xargs command", () => {
   describe("-P option (parallel execution)", () => {
     it("should run commands in parallel with -P", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec('echo "a b c" | xargs -P 2 -n 1 echo item:'),
       );
       expect(result.stdout).toBe("item: a\nitem: b\nitem: c\n");
@@ -321,7 +333,7 @@ describe("xargs command", () => {
 
     it("should handle -P with -I replacement", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec('echo -e "x\\ny\\nz" | xargs -P 3 -I {} echo file-{}'),
       );
       expect(result.stdout).toBe("file-x\nfile-y\nfile-z\n");
@@ -330,7 +342,7 @@ describe("xargs command", () => {
 
     it("should handle -P 1 as sequential", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec('echo "1 2 3" | xargs -P 1 -n 1 echo'),
       );
       expect(result.stdout).toBe("1\n2\n3\n");
@@ -345,7 +357,7 @@ describe("xargs command", () => {
           "/c.txt": "content-c",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('echo "/a.txt /b.txt /c.txt" | xargs -P 2 -n 1 cat'),
       );
       expect(result.stdout).toBe("content-acontent-bcontent-c");
@@ -356,7 +368,9 @@ describe("xargs command", () => {
   describe("exit codes", () => {
     it("should propagate command failure exit code", async () => {
       const env = new Bash();
-      const result = toText(await env.exec('echo "missing.txt" | xargs cat'));
+      const result = await toText(
+        await env.exec('echo "missing.txt" | xargs cat'),
+      );
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("No such file");
     });
@@ -365,7 +379,7 @@ describe("xargs command", () => {
   describe("help option", () => {
     it("should show help with --help", async () => {
       const env = new Bash();
-      const result = toText(await env.exec("xargs --help"));
+      const result = await toText(await env.exec("xargs --help"));
       expect(result.stdout).toContain("xargs");
       expect(result.stdout).toContain("build and execute");
       expect(result.stdout).toContain("-I");

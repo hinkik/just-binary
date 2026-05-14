@@ -1,5 +1,5 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { decode, decodeArgs } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
 const envHelp = {
@@ -90,8 +90,8 @@ export const envCommand: Command = {
         lines.push(`${key}=${value}`);
       }
       return {
-        stdout: encode(lines.join("\n") + (lines.length > 0 ? "\n" : "")),
-        stderr: EMPTY,
+        stdout: fromString(lines.join("\n") + (lines.length > 0 ? "\n" : "")),
+        stderr: emptyStream(),
         exitCode: 0,
       };
     }
@@ -99,8 +99,8 @@ export const envCommand: Command = {
     // Execute command with modified environment
     if (!ctx.exec) {
       return {
-        stdout: EMPTY,
-        stderr: encode(
+        stdout: emptyStream(),
+        stderr: fromString(
           "env: command execution not supported in this context\n",
         ),
         exitCode: 1,
@@ -162,8 +162,8 @@ export const printenvCommand: Command = {
         lines.push(`${key}=${decode(val)}`);
       }
       return {
-        stdout: encode(lines.join("\n") + (lines.length > 0 ? "\n" : "")),
-        stderr: EMPTY,
+        stdout: fromString(lines.join("\n") + (lines.length > 0 ? "\n" : "")),
+        stderr: emptyStream(),
         exitCode: 0,
       };
     }
@@ -181,13 +181,14 @@ export const printenvCommand: Command = {
     }
 
     return {
-      stdout: encode(lines.join("\n") + (lines.length > 0 ? "\n" : "")),
-      stderr: EMPTY,
+      stdout: fromString(lines.join("\n") + (lines.length > 0 ? "\n" : "")),
+      stderr: emptyStream(),
       exitCode,
     };
   },
 };
 
+import { emptyStream, fromString } from "../../utils/stream.js";
 import type { CommandFuzzInfo } from "../fuzz-flags-types.js";
 
 export const flagsForFuzzing: CommandFuzzInfo = {

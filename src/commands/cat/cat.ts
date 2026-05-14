@@ -1,7 +1,12 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
-import { concat, decode, decodeArgs, encode } from "../../utils/bytes.js";
+import { decode, decodeArgs } from "../../utils/bytes.js";
 import { readFiles } from "../../utils/file-reader.js";
+import {
+  type ByteStream,
+  emptyStream,
+  fromString,
+} from "../../utils/stream.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const catHelp = {
@@ -33,42 +38,108 @@ export const catCommand: Command = {
     const showLineNumbers = parsed.result.flags.number;
     const files = parsed.result.positional;
 
-    // Read files (allows "-" for stdin)
-    const readResult = await readFiles(ctx, files, {
-      cmdName: "cat",
-      allowStdinMarker: true,
-      stopOnError: false,
-    });
-
+    // `cat -n` needs cross-chunk line tracking — keep the buffered path
+    // (line-numbered output is generally used on small inputs).
     if (showLineNumbers) {
+      const readResult = await readFiles(ctx, files, {
+        cmdName: "cat",
+        allowStdinMarker: true,
+        stopOnError: false,
+      });
       let stdout = "";
       let lineNumber = 1;
-
       for (const { content } of readResult.files) {
-        // Decode to text only when line numbering is needed
         const text = decode(content);
-        const result = addLineNumbers(text, lineNumber);
-        stdout += result.content;
-        lineNumber = result.nextLineNumber;
+        const r = addLineNumbers(text, lineNumber);
+        stdout += r.content;
+        lineNumber = r.nextLineNumber;
       }
-
       return {
-        stdout: encode(stdout),
-        stderr: encode(readResult.stderr),
+        stdout: fromString(stdout),
+        stderr: fromString(readResult.stderr),
         exitCode: readResult.exitCode,
       };
     }
 
-    // Pure byte pass-through — no decoding needed
-    const stdout = readResult.files.reduce(
-      (acc, f) => concat(acc, f.content),
-      new Uint8Array(0) as Uint8Array,
-    );
+    // --- Lazy streaming path: cat returns immediately with a pull-based
+    // stream that opens each file as the downstream consumer pulls chunks.
+    // Pre-validate files so we can report missing-file errors synchronously.
+    const sources: Array<{ name: string; kind: "stdin" | "file" }> = [];
+    let stderr = "";
+    let exitCode = 0;
+
+    const inputs = files.length === 0 ? ["-"] : files;
+    for (const f of inputs) {
+      if (f === "-") {
+        sources.push({ name: "-", kind: "stdin" });
+        continue;
+      }
+      try {
+        const realPath = ctx.fs.resolvePath(ctx.cwd, f);
+        await ctx.fs.stat(realPath);
+        sources.push({ name: realPath, kind: "file" });
+      } catch {
+        stderr += `cat: ${f}: No such file or directory\n`;
+        exitCode = 1;
+      }
+    }
+
+    let currentReader: ReadableStreamDefaultReader<Uint8Array> | null = null;
+    let sourceIdx = 0;
+
+    const openNext = async (): Promise<boolean> => {
+      while (sourceIdx < sources.length) {
+        const src = sources[sourceIdx++];
+        const stream =
+          src.kind === "stdin" ? ctx.stdin : await ctx.fs.readFile(src.name);
+        currentReader = stream.getReader();
+        return true;
+      }
+      return false;
+    };
+
+    const stdout: ByteStream = new ReadableStream<Uint8Array>({
+      async pull(controller) {
+        // Loop until we either enqueue a chunk or close the stream. Empty
+        // chunks (rare) are skipped without yielding.
+        while (true) {
+          if (currentReader === null) {
+            const opened = await openNext();
+            if (!opened) {
+              controller.close();
+              return;
+            }
+          }
+          const reader =
+            currentReader as ReadableStreamDefaultReader<Uint8Array>;
+          const { done, value } = await reader.read();
+          if (done) {
+            reader.releaseLock();
+            currentReader = null;
+            continue;
+          }
+          if (value && value.length > 0) {
+            controller.enqueue(value);
+            return;
+          }
+        }
+      },
+      cancel() {
+        if (currentReader) {
+          try {
+            currentReader.releaseLock();
+          } catch {
+            // already released
+          }
+          currentReader = null;
+        }
+      },
+    });
 
     return {
-      stdout,
-      stderr: encode(readResult.stderr),
-      exitCode: readResult.exitCode,
+      stdout: stderr.length === 0 && exitCode === 0 ? stdout : stdout,
+      stderr: stderr.length > 0 ? fromString(stderr) : emptyStream(),
+      exitCode,
     };
   },
 };

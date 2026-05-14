@@ -6,7 +6,7 @@ describe("awk operators", () => {
   describe("arithmetic operators", () => {
     it("should perform addition", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "" | awk 'BEGIN { print 5 + 3 }'`),
       );
       expect(result.stdout).toBe("8\n");
@@ -15,7 +15,7 @@ describe("awk operators", () => {
 
     it("should perform subtraction", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "" | awk 'BEGIN { print 10 - 4 }'`),
       );
       expect(result.stdout).toBe("6\n");
@@ -24,7 +24,7 @@ describe("awk operators", () => {
 
     it("should perform multiplication", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "" | awk 'BEGIN { print 6 * 7 }'`),
       );
       expect(result.stdout).toBe("42\n");
@@ -33,7 +33,7 @@ describe("awk operators", () => {
 
     it("should perform division", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "" | awk 'BEGIN { print 20 / 4 }'`),
       );
       expect(result.stdout).toBe("5\n");
@@ -42,7 +42,7 @@ describe("awk operators", () => {
 
     it("should perform modulo", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "" | awk 'BEGIN { print 17 % 5 }'`),
       );
       expect(result.stdout).toBe("2\n");
@@ -51,7 +51,7 @@ describe("awk operators", () => {
 
     it("should handle negative modulo", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "" | awk 'BEGIN { print -17 % 5 }'`),
       );
       expect(result.stdout).toBe("-2\n");
@@ -60,7 +60,7 @@ describe("awk operators", () => {
 
     it("should perform exponentiation with ^", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "" | awk 'BEGIN { print 2 ^ 8 }'`),
       );
       expect(result.stdout).toBe("256\n");
@@ -69,7 +69,7 @@ describe("awk operators", () => {
 
     it("should perform exponentiation with **", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "" | awk 'BEGIN { print 3 ** 3 }'`),
       );
       expect(result.stdout).toBe("27\n");
@@ -78,7 +78,7 @@ describe("awk operators", () => {
 
     it("should handle unary minus", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "" | awk 'BEGIN { x = 5; print -x }'`),
       );
       expect(result.stdout).toBe("-5\n");
@@ -87,7 +87,7 @@ describe("awk operators", () => {
 
     it("should handle unary plus", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "" | awk 'BEGIN { x = "42"; print +x }'`),
       );
       expect(result.stdout).toBe("42\n");
@@ -96,7 +96,7 @@ describe("awk operators", () => {
 
     it("should handle division by zero", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "" | awk 'BEGIN { print 10 / 0 }'`),
       );
       // AWK typically returns inf or 0 for division by zero
@@ -107,7 +107,7 @@ describe("awk operators", () => {
   describe("comparison operators", () => {
     it("should compare with ==", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "" | awk 'BEGIN { print (5 == 5), (5 == 6) }'`),
       );
       expect(result.stdout).toBe("1 0\n");
@@ -116,7 +116,7 @@ describe("awk operators", () => {
 
     it("should compare with !=", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "" | awk 'BEGIN { print (5 != 6), (5 != 5) }'`),
       );
       expect(result.stdout).toBe("1 0\n");
@@ -125,7 +125,7 @@ describe("awk operators", () => {
 
     it("should compare with <", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "" | awk 'BEGIN { print (3 < 5), (5 < 3) }'`),
       );
       expect(result.stdout).toBe("1 0\n");
@@ -134,7 +134,7 @@ describe("awk operators", () => {
 
     it("should compare with <=", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "" | awk 'BEGIN { print (3 <= 5), (5 <= 5), (6 <= 5) }'`,
         ),
@@ -145,7 +145,7 @@ describe("awk operators", () => {
 
     it("should compare with >", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "" | awk 'BEGIN { print (5 > 3), (3 > 5) }'`),
       );
       expect(result.stdout).toBe("1 0\n");
@@ -154,7 +154,7 @@ describe("awk operators", () => {
 
     it("should compare with >=", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "" | awk 'BEGIN { print (5 >= 3), (5 >= 5), (3 >= 5) }'`,
         ),
@@ -167,7 +167,7 @@ describe("awk operators", () => {
   describe("logical operators", () => {
     it("should evaluate && (AND)", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "" | awk 'BEGIN { print (1 && 1), (1 && 0), (0 && 1), (0 && 0) }'`,
         ),
@@ -178,7 +178,7 @@ describe("awk operators", () => {
 
     it("should evaluate || (OR)", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "" | awk 'BEGIN { print (1 || 1), (1 || 0), (0 || 1), (0 || 0) }'`,
         ),
@@ -189,7 +189,7 @@ describe("awk operators", () => {
 
     it("should evaluate ! (NOT)", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "" | awk 'BEGIN { print !1, !0, !"", !"x" }'`),
       );
       expect(result.stdout).toBe("0 1 1 0\n");
@@ -198,7 +198,7 @@ describe("awk operators", () => {
 
     it("should short-circuit &&", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "" | awk 'BEGIN { x=0; (0 && (x=1)); print x }'`),
       );
       expect(result.stdout).toBe("0\n");
@@ -207,7 +207,7 @@ describe("awk operators", () => {
 
     it("should short-circuit ||", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "" | awk 'BEGIN { x=0; (1 || (x=1)); print x }'`),
       );
       expect(result.stdout).toBe("0\n");
@@ -218,7 +218,7 @@ describe("awk operators", () => {
   describe("regex match operators", () => {
     it("should match with ~ operator", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "hello world" | awk '{ print ($0 ~ /world/) }'`),
       );
       expect(result.stdout).toBe("1\n");
@@ -227,7 +227,7 @@ describe("awk operators", () => {
 
     it("should not match with ~ operator", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "hello world" | awk '{ print ($0 ~ /foo/) }'`),
       );
       expect(result.stdout).toBe("0\n");
@@ -236,7 +236,7 @@ describe("awk operators", () => {
 
     it("should use !~ for negative match", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "hello world" | awk '{ print ($0 !~ /foo/) }'`),
       );
       expect(result.stdout).toBe("1\n");
@@ -247,7 +247,7 @@ describe("awk operators", () => {
       const env = new Bash({
         files: { "/data.txt": "apple\nbanana\napricot\ncherry\n" },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec(`awk '$0 ~ /^a/ { print }' /data.txt`),
       );
       expect(result.stdout).toBe("apple\napricot\n");
@@ -258,7 +258,7 @@ describe("awk operators", () => {
       const env = new Bash({
         files: { "/data.txt": "apple\nbanana\napricot\ncherry\n" },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec(`awk '$0 !~ /^a/ { print }' /data.txt`),
       );
       expect(result.stdout).toBe("banana\ncherry\n");
@@ -267,7 +267,7 @@ describe("awk operators", () => {
 
     it("should match field with regex", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "123 abc 456" | awk '{ print ($2 ~ /[a-z]+/) }'`),
       );
       expect(result.stdout).toBe("1\n");
@@ -278,7 +278,7 @@ describe("awk operators", () => {
   describe("ternary operator", () => {
     it("should evaluate true branch", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "" | awk 'BEGIN { print (1 ? "yes" : "no") }'`),
       );
       expect(result.stdout).toBe("yes\n");
@@ -287,7 +287,7 @@ describe("awk operators", () => {
 
     it("should evaluate false branch", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "" | awk 'BEGIN { print (0 ? "yes" : "no") }'`),
       );
       expect(result.stdout).toBe("no\n");
@@ -296,7 +296,7 @@ describe("awk operators", () => {
 
     it("should work with expressions", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "" | awk 'BEGIN { x=5; print (x > 3 ? "big" : "small") }'`,
         ),
@@ -307,7 +307,7 @@ describe("awk operators", () => {
 
     it("should nest ternary operators", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "" | awk 'BEGIN { x=5; print (x<3 ? "low" : (x<7 ? "mid" : "high")) }'`,
         ),
@@ -320,7 +320,7 @@ describe("awk operators", () => {
       const env = new Bash({
         files: { "/data.txt": "10\n25\n5\n" },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec(`awk '{ print ($1 > 15 ? "high" : "low") }' /data.txt`),
       );
       expect(result.stdout).toBe("low\nhigh\nlow\n");
@@ -329,7 +329,7 @@ describe("awk operators", () => {
 
     it("should work in print arguments", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "5" | awk '{ print "Value is " ($1 % 2 == 0 ? "even" : "odd") }'`,
         ),
@@ -342,7 +342,7 @@ describe("awk operators", () => {
   describe("assignment operators", () => {
     it("should handle = assignment", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "" | awk 'BEGIN { x = 10; print x }'`),
       );
       expect(result.stdout).toBe("10\n");
@@ -351,7 +351,7 @@ describe("awk operators", () => {
 
     it("should handle += compound assignment", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "" | awk 'BEGIN { x = 10; x += 5; print x }'`),
       );
       expect(result.stdout).toBe("15\n");
@@ -360,7 +360,7 @@ describe("awk operators", () => {
 
     it("should handle -= compound assignment", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "" | awk 'BEGIN { x = 10; x -= 3; print x }'`),
       );
       expect(result.stdout).toBe("7\n");
@@ -369,7 +369,7 @@ describe("awk operators", () => {
 
     it("should handle *= compound assignment", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "" | awk 'BEGIN { x = 4; x *= 3; print x }'`),
       );
       expect(result.stdout).toBe("12\n");
@@ -378,7 +378,7 @@ describe("awk operators", () => {
 
     it("should handle /= compound assignment", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "" | awk 'BEGIN { x = 20; x /= 4; print x }'`),
       );
       expect(result.stdout).toBe("5\n");
@@ -387,7 +387,7 @@ describe("awk operators", () => {
 
     it("should handle %= compound assignment", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "" | awk 'BEGIN { x = 17; x %= 5; print x }'`),
       );
       expect(result.stdout).toBe("2\n");
@@ -396,7 +396,7 @@ describe("awk operators", () => {
 
     it("should handle ^= compound assignment", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "" | awk 'BEGIN { x = 2; x ^= 4; print x }'`),
       );
       expect(result.stdout).toBe("16\n");
@@ -407,7 +407,7 @@ describe("awk operators", () => {
   describe("increment/decrement operators", () => {
     it("should handle pre-increment", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "" | awk 'BEGIN { x = 5; print ++x, x }'`),
       );
       expect(result.stdout).toBe("6 6\n");
@@ -416,7 +416,7 @@ describe("awk operators", () => {
 
     it("should handle post-increment", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "" | awk 'BEGIN { x = 5; print x++, x }'`),
       );
       expect(result.stdout).toBe("5 6\n");
@@ -425,7 +425,7 @@ describe("awk operators", () => {
 
     it("should handle pre-decrement", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "" | awk 'BEGIN { x = 5; print --x, x }'`),
       );
       expect(result.stdout).toBe("4 4\n");
@@ -434,7 +434,7 @@ describe("awk operators", () => {
 
     it("should handle post-decrement", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "" | awk 'BEGIN { x = 5; print x--, x }'`),
       );
       expect(result.stdout).toBe("5 4\n");
@@ -443,7 +443,7 @@ describe("awk operators", () => {
 
     it("should chain increments in expression", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "" | awk 'BEGIN { x = 1; y = x++ + ++x; print y, x }'`,
         ),
@@ -458,7 +458,7 @@ describe("awk operators", () => {
   describe("operator precedence", () => {
     it("should handle multiplication before addition", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "" | awk 'BEGIN { print 2 + 3 * 4 }'`),
       );
       expect(result.stdout).toBe("14\n");
@@ -467,7 +467,7 @@ describe("awk operators", () => {
 
     it("should handle parentheses for grouping", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "" | awk 'BEGIN { print (2 + 3) * 4 }'`),
       );
       expect(result.stdout).toBe("20\n");
@@ -476,7 +476,7 @@ describe("awk operators", () => {
 
     it("should handle exponent before multiplication", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "" | awk 'BEGIN { print 2 * 3 ^ 2 }'`),
       );
       expect(result.stdout).toBe("18\n");
@@ -485,7 +485,7 @@ describe("awk operators", () => {
 
     it("should handle comparison before logical", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "" | awk 'BEGIN { print 1 < 2 && 3 < 4 }'`),
       );
       expect(result.stdout).toBe("1\n");
@@ -494,7 +494,7 @@ describe("awk operators", () => {
 
     it("should handle complex precedence", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "" | awk 'BEGIN { print 2 + 3 * 4 ^ 2 - 10 / 2 }'`,
         ),
@@ -506,7 +506,7 @@ describe("awk operators", () => {
 
     it("should handle unary minus precedence", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "" | awk 'BEGIN { print -2 ^ 2 }'`),
       );
       // In AWK, -2^2 is -(2^2) = -4

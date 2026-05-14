@@ -26,7 +26,7 @@ describe("mkdir command - Real Bash Comparison", () => {
     await runRealBash("mkdir newdir2", testDir);
 
     // Check both directories exist
-    const envResult = toText(await env.exec("ls -1"));
+    const envResult = await toText(await env.exec("ls -1"));
     const realResult = await runRealBash("ls -1", testDir);
     expect(envResult.stdout).toContain("newdir");
     expect(realResult.stdout).toContain("newdir2");
@@ -38,7 +38,7 @@ describe("mkdir command - Real Bash Comparison", () => {
     await env.exec("mkdir -p a/b/c");
     await runRealBash("mkdir -p a2/b2/c2", testDir);
 
-    const envResult = toText(await env.exec("ls a/b"));
+    const envResult = await toText(await env.exec("ls a/b"));
     const realResult = await runRealBash("ls a2/b2", testDir);
     expect(envResult.stdout.trim()).toBe("c");
     expect(realResult.stdout.trim()).toBe("c2");
@@ -49,7 +49,7 @@ describe("mkdir command - Real Bash Comparison", () => {
       "existing/.gitkeep": "",
     });
 
-    const result = toText(await env.exec("mkdir -p existing"));
+    const result = await toText(await env.exec("mkdir -p existing"));
     expect(result.exitCode).toBe(0);
   });
 });
@@ -72,7 +72,7 @@ describe("rm command - Real Bash Comparison", () => {
 
     await env.exec("rm file.txt");
 
-    const result = toText(await env.exec("ls"));
+    const result = await toText(await env.exec("ls"));
     expect(result.stdout).not.toContain("file.txt");
   });
 
@@ -85,7 +85,7 @@ describe("rm command - Real Bash Comparison", () => {
 
     await env.exec("rm a.txt b.txt");
 
-    const result = toText(await env.exec("ls"));
+    const result = await toText(await env.exec("ls"));
     expect(result.stdout).not.toContain("a.txt");
     expect(result.stdout).not.toContain("b.txt");
     expect(result.stdout).toContain("c.txt");
@@ -98,14 +98,14 @@ describe("rm command - Real Bash Comparison", () => {
 
     await env.exec("rm -r dir");
 
-    const result = toText(await env.exec("ls"));
+    const result = await toText(await env.exec("ls"));
     expect(result.stdout).not.toContain("dir");
   });
 
   it("should handle -f for non-existent file", async () => {
     const env = await setupFiles(testDir, {});
 
-    const result = toText(await env.exec("rm -f nonexistent.txt"));
+    const result = await toText(await env.exec("rm -f nonexistent.txt"));
     expect(result.exitCode).toBe(0);
   });
 });
@@ -153,7 +153,7 @@ describe("cp command - Real Bash Comparison", () => {
 
     await env.exec("cp -r src dest");
 
-    const result = toText(await env.exec("ls dest"));
+    const result = await toText(await env.exec("ls dest"));
     expect(result.stdout).toContain("a.txt");
     expect(result.stdout).toContain("b.txt");
   });
@@ -167,7 +167,7 @@ describe("cp command - Real Bash Comparison", () => {
 
     await env.exec("cp a.txt b.txt dir/");
 
-    const result = toText(await env.exec("ls dir"));
+    const result = await toText(await env.exec("ls dir"));
     expect(result.stdout).toContain("a.txt");
     expect(result.stdout).toContain("b.txt");
   });
@@ -191,7 +191,7 @@ describe("mv command - Real Bash Comparison", () => {
 
     await env.exec("mv old.txt new.txt");
 
-    const result = toText(await env.exec("ls"));
+    const result = await toText(await env.exec("ls"));
     expect(result.stdout).not.toContain("old.txt");
     expect(result.stdout).toContain("new.txt");
   });
@@ -204,8 +204,8 @@ describe("mv command - Real Bash Comparison", () => {
 
     await env.exec("mv file.txt dir/");
 
-    const rootLs = toText(await env.exec("ls"));
-    const dirLs = toText(await env.exec("ls dir"));
+    const rootLs = await toText(await env.exec("ls"));
+    const dirLs = await toText(await env.exec("ls dir"));
     expect(rootLs.stdout).not.toContain("file.txt");
     expect(dirLs.stdout).toContain("file.txt");
   });
@@ -217,7 +217,7 @@ describe("mv command - Real Bash Comparison", () => {
 
     await env.exec("mv olddir newdir");
 
-    const result = toText(await env.exec("ls"));
+    const result = await toText(await env.exec("ls"));
     expect(result.stdout).not.toContain("olddir");
     expect(result.stdout).toContain("newdir");
   });
@@ -231,8 +231,8 @@ describe("mv command - Real Bash Comparison", () => {
 
     await env.exec("mv a.txt b.txt dir/");
 
-    const rootLs = toText(await env.exec("ls"));
-    const dirLs = toText(await env.exec("ls dir"));
+    const rootLs = await toText(await env.exec("ls"));
+    const dirLs = await toText(await env.exec("ls dir"));
     expect(rootLs.stdout).not.toContain("a.txt");
     expect(rootLs.stdout).not.toContain("b.txt");
     expect(dirLs.stdout).toContain("a.txt");
@@ -256,7 +256,7 @@ describe("touch command - Real Bash Comparison", () => {
 
     await env.exec("touch newfile.txt");
 
-    const result = toText(await env.exec("ls"));
+    const result = await toText(await env.exec("ls"));
     expect(result.stdout).toContain("newfile.txt");
 
     const content = await env.readFile(path.join(testDir, "newfile.txt"));
@@ -268,7 +268,7 @@ describe("touch command - Real Bash Comparison", () => {
 
     await env.exec("touch a.txt b.txt c.txt");
 
-    const result = toText(await env.exec("ls"));
+    const result = await toText(await env.exec("ls"));
     expect(result.stdout).toContain("a.txt");
     expect(result.stdout).toContain("b.txt");
     expect(result.stdout).toContain("c.txt");
@@ -300,7 +300,7 @@ describe("pwd command - Real Bash Comparison", () => {
   it("should output current working directory", async () => {
     const env = await setupFiles(testDir, {});
 
-    const result = toText(await env.exec("pwd"));
+    const result = await toText(await env.exec("pwd"));
 
     // On macOS, /var is a symlink to /private/var, so just check basename
     const baseName = path.basename(testDir);

@@ -10,7 +10,7 @@ describe("cat with binary files", () => {
       },
     });
 
-    const result = toText(await env.exec("cat /binary.bin"));
+    const result = await toText(await env.exec("cat /binary.bin"));
     expect(result.stdout).toBe("Hello");
     expect(result.exitCode).toBe(0);
   });
@@ -22,7 +22,7 @@ describe("cat with binary files", () => {
       },
     });
 
-    const result = toText(await env.exec("cat /binary.bin"));
+    const result = await toText(await env.exec("cat /binary.bin"));
     expect(result.stdout).toBe("A\0B\0C");
     expect(result.exitCode).toBe(0);
   });
@@ -35,7 +35,7 @@ describe("cat with binary files", () => {
       },
     });
 
-    const result = toText(await env.exec("cat /a.bin /b.bin"));
+    const result = await toText(await env.exec("cat /a.bin /b.bin"));
     expect(result.stdout).toBe("ABCD");
     expect(result.exitCode).toBe(0);
   });
@@ -47,7 +47,7 @@ describe("cat with binary files", () => {
       },
     });
 
-    const result = toText(await env.exec("cat -n /binary.bin"));
+    const result = await toText(await env.exec("cat -n /binary.bin"));
     expect(result.stdout).toBe("     1\tA\n     2\tB\n");
     expect(result.exitCode).toBe(0);
   });

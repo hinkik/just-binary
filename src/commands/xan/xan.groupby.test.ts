@@ -13,7 +13,7 @@ describe("xan groupby", () => {
 
   it("groups and sums", async () => {
     const bash = new Bash({ files: { "/data.csv": DATA } });
-    const result = toText(
+    const result = await toText(
       await bash.exec("xan groupby id 'sum(value_A) as sumA' /data.csv"),
     );
     expect(result.exitCode).toBe(0);
@@ -22,7 +22,7 @@ describe("xan groupby", () => {
 
   it("groups and counts", async () => {
     const bash = new Bash({ files: { "/data.csv": DATA } });
-    const result = toText(
+    const result = await toText(
       await bash.exec("xan groupby id 'count()' /data.csv"),
     );
     expect(result.exitCode).toBe(0);
@@ -31,7 +31,7 @@ describe("xan groupby", () => {
 
   it("groups with complex expression", async () => {
     const bash = new Bash({ files: { "/data.csv": DATA } });
-    const result = toText(
+    const result = await toText(
       await bash.exec(
         "xan groupby id 'sum(add(value_A,add(value_B,value_C))) as sum' /data.csv",
       ),
@@ -42,7 +42,7 @@ describe("xan groupby", () => {
 
   it("computes mean per group", async () => {
     const bash = new Bash({ files: { "/data.csv": DATA } });
-    const result = toText(
+    const result = await toText(
       await bash.exec("xan groupby id 'mean(value_A) as meanA' /data.csv"),
     );
     expect(result.exitCode).toBe(0);
@@ -51,7 +51,7 @@ describe("xan groupby", () => {
 
   it("computes max per group", async () => {
     const bash = new Bash({ files: { "/data.csv": DATA } });
-    const result = toText(
+    const result = await toText(
       await bash.exec(
         "xan groupby id 'max(value_A) as maxA, max(value_B) as maxB,max(value_C) as maxC' /data.csv",
       ),
@@ -69,7 +69,7 @@ describe("xan groupby", () => {
           "name,color,count\njohn,blue,1\nmary,orange,3\nmary,orange,2\njohn,yellow,9\njohn,blue,2\n",
       },
     });
-    const result = toText(
+    const result = await toText(
       await bash.exec("xan groupby name,color 'sum(count) as sum' /data.csv"),
     );
     expect(result.exitCode).toBe(0);
@@ -88,7 +88,7 @@ describe("xan groupby --sorted", () => {
           "id,value_A,value_B,value_C\nx,1,2,3\ny,2,3,4\ny,1,2,3\nz,2,3,5\nz,3,6,7\nz,3,4,5\n",
       },
     });
-    const result = toText(
+    const result = await toText(
       await bash.exec(
         "xan groupby id 'sum(value_A) as sumA' --sorted /data.csv",
       ),
@@ -101,7 +101,7 @@ describe("xan groupby --sorted", () => {
     const bash = new Bash({
       files: { "/data.csv": "id,value_A,value_B,value_C\n" },
     });
-    const result = toText(
+    const result = await toText(
       await bash.exec(
         "xan groupby id 'sum(value_A) as sumA' --sorted /data.csv",
       ),

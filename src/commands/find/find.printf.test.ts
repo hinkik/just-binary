@@ -11,7 +11,7 @@ describe("find -printf", () => {
           "/dir/b.txt": "bbb",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -type f -name "*.txt" -printf "%f\\n"'),
       );
       expect(result.stdout).toBe("a.txt\nb.txt\n");
@@ -25,7 +25,7 @@ describe("find -printf", () => {
           "/dir/a.txt": "aaa",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -type f -printf "%p\\n"'),
       );
       expect(result.stdout).toBe("/dir/a.txt\n");
@@ -39,7 +39,7 @@ describe("find -printf", () => {
           "/dir/sub/file.txt": "content",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -type f -printf "%h\\n"'),
       );
       expect(result.stdout).toBe("/dir/sub\n");
@@ -53,7 +53,7 @@ describe("find -printf", () => {
           "/dir/a.txt": "hello",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -type f -printf "%f %s\\n"'),
       );
       expect(result.stdout).toBe("a.txt 5\n");
@@ -69,7 +69,7 @@ describe("find -printf", () => {
           "/dir/sub/deep/c.txt": "c",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -type f -printf "%d %f\\n"'),
       );
       expect(result.stdout).toBe("1 a.txt\n2 b.txt\n3 c.txt\n");
@@ -84,7 +84,7 @@ describe("find -printf", () => {
           "/dir/file.txt": { content: "text", mode: 0o644 },
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -type f -printf "%f %m\\n"'),
       );
       expect(result.stdout).toBe("exec.sh 755\nfile.txt 644\n");
@@ -98,7 +98,7 @@ describe("find -printf", () => {
           "/dir/exec.sh": { content: "#!/bin/bash", mode: 0o755 },
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -type f -printf "%M %f\\n"'),
       );
       expect(result.stdout).toBe("-rwxr-xr-x exec.sh\n");
@@ -112,7 +112,7 @@ describe("find -printf", () => {
           "/dir/sub/file.txt": "content",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -type f -printf "%P\\n"'),
       );
       expect(result.stdout).toBe("sub/file.txt\n");
@@ -126,7 +126,7 @@ describe("find -printf", () => {
           "/dir/a.txt": "a",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -type f -printf "100%% done\\n"'),
       );
       expect(result.stdout).toBe("100% done\n");
@@ -140,7 +140,7 @@ describe("find -printf", () => {
           "/dir/file.txt": "hello",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -type f -printf "%f: %s bytes at %p\\n"'),
       );
       expect(result.stdout).toBe("file.txt: 5 bytes at /dir/file.txt\n");
@@ -154,7 +154,7 @@ describe("find -printf", () => {
           "/dir/sub/file.txt": "content",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -type d -printf "%M %f\\n"'),
       );
       expect(result.stdout).toBe("drwxr-xr-x dir\ndrwxr-xr-x sub\n");
@@ -170,7 +170,7 @@ describe("find -printf", () => {
           "/dir/a.txt": "a",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -type f -printf "[%10f]\\n"'),
       );
       expect(result.stdout).toBe("[     a.txt]\n");
@@ -184,7 +184,7 @@ describe("find -printf", () => {
           "/dir/a.txt": "a",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -type f -printf "[%-10f]\\n"'),
       );
       expect(result.stdout).toBe("[a.txt     ]\n");
@@ -198,7 +198,7 @@ describe("find -printf", () => {
           "/dir/longfilename.txt": "a",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -type f -printf "[%.3f]\\n"'),
       );
       expect(result.stdout).toBe("[lon]\n");
@@ -212,7 +212,7 @@ describe("find -printf", () => {
           "/dir/longfilename.txt": "a",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -type f -printf "[%-10.5f]\\n"'),
       );
       expect(result.stdout).toBe("[longf     ]\n");
@@ -226,7 +226,7 @@ describe("find -printf", () => {
           "/dir/a.txt": "hello",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -type f -printf "[%10s]\\n"'),
       );
       expect(result.stdout).toBe("[         5]\n");
@@ -240,7 +240,7 @@ describe("find -printf", () => {
           "/dir/a.txt": "a",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -type f -printf "[%5d]\\n"'),
       );
       expect(result.stdout).toBe("[    1]\n");
@@ -254,7 +254,7 @@ describe("find -printf", () => {
           "/dir/a.txt": { content: "a", mode: 0o644 },
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -type f -printf "[%5m]\\n"'),
       );
       expect(result.stdout).toBe("[  644]\n");
@@ -268,7 +268,7 @@ describe("find -printf", () => {
           "/dir/a.txt": { content: "a", mode: 0o644 },
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -type f -printf "[%15M]\\n"'),
       );
       // -rw-r--r-- is 10 chars, width 15 means 5 spaces prefix
@@ -283,7 +283,7 @@ describe("find -printf", () => {
           "/dir/a.txt": "a",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -type f -printf "[%-20p]\\n"'),
       );
       // /dir/a.txt is 10 chars, width 20 means 10 spaces after (left-justified)
@@ -301,7 +301,7 @@ describe("find -printf", () => {
           "/dir/b.txt": "b",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -type f -name "*.txt" -printf "%f\\n"'),
       );
       expect(result.stdout).toBe("a.txt\nb.txt\n");
@@ -315,7 +315,7 @@ describe("find -printf", () => {
           "/dir/a.txt": "hello",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -type f -printf "%f\\t%s\\n"'),
       );
       expect(result.stdout).toBe("a.txt\t5\n");
@@ -331,7 +331,7 @@ describe("find -printf", () => {
       });
       // To get a literal backslash in output, we need \\\\ in bash double quotes
       // which becomes \\ after shell parsing, which processEscapes turns into \
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -type f -printf "%f\\\\\\\\\\n"'),
       );
       expect(result.stdout).toBe("a.txt\\\n");
@@ -346,7 +346,7 @@ describe("find -printf", () => {
           "/dir/b.txt": "b",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -type f -name "*.txt" -printf "%f\\0"'),
       );
       expect(result.stdout).toBe("a.txt\0b.txt\0");
@@ -360,7 +360,7 @@ describe("find -printf", () => {
           "/dir/a.txt": "a",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -type f -printf "\\e[32m%f\\e[0m\\n"'),
       );
       expect(result.stdout).toBe("\x1b[32ma.txt\x1b[0m\n");
@@ -374,7 +374,7 @@ describe("find -printf", () => {
           "/dir/a.txt": "a",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -type f -printf "\\u2714 %f\\n"'),
       );
       expect(result.stdout).toBe("✔ a.txt\n");
@@ -388,7 +388,7 @@ describe("find -printf", () => {
           "/dir/a.txt": "a",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -type f -printf "\\U1F4C4 %f\\n"'),
       );
       expect(result.stdout).toBe("📄 a.txt\n");
@@ -404,7 +404,7 @@ describe("find -printf", () => {
           "/dir/a.txt": "a",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -type f -printf "%T@\\n"'),
       );
       // Should be a number (epoch timestamp)
@@ -419,7 +419,7 @@ describe("find -printf", () => {
           "/dir/a.txt": "a",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -type f -printf "%TY\\n"'),
       );
       // Should be a 4-digit year
@@ -434,7 +434,7 @@ describe("find -printf", () => {
           "/dir/a.txt": "a",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -type f -printf "%Tm\\n"'),
       );
       // Should be 01-12
@@ -449,7 +449,7 @@ describe("find -printf", () => {
           "/dir/a.txt": "a",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -type f -printf "%Td\\n"'),
       );
       // Should be 01-31
@@ -464,7 +464,7 @@ describe("find -printf", () => {
           "/dir/a.txt": "a",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -type f -printf "%TH:%TM:%TS\\n"'),
       );
       // Should be HH:MM:SS format
@@ -479,7 +479,7 @@ describe("find -printf", () => {
           "/dir/a.txt": "a",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -type f -printf "%TT\\n"'),
       );
       expect(result.stdout).toMatch(/^\d{2}:\d{2}:\d{2}\n$/);
@@ -493,7 +493,7 @@ describe("find -printf", () => {
           "/dir/a.txt": "a",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -type f -printf "%TF\\n"'),
       );
       expect(result.stdout).toMatch(/^\d{4}-\d{2}-\d{2}\n$/);
@@ -507,7 +507,7 @@ describe("find -printf", () => {
           "/dir/a.txt": "a",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -type f -printf "%t\\n"'),
       );
       // Should match ctime format: "Wed Dec 25 12:34:56 2024"
@@ -528,7 +528,7 @@ describe("find -printf", () => {
           "/dir/c.txt": "ccc",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -type f -name "*.txt" -printf "%f\\n"'),
       );
       expect(result.stdout).toBe("a.txt\nc.txt\n");
@@ -543,7 +543,7 @@ describe("find -printf", () => {
           "/dir/large.txt": "aaaaaaaaaa",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -type f -size +5c -printf "%f: %s bytes\\n"'),
       );
       expect(result.stdout).toBe("large.txt: 10 bytes\n");
@@ -559,7 +559,7 @@ describe("find -printf", () => {
           "/dir/sub/deep/c.txt": "c",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -maxdepth 2 -type f -printf "%f\\n"'),
       );
       expect(result.stdout).toBe("a.txt\nb.txt\n");

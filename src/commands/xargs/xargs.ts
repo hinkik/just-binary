@@ -1,5 +1,6 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs } from "../../utils/bytes.js";
+import { collectText } from "../../utils/stream.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
 const xargsHelp = {
@@ -95,19 +96,18 @@ export const xargsCommand: Command = {
 
     // Parse input
     // Priority: -0 (null) > -d (custom delimiter) > default (whitespace)
+    const stdinText = await collectText(ctx.stdin);
     let items: string[];
     if (nullSeparator) {
-      items = decode(ctx.stdin)
-        .split("\0")
-        .filter((s) => s.length > 0);
+      items = stdinText.split("\0").filter((s) => s.length > 0);
     } else if (delimiter !== null) {
       // Custom delimiter - split on exact string
       // Strip trailing newline from input before splitting (echo adds trailing newlines)
-      const input = decode(ctx.stdin).replace(/\n$/, "");
+      const input = stdinText.replace(/\n$/, "");
       items = input.split(delimiter).filter((s) => s.length > 0);
     } else {
       // Default: split on whitespace and trim
-      items = decode(ctx.stdin)
+      items = stdinText
         .split(/\s+/)
         .map((s) => s.trim())
         .filter((s) => s.length > 0);
@@ -115,11 +115,11 @@ export const xargsCommand: Command = {
 
     if (items.length === 0) {
       if (noRunIfEmpty) {
-        return { stdout: EMPTY, stderr: EMPTY, exitCode: 0 };
+        return { stdout: emptyStream(), stderr: emptyStream(), exitCode: 0 };
       }
       // With no -r flag, still run the command with no args
       // (echo with no args just outputs newline)
-      return { stdout: EMPTY, stderr: EMPTY, exitCode: 0 };
+      return { stdout: emptyStream(), stderr: emptyStream(), exitCode: 0 };
     }
 
     // Execute commands
@@ -151,7 +151,11 @@ export const xargsCommand: Command = {
         return ctx.exec(cmdLine, { cwd: ctx.cwd });
       }
       // Fallback: just output what would be run
-      return { stdout: encode(`${cmdLine}\n`), stderr: EMPTY, exitCode: 0 };
+      return {
+        stdout: fromString(`${cmdLine}\n`),
+        stderr: emptyStream(),
+        exitCode: 0,
+      };
     };
 
     // Helper to run commands with optional parallelism
@@ -162,8 +166,8 @@ export const xargsCommand: Command = {
           const batch = cmdArgsList.slice(i, i + maxProcs);
           const results = await Promise.all(batch.map(executeCommand));
           for (const result of results) {
-            stdout += decode(result.stdout);
-            stderr += decode(result.stderr);
+            stdout += await collectText(result.stdout);
+            stderr += await collectText(result.stderr);
             if (result.exitCode !== 0) {
               exitCode = result.exitCode;
             }
@@ -173,8 +177,8 @@ export const xargsCommand: Command = {
         // Sequential execution
         for (const cmdArgs of cmdArgsList) {
           const result = await executeCommand(cmdArgs);
-          stdout += decode(result.stdout);
-          stderr += decode(result.stderr);
+          stdout += await collectText(result.stdout);
+          stderr += await collectText(result.stderr);
           if (result.exitCode !== 0) {
             exitCode = result.exitCode;
           }
@@ -200,15 +204,16 @@ export const xargsCommand: Command = {
       // Default: all items on one line
       const cmdArgs = [...command, ...items];
       const result = await executeCommand(cmdArgs);
-      stdout += decode(result.stdout);
-      stderr += decode(result.stderr);
+      stdout += await collectText(result.stdout);
+      stderr += await collectText(result.stderr);
       exitCode = result.exitCode;
     }
 
-    return { stdout: encode(stdout), stderr: encode(stderr), exitCode };
+    return { stdout: fromString(stdout), stderr: fromString(stderr), exitCode };
   },
 };
 
+import { emptyStream, fromString } from "../../utils/stream.js";
 import type { CommandFuzzInfo } from "../fuzz-flags-types.js";
 
 export const flagsForFuzzing: CommandFuzzInfo = {

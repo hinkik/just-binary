@@ -6,7 +6,9 @@ describe("sqlite3 error handling", () => {
   describe("missing option arguments", () => {
     it("should error when -separator is last argument", async () => {
       const env = new Bash();
-      const result = toText(await env.exec("sqlite3 :memory: -separator"));
+      const result = await toText(
+        await env.exec("sqlite3 :memory: -separator"),
+      );
       expect(result.stderr).toBe(
         "sqlite3: Error: missing argument to -separator\n",
       );
@@ -15,7 +17,7 @@ describe("sqlite3 error handling", () => {
 
     it("should error when -newline is last argument", async () => {
       const env = new Bash();
-      const result = toText(await env.exec("sqlite3 :memory: -newline"));
+      const result = await toText(await env.exec("sqlite3 :memory: -newline"));
       expect(result.stderr).toBe(
         "sqlite3: Error: missing argument to -newline\n",
       );
@@ -24,7 +26,9 @@ describe("sqlite3 error handling", () => {
 
     it("should error when -nullvalue is last argument", async () => {
       const env = new Bash();
-      const result = toText(await env.exec("sqlite3 :memory: -nullvalue"));
+      const result = await toText(
+        await env.exec("sqlite3 :memory: -nullvalue"),
+      );
       expect(result.stderr).toBe(
         "sqlite3: Error: missing argument to -nullvalue\n",
       );
@@ -33,7 +37,7 @@ describe("sqlite3 error handling", () => {
 
     it("should error when -cmd is last argument", async () => {
       const env = new Bash();
-      const result = toText(await env.exec("sqlite3 :memory: -cmd"));
+      const result = await toText(await env.exec("sqlite3 :memory: -cmd"));
       expect(result.stderr).toBe("sqlite3: Error: missing argument to -cmd\n");
       expect(result.exitCode).toBe(1);
     });
@@ -42,14 +46,14 @@ describe("sqlite3 error handling", () => {
   describe("missing required arguments", () => {
     it("should error when no SQL provided", async () => {
       const env = new Bash();
-      const result = toText(await env.exec("sqlite3 :memory:"));
+      const result = await toText(await env.exec("sqlite3 :memory:"));
       expect(result.stderr).toContain("no SQL provided");
       expect(result.exitCode).toBe(1);
     });
 
     it("should error when no database argument", async () => {
       const env = new Bash();
-      const result = toText(await env.exec("sqlite3"));
+      const result = await toText(await env.exec("sqlite3"));
       expect(result.stderr).toContain("missing database argument");
       expect(result.exitCode).toBe(1);
     });
@@ -58,7 +62,7 @@ describe("sqlite3 error handling", () => {
   describe("SQL errors without -bail", () => {
     it("should continue after error and return exit code 0", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           'sqlite3 :memory: "SELECT * FROM nonexistent; SELECT 42"',
         ),
@@ -71,7 +75,7 @@ describe("sqlite3 error handling", () => {
 
     it("should handle multiple errors", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           'sqlite3 :memory: "SELECT * FROM bad1; SELECT * FROM bad2; SELECT 1"',
         ),
@@ -86,7 +90,7 @@ describe("sqlite3 error handling", () => {
   describe("SQL errors with -bail", () => {
     it("should stop on first error and return exit code 1", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           'sqlite3 -bail :memory: "SELECT * FROM bad1; SELECT * FROM bad2"',
         ),
@@ -98,7 +102,7 @@ describe("sqlite3 error handling", () => {
 
     it("should include partial output before error", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           'sqlite3 -bail :memory: "SELECT 1; SELECT * FROM bad; SELECT 2"',
         ),
@@ -112,7 +116,9 @@ describe("sqlite3 error handling", () => {
   describe("invalid options", () => {
     it("should error on unknown short option", async () => {
       const env = new Bash();
-      const result = toText(await env.exec('sqlite3 -xyz :memory: "SELECT 1"'));
+      const result = await toText(
+        await env.exec('sqlite3 -xyz :memory: "SELECT 1"'),
+      );
       expect(result.stderr).toBe(
         "sqlite3: Error: unknown option: -xyz\nUse -help for a list of options.\n",
       );
@@ -121,7 +127,7 @@ describe("sqlite3 error handling", () => {
 
     it("should error on unknown option starting with double dash", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec('sqlite3 --xyz :memory: "SELECT 1"'),
       );
       // Real sqlite3 treats --xyz as -xyz
@@ -135,7 +141,7 @@ describe("sqlite3 error handling", () => {
   describe("security", () => {
     it("should block load_extension SQL function", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `sqlite3 :memory: "SELECT load_extension('/tmp/evil.so')"`,
         ),
@@ -147,7 +153,7 @@ describe("sqlite3 error handling", () => {
 
     it("should block load_extension with entry point", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `sqlite3 :memory: "SELECT load_extension('/tmp/evil.so', 'sqlite3_evil_init')"`,
         ),

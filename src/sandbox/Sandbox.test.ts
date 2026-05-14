@@ -341,7 +341,9 @@ describe("Sandbox API", () => {
 
     it("should allow direct BashEnv operations", async () => {
       const sandbox = await Sandbox.create();
-      const result = toText(await sandbox.bashEnvInstance.exec("echo direct"));
+      const result = await toText(
+        await sandbox.bashEnvInstance.exec("echo direct"),
+      );
       expect(result.stdout).toBe("direct\n");
     });
   });

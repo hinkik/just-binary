@@ -49,7 +49,9 @@ describe("Agent Scenario: Python Data Analysis", () => {
     { timeout: 60000 },
     async () => {
       const env = createDataEnv();
-      const result = toText(await env.exec("python3 /scripts/analyze.py"));
+      const result = await toText(
+        await env.exec("python3 /scripts/analyze.py"),
+      );
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe(
         "Widget A: $989.67\nWidget B: $749.85\nWidget C: $639.68\n",
@@ -60,7 +62,7 @@ describe("Agent Scenario: Python Data Analysis", () => {
 
   it("should analyze JSON data and filter by role", async () => {
     const env = createDataEnv();
-    const result = toText(await env.exec("python3 /scripts/filter.py"));
+    const result = await toText(await env.exec("python3 /scripts/filter.py"));
     expect(result.stderr).toBe("");
     expect(result.stdout).toBe(
       "Total users: 4\nAdmin users: 2\nAdmin names: Alice, Diana\n",
@@ -70,7 +72,7 @@ describe("Agent Scenario: Python Data Analysis", () => {
 
   it("should generate statistics from sales data", async () => {
     const env = createDataEnv();
-    const result = toText(await env.exec("python3 /scripts/stats.py"));
+    const result = await toText(await env.exec("python3 /scripts/stats.py"));
     expect(result.stderr).toBe("");
     expect(result.stdout).toBe(
       "Total items sold: 80\nTotal revenue: $2379.20\nMost popular: Widget A\nUnique products: 3\n",
@@ -112,7 +114,9 @@ describe("Agent Scenario: Log Analysis with Python", () => {
 
   it("should count log levels and identify errors", async () => {
     const env = createLogEnv();
-    const result = toText(await env.exec("python3 /scripts/parse_logs.py"));
+    const result = await toText(
+      await env.exec("python3 /scripts/parse_logs.py"),
+    );
     expect(result.stderr).toBe("");
     expect(result.stdout).toContain("INFO: 5");
     expect(result.stdout).toContain("ERROR: 3");
@@ -123,7 +127,7 @@ describe("Agent Scenario: Log Analysis with Python", () => {
 
   it("should parse access logs and calculate request statistics", async () => {
     const env = createLogEnv();
-    const result = toText(await env.exec("python3 /scripts/access.py"));
+    const result = await toText(await env.exec("python3 /scripts/access.py"));
     expect(result.stderr).toBe("");
     expect(result.stdout).toContain("GET: 4");
     expect(result.stdout).toContain("POST: 2");
@@ -134,7 +138,9 @@ describe("Agent Scenario: Log Analysis with Python", () => {
 
   it("should extract and analyze timestamps", async () => {
     const env = createLogEnv();
-    const result = toText(await env.exec("python3 /scripts/timestamps.py"));
+    const result = await toText(
+      await env.exec("python3 /scripts/timestamps.py"),
+    );
     expect(result.stderr).toBe("");
     expect(result.stdout).toContain("First entry: 10:23:45");
     expect(result.stdout).toContain("Last entry: 10:45:00");
@@ -175,7 +181,7 @@ describe("Agent Scenario: Code Generation with Python", () => {
 
   it("should generate Python dataclass definitions from schema", async () => {
     const env = createCodeGenEnv();
-    const result = toText(await env.exec("python3 /scripts/codegen.py"));
+    const result = await toText(await env.exec("python3 /scripts/codegen.py"));
     expect(result.stderr).toBe("");
     expect(result.stdout).toContain("from dataclasses import dataclass");
     expect(result.stdout).toContain("@dataclass");
@@ -188,7 +194,7 @@ describe("Agent Scenario: Code Generation with Python", () => {
 
   it("should generate SQL CREATE TABLE statements", async () => {
     const env = createCodeGenEnv();
-    const result = toText(await env.exec("python3 /scripts/sqlgen.py"));
+    const result = await toText(await env.exec("python3 /scripts/sqlgen.py"));
     expect(result.stderr).toBe("");
     expect(result.stdout).toContain("CREATE TABLE users (");
     expect(result.stdout).toContain("id INTEGER PRIMARY KEY");
@@ -224,7 +230,7 @@ occupation: Manager`,
 
   it("should merge multiple files into structured JSON", async () => {
     const env = createPipelineEnv();
-    const result = toText(await env.exec("python3 /scripts/merge.py"));
+    const result = await toText(await env.exec("python3 /scripts/merge.py"));
     expect(result.stderr).toBe("");
     const output = JSON.parse(result.stdout);
     expect(output).toHaveLength(3);
@@ -236,7 +242,9 @@ occupation: Manager`,
 
   it("should filter and transform data across files", async () => {
     const env = createPipelineEnv();
-    const result = toText(await env.exec("python3 /scripts/transform.py"));
+    const result = await toText(
+      await env.exec("python3 /scripts/transform.py"),
+    );
     expect(result.stderr).toBe("");
     expect(result.stdout).toContain("John Doe (30) - Engineer in New York");
     expect(result.stdout).toContain("Bob Wilson (35) - Manager in Chicago");
@@ -274,7 +282,7 @@ describe("Agent Scenario: API Response Processing", () => {
 
   it("should flatten nested JSON structure", async () => {
     const env = createApiEnv();
-    const result = toText(await env.exec("python3 /scripts/flatten.py"));
+    const result = await toText(await env.exec("python3 /scripts/flatten.py"));
     expect(result.stderr).toBe("");
     expect(result.stdout).toContain("Flattened 4 records");
     expect(result.stdout).toContain("User Alice: Post #101: Hello World");
@@ -286,7 +294,7 @@ describe("Agent Scenario: API Response Processing", () => {
 
   it("should extract statistics from API response", async () => {
     const env = createApiEnv();
-    const result = toText(await env.exec("python3 /scripts/stats.py"));
+    const result = await toText(await env.exec("python3 /scripts/stats.py"));
     expect(result.stderr).toBe("");
     expect(result.stdout).toContain("Status: success");
     expect(result.stdout).toContain("Users in response: 3");
@@ -356,7 +364,7 @@ MIT License`,
 
   it("should extract and count markdown headers", async () => {
     const env = createTextEnv();
-    const result = toText(await env.exec("python3 /scripts/headers.py"));
+    const result = await toText(await env.exec("python3 /scripts/headers.py"));
     expect(result.stderr).toBe("");
     expect(result.stdout).toContain("- Project Title");
     expect(result.stdout).toContain("  - Features");
@@ -368,7 +376,9 @@ MIT License`,
 
   it("should parse changelog and extract versions", async () => {
     const env = createTextEnv();
-    const result = toText(await env.exec("python3 /scripts/changelog.py"));
+    const result = await toText(
+      await env.exec("python3 /scripts/changelog.py"),
+    );
     expect(result.stderr).toBe("");
     expect(result.stdout).toContain("Found 3 versions");
     expect(result.stdout).toContain("v2.0.0");
@@ -379,7 +389,7 @@ MIT License`,
 
   it("should extract links from markdown", async () => {
     const env = createTextEnv();
-    const result = toText(await env.exec("python3 /scripts/links.py"));
+    const result = await toText(await env.exec("python3 /scripts/links.py"));
     expect(result.stderr).toBe("");
     expect(result.stdout).toContain("Found 1 links");
     expect(result.stdout).toContain(
@@ -430,7 +440,9 @@ LOG_LEVEL=info`,
 
   it("should merge configuration files with override", async () => {
     const env = createConfigEnv();
-    const result = toText(await env.exec("python3 /scripts/merge_config.py"));
+    const result = await toText(
+      await env.exec("python3 /scripts/merge_config.py"),
+    );
     expect(result.stderr).toBe("");
     expect(result.stdout).toContain('"name": "MyApp"');
     expect(result.stdout).toContain('"host": "prod-db.example.com"');
@@ -442,7 +454,9 @@ LOG_LEVEL=info`,
 
   it("should validate and parse env file", async () => {
     const env = createConfigEnv();
-    const result = toText(await env.exec("python3 /scripts/parse_env.py"));
+    const result = await toText(
+      await env.exec("python3 /scripts/parse_env.py"),
+    );
     expect(result.stderr).toBe("");
     expect(result.stdout).toContain(
       "DATABASE_URL=postgres://localhost:5432/myapp",
@@ -473,7 +487,7 @@ describe("Agent Scenario: Data Validation and Cleaning", () => {
 
   it("should validate data and report errors", async () => {
     const env = createValidationEnv();
-    const result = toText(await env.exec("python3 /scripts/validate.py"));
+    const result = await toText(await env.exec("python3 /scripts/validate.py"));
     expect(result.stderr).toBe("");
     expect(result.stdout).toContain("Valid rows: 2");
     expect(result.stdout).toContain("Invalid rows: 4");

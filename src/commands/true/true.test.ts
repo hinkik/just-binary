@@ -5,7 +5,7 @@ import { toText } from "../../test-utils.js";
 describe("true", () => {
   it("should return exit code 0", async () => {
     const env = new Bash();
-    const result = toText(await env.exec("true"));
+    const result = await toText(await env.exec("true"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("");
     expect(result.stderr).toBe("");
@@ -13,13 +13,13 @@ describe("true", () => {
 
   it("should ignore all arguments", async () => {
     const env = new Bash();
-    const result = toText(await env.exec("true --help -x --anything"));
+    const result = await toText(await env.exec("true --help -x --anything"));
     expect(result.exitCode).toBe(0);
   });
 
   it("should work in conditionals", async () => {
     const env = new Bash();
-    const result = toText(await env.exec("true && echo yes || echo no"));
+    const result = await toText(await env.exec("true && echo yes || echo no"));
     expect(result.stdout).toBe("yes\n");
   });
 });
@@ -27,7 +27,7 @@ describe("true", () => {
 describe("false", () => {
   it("should return exit code 1", async () => {
     const env = new Bash();
-    const result = toText(await env.exec("false"));
+    const result = await toText(await env.exec("false"));
     expect(result.exitCode).toBe(1);
     expect(result.stdout).toBe("");
     expect(result.stderr).toBe("");
@@ -35,13 +35,13 @@ describe("false", () => {
 
   it("should ignore all arguments", async () => {
     const env = new Bash();
-    const result = toText(await env.exec("false --help -x --anything"));
+    const result = await toText(await env.exec("false --help -x --anything"));
     expect(result.exitCode).toBe(1);
   });
 
   it("should work in conditionals", async () => {
     const env = new Bash();
-    const result = toText(await env.exec("false && echo yes || echo no"));
+    const result = await toText(await env.exec("false && echo yes || echo no"));
     expect(result.stdout).toBe("no\n");
   });
 });

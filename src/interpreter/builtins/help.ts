@@ -10,7 +10,7 @@
 
 import { createUserRegex } from "../../regex/index.js";
 import type { ExecResult } from "../../types.js";
-import { encode } from "../../utils/bytes.js";
+import { fromString } from "../../utils/stream.js";
 import { failure, successText } from "../helpers/result.js";
 import type { InterpreterContext } from "../types.js";
 
@@ -855,8 +855,8 @@ export function handleHelp(
 
   return {
     exitCode: hasError ? 1 : 0,
-    stdout: encode(stdout),
-    stderr: encode(stderr),
+    stdout: fromString(stdout),
+    stderr: fromString(stderr),
   };
 }
 

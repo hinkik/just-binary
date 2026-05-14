@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { collectBytes } from "../../utils/stream.js";
 import { InMemoryFs } from "./in-memory-fs.js";
 
 describe("InMemoryFs Buffer and Encoding Support", () => {
@@ -8,7 +9,7 @@ describe("InMemoryFs Buffer and Encoding Support", () => {
       const data = new Uint8Array([0x48, 0x65, 0x6c, 0x6c, 0x6f]); // "Hello"
 
       await fs.writeFile("/binary.bin", data);
-      const result = await fs.readFileBuffer("/binary.bin");
+      const result = await collectBytes(await fs.readFile("/binary.bin"));
 
       expect(result).toEqual(data);
     });
@@ -18,7 +19,7 @@ describe("InMemoryFs Buffer and Encoding Support", () => {
       const data = new Uint8Array([0x48, 0x65, 0x6c, 0x6c, 0x6f]); // "Hello"
 
       await fs.writeFile("/test.txt", data);
-      const result = await fs.readFile("/test.txt");
+      const result = await fs.readFileText("/test.txt");
 
       expect(result).toBe("Hello");
     });
@@ -27,7 +28,7 @@ describe("InMemoryFs Buffer and Encoding Support", () => {
       const fs = new InMemoryFs();
 
       await fs.writeFile("/test.txt", "Hello");
-      const result = await fs.readFileBuffer("/test.txt");
+      const result = await collectBytes(await fs.readFile("/test.txt"));
 
       expect(result).toEqual(new Uint8Array([0x48, 0x65, 0x6c, 0x6c, 0x6f]));
     });
@@ -37,7 +38,7 @@ describe("InMemoryFs Buffer and Encoding Support", () => {
       const data = new Uint8Array([0x00, 0x01, 0x00, 0xff, 0x00]);
 
       await fs.writeFile("/binary.bin", data);
-      const result = await fs.readFileBuffer("/binary.bin");
+      const result = await collectBytes(await fs.readFile("/binary.bin"));
 
       expect(result).toEqual(data);
     });
@@ -58,7 +59,7 @@ describe("InMemoryFs Buffer and Encoding Support", () => {
       const fs = new InMemoryFs();
 
       await fs.writeFile("/test.txt", "Hello 世界", "utf8");
-      const result = await fs.readFile("/test.txt", "utf8");
+      const result = await fs.readFileText("/test.txt", "utf8");
 
       expect(result).toBe("Hello 世界");
     });
@@ -68,7 +69,7 @@ describe("InMemoryFs Buffer and Encoding Support", () => {
 
       // "Hello" in base64 is "SGVsbG8="
       await fs.writeFile("/test.txt", "SGVsbG8=", "base64");
-      const result = await fs.readFile("/test.txt", "utf8");
+      const result = await fs.readFileText("/test.txt", "utf8");
 
       expect(result).toBe("Hello");
     });
@@ -77,7 +78,7 @@ describe("InMemoryFs Buffer and Encoding Support", () => {
       const fs = new InMemoryFs();
 
       await fs.writeFile("/test.txt", "Hello");
-      const result = await fs.readFile("/test.txt", "base64");
+      const result = await fs.readFileText("/test.txt", "base64");
 
       expect(result).toBe("SGVsbG8=");
     });
@@ -87,7 +88,7 @@ describe("InMemoryFs Buffer and Encoding Support", () => {
 
       // "Hello" in hex is "48656c6c6f"
       await fs.writeFile("/test.txt", "48656c6c6f", "hex");
-      const result = await fs.readFile("/test.txt", "utf8");
+      const result = await fs.readFileText("/test.txt", "utf8");
 
       expect(result).toBe("Hello");
     });
@@ -96,7 +97,7 @@ describe("InMemoryFs Buffer and Encoding Support", () => {
       const fs = new InMemoryFs();
 
       await fs.writeFile("/test.txt", "Hello");
-      const result = await fs.readFile("/test.txt", "hex");
+      const result = await fs.readFileText("/test.txt", "hex");
 
       expect(result).toBe("48656c6c6f");
     });
@@ -106,7 +107,7 @@ describe("InMemoryFs Buffer and Encoding Support", () => {
 
       // Latin1 character é is 0xe9
       await fs.writeFile("/test.txt", "café", "latin1");
-      const buffer = await fs.readFileBuffer("/test.txt");
+      const buffer = await collectBytes(await fs.readFile("/test.txt"));
 
       expect(buffer).toEqual(new Uint8Array([0x63, 0x61, 0x66, 0xe9]));
     });
@@ -115,7 +116,7 @@ describe("InMemoryFs Buffer and Encoding Support", () => {
       const fs = new InMemoryFs();
 
       await fs.writeFile("/test.txt", "SGVsbG8=", { encoding: "base64" });
-      const result = await fs.readFile("/test.txt", { encoding: "utf8" });
+      const result = await fs.readFileText("/test.txt", { encoding: "utf8" });
 
       expect(result).toBe("Hello");
     });
@@ -131,7 +132,7 @@ describe("InMemoryFs Buffer and Encoding Support", () => {
         new Uint8Array([0x20, 0x57, 0x6f, 0x72, 0x6c, 0x64]),
       ); // " World"
 
-      const result = await fs.readFile("/test.txt");
+      const result = await fs.readFileText("/test.txt");
       expect(result).toBe("Hello World");
     });
 
@@ -142,7 +143,7 @@ describe("InMemoryFs Buffer and Encoding Support", () => {
       await fs.writeFile("/test.txt", initial);
       await fs.appendFile("/test.txt", " World");
 
-      const result = await fs.readFile("/test.txt");
+      const result = await fs.readFileText("/test.txt");
       expect(result).toBe("Hello World");
     });
 
@@ -153,7 +154,7 @@ describe("InMemoryFs Buffer and Encoding Support", () => {
       // " World" in base64 is "IFdvcmxk"
       await fs.appendFile("/test.txt", "IFdvcmxk", "base64");
 
-      const result = await fs.readFile("/test.txt");
+      const result = await fs.readFileText("/test.txt");
       expect(result).toBe("Hello World");
     });
   });
@@ -165,8 +166,8 @@ describe("InMemoryFs Buffer and Encoding Support", () => {
         "/text.txt": "Hello",
       });
 
-      const binary = await fs.readFileBuffer("/binary.bin");
-      const text = await fs.readFile("/text.txt");
+      const binary = await collectBytes(await fs.readFile("/binary.bin"));
+      const text = await fs.readFileText("/text.txt");
 
       expect(binary).toEqual(new Uint8Array([0x00, 0x01, 0x02]));
       expect(text).toBe("Hello");
@@ -178,7 +179,7 @@ describe("InMemoryFs Buffer and Encoding Support", () => {
       const fs = new InMemoryFs();
 
       await fs.writeFile("/empty.bin", new Uint8Array(0));
-      const result = await fs.readFileBuffer("/empty.bin");
+      const result = await collectBytes(await fs.readFile("/empty.bin"));
 
       expect(result).toEqual(new Uint8Array(0));
       expect(result.length).toBe(0);
@@ -193,7 +194,7 @@ describe("InMemoryFs Buffer and Encoding Support", () => {
       }
 
       await fs.writeFile("/large.bin", data);
-      const result = await fs.readFileBuffer("/large.bin");
+      const result = await collectBytes(await fs.readFile("/large.bin"));
 
       expect(result.length).toBe(size);
       expect(result[0]).toBe(0);
@@ -208,7 +209,7 @@ describe("InMemoryFs Buffer and Encoding Support", () => {
       await fs.writeFile("/src.bin", data);
       await fs.cp("/src.bin", "/dst.bin");
 
-      const result = await fs.readFileBuffer("/dst.bin");
+      const result = await collectBytes(await fs.readFile("/dst.bin"));
       expect(result).toEqual(data);
     });
 
@@ -219,7 +220,7 @@ describe("InMemoryFs Buffer and Encoding Support", () => {
       await fs.writeFile("/real.bin", data);
       await fs.symlink("/real.bin", "/link.bin");
 
-      const result = await fs.readFileBuffer("/link.bin");
+      const result = await collectBytes(await fs.readFile("/link.bin"));
       expect(result).toEqual(data);
     });
   });

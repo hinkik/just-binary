@@ -1,6 +1,7 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
-import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs } from "../../utils/bytes.js";
+import { collectText, emptyStream, fromString } from "../../utils/stream.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const pasteHelp = {
@@ -54,14 +55,15 @@ export const pasteCommand: Command = {
     // If no files specified, show usage error (matches BSD/macOS behavior)
     if (files.length === 0) {
       return {
-        stdout: EMPTY,
-        stderr: encode("usage: paste [-s] [-d delimiters] file ...\n"),
+        stdout: emptyStream(),
+        stderr: fromString("usage: paste [-s] [-d delimiters] file ...\n"),
         exitCode: 1,
       };
     }
 
     // Parse stdin into lines (will be distributed across multiple `-` args)
-    const stdinLines = ctx.stdin ? decode(ctx.stdin).split("\n") : [""];
+    const stdinText = ctx.stdin ? await collectText(ctx.stdin) : "";
+    const stdinLines = stdinText.split("\n");
     if (stdinLines.length > 0 && stdinLines[stdinLines.length - 1] === "") {
       stdinLines.pop();
     }
@@ -86,7 +88,7 @@ export const pasteCommand: Command = {
       } else {
         const filePath = ctx.fs.resolvePath(ctx.cwd, file);
         try {
-          const content = await ctx.fs.readFile(filePath);
+          const content = await ctx.fs.readFileText(filePath);
           const lines = content.split("\n");
           // Remove trailing empty line if content ends with newline
           if (lines.length > 0 && lines[lines.length - 1] === "") {
@@ -95,8 +97,8 @@ export const pasteCommand: Command = {
           fileContents.push(lines);
         } catch {
           return {
-            stdout: EMPTY,
-            stderr: encode(`paste: ${file}: No such file or directory\n`),
+            stdout: emptyStream(),
+            stderr: fromString(`paste: ${file}: No such file or directory\n`),
             exitCode: 1,
           };
         }
@@ -125,7 +127,7 @@ export const pasteCommand: Command = {
       }
     }
 
-    return { stdout: encode(output), stderr: EMPTY, exitCode: 0 };
+    return { stdout: fromString(output), stderr: emptyStream(), exitCode: 0 };
   },
 };
 

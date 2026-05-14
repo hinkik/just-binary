@@ -17,6 +17,7 @@ import type {
   FeatureCoverageWriter,
   TraceCallback,
 } from "../types.js";
+import type { ByteStream } from "../utils/stream.js";
 
 /**
  * Completion specification for a command, set by the `complete` builtin.
@@ -298,7 +299,7 @@ export interface ProcessState {
  */
 export interface IOState {
   /** Stdin available for commands in compound commands (groups, subshells, while loops with piped input) */
-  groupStdin?: Uint8Array;
+  groupStdin?: ByteStream;
   /** File descriptors for process substitution and here-docs */
   fileDescriptors?: Map<number, string>;
   /** Next available file descriptor for {varname}>file allocation (starts at 10) */
@@ -400,12 +401,12 @@ export interface InterpreterContext {
     options?: {
       env?: Record<string, string>;
       cwd?: string;
-      stdin?: Uint8Array;
+      stdin?: ByteStream;
     },
   ) => Promise<ExecResult>;
   executeScript: (node: ScriptNode) => Promise<ExecResult>;
   executeStatement: (node: StatementNode) => Promise<ExecResult>;
-  executeCommand: (node: CommandNode, stdin: Uint8Array) => Promise<ExecResult>;
+  executeCommand: (node: CommandNode, stdin: ByteStream) => Promise<ExecResult>;
   /** Optional secure fetch function for network-enabled commands */
   fetch?: SecureFetch;
   /** Optional sleep function for testing with mock clocks */

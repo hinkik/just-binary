@@ -10,7 +10,7 @@ describe("rg pattern options", () => {
         "/home/user/file.txt": "hello world\nhelloworld\n",
       },
     });
-    const result = toText(await bash.exec("rg -w hello"));
+    const result = await toText(await bash.exec("rg -w hello"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.txt:1:hello world\n");
     expect(result.stderr).toBe("");
@@ -23,7 +23,7 @@ describe("rg pattern options", () => {
         "/home/user/file.txt": "hello\nhello world\n",
       },
     });
-    const result = toText(await bash.exec("rg -x hello"));
+    const result = await toText(await bash.exec("rg -x hello"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.txt:1:hello\n");
     expect(result.stderr).toBe("");
@@ -36,7 +36,7 @@ describe("rg pattern options", () => {
         "/home/user/file.txt": "a.b\naxb\n",
       },
     });
-    const result = toText(await bash.exec("rg -F 'a.b'"));
+    const result = await toText(await bash.exec("rg -F 'a.b'"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.txt:1:a.b\n");
     expect(result.stderr).toBe("");
@@ -49,7 +49,7 @@ describe("rg pattern options", () => {
         "/home/user/file.txt": "foo[bar]\nfoobar\n",
       },
     });
-    const result = toText(await bash.exec("rg -F '[bar]'"));
+    const result = await toText(await bash.exec("rg -F '[bar]'"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.txt:1:foo[bar]\n");
     expect(result.stderr).toBe("");
@@ -62,7 +62,7 @@ describe("rg pattern options", () => {
         "/home/user/file.txt": "hello\nworld\n",
       },
     });
-    const result = toText(await bash.exec("rg -v hello"));
+    const result = await toText(await bash.exec("rg -v hello"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.txt:2:world\n");
     expect(result.stderr).toBe("");
@@ -75,7 +75,7 @@ describe("rg pattern options", () => {
         "/home/user/file.txt": "foo\nbar\nfoo\nbaz\n",
       },
     });
-    const result = toText(await bash.exec("rg -v foo"));
+    const result = await toText(await bash.exec("rg -v foo"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.txt:2:bar\nfile.txt:4:baz\n");
     expect(result.stderr).toBe("");
@@ -90,7 +90,7 @@ describe("rg multiple patterns", () => {
         "/home/user/file.txt": "foo\nbar\nbaz\n",
       },
     });
-    const result = toText(await bash.exec("rg -e foo -e bar"));
+    const result = await toText(await bash.exec("rg -e foo -e bar"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.txt:1:foo\nfile.txt:2:bar\n");
     expect(result.stderr).toBe("");
@@ -105,7 +105,7 @@ describe("rg multiple patterns", () => {
         "/home/user/file.txt": "foo\nbar\nbaz\n",
       },
     });
-    const result = toText(await bash.exec("rg -e foo -e bar"));
+    const result = await toText(await bash.exec("rg -e foo -e bar"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.txt:1:foo\nfile.txt:2:bar\n");
     expect(result.stderr).toBe("");
@@ -118,7 +118,7 @@ describe("rg multiple patterns", () => {
         "/home/user/file.txt": "Hello\nhello\nWorld\nworld\n",
       },
     });
-    const result = toText(await bash.exec("rg -e Hello -e world"));
+    const result = await toText(await bash.exec("rg -e Hello -e world"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.txt:1:Hello\nfile.txt:4:world\n");
     expect(result.stderr).toBe("");
@@ -131,7 +131,9 @@ describe("rg multiple patterns", () => {
         "/home/user/file.txt": "foo\nbar\n",
       },
     });
-    const result = toText(await bash.exec("rg --regexp=foo --regexp=bar"));
+    const result = await toText(
+      await bash.exec("rg --regexp=foo --regexp=bar"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.txt:1:foo\nfile.txt:2:bar\n");
     expect(result.stderr).toBe("");
@@ -144,7 +146,7 @@ describe("rg multiple patterns", () => {
         "/home/user/file.txt": "foo bar baz\n",
       },
     });
-    const result = toText(await bash.exec("rg -e foo -e bar"));
+    const result = await toText(await bash.exec("rg -e foo -e bar"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.txt:1:foo bar baz\n");
     expect(result.stderr).toBe("");
@@ -159,7 +161,7 @@ describe("rg regex patterns", () => {
         "/home/user/file.txt": "foo123\nbar456\nbaz\n",
       },
     });
-    const result = toText(await bash.exec("rg '[0-9]+'"));
+    const result = await toText(await bash.exec("rg '[0-9]+'"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.txt:1:foo123\nfile.txt:2:bar456\n");
     expect(result.stderr).toBe("");
@@ -172,7 +174,7 @@ describe("rg regex patterns", () => {
         "/home/user/file.txt": "hello world\nworld hello\n",
       },
     });
-    const result = toText(await bash.exec("rg '^hello'"));
+    const result = await toText(await bash.exec("rg '^hello'"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.txt:1:hello world\n");
     expect(result.stderr).toBe("");
@@ -185,7 +187,7 @@ describe("rg regex patterns", () => {
         "/home/user/file.txt": "hello world\nworld hello\n",
       },
     });
-    const result = toText(await bash.exec("rg 'hello$'"));
+    const result = await toText(await bash.exec("rg 'hello$'"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.txt:2:world hello\n");
     expect(result.stderr).toBe("");
@@ -198,7 +200,7 @@ describe("rg regex patterns", () => {
         "/home/user/file.txt": "cat\ndog\nbird\n",
       },
     });
-    const result = toText(await bash.exec("rg 'cat|dog'"));
+    const result = await toText(await bash.exec("rg 'cat|dog'"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.txt:1:cat\nfile.txt:2:dog\n");
     expect(result.stderr).toBe("");
@@ -211,7 +213,7 @@ describe("rg regex patterns", () => {
         "/home/user/file.txt": "a\naa\naaa\nb\n",
       },
     });
-    const result = toText(await bash.exec("rg 'a{2,}'"));
+    const result = await toText(await bash.exec("rg 'a{2,}'"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.txt:2:aa\nfile.txt:3:aaa\n");
     expect(result.stderr).toBe("");
@@ -224,7 +226,7 @@ describe("rg regex patterns", () => {
         "/home/user/file.txt": "a1\nb2\nc!\n",
       },
     });
-    const result = toText(await bash.exec("rg '[a-z][0-9]'"));
+    const result = await toText(await bash.exec("rg '[a-z][0-9]'"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.txt:1:a1\nfile.txt:2:b2\n");
     expect(result.stderr).toBe("");
@@ -239,7 +241,7 @@ describe("rg combined options", () => {
         "/home/user/file.txt": "Hello world\nhelloworld\nHELLO there\n",
       },
     });
-    const result = toText(await bash.exec("rg -wi hello"));
+    const result = await toText(await bash.exec("rg -wi hello"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       "file.txt:1:Hello world\nfile.txt:3:HELLO there\n",
@@ -254,7 +256,7 @@ describe("rg combined options", () => {
         "/home/user/file.txt": "Hello\nhello\nHELLO\n",
       },
     });
-    const result = toText(await bash.exec("rg -ci hello"));
+    const result = await toText(await bash.exec("rg -ci hello"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.txt:3\n");
     expect(result.stderr).toBe("");
@@ -268,7 +270,7 @@ describe("rg combined options", () => {
         "/home/user/b.txt": "world\n",
       },
     });
-    const result = toText(await bash.exec("rg -li hello"));
+    const result = await toText(await bash.exec("rg -li hello"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("a.txt\n");
     expect(result.stderr).toBe("");
@@ -281,7 +283,7 @@ describe("rg combined options", () => {
         "/home/user/file.txt": "foo\nbar\nfoo\nbaz\n",
       },
     });
-    const result = toText(await bash.exec("rg -vc foo"));
+    const result = await toText(await bash.exec("rg -vc foo"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.txt:2\n");
     expect(result.stderr).toBe("");

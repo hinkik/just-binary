@@ -23,7 +23,7 @@ describe("SED Prototype Pollution Prevention", () => {
     for (const keyword of DANGEROUS_KEYWORDS) {
       it(`should define label :${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           echo "test" | sed -e ':${keyword}' -e 'p' -e 'q'
         `),
@@ -34,7 +34,7 @@ describe("SED Prototype Pollution Prevention", () => {
 
       it(`should branch to label :${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           echo -e "1\\n2\\n3" | sed -n ':${keyword}; p; n; b ${keyword}'
         `),
@@ -45,7 +45,7 @@ describe("SED Prototype Pollution Prevention", () => {
 
       it(`should test-branch to label :${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           echo "aaa" | sed ':${keyword}; s/a/b/; t ${keyword}; p' | tail -1
         `),
@@ -59,7 +59,7 @@ describe("SED Prototype Pollution Prevention", () => {
   describe("Multiple Labels with Dangerous Names", () => {
     it("should handle multiple dangerous labels", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo "start" | sed -e ':constructor' -e ':__proto__' -e ':prototype' -e 'p' -e 'q'
       `),
@@ -70,7 +70,7 @@ describe("SED Prototype Pollution Prevention", () => {
 
     it("should branch between dangerous labels", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo "x" | sed -n '
           :constructor
@@ -97,7 +97,7 @@ describe("SED Prototype Pollution Prevention", () => {
       it(`should use :${keyword} in loop construct`, async () => {
         const bash = new Bash();
         // Simpler loop test that's more portable
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           echo "aaa" | sed ':${keyword}; s/a/b/; t ${keyword}'
         `),
@@ -108,7 +108,7 @@ describe("SED Prototype Pollution Prevention", () => {
 
       it(`should use :${keyword} in substitution loop`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           echo "xxxxx" | sed ':${keyword}; s/xx/X/; t ${keyword}'
         `),

@@ -6,7 +6,7 @@
  */
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 import {
   cmdAgg,
@@ -317,8 +317,8 @@ export const xanCommand: Command = {
     // Check if command is known but not implemented
     if (NOT_IMPLEMENTED.has(subcommand)) {
       return {
-        stdout: EMPTY,
-        stderr: encode(`xan ${subcommand}: not yet implemented\n`),
+        stdout: emptyStream(),
+        stderr: fromString(`xan ${subcommand}: not yet implemented\n`),
         exitCode: 1,
       };
     }
@@ -426,14 +426,14 @@ export const xanCommand: Command = {
         // Check if it's a known command (typo suggestion)
         if (KNOWN_COMMANDS.has(subcommand)) {
           return {
-            stdout: EMPTY,
-            stderr: encode(`xan ${subcommand}: not yet implemented\n`),
+            stdout: emptyStream(),
+            stderr: fromString(`xan ${subcommand}: not yet implemented\n`),
             exitCode: 1,
           };
         }
         return {
-          stdout: EMPTY,
-          stderr: encode(
+          stdout: emptyStream(),
+          stderr: fromString(
             `xan: unknown command '${subcommand}'\nRun 'xan --help' for usage.\n`,
           ),
           exitCode: 1,
@@ -442,6 +442,7 @@ export const xanCommand: Command = {
   },
 };
 
+import { emptyStream, fromString } from "../../utils/stream.js";
 import type { CommandFuzzInfo } from "../fuzz-flags-types.js";
 
 export const flagsForFuzzing: CommandFuzzInfo = {

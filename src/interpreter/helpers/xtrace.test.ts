@@ -6,7 +6,7 @@ describe("xtrace (set -x)", () => {
   describe("basic tracing", () => {
     it("should trace simple commands", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -x
         echo hello
@@ -19,7 +19,7 @@ describe("xtrace (set -x)", () => {
 
     it("should trace commands with arguments", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -x
         echo one two three
@@ -32,7 +32,7 @@ describe("xtrace (set -x)", () => {
 
     it("should stop tracing with set +x", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -x
         echo traced
@@ -51,7 +51,7 @@ describe("xtrace (set -x)", () => {
   describe("PS4 expansion", () => {
     it("should use default PS4 prefix", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -x
         echo test
@@ -63,7 +63,7 @@ describe("xtrace (set -x)", () => {
 
     it("should use custom PS4 prefix", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         PS4=">>> "
         set -x
@@ -76,7 +76,7 @@ describe("xtrace (set -x)", () => {
 
     it("should expand variables in PS4", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         MYVAR="DEBUG"
         PS4='[$MYVAR] '
@@ -90,7 +90,7 @@ describe("xtrace (set -x)", () => {
 
     it("should expand $LINENO in PS4", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`PS4='+$LINENO: '
 set -x
 echo line1`),
@@ -102,7 +102,7 @@ echo line1`),
 
     it("should handle empty PS4", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         PS4=""
         set -x
@@ -118,7 +118,7 @@ echo line1`),
   describe("tracing with special characters", () => {
     it("should quote arguments with spaces", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -x
         echo "hello world"
@@ -133,7 +133,7 @@ echo line1`),
 
     it("should handle empty string arguments", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -x
         echo ""
@@ -146,7 +146,7 @@ echo line1`),
 
     it("should escape special characters in trace output", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -x
         printf 'a\\nb'
@@ -160,7 +160,7 @@ echo line1`),
   describe("tracing assignments", () => {
     it("should trace variable assignments", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -x
         x=5
@@ -174,7 +174,7 @@ echo line1`),
 
     it("should trace assignments with command", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -x
         FOO=bar echo hello
@@ -190,7 +190,7 @@ echo line1`),
   describe("tracing control structures", () => {
     it("should trace for loop iterations", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -x
         for i in 1 2; do
@@ -206,7 +206,7 @@ echo line1`),
 
     it("should trace while loop body", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -x
         x=0
@@ -224,7 +224,7 @@ echo line1`),
 
     it("should trace if/else branches", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -x
         if true; then
@@ -245,7 +245,7 @@ echo line1`),
   describe("tracing in subshells", () => {
     it("should trace commands in subshell when xtrace is set", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -x
         (echo subshell)
@@ -258,7 +258,7 @@ echo line1`),
 
     it("should not trace subshell when xtrace disabled inside", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -x
         (set +x; echo subshell)
@@ -275,7 +275,7 @@ echo line1`),
   describe("tracing pipelines", () => {
     it("should trace commands in pipeline", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -x
         echo hello | cat
@@ -291,7 +291,7 @@ echo line1`),
   describe("tracing command substitution", () => {
     it("should trace commands inside command substitution", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         set -x
         x=$(echo hello)
@@ -308,7 +308,7 @@ echo line1`),
   describe("tracing function calls", () => {
     it("should trace function body execution", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         myfunc() {
           echo "in func"
@@ -325,7 +325,7 @@ echo line1`),
 
     it("should show function arguments in trace", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         greet() {
           echo "Hello $1"

@@ -3,7 +3,7 @@
  */
 
 import type { CommandContext, ExecResult } from "../../types.js";
-import { EMPTY, encode } from "../../utils/bytes.js";
+import { emptyStream, fromString } from "../../utils/stream.js";
 import { readCsvInput } from "./csv.js";
 
 /**
@@ -65,8 +65,8 @@ export async function cmdFlatten(
   }
 
   return {
-    stdout: encode(`${lines.join("\n")}\n`),
-    stderr: EMPTY,
+    stdout: fromString(`${lines.join("\n")}\n`),
+    stderr: emptyStream(),
     exitCode: 0,
   };
 }
@@ -128,8 +128,8 @@ export async function cmdView(
   lines.push(`└${widths.map((w) => border.repeat(w + 2)).join("┴")}┘`);
 
   return {
-    stdout: encode(`${lines.join("\n")}\n`),
-    stderr: EMPTY,
+    stdout: fromString(`${lines.join("\n")}\n`),
+    stderr: emptyStream(),
     exitCode: 0,
   };
 }

@@ -26,9 +26,9 @@ import {
   encode,
   envGet,
   envSet,
-  isEmpty,
   trimTrailingNewlines,
 } from "../utils/bytes.js";
+import { collectBytes, collectText } from "../utils/stream.js";
 import { evaluateArithmetic } from "./arithmetic.js";
 import {
   BadSubstitutionError,
@@ -788,7 +788,7 @@ async function executeCommandSubstitutionBytes(
       const resolvedPath = filePath.startsWith("/")
         ? filePath
         : `${ctx.state.cwd}/${filePath}`;
-      const content = await ctx.fs.readFile(resolvedPath);
+      const content = await ctx.fs.readFileText(resolvedPath);
       ctx.state.lastExitCode = 0;
       envSet(ctx.state.env, "?", "0");
       // Strip trailing newlines
@@ -834,13 +834,14 @@ async function executeCommandSubstitutionBytes(
     ctx.state.suppressVerbose = savedSuppressVerbose;
     ctx.state.lastExitCode = exitCode;
     envSet(ctx.state.env, "?", String(exitCode));
-    if (!isEmpty(result.stderr)) {
+    const stderrText = await collectText(result.stderr);
+    if (stderrText.length > 0) {
       ctx.state.expansionStderr =
-        (ctx.state.expansionStderr || "") + decode(result.stderr);
+        (ctx.state.expansionStderr || "") + stderrText;
     }
     ctx.state.bashPid = savedBashPid;
     ctx.substitutionDepth = savedDepth;
-    const output = trimTrailingNewlines(result.stdout);
+    const output = trimTrailingNewlines(await collectBytes(result.stdout));
     if (output.length > ctx.limits.maxStringLength) {
       throw new ExecutionLimitError(
         `command substitution: string length limit exceeded (${ctx.limits.maxStringLength} bytes)`,
@@ -860,11 +861,12 @@ async function executeCommandSubstitutionBytes(
     if (error instanceof ExitError) {
       ctx.state.lastExitCode = error.exitCode;
       envSet(ctx.state.env, "?", String(error.exitCode));
-      if (!isEmpty(error.stderr)) {
+      const errStderrText = await collectText(error.stderr);
+      if (errStderrText.length > 0) {
         ctx.state.expansionStderr =
-          (ctx.state.expansionStderr || "") + decode(error.stderr);
+          (ctx.state.expansionStderr || "") + errStderrText;
       }
-      const exitOutput = trimTrailingNewlines(error.stdout);
+      const exitOutput = trimTrailingNewlines(await collectBytes(error.stdout));
       if (exitOutput.length > ctx.limits.maxStringLength) {
         throw new ExecutionLimitError(
           `command substitution: string length limit exceeded (${ctx.limits.maxStringLength} bytes)`,

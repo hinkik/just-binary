@@ -10,10 +10,9 @@ import {
   createStringEnvAdapter,
   decode,
   decodeArgs,
-  EMPTY,
-  encode,
 } from "../../utils/bytes.js";
 import { readFiles } from "../../utils/file-reader.js";
+import { collectText } from "../../utils/stream.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 import {
   type EvaluateOptions,
@@ -257,7 +256,7 @@ export const jqCommand: Command = {
     if (nullInput) {
       // No input
     } else if (files.length === 0 || (files.length === 1 && files[0] === "-")) {
-      inputs.push({ source: "stdin", content: decode(ctx.stdin) });
+      inputs.push({ source: "stdin", content: await collectText(ctx.stdin) });
     } else {
       // Read all files in parallel using shared utility
       const result = await readFiles(ctx, files, {
@@ -266,8 +265,8 @@ export const jqCommand: Command = {
       });
       if (result.exitCode !== 0) {
         return {
-          stdout: EMPTY,
-          stderr: encode(result.stderr),
+          stdout: emptyStream(),
+          stderr: fromString(result.stderr),
           exitCode: 2, // jq uses exit code 2 for file errors
         };
       }
@@ -343,35 +342,36 @@ export const jqCommand: Command = {
           : 0;
 
       return {
-        stdout: encode(output ? (joinOutput ? output : `${output}\n`) : ""),
-        stderr: EMPTY,
+        stdout: fromString(output ? (joinOutput ? output : `${output}\n`) : ""),
+        stderr: emptyStream(),
         exitCode,
       };
     } catch (e) {
       if (e instanceof ExecutionLimitError) {
         return {
-          stdout: EMPTY,
-          stderr: encode(`jq: ${e.message}\n`),
+          stdout: emptyStream(),
+          stderr: fromString(`jq: ${e.message}\n`),
           exitCode: ExecutionLimitError.EXIT_CODE,
         };
       }
       const msg = (e as Error).message;
       if (msg.includes("Unknown function")) {
         return {
-          stdout: EMPTY,
-          stderr: encode(`jq: error: ${msg}\n`),
+          stdout: emptyStream(),
+          stderr: fromString(`jq: error: ${msg}\n`),
           exitCode: 3,
         };
       }
       return {
-        stdout: EMPTY,
-        stderr: encode(`jq: parse error: ${msg}\n`),
+        stdout: emptyStream(),
+        stderr: fromString(`jq: parse error: ${msg}\n`),
         exitCode: 5,
       };
     }
   },
 };
 
+import { emptyStream, fromString } from "../../utils/stream.js";
 import type { CommandFuzzInfo } from "../fuzz-flags-types.js";
 
 export const flagsForFuzzing: CommandFuzzInfo = {

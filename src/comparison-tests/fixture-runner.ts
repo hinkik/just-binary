@@ -5,7 +5,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { promisify } from "node:util";
 import { Bash } from "../Bash.js";
-import { decode } from "../utils/bytes.js";
+import { collectText } from "../utils/stream.js";
 
 const execAsync: (
   command: string,
@@ -436,7 +436,7 @@ async function compareOutputsInternal(
     realBashExitCode = fixture.exitCode;
   }
 
-  let bashEnvStdout = decode(bashEnvResult.stdout);
+  let bashEnvStdout = await collectText(bashEnvResult.stdout);
   let expectedStdout = realBashStdout;
 
   if (options?.normalizeWhitespace) {

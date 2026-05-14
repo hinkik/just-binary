@@ -5,7 +5,11 @@
  * (for, c-style for, while, until).
  */
 
-import { concat, encode } from "../../utils/bytes.js";
+import {
+  type ByteStream,
+  concatStreams,
+  fromString,
+} from "../../utils/stream.js";
 import {
   BreakError,
   ContinueError,
@@ -20,8 +24,8 @@ export type LoopAction = "break" | "continue" | "rethrow" | "error";
 
 export interface LoopErrorResult {
   action: LoopAction;
-  stdout: Uint8Array;
-  stderr: Uint8Array;
+  stdout: ByteStream;
+  stderr: ByteStream;
   exitCode?: number;
   error?: unknown;
 }
@@ -37,13 +41,13 @@ export interface LoopErrorResult {
  */
 export function handleLoopError(
   error: unknown,
-  stdout: Uint8Array,
-  stderr: Uint8Array,
+  stdout: ByteStream,
+  stderr: ByteStream,
   loopDepth: number,
 ): LoopErrorResult {
   if (error instanceof BreakError) {
-    stdout = concat(stdout, error.stdout);
-    stderr = concat(stderr, error.stderr);
+    stdout = concatStreams(stdout, error.stdout);
+    stderr = concatStreams(stderr, error.stderr);
     // Only propagate if levels > 1 AND we're not at the outermost loop
     // Per bash docs: "If n is greater than the number of enclosing loops,
     // the last enclosing loop is exited"
@@ -57,8 +61,8 @@ export function handleLoopError(
   }
 
   if (error instanceof ContinueError) {
-    stdout = concat(stdout, error.stdout);
-    stderr = concat(stderr, error.stderr);
+    stdout = concatStreams(stdout, error.stdout);
+    stderr = concatStreams(stderr, error.stderr);
     // Only propagate if levels > 1 AND we're not at the outermost loop
     // Per bash docs: "If n is greater than the number of enclosing loops,
     // the last enclosing loop is resumed"
@@ -86,7 +90,7 @@ export function handleLoopError(
   return {
     action: "error",
     stdout,
-    stderr: concat(stderr, encode(`${message}\n`)),
+    stderr: concatStreams(stderr, fromString(`${message}\n`)),
     exitCode: 1,
   };
 }

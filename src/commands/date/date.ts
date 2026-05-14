@@ -3,7 +3,7 @@
  */
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
 const dateHelp = {
@@ -201,8 +201,8 @@ export const dateCommand: Command = {
     const date = dateStr !== null ? parseDate(dateStr) : new Date();
     if (!date)
       return {
-        stdout: EMPTY,
-        stderr: encode(`date: invalid date '${dateStr}'\n`),
+        stdout: emptyStream(),
+        stderr: fromString(`date: invalid date '${dateStr}'\n`),
         exitCode: 1,
       };
 
@@ -212,10 +212,15 @@ export const dateCommand: Command = {
     else if (rfc) out = formatDate(date, "%a, %d %b %Y %H:%M:%S %z", utc);
     else out = formatDate(date, "%a %b %e %H:%M:%S %Z %Y", utc);
 
-    return { stdout: encode(`${out}\n`), stderr: EMPTY, exitCode: 0 };
+    return {
+      stdout: fromString(`${out}\n`),
+      stderr: emptyStream(),
+      exitCode: 0,
+    };
   },
 };
 
+import { emptyStream, fromString } from "../../utils/stream.js";
 import type { CommandFuzzInfo } from "../fuzz-flags-types.js";
 
 export const flagsForFuzzing: CommandFuzzInfo = {

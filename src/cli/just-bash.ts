@@ -40,7 +40,7 @@
 import { resolve } from "node:path";
 import { Bash } from "../Bash.js";
 import { OverlayFs } from "../fs/overlay-fs/index.js";
-import { decode } from "../utils/bytes.js";
+import { collectText, streamChunks } from "../utils/stream.js";
 
 interface CliOptions {
   script?: string;
@@ -270,7 +270,7 @@ async function main(): Promise<void> {
       const virtualPath = options.scriptFile.startsWith("/")
         ? options.scriptFile
         : `${mountPoint}/${options.scriptFile}`;
-      script = await fs.readFile(virtualPath, "utf-8");
+      script = await fs.readFileText(virtualPath, "utf-8");
     } catch (e) {
       console.error(`Error: Cannot read script file: ${options.scriptFile}`);
       console.error(e instanceof Error ? e.message : String(e));
@@ -320,20 +320,24 @@ async function main(): Promise<void> {
     const result = await env.exec(script);
 
     if (options.json) {
+      const [stdoutText, stderrText] = await Promise.all([
+        collectText(result.stdout),
+        collectText(result.stderr),
+      ]);
       console.log(
         JSON.stringify({
-          stdout: decode(result.stdout),
-          stderr: decode(result.stderr),
+          stdout: stdoutText,
+          stderr: stderrText,
           exitCode: result.exitCode,
         }),
       );
     } else {
       // Output stdout and stderr directly
-      if (result.stdout.length > 0) {
-        process.stdout.write(result.stdout);
+      for await (const chunk of streamChunks(result.stdout)) {
+        process.stdout.write(chunk);
       }
-      if (result.stderr.length > 0) {
-        process.stderr.write(result.stderr);
+      for await (const chunk of streamChunks(result.stderr)) {
+        process.stderr.write(chunk);
       }
     }
 
