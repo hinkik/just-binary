@@ -92,15 +92,23 @@ describe("curl URL allow-list", () => {
   });
 
   describe("dangerouslyAllowFullInternetAccess", () => {
-    it("allows any URL with dangerous flag", async () => {
-      const env = new Bash({
-        network: { dangerouslyAllowFullInternetAccess: true },
-      });
-      const result = await toText(
-        await env.exec("curl https://any-domain.com/test"),
-      );
-      expect(result.stderr).not.toContain("Network access denied");
-    });
+    // Hits a real HTTP request, so we give it a generous timeout to
+    // survive slow CI network conditions. The assertion only checks that
+    // network access wasn't *denied* — connection failures/timeouts to
+    // the unreachable host are still acceptable here.
+    it(
+      "allows any URL with dangerous flag",
+      async () => {
+        const env = new Bash({
+          network: { dangerouslyAllowFullInternetAccess: true },
+        });
+        const result = await toText(
+          await env.exec("curl https://any-domain.com/test"),
+        );
+        expect(result.stderr).not.toContain("Network access denied");
+      },
+      30_000,
+    );
   });
 
   describe("security scenarios", () => {
