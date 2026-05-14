@@ -7,7 +7,7 @@ describe("cp", () => {
     const env = new Bash({
       files: { "/src.txt": "content" },
     });
-    const result = toText(await env.exec("cp /src.txt /dst.txt"));
+    const result = await toText(await env.exec("cp /src.txt /dst.txt"));
     expect(result.exitCode).toBe(0);
     const content = await env.readFile("/dst.txt");
     expect(content).toBe("content");
@@ -66,7 +66,9 @@ describe("cp", () => {
         "/b.txt": "",
       },
     });
-    const result = toText(await env.exec("cp /a.txt /b.txt /nonexistent"));
+    const result = await toText(
+      await env.exec("cp /a.txt /b.txt /nonexistent"),
+    );
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("not a directory");
   });
@@ -75,7 +77,7 @@ describe("cp", () => {
     const env = new Bash({
       files: { "/srcdir/file.txt": "content" },
     });
-    const result = toText(await env.exec("cp /srcdir /dstdir"));
+    const result = await toText(await env.exec("cp /srcdir /dstdir"));
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("omitting directory");
   });
@@ -84,7 +86,7 @@ describe("cp", () => {
     const env = new Bash({
       files: { "/srcdir/file.txt": "content" },
     });
-    const result = toText(await env.exec("cp -r /srcdir /dstdir"));
+    const result = await toText(await env.exec("cp -r /srcdir /dstdir"));
     expect(result.exitCode).toBe(0);
     const content = await env.readFile("/dstdir/file.txt");
     expect(content).toBe("content");
@@ -122,7 +124,7 @@ describe("cp", () => {
 
   it("should error on missing source", async () => {
     const env = new Bash();
-    const result = toText(await env.exec("cp /missing.txt /dst.txt"));
+    const result = await toText(await env.exec("cp /missing.txt /dst.txt"));
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toBe(
       "cp: cannot stat '/missing.txt': No such file or directory\n",
@@ -133,7 +135,7 @@ describe("cp", () => {
     const env = new Bash({
       files: { "/src.txt": "" },
     });
-    const result = toText(await env.exec("cp /src.txt"));
+    const result = await toText(await env.exec("cp /src.txt"));
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toBe("cp: missing destination file operand\n");
   });

@@ -7,7 +7,8 @@
 
 import { getErrorMessage } from "../../interpreter/helpers/errors.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs } from "../../utils/bytes.js";
+import { emptyStream, fromString } from "../../utils/stream.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 import { nullPrototypeCopy } from "../query-engine/safe-object.js";
 import { generateMultipartBody } from "./form.js";
@@ -30,7 +31,7 @@ async function prepareRequestBody(
   // Handle -T/--upload-file
   if (options.uploadFile) {
     const filePath = ctx.fs.resolvePath(ctx.cwd, options.uploadFile);
-    const content = await ctx.fs.readFile(filePath);
+    const content = await ctx.fs.readFileText(filePath);
     return { body: content };
   }
 
@@ -43,7 +44,7 @@ async function prepareRequestBody(
       if (field.value.startsWith("@") || field.value.startsWith("<")) {
         const filePath = ctx.fs.resolvePath(ctx.cwd, field.value.slice(1));
         try {
-          const content = await ctx.fs.readFile(filePath);
+          const content = await ctx.fs.readFileText(filePath);
           fileContents.set(field.value.slice(1), content);
         } catch {
           // File not found, use empty string
@@ -195,8 +196,8 @@ export const curlCommand: Command = {
     // Check for URL
     if (!options.url) {
       return {
-        stdout: EMPTY,
-        stderr: encode("curl: no URL specified\n"),
+        stdout: emptyStream(),
+        stderr: fromString("curl: no URL specified\n"),
         exitCode: 2,
       };
     }
@@ -204,8 +205,8 @@ export const curlCommand: Command = {
     // ctx.fetch is always available when curl command exists (curl is only registered with network config)
     if (!ctx.fetch) {
       return {
-        stdout: EMPTY,
-        stderr: encode("curl: internal error: fetch not available\n"),
+        stdout: emptyStream(),
+        stderr: fromString("curl: internal error: fetch not available\n"),
         exitCode: 1,
       };
     }
@@ -238,7 +239,11 @@ export const curlCommand: Command = {
           options.showError || !options.silent
             ? `curl: (22) The requested URL returned error: ${result.status}\n`
             : "";
-        return { stdout: EMPTY, stderr: encode(stderr), exitCode: 22 };
+        return {
+          stdout: emptyStream(),
+          stderr: fromString(stderr),
+          exitCode: 22,
+        };
       }
 
       let output = buildOutput(options, result, url);
@@ -265,7 +270,7 @@ export const curlCommand: Command = {
         }
       }
 
-      return { stdout: encode(output), stderr: EMPTY, exitCode: 0 };
+      return { stdout: fromString(output), stderr: emptyStream(), exitCode: 0 };
     } catch (error) {
       const message = getErrorMessage(error);
 
@@ -290,7 +295,7 @@ export const curlCommand: Command = {
       const showErr = !options.silent || options.showError;
       const stderr = showErr ? `curl: (${exitCode}) ${message}\n` : "";
 
-      return { stdout: EMPTY, stderr: encode(stderr), exitCode };
+      return { stdout: emptyStream(), stderr: fromString(stderr), exitCode };
     }
   },
 };

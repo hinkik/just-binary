@@ -39,7 +39,7 @@ describe("Comprehensive Prototype Pollution Prevention", () => {
   describe("Indirect Expansion with Dangerous Keywords", () => {
     it("should handle ${!prefix*} with prototype keywords", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         constructor_var=value1
         constructor_other=value2
@@ -53,7 +53,7 @@ describe("Comprehensive Prototype Pollution Prevention", () => {
 
     it("should handle ${!array[@]} with dangerous keys", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         declare -A arr
         arr[constructor]=val1
@@ -69,7 +69,7 @@ describe("Comprehensive Prototype Pollution Prevention", () => {
 
     it("should not access JS prototype via indirect expansion", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         ref="constructor"
         echo \${!ref}
@@ -87,7 +87,7 @@ describe("Comprehensive Prototype Pollution Prevention", () => {
     for (const keyword of POLLUTION_KEYWORDS.slice(0, 5)) {
       it(`should handle nameref to ${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           ${keyword}=original_value
           declare -n ref=${keyword}
@@ -106,7 +106,7 @@ describe("Comprehensive Prototype Pollution Prevention", () => {
       const bash = new Bash();
       // Nameref chains may have different resolution behavior
       // The important thing is it doesn't crash or leak JS properties
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         target=final_value
         __proto__=target
@@ -123,7 +123,7 @@ describe("Comprehensive Prototype Pollution Prevention", () => {
   describe("Array Operations with Dangerous Keywords", () => {
     it("should safely iterate associative array with prototype keys", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         declare -A dangerous
         dangerous[constructor]=c
@@ -145,7 +145,7 @@ describe("Comprehensive Prototype Pollution Prevention", () => {
     it("should handle array named with dangerous keyword", async () => {
       const bash = new Bash();
       for (const keyword of ["constructor", "__proto__", "prototype"]) {
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           ${keyword}=(a b c d e)
           echo "length: \${#${keyword}[@]}"
@@ -162,7 +162,7 @@ describe("Comprehensive Prototype Pollution Prevention", () => {
 
     it("should handle array slice with dangerous keyword names", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         __proto__=(1 2 3 4 5)
         echo \${__proto__[@]:1:3}
@@ -177,7 +177,7 @@ describe("Comprehensive Prototype Pollution Prevention", () => {
     for (const keyword of POLLUTION_KEYWORDS.slice(0, 5)) {
       it(`should allow function named ${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           ${keyword}() {
             echo "called ${keyword}"
@@ -195,7 +195,7 @@ describe("Comprehensive Prototype Pollution Prevention", () => {
 
     it("should handle recursive function with dangerous name", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         constructor() {
           if [ $1 -le 0 ]; then
@@ -213,7 +213,7 @@ describe("Comprehensive Prototype Pollution Prevention", () => {
 
     it("should unset function with dangerous name", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         __proto__() { echo "exists"; }
         __proto__
@@ -230,7 +230,7 @@ describe("Comprehensive Prototype Pollution Prevention", () => {
     for (const keyword of POLLUTION_KEYWORDS.slice(0, 5)) {
       it(`should handle \${${keyword}:-default}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           unset ${keyword}
           echo \${${keyword}:-default_value}
@@ -242,7 +242,7 @@ describe("Comprehensive Prototype Pollution Prevention", () => {
 
       it(`should handle \${${keyword}:+alternate}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           ${keyword}=set
           echo \${${keyword}:+alternate_value}
@@ -254,7 +254,7 @@ describe("Comprehensive Prototype Pollution Prevention", () => {
 
       it(`should handle \${${keyword}//pattern/replacement}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           ${keyword}="hello world"
           echo \${${keyword}//o/0}
@@ -267,7 +267,7 @@ describe("Comprehensive Prototype Pollution Prevention", () => {
 
     it("should handle ${!var} with dangerous keyword as value", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         constructor=target_value
         ref=constructor
@@ -282,7 +282,7 @@ describe("Comprehensive Prototype Pollution Prevention", () => {
   describe("Subshell Isolation with Dangerous Keywords", () => {
     it("should isolate dangerous keyword vars in subshell", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         constructor=outer
         (constructor=inner; echo "inner: $constructor")
@@ -295,7 +295,7 @@ describe("Comprehensive Prototype Pollution Prevention", () => {
 
     it("should isolate via command substitution", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         __proto__=outer
         result=$(__proto__=inner; echo $__proto__)
@@ -312,7 +312,7 @@ describe("Comprehensive Prototype Pollution Prevention", () => {
     for (const keyword of POLLUTION_KEYWORDS.slice(0, 5)) {
       it(`should export ${keyword} safely`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           export ${keyword}=exported_value
           printenv ${keyword}
@@ -325,7 +325,7 @@ describe("Comprehensive Prototype Pollution Prevention", () => {
 
     it("should pass dangerous keywords to subcommand env", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         export constructor=c_val
         export __proto__=p_val
@@ -342,7 +342,7 @@ describe("Comprehensive Prototype Pollution Prevention", () => {
     for (const keyword of POLLUTION_KEYWORDS.slice(0, 5)) {
       it(`should handle arithmetic with ${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           ${keyword}=10
           echo $((${keyword} + 5))
@@ -358,7 +358,7 @@ describe("Comprehensive Prototype Pollution Prevention", () => {
 
     it("should handle arithmetic assignment to dangerous keyword", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         (( constructor = 5 + 3 ))
         echo $constructor
@@ -373,7 +373,7 @@ describe("Comprehensive Prototype Pollution Prevention", () => {
     for (const keyword of POLLUTION_KEYWORDS.slice(0, 3)) {
       it(`should read into ${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           echo "input_value" | { read ${keyword}; echo $${keyword}; }
         `),
@@ -385,7 +385,7 @@ describe("Comprehensive Prototype Pollution Prevention", () => {
 
     it("should read multiple dangerous keywords", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo "a b c" | { read constructor __proto__ prototype; echo "$constructor $__proto__ $prototype"; }
       `),
@@ -411,7 +411,7 @@ describe("Comprehensive Prototype Pollution Prevention", () => {
 
     it("should not leak JS properties via variable access", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         # These should all be empty (unset variables)
         echo "constructor: $constructor"
@@ -429,7 +429,7 @@ describe("Comprehensive Prototype Pollution Prevention", () => {
 
     it("should not execute JS code via dangerous keyword values", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         constructor='() { return "hacked"; }'
         __proto__='{"polluted": true}'
@@ -447,7 +447,7 @@ describe("Comprehensive Prototype Pollution Prevention", () => {
   describe("Edge Cases", () => {
     it("should handle multiple dangerous keywords in one command", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         constructor=1 __proto__=2 prototype=3 echo "inline"
         echo "c=$constructor p=$__proto__ pr=$prototype"
@@ -460,7 +460,7 @@ describe("Comprehensive Prototype Pollution Prevention", () => {
 
     it("should handle dangerous keywords in here-document", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         cat <<EOF
 constructor
@@ -475,7 +475,7 @@ EOF
 
     it("should handle dangerous keywords in brace expansion", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo {constructor,__proto__,prototype}
       `),
@@ -486,7 +486,7 @@ EOF
 
     it("should handle dangerous keywords in case statement", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         test_keyword() {
           case "$1" in

@@ -7,19 +7,20 @@
 
 import { type ParseException, parse } from "../../parser/parser.js";
 import type { ExecResult } from "../../types.js";
+import type { ByteStream } from "../../utils/stream.js";
 import {
   BreakError,
   ContinueError,
   ExitError,
   ReturnError,
 } from "../errors.js";
-import { failure, OK } from "../helpers/result.js";
+import { failure, ok } from "../helpers/result.js";
 import type { InterpreterContext } from "../types.js";
 
 export async function handleEval(
   ctx: InterpreterContext,
   args: string[],
-  stdin?: Uint8Array,
+  stdin?: ByteStream,
 ): Promise<ExecResult> {
   // Handle options like bash does:
   // -- ends option processing
@@ -40,14 +41,14 @@ export async function handleEval(
   }
 
   if (evalArgs.length === 0) {
-    return OK;
+    return ok();
   }
 
   // Concatenate all arguments with spaces (like bash does)
   const command = evalArgs.join(" ");
 
   if (command.trim() === "") {
-    return OK;
+    return ok();
   }
 
   // Save and set groupStdin for piped eval commands

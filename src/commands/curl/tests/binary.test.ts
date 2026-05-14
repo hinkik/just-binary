@@ -43,7 +43,7 @@ describe("curl binary data", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://api.example.com"] },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec("curl https://api.example.com/binary"),
       );
 
@@ -65,7 +65,7 @@ describe("curl binary data", () => {
       });
       await env.exec("curl -o /output.bin https://api.example.com/binary");
 
-      const content = await env.fs.readFile("/output.bin");
+      const content = await env.fs.readFileText("/output.bin");
       expect(content).toBe(binaryData);
     });
 
@@ -82,7 +82,7 @@ describe("curl binary data", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://api.example.com"] },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec("curl https://api.example.com/binary"),
       );
 

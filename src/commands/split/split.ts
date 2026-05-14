@@ -8,7 +8,8 @@
  */
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs } from "../../utils/bytes.js";
+import { collectText, emptyStream, fromString } from "../../utils/stream.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
 const splitHelp = {
@@ -217,8 +218,10 @@ export const split: Command = {
         if (Number.isNaN(lines) || lines < 1) {
           return {
             exitCode: 1,
-            stdout: EMPTY,
-            stderr: encode(`split: invalid number of lines: '${a[i + 1]}'\n`),
+            stdout: emptyStream(),
+            stderr: fromString(
+              `split: invalid number of lines: '${a[i + 1]}'\n`,
+            ),
           };
         }
         options.mode = "lines";
@@ -229,8 +232,8 @@ export const split: Command = {
         if (Number.isNaN(lines) || lines < 1) {
           return {
             exitCode: 1,
-            stdout: EMPTY,
-            stderr: encode(
+            stdout: emptyStream(),
+            stderr: fromString(
               `split: invalid number of lines: '${arg.slice(2)}'\n`,
             ),
           };
@@ -243,8 +246,10 @@ export const split: Command = {
         if (bytes === null) {
           return {
             exitCode: 1,
-            stdout: EMPTY,
-            stderr: encode(`split: invalid number of bytes: '${a[i + 1]}'\n`),
+            stdout: emptyStream(),
+            stderr: fromString(
+              `split: invalid number of bytes: '${a[i + 1]}'\n`,
+            ),
           };
         }
         options.mode = "bytes";
@@ -255,8 +260,8 @@ export const split: Command = {
         if (bytes === null) {
           return {
             exitCode: 1,
-            stdout: EMPTY,
-            stderr: encode(
+            stdout: emptyStream(),
+            stderr: fromString(
               `split: invalid number of bytes: '${arg.slice(2)}'\n`,
             ),
           };
@@ -269,8 +274,10 @@ export const split: Command = {
         if (Number.isNaN(chunks) || chunks < 1) {
           return {
             exitCode: 1,
-            stdout: EMPTY,
-            stderr: encode(`split: invalid number of chunks: '${a[i + 1]}'\n`),
+            stdout: emptyStream(),
+            stderr: fromString(
+              `split: invalid number of chunks: '${a[i + 1]}'\n`,
+            ),
           };
         }
         options.mode = "chunks";
@@ -281,8 +288,8 @@ export const split: Command = {
         if (Number.isNaN(chunks) || chunks < 1) {
           return {
             exitCode: 1,
-            stdout: EMPTY,
-            stderr: encode(
+            stdout: emptyStream(),
+            stderr: fromString(
               `split: invalid number of chunks: '${arg.slice(2)}'\n`,
             ),
           };
@@ -295,8 +302,8 @@ export const split: Command = {
         if (Number.isNaN(len) || len < 1) {
           return {
             exitCode: 1,
-            stdout: EMPTY,
-            stderr: encode(`split: invalid suffix length: '${a[i + 1]}'\n`),
+            stdout: emptyStream(),
+            stderr: fromString(`split: invalid suffix length: '${a[i + 1]}'\n`),
           };
         }
         options.suffixLength = len;
@@ -306,8 +313,10 @@ export const split: Command = {
         if (Number.isNaN(len) || len < 1) {
           return {
             exitCode: 1,
-            stdout: EMPTY,
-            stderr: encode(`split: invalid suffix length: '${arg.slice(2)}'\n`),
+            stdout: emptyStream(),
+            stderr: fromString(
+              `split: invalid suffix length: '${arg.slice(2)}'\n`,
+            ),
           };
         }
         options.suffixLength = len;
@@ -346,26 +355,28 @@ export const split: Command = {
     // Read input content
     let content: string;
     if (inputFile === "-") {
-      content = decode(ctx.stdin);
+      content = await collectText(ctx.stdin);
     } else {
       const filePath = ctx.fs.resolvePath(ctx.cwd, inputFile);
-      const fileContent = await ctx.fs.readFile(filePath);
-      if (fileContent === null) {
+      try {
+        content = await ctx.fs.readFileText(filePath);
+      } catch {
         return {
           exitCode: 1,
-          stdout: EMPTY,
-          stderr: encode(`split: ${inputFile}: No such file or directory\n`),
+          stdout: emptyStream(),
+          stderr: fromString(
+            `split: ${inputFile}: No such file or directory\n`,
+          ),
         };
       }
-      content = fileContent;
     }
 
     // Handle empty input
     if (content === "") {
       return {
         exitCode: 0,
-        stdout: EMPTY,
-        stderr: EMPTY,
+        stdout: emptyStream(),
+        stderr: emptyStream(),
       };
     }
 
@@ -405,8 +416,8 @@ export const split: Command = {
 
     return {
       exitCode: 0,
-      stdout: EMPTY,
-      stderr: EMPTY,
+      stdout: emptyStream(),
+      stderr: emptyStream(),
     };
   },
 };

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
 import { toText } from "../../test-utils.js";
+import { collectBytes } from "../../utils/stream.js";
 
 describe("tar with binary data", () => {
   describe("binary file content", () => {
@@ -15,11 +16,12 @@ describe("tar with binary data", () => {
       await env.exec("tar -xf /archive.tar -C /dest");
 
       const result = await env.exec("cat /dest/binary.bin");
-      expect(result.stdout[0]).toBe(0x80);
-      expect(result.stdout[1]).toBe(0x90);
-      expect(result.stdout[2]).toBe(0xa0);
-      expect(result.stdout[3]).toBe(0xb0);
-      expect(result.stdout[4]).toBe(0xff);
+      const bytes = await collectBytes(result.stdout);
+      expect(bytes[0]).toBe(0x80);
+      expect(bytes[1]).toBe(0x90);
+      expect(bytes[2]).toBe(0xa0);
+      expect(bytes[3]).toBe(0xb0);
+      expect(bytes[4]).toBe(0xff);
     });
 
     it("should archive and extract file with null bytes", async () => {
@@ -32,7 +34,7 @@ describe("tar with binary data", () => {
       await env.exec("tar -cf /archive.tar -C /src nulls.bin");
       await env.exec("tar -xf /archive.tar -C /dest");
 
-      const result = toText(await env.exec("cat /dest/nulls.bin"));
+      const result = await toText(await env.exec("cat /dest/nulls.bin"));
       expect(result.stdout).toBe("A\0B\0C");
     });
 
@@ -49,9 +51,10 @@ describe("tar with binary data", () => {
       await env.exec("tar -xf /archive.tar -C /dest");
 
       const result = await env.exec("cat /dest/allbytes.bin");
-      expect(result.stdout.length).toBe(256);
+      const bytes = await collectBytes(result.stdout);
+      expect(bytes.length).toBe(256);
       for (let i = 0; i < 256; i++) {
-        expect(result.stdout[i]).toBe(i);
+        expect(bytes[i]).toBe(i);
       }
     });
   });
@@ -65,7 +68,7 @@ describe("tar with binary data", () => {
       });
 
       await env.exec("tar -cf /archive.tar -C /src file.txt");
-      const result = toText(await env.exec("cat /archive.tar | tar -t"));
+      const result = await toText(await env.exec("cat /archive.tar | tar -t"));
 
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("file.txt");
@@ -81,7 +84,7 @@ describe("tar with binary data", () => {
       await env.exec("tar -cf /archive.tar -C /src data.txt");
       await env.exec("cat /archive.tar | tar -x -C /dest");
 
-      const result = toText(await env.exec("cat /dest/data.txt"));
+      const result = await toText(await env.exec("cat /dest/data.txt"));
       expect(result.stdout).toBe("hello world");
     });
 
@@ -95,7 +98,7 @@ describe("tar with binary data", () => {
       await env.exec("tar -czf /archive.tar.gz -C /src file.txt");
       await env.exec("cat /archive.tar.gz | tar -xz -C /dest");
 
-      const result = toText(await env.exec("cat /dest/file.txt"));
+      const result = await toText(await env.exec("cat /dest/file.txt"));
       expect(result.stdout).toBe("compressed content");
     });
 
@@ -109,7 +112,7 @@ describe("tar with binary data", () => {
       await env.exec("tar -cjf /archive.tar.bz2 -C /src file.txt");
       await env.exec("cat /archive.tar.bz2 | tar -xj -C /dest");
 
-      const result = toText(await env.exec("cat /dest/file.txt"));
+      const result = await toText(await env.exec("cat /dest/file.txt"));
       expect(result.stdout).toBe("bzip2 content");
     });
 
@@ -123,7 +126,7 @@ describe("tar with binary data", () => {
       await env.exec("tar -cJf /archive.tar.xz -C /src file.txt");
       await env.exec("cat /archive.tar.xz | tar -xJ -C /dest");
 
-      const result = toText(await env.exec("cat /dest/file.txt"));
+      const result = await toText(await env.exec("cat /dest/file.txt"));
       expect(result.stdout).toBe("xz content");
     });
 
@@ -137,7 +140,7 @@ describe("tar with binary data", () => {
       await env.exec("tar --zstd -cf /archive.tar.zst -C /src file.txt");
       await env.exec("cat /archive.tar.zst | tar --zstd -x -C /dest");
 
-      const result = toText(await env.exec("cat /dest/file.txt"));
+      const result = await toText(await env.exec("cat /dest/file.txt"));
       expect(result.stdout).toBe("zstd content");
     });
   });
@@ -153,7 +156,7 @@ describe("tar with binary data", () => {
       await env.exec("tar -cf /archive.tar -C /src unicode.txt");
       await env.exec("tar -xf /archive.tar -C /dest");
 
-      const result = toText(await env.exec("cat /dest/unicode.txt"));
+      const result = await toText(await env.exec("cat /dest/unicode.txt"));
       expect(result.stdout).toBe("Hello World");
     });
 
@@ -167,7 +170,7 @@ describe("tar with binary data", () => {
       await env.exec("tar -czf /archive.tar.gz -C /src data.txt");
       await env.exec("tar -xzf /archive.tar.gz -C /dest");
 
-      const result = toText(await env.exec("cat /dest/data.txt"));
+      const result = await toText(await env.exec("cat /dest/data.txt"));
       expect(result.stdout).toBe("compressed data");
     });
 
@@ -179,7 +182,7 @@ describe("tar with binary data", () => {
       });
 
       await env.exec("tar -cf /archive.tar -C /src file-name_123.txt");
-      const listResult = toText(await env.exec("tar -tf /archive.tar"));
+      const listResult = await toText(await env.exec("tar -tf /archive.tar"));
 
       expect(listResult.stdout).toContain("file-name_123.txt");
     });

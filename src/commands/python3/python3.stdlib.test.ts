@@ -6,7 +6,7 @@ describe("python3 standard library", () => {
   describe("json module", () => {
     it("should serialize to JSON", { timeout: 60000 }, async () => {
       const env = new Bash({ python: true });
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `python3 -c "import json; print(json.dumps({'name': 'test', 'value': 42}))"`,
         ),
@@ -19,7 +19,7 @@ describe("python3 standard library", () => {
 
     it("should parse JSON", async () => {
       const env = new Bash({ python: true });
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `python3 -c "import json; data = json.loads('[1, 2, 3]'); print(sum(data))"`,
         ),
@@ -36,7 +36,7 @@ import json
 data = {"users": [{"name": "alice"}, {"name": "bob"}]}
 print(json.dumps(data, sort_keys=True))
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_json.py`));
+      const result = await toText(await env.exec(`python3 /tmp/test_json.py`));
       expect(result.stderr).toBe("");
       const parsed = JSON.parse(result.stdout.trim());
       expect(parsed.users[0].name).toBe("alice");
@@ -47,7 +47,7 @@ EOF`);
   describe("math module", () => {
     it("should calculate sqrt", async () => {
       const env = new Bash({ python: true });
-      const result = toText(
+      const result = await toText(
         await env.exec(`python3 -c "import math; print(math.sqrt(16))"`),
       );
       expect(result.stderr).toBe("");
@@ -57,7 +57,7 @@ EOF`);
 
     it("should provide constants", async () => {
       const env = new Bash({ python: true });
-      const result = toText(
+      const result = await toText(
         await env.exec(`python3 -c "import math; print(round(math.pi, 5))"`),
       );
       expect(result.stderr).toBe("");
@@ -67,7 +67,7 @@ EOF`);
 
     it("should handle trigonometry", async () => {
       const env = new Bash({ python: true });
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `python3 -c "import math; print(int(math.sin(math.pi/2)))"`,
         ),
@@ -81,7 +81,7 @@ EOF`);
   describe("re module", () => {
     it("should match patterns", async () => {
       const env = new Bash({ python: true });
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `python3 -c "import re; print(bool(re.match(r'hello', 'hello world')))"`,
         ),
@@ -99,7 +99,7 @@ text = "cat bat rat"
 matches = re.findall(r'[cbr]at', text)
 print(matches)
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_regex.py`));
+      const result = await toText(await env.exec(`python3 /tmp/test_regex.py`));
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("['cat', 'bat', 'rat']\n");
       expect(result.exitCode).toBe(0);
@@ -107,7 +107,7 @@ EOF`);
 
     it("should substitute patterns", async () => {
       const env = new Bash({ python: true });
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `python3 -c "import re; print(re.sub(r'\\\\d+', 'X', 'a1b2c3'))"`,
         ),
@@ -126,7 +126,7 @@ from datetime import date
 d = date(2024, 1, 15)
 print(d.year, d.month, d.day)
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_date.py`));
+      const result = await toText(await env.exec(`python3 /tmp/test_date.py`));
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("2024 1 15\n");
       expect(result.exitCode).toBe(0);
@@ -139,7 +139,9 @@ from datetime import datetime
 dt = datetime(2024, 6, 15, 10, 30)
 print(dt.strftime("%Y-%m-%d"))
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_dateformat.py`));
+      const result = await toText(
+        await env.exec(`python3 /tmp/test_dateformat.py`),
+      );
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("2024-06-15\n");
       expect(result.exitCode).toBe(0);
@@ -154,7 +156,9 @@ from collections import Counter
 c = Counter('abracadabra')
 print(c['a'])
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_counter.py`));
+      const result = await toText(
+        await env.exec(`python3 /tmp/test_counter.py`),
+      );
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("5\n");
       expect(result.exitCode).toBe(0);
@@ -169,7 +173,9 @@ d['key'].append(1)
 d['key'].append(2)
 print(d['key'])
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_defaultdict.py`));
+      const result = await toText(
+        await env.exec(`python3 /tmp/test_defaultdict.py`),
+      );
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("[1, 2]\n");
       expect(result.exitCode).toBe(0);
@@ -185,7 +191,9 @@ d['b'] = 2
 d['c'] = 3
 print(list(d.keys()))
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_ordereddict.py`));
+      const result = await toText(
+        await env.exec(`python3 /tmp/test_ordereddict.py`),
+      );
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("['a', 'b', 'c']\n");
       expect(result.exitCode).toBe(0);
@@ -200,7 +208,7 @@ from itertools import chain
 result = list(chain([1, 2], [3, 4]))
 print(result)
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_chain.py`));
+      const result = await toText(await env.exec(`python3 /tmp/test_chain.py`));
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("[1, 2, 3, 4]\n");
       expect(result.exitCode).toBe(0);
@@ -213,7 +221,7 @@ from itertools import combinations
 result = list(combinations('ABC', 2))
 print(result)
 EOF`);
-      const result = toText(
+      const result = await toText(
         await env.exec(`python3 /tmp/test_combinations.py`),
       );
       expect(result.stderr).toBe("");
@@ -230,7 +238,9 @@ from functools import reduce
 result = reduce(lambda x, y: x + y, [1, 2, 3, 4])
 print(result)
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_reduce.py`));
+      const result = await toText(
+        await env.exec(`python3 /tmp/test_reduce.py`),
+      );
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("10\n");
       expect(result.exitCode).toBe(0);
@@ -249,7 +259,9 @@ def fib(n):
 
 print(fib(10))
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_lru_cache.py`));
+      const result = await toText(
+        await env.exec(`python3 /tmp/test_lru_cache.py`),
+      );
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("55\n");
       expect(result.exitCode).toBe(0);
@@ -264,7 +276,7 @@ import hashlib
 h = hashlib.md5(b'hello').hexdigest()
 print(h)
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_md5.py`));
+      const result = await toText(await env.exec(`python3 /tmp/test_md5.py`));
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("5d41402abc4b2a76b9719d911017c592\n");
       expect(result.exitCode).toBe(0);
@@ -277,7 +289,9 @@ import hashlib
 h = hashlib.sha256(b'hello').hexdigest()
 print(h[:16])
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_sha256.py`));
+      const result = await toText(
+        await env.exec(`python3 /tmp/test_sha256.py`),
+      );
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("2cf24dba5fb0a30e\n");
       expect(result.exitCode).toBe(0);
@@ -292,7 +306,9 @@ import base64
 encoded = base64.b64encode(b'hello world').decode()
 print(encoded)
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_b64encode.py`));
+      const result = await toText(
+        await env.exec(`python3 /tmp/test_b64encode.py`),
+      );
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("aGVsbG8gd29ybGQ=\n");
       expect(result.exitCode).toBe(0);
@@ -305,7 +321,9 @@ import base64
 decoded = base64.b64decode('aGVsbG8gd29ybGQ=').decode()
 print(decoded)
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_b64decode.py`));
+      const result = await toText(
+        await env.exec(`python3 /tmp/test_b64decode.py`),
+      );
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("hello world\n");
       expect(result.exitCode).toBe(0);
@@ -322,7 +340,9 @@ print(p.name)
 print(p.suffix)
 print(p.parent)
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_pathlib.py`));
+      const result = await toText(
+        await env.exec(`python3 /tmp/test_pathlib.py`),
+      );
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("file.txt\n.txt\n/home/user\n");
       expect(result.exitCode).toBe(0);
@@ -335,7 +355,9 @@ from pathlib import PurePosixPath
 p = PurePosixPath('/home') / 'user' / 'file.txt'
 print(p)
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_pathjoin.py`));
+      const result = await toText(
+        await env.exec(`python3 /tmp/test_pathjoin.py`),
+      );
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("/home/user/file.txt\n");
       expect(result.exitCode).toBe(0);
@@ -350,7 +372,9 @@ import random
 random.seed(42)
 print(random.choice([1, 2, 3, 4, 5]))
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_random.py`));
+      const result = await toText(
+        await env.exec(`python3 /tmp/test_random.py`),
+      );
       expect(result.stderr).toBe("");
       // With seed 42, the choice should be deterministic
       expect(["1\n", "2\n", "3\n", "4\n", "5\n"]).toContain(result.stdout);
@@ -366,7 +390,9 @@ items = [1, 2, 3]
 random.shuffle(items)
 print(len(items))
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_shuffle.py`));
+      const result = await toText(
+        await env.exec(`python3 /tmp/test_shuffle.py`),
+      );
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("3\n");
       expect(result.exitCode).toBe(0);
@@ -382,7 +408,9 @@ text = "Hello World"
 wrapped = textwrap.fill(text, width=5)
 print(wrapped)
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_textwrap.py`));
+      const result = await toText(
+        await env.exec(`python3 /tmp/test_textwrap.py`),
+      );
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("Hello\nWorld\n");
       expect(result.exitCode).toBe(0);

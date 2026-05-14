@@ -1,6 +1,7 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
-import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs } from "../../utils/bytes.js";
+import { collectText } from "../../utils/stream.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const trHelp = {
@@ -140,23 +141,23 @@ export const trCommand: Command = {
 
     if (sets.length < 1) {
       return {
-        stdout: EMPTY,
-        stderr: encode("tr: missing operand\n"),
+        stdout: emptyStream(),
+        stderr: fromString("tr: missing operand\n"),
         exitCode: 1,
       };
     }
 
     if (!deleteMode && !squeezeMode && sets.length < 2) {
       return {
-        stdout: EMPTY,
-        stderr: encode("tr: missing operand after SET1\n"),
+        stdout: emptyStream(),
+        stderr: fromString("tr: missing operand after SET1\n"),
         exitCode: 1,
       };
     }
 
     const set1Raw = expandRange(sets[0]);
     const set2 = sets.length > 1 ? expandRange(sets[1]) : "";
-    const content = decode(ctx.stdin);
+    const content = await collectText(ctx.stdin);
 
     // Helper to check if character is in set1 (considering complement mode)
     const isInSet1 = (char: string): boolean => {
@@ -225,10 +226,11 @@ export const trCommand: Command = {
       }
     }
 
-    return { stdout: encode(output), stderr: EMPTY, exitCode: 0 };
+    return { stdout: fromString(output), stderr: emptyStream(), exitCode: 0 };
   },
 };
 
+import { emptyStream, fromString } from "../../utils/stream.js";
 import type { CommandFuzzInfo } from "../fuzz-flags-types.js";
 
 export const flagsForFuzzing: CommandFuzzInfo = {

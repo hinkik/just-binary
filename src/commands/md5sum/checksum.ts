@@ -4,7 +4,13 @@
  */
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs } from "../../utils/bytes.js";
+import {
+  collectBytes,
+  collectText,
+  emptyStream,
+  fromString,
+} from "../../utils/stream.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
 export type HashAlgorithm = "md5" | "sha1" | "sha256";
@@ -173,11 +179,12 @@ export function createChecksumCommand(
       // Helper to read file as binary
       const readBinary = async (file: string): Promise<Uint8Array | null> => {
         if (file === "-") {
-          // ctx.stdin is already Uint8Array
-          return ctx.stdin;
+          return await collectBytes(ctx.stdin);
         }
         try {
-          return await ctx.fs.readFileBuffer(ctx.fs.resolvePath(ctx.cwd, file));
+          return await collectBytes(
+            await ctx.fs.readFile(ctx.fs.resolvePath(ctx.cwd, file)),
+          );
         } catch {
           return null;
         }
@@ -189,16 +196,18 @@ export function createChecksumCommand(
 
         for (const file of files) {
           // For check mode, we read the checksum file as text
-          const content =
+          const content: string | null =
             file === "-"
-              ? decode(ctx.stdin)
+              ? await collectText(ctx.stdin)
               : await ctx.fs
-                  .readFile(ctx.fs.resolvePath(ctx.cwd, file))
+                  .readFileText(ctx.fs.resolvePath(ctx.cwd, file))
                   .catch(() => null);
           if (content === null)
             return {
-              stdout: EMPTY,
-              stderr: encode(`${name}: ${file}: No such file or directory\n`),
+              stdout: emptyStream(),
+              stderr: fromString(
+                `${name}: ${file}: No such file or directory\n`,
+              ),
               exitCode: 1,
             };
 
@@ -224,8 +233,8 @@ export function createChecksumCommand(
         if (failed > 0)
           output += `${name}: WARNING: ${failed} computed checksum${failed > 1 ? "s" : ""} did NOT match\n`;
         return {
-          stdout: encode(output),
-          stderr: EMPTY,
+          stdout: fromString(output),
+          stderr: emptyStream(),
           exitCode: failed > 0 ? 1 : 0,
         };
       }
@@ -243,7 +252,7 @@ export function createChecksumCommand(
         output += `${await computeHash(algorithm, content)}  ${file}\n`;
       }
 
-      return { stdout: encode(output), stderr: EMPTY, exitCode };
+      return { stdout: fromString(output), stderr: emptyStream(), exitCode };
     },
   };
 }

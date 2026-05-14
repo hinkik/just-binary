@@ -48,7 +48,7 @@ describe("ReadWriteFs - Piping with large data", () => {
     await fs.writeFile("/data.txt", largeText);
 
     // Test piping through cat
-    const result = toText(await bash.exec("cat /data.txt | wc -l"));
+    const result = await toText(await bash.exec("cat /data.txt | wc -l"));
 
     console.log("Result stdout:", result.stdout.trim());
     console.log("Result stderr:", result.stderr);
@@ -67,7 +67,7 @@ describe("ReadWriteFs - Piping with large data", () => {
     await fs.writeFile("/data2.txt", largeText);
 
     // Test direct file access
-    const result = toText(await bash.exec("wc -l /data2.txt"));
+    const result = await toText(await bash.exec("wc -l /data2.txt"));
 
     console.log("Result stdout:", result.stdout.trim());
     console.log("Result exitCode:", result.exitCode);
@@ -85,7 +85,7 @@ describe("ReadWriteFs - Piping with large data", () => {
     await fs.writeFile("/small.txt", smallText);
 
     // Test piping through cat
-    const result = toText(await bash.exec("cat /small.txt | wc -l"));
+    const result = await toText(await bash.exec("cat /small.txt | wc -l"));
 
     console.log("Result stdout:", result.stdout.trim());
     console.log("Result exitCode:", result.exitCode);
@@ -107,7 +107,7 @@ describe("ReadWriteFs - Piping with large data", () => {
     await fs.writeFile("/medium.txt", mediumText);
 
     // Test piping through multiple commands
-    const result = toText(
+    const result = await toText(
       await bash.exec("cat /medium.txt | sort | uniq | wc -l"),
     );
 
@@ -133,7 +133,9 @@ describe("ReadWriteFs - Piping with large data", () => {
     await fs.writeFile("/grep-test.txt", largeText);
 
     // Test grep with wc
-    const result = toText(await bash.exec("grep MATCH /grep-test.txt | wc -l"));
+    const result = await toText(
+      await bash.exec("grep MATCH /grep-test.txt | wc -l"),
+    );
 
     console.log("Result stdout:", result.stdout.trim());
     console.log("Result exitCode:", result.exitCode);
@@ -154,7 +156,7 @@ describe("ReadWriteFs - Piping with large data", () => {
     await fs.writeFile("/binary.bin", binaryData);
 
     // Test wc -c (byte count)
-    const result = toText(await bash.exec("wc -c /binary.bin"));
+    const result = await toText(await bash.exec("wc -c /binary.bin"));
 
     console.log("Result stdout:", result.stdout.trim());
     console.log("Result exitCode:", result.exitCode);

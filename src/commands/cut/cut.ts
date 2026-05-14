@@ -1,5 +1,5 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { decode, decodeArgs } from "../../utils/bytes.js";
 import { readAndConcat } from "../../utils/file-reader.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
@@ -112,8 +112,8 @@ export const cutCommand: Command = {
 
     if (!fieldSpec && !charSpec) {
       return {
-        stdout: EMPTY,
-        stderr: encode(
+        stdout: emptyStream(),
+        stderr: fromString(
           "cut: you must specify a list of bytes, characters, or fields\n",
         ),
         exitCode: 1,
@@ -161,10 +161,11 @@ export const cutCommand: Command = {
       }
     }
 
-    return { stdout: encode(output), stderr: EMPTY, exitCode: 0 };
+    return { stdout: fromString(output), stderr: emptyStream(), exitCode: 0 };
   },
 };
 
+import { emptyStream, fromString } from "../../utils/stream.js";
 import type { CommandFuzzInfo } from "../fuzz-flags-types.js";
 
 export const flagsForFuzzing: CommandFuzzInfo = {

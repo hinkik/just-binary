@@ -37,7 +37,7 @@ describe("curl HTTP method restrictions", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://api.example.com"] },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec("curl https://api.example.com/data"),
       );
       expect(result.exitCode).toBe(0);
@@ -49,7 +49,7 @@ describe("curl HTTP method restrictions", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://api.example.com"] },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec("curl -I https://api.example.com/data"),
       );
       expect(result.exitCode).toBe(0);
@@ -61,7 +61,7 @@ describe("curl HTTP method restrictions", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://api.example.com"] },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec("curl -X POST https://api.example.com/data"),
       );
       expect(result.exitCode).toBe(3);
@@ -74,7 +74,7 @@ describe("curl HTTP method restrictions", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://api.example.com"] },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec("curl -X PUT https://api.example.com/data"),
       );
       expect(result.exitCode).toBe(3);
@@ -87,7 +87,7 @@ describe("curl HTTP method restrictions", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://api.example.com"] },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec("curl -X DELETE https://api.example.com/data"),
       );
       expect(result.exitCode).toBe(3);
@@ -100,7 +100,7 @@ describe("curl HTTP method restrictions", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://api.example.com"] },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec("curl -X PATCH https://api.example.com/data"),
       );
       expect(result.exitCode).toBe(3);
@@ -113,7 +113,7 @@ describe("curl HTTP method restrictions", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://api.example.com"] },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('curl -d "data=test" https://api.example.com/data'),
       );
       expect(result.exitCode).toBe(3);
@@ -131,7 +131,7 @@ describe("curl HTTP method restrictions", () => {
           allowedMethods: ["GET", "POST"],
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec("curl -X POST https://api.example.com/data"),
       );
       expect(result.exitCode).toBe(0);
@@ -146,7 +146,7 @@ describe("curl HTTP method restrictions", () => {
           allowedMethods: ["GET", "POST"],
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec("curl -X DELETE https://api.example.com/data"),
       );
       expect(result.exitCode).toBe(3);
@@ -166,7 +166,7 @@ describe("curl HTTP method restrictions", () => {
       const methods = ["GET", "POST", "PUT", "DELETE", "PATCH"];
       for (const method of methods) {
         mockFetch.mockClear();
-        const result = toText(
+        const result = await toText(
           await env.exec(`curl -X ${method} https://api.example.com/data`),
         );
         expect(result.stderr).not.toContain("not allowed");
@@ -181,7 +181,7 @@ describe("curl HTTP method restrictions", () => {
           allowedMethods: ["GET", "POST"],
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec("curl -X post https://api.example.com/data"),
       );
       expect(result.exitCode).toBe(0);
@@ -198,7 +198,7 @@ describe("curl HTTP method restrictions", () => {
       const methods = ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"];
       for (const method of methods) {
         mockFetch.mockClear();
-        const result = toText(
+        const result = await toText(
           await env.exec(`curl -X ${method} https://any-domain.com/data`),
         );
         expect(result.stderr).not.toContain("not allowed");
@@ -210,7 +210,7 @@ describe("curl HTTP method restrictions", () => {
       const env = new Bash({
         network: { dangerouslyAllowFullInternetAccess: true },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('curl -d "data=test" https://any-domain.com/data'),
       );
       expect(result.exitCode).toBe(0);
@@ -223,7 +223,7 @@ describe("curl HTTP method restrictions", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://api.example.com"] },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec("curl -X POST https://api.example.com/data"),
       );
       expect(result.stderr).toContain("GET");
@@ -235,7 +235,7 @@ describe("curl HTTP method restrictions", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://api.example.com"] },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec("curl -s -X POST https://api.example.com/data"),
       );
       expect(result.exitCode).toBe(3);
@@ -247,7 +247,7 @@ describe("curl HTTP method restrictions", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://api.example.com"] },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec("curl -sS -X POST https://api.example.com/data"),
       );
       expect(result.exitCode).toBe(3);

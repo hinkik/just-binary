@@ -3,7 +3,7 @@
  */
 
 import type { ExecResult } from "../../types.js";
-import { EMPTY, encode } from "../../utils/bytes.js";
+import { emptyStream, fromString } from "../../utils/stream.js";
 import { unknownOption } from "../help.js";
 
 export interface TarOptions {
@@ -132,8 +132,10 @@ export function parseOptions(
                 return {
                   ok: false,
                   error: {
-                    stdout: EMPTY,
-                    stderr: encode("tar: option requires an argument -- 'f'\n"),
+                    stdout: emptyStream(),
+                    stderr: fromString(
+                      "tar: option requires an argument -- 'f'\n",
+                    ),
                     exitCode: 2,
                   },
                 };
@@ -152,8 +154,10 @@ export function parseOptions(
                 return {
                   ok: false,
                   error: {
-                    stdout: EMPTY,
-                    stderr: encode("tar: option requires an argument -- 'C'\n"),
+                    stdout: emptyStream(),
+                    stderr: fromString(
+                      "tar: option requires an argument -- 'C'\n",
+                    ),
                     exitCode: 2,
                   },
                 };
@@ -172,8 +176,10 @@ export function parseOptions(
                 return {
                   ok: false,
                   error: {
-                    stdout: EMPTY,
-                    stderr: encode("tar: option requires an argument -- 'T'\n"),
+                    stdout: emptyStream(),
+                    stderr: fromString(
+                      "tar: option requires an argument -- 'T'\n",
+                    ),
                     exitCode: 2,
                   },
                 };
@@ -192,8 +198,10 @@ export function parseOptions(
                 return {
                   ok: false,
                   error: {
-                    stdout: EMPTY,
-                    stderr: encode("tar: option requires an argument -- 'X'\n"),
+                    stdout: emptyStream(),
+                    stderr: fromString(
+                      "tar: option requires an argument -- 'X'\n",
+                    ),
                     exitCode: 2,
                   },
                 };
@@ -252,8 +260,8 @@ export function parseOptions(
         return {
           ok: false,
           error: {
-            stdout: EMPTY,
-            stderr: encode("tar: option requires an argument -- 'f'\n"),
+            stdout: emptyStream(),
+            stderr: fromString("tar: option requires an argument -- 'f'\n"),
             exitCode: 2,
           },
         };
@@ -267,8 +275,8 @@ export function parseOptions(
         return {
           ok: false,
           error: {
-            stdout: EMPTY,
-            stderr: encode("tar: option requires an argument -- 'C'\n"),
+            stdout: emptyStream(),
+            stderr: fromString("tar: option requires an argument -- 'C'\n"),
             exitCode: 2,
           },
         };
@@ -288,8 +296,8 @@ export function parseOptions(
         return {
           ok: false,
           error: {
-            stdout: EMPTY,
-            stderr: encode(`tar: invalid number for --strip: '${val}'\n`),
+            stdout: emptyStream(),
+            stderr: fromString(`tar: invalid number for --strip: '${val}'\n`),
             exitCode: 2,
           },
         };
@@ -303,8 +311,10 @@ export function parseOptions(
         return {
           ok: false,
           error: {
-            stdout: EMPTY,
-            stderr: encode("tar: option '--exclude' requires an argument\n"),
+            stdout: emptyStream(),
+            stderr: fromString(
+              "tar: option '--exclude' requires an argument\n",
+            ),
             exitCode: 2,
           },
         };
@@ -316,8 +326,8 @@ export function parseOptions(
         return {
           ok: false,
           error: {
-            stdout: EMPTY,
-            stderr: encode("tar: option requires an argument -- 'T'\n"),
+            stdout: emptyStream(),
+            stderr: fromString("tar: option requires an argument -- 'T'\n"),
             exitCode: 2,
           },
         };
@@ -331,8 +341,8 @@ export function parseOptions(
         return {
           ok: false,
           error: {
-            stdout: EMPTY,
-            stderr: encode("tar: option requires an argument -- 'X'\n"),
+            stdout: emptyStream(),
+            stderr: fromString("tar: option requires an argument -- 'X'\n"),
             exitCode: 2,
           },
         };

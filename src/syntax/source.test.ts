@@ -7,7 +7,7 @@ describe("Bash Syntax - source and . builtins", () => {
     it("should execute commands from file in current environment", async () => {
       const env = new Bash();
       await env.exec('echo "x=123" > /tmp/test.sh');
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         source /tmp/test.sh
         echo "x is: $x"
@@ -20,7 +20,7 @@ describe("Bash Syntax - source and . builtins", () => {
     it("should support functions from sourced file", async () => {
       const env = new Bash();
       await env.exec('echo "greet() { echo Hello \\$1; }" > /tmp/funcs.sh');
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         source /tmp/funcs.sh
         greet World
@@ -32,14 +32,16 @@ describe("Bash Syntax - source and . builtins", () => {
 
     it("should error on missing file", async () => {
       const env = new Bash();
-      const result = toText(await env.exec("source /nonexistent/file.sh"));
+      const result = await toText(
+        await env.exec("source /nonexistent/file.sh"),
+      );
       expect(result.stderr).toContain("No such file or directory");
       expect(result.exitCode).toBe(1);
     });
 
     it("should error with no arguments", async () => {
       const env = new Bash();
-      const result = toText(await env.exec("source"));
+      const result = await toText(await env.exec("source"));
       expect(result.stderr).toContain("filename argument required");
       expect(result.exitCode).toBe(2);
     });
@@ -49,7 +51,7 @@ describe("Bash Syntax - source and . builtins", () => {
     it("should work same as source", async () => {
       const env = new Bash();
       await env.exec('echo "y=456" > /tmp/test2.sh');
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         . /tmp/test2.sh
         echo "y is: $y"
@@ -64,7 +66,9 @@ describe("Bash Syntax - source and . builtins", () => {
     it("should pass arguments to sourced script", async () => {
       const env = new Bash();
       await env.exec('echo "echo args: \\$1 \\$2 \\$#" > /tmp/args.sh');
-      const result = toText(await env.exec("source /tmp/args.sh foo bar"));
+      const result = await toText(
+        await env.exec("source /tmp/args.sh foo bar"),
+      );
       expect(result.stdout).toBe("args: foo bar 2\n");
       expect(result.exitCode).toBe(0);
     });

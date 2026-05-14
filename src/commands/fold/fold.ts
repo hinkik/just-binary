@@ -8,7 +8,7 @@
  */
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
 const foldHelp = {
@@ -160,8 +160,10 @@ export const fold: Command = {
         if (Number.isNaN(width) || width < 1) {
           return {
             exitCode: 1,
-            stdout: EMPTY,
-            stderr: encode(`fold: invalid number of columns: '${a[i + 1]}'\n`),
+            stdout: emptyStream(),
+            stderr: fromString(
+              `fold: invalid number of columns: '${a[i + 1]}'\n`,
+            ),
           };
         }
         options.width = width;
@@ -171,8 +173,8 @@ export const fold: Command = {
         if (Number.isNaN(width) || width < 1) {
           return {
             exitCode: 1,
-            stdout: EMPTY,
-            stderr: encode(
+            stdout: emptyStream(),
+            stderr: fromString(
               `fold: invalid number of columns: '${arg.slice(2)}'\n`,
             ),
           };
@@ -198,8 +200,10 @@ export const fold: Command = {
         if (Number.isNaN(width) || width < 1) {
           return {
             exitCode: 1,
-            stdout: EMPTY,
-            stderr: encode(`fold: invalid number of columns: '${widthPart}'\n`),
+            stdout: emptyStream(),
+            stderr: fromString(
+              `fold: invalid number of columns: '${widthPart}'\n`,
+            ),
           };
         }
         options.width = width;
@@ -212,8 +216,10 @@ export const fold: Command = {
         if (Number.isNaN(width) || width < 1) {
           return {
             exitCode: 1,
-            stdout: EMPTY,
-            stderr: encode(`fold: invalid number of columns: '${a[i + 1]}'\n`),
+            stdout: emptyStream(),
+            stderr: fromString(
+              `fold: invalid number of columns: '${a[i + 1]}'\n`,
+            ),
           };
         }
         options.width = width;
@@ -249,18 +255,20 @@ export const fold: Command = {
 
     if (files.length === 0) {
       // Read from stdin
-      const input = decode(ctx.stdin);
+      const input = await collectText(ctx.stdin);
       output = processContent(input, options);
     } else {
       // Process each file
       for (const file of files) {
         const filePath = ctx.fs.resolvePath(ctx.cwd, file);
-        const content = await ctx.fs.readFile(filePath);
-        if (content === null) {
+        let content: string;
+        try {
+          content = await ctx.fs.readFileText(filePath);
+        } catch {
           return {
             exitCode: 1,
-            stdout: encode(output),
-            stderr: encode(`fold: ${file}: No such file or directory\n`),
+            stdout: fromString(output),
+            stderr: fromString(`fold: ${file}: No such file or directory\n`),
           };
         }
         output += processContent(content, options);
@@ -269,12 +277,13 @@ export const fold: Command = {
 
     return {
       exitCode: 0,
-      stdout: encode(output),
-      stderr: EMPTY,
+      stdout: fromString(output),
+      stderr: emptyStream(),
     };
   },
 };
 
+import { collectText, emptyStream, fromString } from "../../utils/stream.js";
 import type { CommandFuzzInfo } from "../fuzz-flags-types.js";
 
 export const flagsForFuzzing: CommandFuzzInfo = {

@@ -287,7 +287,7 @@ export class GitignoreManager {
       for (const filename of ignoreFiles) {
         const ignorePath = this.fs.resolvePath(dir, filename);
         try {
-          const content = await this.fs.readFile(ignorePath);
+          const content = await this.fs.readFileText(ignorePath);
           const parser = new GitignoreParser(dir);
           parser.parse(content);
           this.parsers.push(parser);
@@ -317,7 +317,7 @@ export class GitignoreManager {
     for (const filename of ignoreFiles) {
       const ignorePath = this.fs.resolvePath(dir, filename);
       try {
-        const content = await this.fs.readFile(ignorePath);
+        const content = await this.fs.readFileText(ignorePath);
         const parser = new GitignoreParser(dir);
         parser.parse(content);
         this.parsers.push(parser);
@@ -432,7 +432,7 @@ export async function loadGitignores(
   for (const ignoreFile of customIgnoreFiles) {
     try {
       const absolutePath = fs.resolvePath(startPath, ignoreFile);
-      const content = await fs.readFile(absolutePath);
+      const content = await fs.readFileText(absolutePath);
       // Add patterns from custom ignore file at the root level
       manager.addPatternsFromContent(content, startPath);
     } catch {

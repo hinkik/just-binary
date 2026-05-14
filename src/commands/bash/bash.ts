@@ -1,6 +1,7 @@
 import { mergeToNullPrototype } from "../../helpers/env.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs } from "../../utils/bytes.js";
+import { collectText } from "../../utils/stream.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const bashHelp = {
@@ -39,11 +40,12 @@ export const bashCommand: Command = {
 
     // No arguments - read script from stdin if available
     if (a.length === 0) {
-      if (ctx.stdin?.length && decode(ctx.stdin).trim()) {
-        return executeScript(decode(ctx.stdin), "bash", [], ctx);
+      const stdinText = await collectText(ctx.stdin);
+      if (stdinText.trim()) {
+        return executeScript(stdinText, "bash", [], ctx, emptyStream());
       }
       // No stdin - return success (interactive mode not supported)
-      return { stdout: EMPTY, stderr: EMPTY, exitCode: 0 };
+      return { stdout: emptyStream(), stderr: emptyStream(), exitCode: 0 };
     }
 
     // Read and execute script file
@@ -52,12 +54,12 @@ export const bashCommand: Command = {
 
     try {
       const fullPath = ctx.fs.resolvePath(ctx.cwd, scriptPath);
-      const scriptContent = await ctx.fs.readFile(fullPath);
+      const scriptContent = await ctx.fs.readFileText(fullPath);
       return executeScript(scriptContent, scriptPath, scriptArgs, ctx);
     } catch {
       return {
-        stdout: EMPTY,
-        stderr: encode(`bash: ${scriptPath}: No such file or directory\n`),
+        stdout: emptyStream(),
+        stderr: fromString(`bash: ${scriptPath}: No such file or directory\n`),
         exitCode: 127,
       };
     }
@@ -90,11 +92,12 @@ export const shCommand: Command = {
 
     // No arguments - read script from stdin if available
     if (a.length === 0) {
-      if (ctx.stdin?.length && decode(ctx.stdin).trim()) {
-        return executeScript(decode(ctx.stdin), "sh", [], ctx);
+      const stdinText = await collectText(ctx.stdin);
+      if (stdinText.trim()) {
+        return executeScript(stdinText, "sh", [], ctx, emptyStream());
       }
       // No stdin - return success (interactive mode not supported)
-      return { stdout: EMPTY, stderr: EMPTY, exitCode: 0 };
+      return { stdout: emptyStream(), stderr: emptyStream(), exitCode: 0 };
     }
 
     const scriptPath = a[0];
@@ -102,12 +105,12 @@ export const shCommand: Command = {
 
     try {
       const fullPath = ctx.fs.resolvePath(ctx.cwd, scriptPath);
-      const scriptContent = await ctx.fs.readFile(fullPath);
+      const scriptContent = await ctx.fs.readFileText(fullPath);
       return executeScript(scriptContent, scriptPath, scriptArgs, ctx);
     } catch {
       return {
-        stdout: EMPTY,
-        stderr: encode(`sh: ${scriptPath}: No such file or directory\n`),
+        stdout: emptyStream(),
+        stderr: fromString(`sh: ${scriptPath}: No such file or directory\n`),
         exitCode: 127,
       };
     }
@@ -119,11 +122,12 @@ async function executeScript(
   scriptName: string,
   scriptArgs: string[],
   ctx: CommandContext,
+  stdin: import("../../utils/stream.js").ByteStream = ctx.stdin,
 ): Promise<ExecResult> {
   if (!ctx.exec) {
     return {
-      stdout: EMPTY,
-      stderr: encode("bash: internal error: exec function not available\n"),
+      stdout: emptyStream(),
+      stderr: fromString("bash: internal error: exec function not available\n"),
       exitCode: 1,
     };
   }
@@ -158,11 +162,12 @@ async function executeScript(
   const result = await ctx.exec(scriptToRun, {
     env: positionalEnv,
     cwd: ctx.cwd,
-    stdin: ctx.stdin,
+    stdin,
   });
   return result;
 }
 
+import { emptyStream, fromString } from "../../utils/stream.js";
 import type { CommandFuzzInfo } from "../fuzz-flags-types.js";
 
 export const flagsForFuzzing: CommandFuzzInfo = {

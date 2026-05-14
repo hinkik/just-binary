@@ -10,7 +10,7 @@ describe("tr with binary content", () => {
       },
     });
 
-    const result = toText(await env.exec("cat /data.bin | tr a-z A-Z"));
+    const result = await toText(await env.exec("cat /data.bin | tr a-z A-Z"));
     expect(result.stdout).toBe("ABC");
     expect(result.exitCode).toBe(0);
   });

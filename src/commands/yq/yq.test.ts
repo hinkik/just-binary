@@ -10,7 +10,7 @@ describe("yq", () => {
           "/data.yaml": "name: test\nversion: 1.0\n",
         },
       });
-      const result = toText(await bash.exec("yq '.name' /data.yaml"));
+      const result = await toText(await bash.exec("yq '.name' /data.yaml"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("test\n");
     });
@@ -26,7 +26,7 @@ config:
 `,
         },
       });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq '.config.database.host' /data.yaml"),
       );
       expect(result.exitCode).toBe(0);
@@ -45,7 +45,9 @@ items:
 `,
         },
       });
-      const result = toText(await bash.exec("yq '.items[0].name' /data.yaml"));
+      const result = await toText(
+        await bash.exec("yq '.items[0].name' /data.yaml"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("foo\n");
     });
@@ -61,7 +63,7 @@ fruits:
 `,
         },
       });
-      const result = toText(await bash.exec("yq '.fruits[]' /data.yaml"));
+      const result = await toText(await bash.exec("yq '.fruits[]' /data.yaml"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("apple\nbanana\ncherry\n");
     });
@@ -80,7 +82,7 @@ users:
 `,
         },
       });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq '.users[] | select(.active) | .name' /data.yaml"),
       );
       expect(result.exitCode).toBe(0);
@@ -95,7 +97,7 @@ users:
           "/data.yaml": "name: test\nvalue: 42\n",
         },
       });
-      const result = toText(await bash.exec("yq -o json '.' /data.yaml"));
+      const result = await toText(await bash.exec("yq -o json '.' /data.yaml"));
       expect(result.exitCode).toBe(0);
       expect(JSON.parse(result.stdout)).toEqual({ name: "test", value: 42 });
     });
@@ -106,7 +108,9 @@ users:
           "/data.yaml": "name: test\nvalue: 42\n",
         },
       });
-      const result = toText(await bash.exec("yq -c -o json '.' /data.yaml"));
+      const result = await toText(
+        await bash.exec("yq -c -o json '.' /data.yaml"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe('{"name":"test","value":42}\n');
     });
@@ -117,7 +121,7 @@ users:
           "/data.yaml": "message: hello world\n",
         },
       });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq -r -o json '.message' /data.yaml"),
       );
       expect(result.exitCode).toBe(0);
@@ -132,7 +136,9 @@ users:
           "/data.json": '{"name": "test", "value": 42}',
         },
       });
-      const result = toText(await bash.exec("yq -p json '.name' /data.json"));
+      const result = await toText(
+        await bash.exec("yq -p json '.name' /data.json"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("test\n");
     });
@@ -143,7 +149,7 @@ users:
           "/data.json": '{"name": "test", "value": 42}',
         },
       });
-      const result = toText(await bash.exec("yq -p json '.' /data.json"));
+      const result = await toText(await bash.exec("yq -p json '.' /data.json"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("name: test");
       expect(result.stdout).toContain("value: 42");
@@ -157,7 +163,7 @@ users:
           "/data.xml": "<root><name>test</name><value>42</value></root>",
         },
       });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq -p xml '.root.name' /data.xml"),
       );
       expect(result.exitCode).toBe(0);
@@ -171,7 +177,7 @@ users:
         },
       });
       // Attributes are strings in XML; use -o json to verify string value
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq -p xml '.item[\"+@id\"]' /data.xml -o json"),
       );
       expect(result.exitCode).toBe(0);
@@ -188,7 +194,7 @@ root:
 `,
         },
       });
-      const result = toText(await bash.exec("yq -o xml '.' /data.yaml"));
+      const result = await toText(await bash.exec("yq -o xml '.' /data.yaml"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("<root>");
       expect(result.stdout).toContain("<name>test</name>");
@@ -200,14 +206,16 @@ root:
   describe("stdin support", () => {
     it("should read from stdin", async () => {
       const bash = new Bash();
-      const result = toText(await bash.exec("echo 'name: test' | yq '.name'"));
+      const result = await toText(
+        await bash.exec("echo 'name: test' | yq '.name'"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("test\n");
     });
 
     it("should accept - for stdin", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec("echo 'value: 42' | yq '.value' -"),
       );
       expect(result.exitCode).toBe(0);
@@ -218,7 +226,7 @@ root:
   describe("null input", () => {
     it("should support -n for null input", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq -n '{name: \"created\"}' -o json"),
       );
       expect(result.exitCode).toBe(0);
@@ -233,7 +241,9 @@ root:
           "/data.yaml": "---\nname: first\n---\nname: second\n",
         },
       });
-      const result = toText(await bash.exec("yq -s '.[0].name' /data.yaml"));
+      const result = await toText(
+        await bash.exec("yq -s '.[0].name' /data.yaml"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("first\n");
     });
@@ -251,7 +261,7 @@ numbers:
 `,
         },
       });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq '.numbers | map(. * 2)' /data.yaml"),
       );
       expect(result.exitCode).toBe(0);
@@ -272,7 +282,9 @@ config:
 `,
         },
       });
-      const result = toText(await bash.exec("yq '.config | keys' /data.yaml"));
+      const result = await toText(
+        await bash.exec("yq '.config | keys' /data.yaml"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("debug");
       expect(result.stdout).toContain("host");
@@ -290,7 +302,9 @@ items:
 `,
         },
       });
-      const result = toText(await bash.exec("yq '.items | length' /data.yaml"));
+      const result = await toText(
+        await bash.exec("yq '.items | length' /data.yaml"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("3\n");
     });
@@ -299,7 +313,7 @@ items:
   describe("error handling", () => {
     it("should handle file not found", async () => {
       const bash = new Bash();
-      const result = toText(await bash.exec("yq '.' /nonexistent.yaml"));
+      const result = await toText(await bash.exec("yq '.' /nonexistent.yaml"));
       expect(result.exitCode).toBe(2);
       expect(result.stderr).toContain("No such file or directory");
     });
@@ -310,14 +324,16 @@ items:
           "/bad.yaml": "invalid: yaml: syntax: error:",
         },
       });
-      const result = toText(await bash.exec("yq '.' /bad.yaml"));
+      const result = await toText(await bash.exec("yq '.' /bad.yaml"));
       expect(result.exitCode).toBe(5);
       expect(result.stderr).toContain("parse error");
     });
 
     it("should handle unknown options", async () => {
       const bash = new Bash();
-      const result = toText(await bash.exec("yq --unknown '.' /data.yaml"));
+      const result = await toText(
+        await bash.exec("yq --unknown '.' /data.yaml"),
+      );
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("unrecognized option");
     });
@@ -326,7 +342,7 @@ items:
   describe("help", () => {
     it("should display help with --help", async () => {
       const bash = new Bash();
-      const result = toText(await bash.exec("yq --help"));
+      const result = await toText(await bash.exec("yq --help"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("yq");
       expect(result.stdout).toContain("YAML/XML");
@@ -336,7 +352,7 @@ items:
   describe("format validation", () => {
     it("should reject invalid input format with --input-format=", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec("echo '{}' | yq --input-format=badformat"),
       );
       expect(result.exitCode).toBe(1);
@@ -345,7 +361,7 @@ items:
 
     it("should reject invalid output format with --output-format=", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec("echo '{}' | yq --output-format=badformat"),
       );
       expect(result.exitCode).toBe(1);
@@ -354,14 +370,18 @@ items:
 
     it("should reject invalid input format with -p", async () => {
       const bash = new Bash();
-      const result = toText(await bash.exec("echo '{}' | yq -p badformat"));
+      const result = await toText(
+        await bash.exec("echo '{}' | yq -p badformat"),
+      );
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("invalid option");
     });
 
     it("should reject invalid output format with -o", async () => {
       const bash = new Bash();
-      const result = toText(await bash.exec("echo '{}' | yq -o badformat"));
+      const result = await toText(
+        await bash.exec("echo '{}' | yq -o badformat"),
+      );
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("invalid option");
     });
@@ -370,7 +390,7 @@ items:
       const bash = new Bash();
       // Test yaml and json which can parse {}
       for (const format of ["yaml", "json"]) {
-        const result = toText(
+        const result = await toText(
           await bash.exec(
             `echo '{}' | yq --input-format=${format} --output-format=json`,
           ),
@@ -382,7 +402,7 @@ items:
     it("should accept valid output formats", async () => {
       const bash = new Bash();
       for (const format of ["yaml", "json", "xml", "ini", "csv", "toml"]) {
-        const result = toText(
+        const result = await toText(
           await bash.exec(`echo '{}' | yq --output-format=${format}`),
         );
         expect(result.exitCode).toBe(0);
@@ -404,7 +424,7 @@ debug=true
 `,
         },
       });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq -p ini '.database.host' /config.ini"),
       );
       expect(result.exitCode).toBe(0);
@@ -417,7 +437,7 @@ debug=true
           "/config.ini": "[database]\nport=5432\n",
         },
       });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq -p ini '.database.port' /config.ini"),
       );
       expect(result.exitCode).toBe(0);
@@ -435,7 +455,7 @@ database:
 `,
         },
       });
-      const result = toText(await bash.exec("yq -o ini '.' /data.yaml"));
+      const result = await toText(await bash.exec("yq -o ini '.' /data.yaml"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("[database]");
       expect(result.stdout).toContain("host=localhost");
@@ -448,7 +468,7 @@ database:
           "/data.yaml": "name: test\nversion: 1\n",
         },
       });
-      const result = toText(await bash.exec("yq -o ini '.' /data.yaml"));
+      const result = await toText(await bash.exec("yq -o ini '.' /data.yaml"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("name=test");
       expect(result.stdout).toContain("version=1");
@@ -462,7 +482,9 @@ database:
           "/data.csv": "name,age,city\nalice,30,NYC\nbob,25,LA\n",
         },
       });
-      const result = toText(await bash.exec("yq -p csv '.[0].name' /data.csv"));
+      const result = await toText(
+        await bash.exec("yq -p csv '.[0].name' /data.csv"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("alice\n");
     });
@@ -473,7 +495,9 @@ database:
           "/data.csv": "name,age\nalice,30\nbob,25\n",
         },
       });
-      const result = toText(await bash.exec("yq -p csv '.[].name' /data.csv"));
+      const result = await toText(
+        await bash.exec("yq -p csv '.[].name' /data.csv"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("alice\nbob\n");
     });
@@ -485,7 +509,7 @@ database:
             "name,age,city\nalice,30,NYC\nbob,25,LA\ncharlie,35,NYC\n",
         },
       });
-      const result = toText(
+      const result = await toText(
         await bash.exec(
           "yq -p csv '[.[] | select(.city == \"NYC\") | .name]' /data.csv -o json",
         ),
@@ -505,7 +529,7 @@ database:
 `,
         },
       });
-      const result = toText(await bash.exec("yq -o csv '.' /data.yaml"));
+      const result = await toText(await bash.exec("yq -o csv '.' /data.yaml"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("name,age");
       expect(result.stdout).toContain("alice,30");
@@ -519,7 +543,7 @@ database:
             '[{"name":"alice","score":95},{"name":"bob","score":87}]',
         },
       });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq -p json -o csv '.' /data.json"),
       );
       expect(result.exitCode).toBe(0);
@@ -534,7 +558,7 @@ database:
           "/data.tsv": "name\tage\nalice\t30\nbob\t25\n",
         },
       });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq -p csv --csv-delimiter='\t' '.[0].name' /data.tsv"),
       );
       expect(result.exitCode).toBe(0);
@@ -549,7 +573,9 @@ database:
           "/data.yaml": "items:\n  - a\n  - b\n  - c\n",
         },
       });
-      const result = toText(await bash.exec("yq -j '.items[]' /data.yaml"));
+      const result = await toText(
+        await bash.exec("yq -j '.items[]' /data.yaml"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("abc");
     });
@@ -560,7 +586,7 @@ database:
       const bash = new Bash({
         files: { "/data.yaml": "value: true\n" },
       });
-      const result = toText(await bash.exec("yq -e '.value' /data.yaml"));
+      const result = await toText(await bash.exec("yq -e '.value' /data.yaml"));
       expect(result.exitCode).toBe(0);
     });
 
@@ -568,7 +594,9 @@ database:
       const bash = new Bash({
         files: { "/data.yaml": "value: 42\n" },
       });
-      const result = toText(await bash.exec("yq -e '.missing' /data.yaml"));
+      const result = await toText(
+        await bash.exec("yq -e '.missing' /data.yaml"),
+      );
       expect(result.exitCode).toBe(1);
     });
 
@@ -576,7 +604,7 @@ database:
       const bash = new Bash({
         files: { "/data.yaml": "value: false\n" },
       });
-      const result = toText(await bash.exec("yq -e '.value' /data.yaml"));
+      const result = await toText(await bash.exec("yq -e '.value' /data.yaml"));
       expect(result.exitCode).toBe(1);
     });
   });
@@ -586,7 +614,9 @@ database:
       const bash = new Bash({
         files: { "/data.yaml": "items:\n  - a\n  - b\n" },
       });
-      const result = toText(await bash.exec("yq -o json -I 4 '.' /data.yaml"));
+      const result = await toText(
+        await bash.exec("yq -o json -I 4 '.' /data.yaml"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('    "a"');
     });
@@ -597,7 +627,7 @@ database:
       const bash = new Bash({
         files: { "/data.yaml": "msg: hello\n" },
       });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq -rc -o json '.msg' /data.yaml"),
       );
       expect(result.exitCode).toBe(0);
@@ -608,7 +638,7 @@ database:
       const bash = new Bash({
         files: { "/data.yaml": "items:\n  - 1\n  - 2\n" },
       });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq -cej -o json '.items[]' /data.yaml"),
       );
       expect(result.exitCode).toBe(0);
@@ -621,7 +651,9 @@ database:
       const bash = new Bash({
         files: { "/data.yaml": "items:\n  - a\n  - b\n  - c\n" },
       });
-      const result = toText(await bash.exec("yq '.items | first' /data.yaml"));
+      const result = await toText(
+        await bash.exec("yq '.items | first' /data.yaml"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("a\n");
     });
@@ -630,7 +662,9 @@ database:
       const bash = new Bash({
         files: { "/data.yaml": "items:\n  - a\n  - b\n  - c\n" },
       });
-      const result = toText(await bash.exec("yq '.items | last' /data.yaml"));
+      const result = await toText(
+        await bash.exec("yq '.items | last' /data.yaml"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("c\n");
     });
@@ -639,7 +673,9 @@ database:
       const bash = new Bash({
         files: { "/data.yaml": "nums:\n  - 1\n  - 2\n  - 3\n" },
       });
-      const result = toText(await bash.exec("yq '.nums | add' /data.yaml"));
+      const result = await toText(
+        await bash.exec("yq '.nums | add' /data.yaml"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("6\n");
     });
@@ -648,7 +684,9 @@ database:
       const bash = new Bash({
         files: { "/data.yaml": "nums:\n  - 5\n  - 2\n  - 8\n" },
       });
-      const result = toText(await bash.exec("yq '.nums | min' /data.yaml"));
+      const result = await toText(
+        await bash.exec("yq '.nums | min' /data.yaml"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("2\n");
     });
@@ -657,7 +695,9 @@ database:
       const bash = new Bash({
         files: { "/data.yaml": "nums:\n  - 5\n  - 2\n  - 8\n" },
       });
-      const result = toText(await bash.exec("yq '.nums | max' /data.yaml"));
+      const result = await toText(
+        await bash.exec("yq '.nums | max' /data.yaml"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("8\n");
     });
@@ -666,7 +706,7 @@ database:
       const bash = new Bash({
         files: { "/data.yaml": "items:\n  - a\n  - b\n  - a\n  - c\n  - b\n" },
       });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq '.items | unique' /data.yaml -o json"),
       );
       expect(result.exitCode).toBe(0);
@@ -680,7 +720,7 @@ database:
             "items:\n  - name: b\n    val: 2\n  - name: a\n    val: 1\n",
         },
       });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq '.items | sort_by(.name) | .[0].name' /data.yaml"),
       );
       expect(result.exitCode).toBe(0);
@@ -691,7 +731,7 @@ database:
       const bash = new Bash({
         files: { "/data.yaml": "items:\n  - 1\n  - 2\n  - 3\n" },
       });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq '.items | reverse' /data.yaml -o json"),
       );
       expect(result.exitCode).toBe(0);
@@ -705,7 +745,7 @@ database:
             "items:\n  - type: a\n    v: 1\n  - type: b\n    v: 2\n  - type: a\n    v: 3\n",
         },
       });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq '.items | group_by(.type) | length' /data.yaml"),
       );
       expect(result.exitCode).toBe(0);
@@ -718,7 +758,7 @@ database:
       const bash = new Bash({
         files: { "/data.csv": "alice,30\nbob,25\n" },
       });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq -p csv --no-csv-header '.[0][0]' /data.csv"),
       );
       expect(result.exitCode).toBe(0);
@@ -731,7 +771,7 @@ database:
       const bash = new Bash({
         files: { "/data.xml": '<item id="123"/>' },
       });
-      const result = toText(
+      const result = await toText(
         await bash.exec(
           "yq -p xml --xml-attribute-prefix='@' '.item[\"@id\"]' /data.xml -o json -r",
         ),
@@ -754,7 +794,9 @@ serde = "1.0"
 `,
         },
       });
-      const result = toText(await bash.exec("yq '.package.name' /Cargo.toml"));
+      const result = await toText(
+        await bash.exec("yq '.package.name' /Cargo.toml"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("my-app\n");
     });
@@ -768,7 +810,9 @@ port = 8080
 `,
         },
       });
-      const result = toText(await bash.exec("yq '.server.port' /config.toml"));
+      const result = await toText(
+        await bash.exec("yq '.server.port' /config.toml"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("8080\n");
     });
@@ -779,7 +823,7 @@ port = 8080
           "/data.yaml": "server:\n  host: localhost\n  port: 8080\n",
         },
       });
-      const result = toText(await bash.exec("yq -o toml '.' /data.yaml"));
+      const result = await toText(await bash.exec("yq -o toml '.' /data.yaml"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("[server]");
       expect(result.stdout).toContain('host = "localhost"');
@@ -792,7 +836,7 @@ port = 8080
           "/data.json": '{"app": {"name": "test", "version": "2.0"}}',
         },
       });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq -p json -o toml '.' /data.json"),
       );
       expect(result.exitCode).toBe(0);
@@ -808,7 +852,7 @@ port = 8080
           "/data.tsv": "name\tage\tcity\nalice\t30\tNYC\nbob\t25\tLA\n",
         },
       });
-      const result = toText(await bash.exec("yq '.[0].name' /data.tsv"));
+      const result = await toText(await bash.exec("yq '.[0].name' /data.tsv"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("alice\n");
     });
@@ -819,7 +863,7 @@ port = 8080
           "/data.tsv": "name\tvalue\na\t1\nb\t2\n",
         },
       });
-      const result = toText(await bash.exec("yq '.[].name' /data.tsv"));
+      const result = await toText(await bash.exec("yq '.[].name' /data.tsv"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("a\nb\n");
     });
@@ -832,19 +876,19 @@ port = 8080
           "/data.yaml": "version: 1.0\nname: test\n",
         },
       });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq -i '.version = \"2.0\"' /data.yaml"),
       );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("");
 
-      const readResult = toText(await bash.exec("cat /data.yaml"));
+      const readResult = await toText(await bash.exec("cat /data.yaml"));
       expect(readResult.stdout).toContain('version: "2.0"');
     });
 
     it("should error when -i used without file", async () => {
       const bash = new Bash();
-      const result = toText(await bash.exec("echo 'x: 1' | yq -i '.x'"));
+      const result = await toText(await bash.exec("echo 'x: 1' | yq -i '.x'"));
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("requires a file");
     });
@@ -868,7 +912,7 @@ This is the post body.
 `,
         },
       });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq --front-matter '.title' /post.md"),
       );
       expect(result.exitCode).toBe(0);
@@ -887,7 +931,7 @@ tags:
 Content`,
         },
       });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq --front-matter '.tags[]' /post.md"),
       );
       expect(result.exitCode).toBe(0);
@@ -906,7 +950,7 @@ Content here.
 `,
         },
       });
-      const result = toText(await bash.exec("yq -f '.title' /post.md"));
+      const result = await toText(await bash.exec("yq -f '.title' /post.md"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("Hugo Post\n");
     });
@@ -917,7 +961,7 @@ Content here.
           "/plain.md": "# Just a heading\n\nNo front-matter here.",
         },
       });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq --front-matter '.title' /plain.md"),
       );
       expect(result.exitCode).toBe(1);
@@ -933,7 +977,7 @@ Content here.
         },
       });
       // No -p flag, should auto-detect from extension
-      const result = toText(await bash.exec("yq '.name' /data.json"));
+      const result = await toText(await bash.exec("yq '.name' /data.json"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("test\n");
     });
@@ -944,7 +988,7 @@ Content here.
           "/data.xml": "<root><name>test</name></root>",
         },
       });
-      const result = toText(await bash.exec("yq '.root.name' /data.xml"));
+      const result = await toText(await bash.exec("yq '.root.name' /data.xml"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("test\n");
     });
@@ -955,7 +999,7 @@ Content here.
           "/data.csv": "name,age\nalice,30\nbob,25\n",
         },
       });
-      const result = toText(await bash.exec("yq '.[0].name' /data.csv"));
+      const result = await toText(await bash.exec("yq '.[0].name' /data.csv"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("alice\n");
     });
@@ -966,7 +1010,9 @@ Content here.
           "/config.ini": "[database]\nhost=localhost\n",
         },
       });
-      const result = toText(await bash.exec("yq '.database.host' /config.ini"));
+      const result = await toText(
+        await bash.exec("yq '.database.host' /config.ini"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("localhost\n");
     });
@@ -979,7 +1025,9 @@ Content here.
         },
       });
       // Explicit -p yaml should override .json extension
-      const result = toText(await bash.exec("yq -p yaml '.name' /data.json"));
+      const result = await toText(
+        await bash.exec("yq -p yaml '.name' /data.json"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("yaml-content\n");
     });

@@ -6,7 +6,7 @@ describe("unset builtin", () => {
   describe("unset variables", () => {
     it("should unset a variable", async () => {
       const env = new Bash({ env: { VAR: "value" } });
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         echo "before: $VAR"
         unset VAR
@@ -18,7 +18,7 @@ describe("unset builtin", () => {
 
     it("should unset multiple variables", async () => {
       const env = new Bash({ env: { A: "1", B: "2", C: "3" } });
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         unset A B
         echo "A=$A B=$B C=$C"
@@ -29,7 +29,7 @@ describe("unset builtin", () => {
 
     it("should succeed silently for non-existent variable", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         unset NONEXISTENT
         echo "done"
@@ -43,7 +43,7 @@ describe("unset builtin", () => {
   describe("unset with -v flag", () => {
     it("should unset variable with -v flag", async () => {
       const env = new Bash({ env: { VAR: "value" } });
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         unset -v VAR
         echo "VAR=$VAR"
@@ -56,7 +56,7 @@ describe("unset builtin", () => {
   describe("unset functions", () => {
     it("should unset a function with -f flag", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         myfunc() { echo "hello"; }
         myfunc
@@ -70,7 +70,7 @@ describe("unset builtin", () => {
 
     it("should succeed silently for non-existent function", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         unset -f nonexistent_func
         echo "done"
@@ -84,7 +84,7 @@ describe("unset builtin", () => {
   describe("unset in different scopes", () => {
     it("should unset variable in function scope", async () => {
       const env = new Bash({ env: { VAR: "outer" } });
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         myfunc() {
           unset VAR
@@ -99,7 +99,7 @@ describe("unset builtin", () => {
 
     it("should unset local variable", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         myfunc() {
           local VAR=local
@@ -117,7 +117,7 @@ describe("unset builtin", () => {
   describe("unset return value", () => {
     it("should return 0 on success", async () => {
       const env = new Bash({ env: { VAR: "value" } });
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         unset VAR
         echo $?
@@ -132,7 +132,7 @@ describe("unset builtin", () => {
       const env = new Bash();
       // Note: This tests that attempt to unset doesn't crash
       // Actual readonly behavior may vary
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         VAR=value
         unset VAR
@@ -146,7 +146,7 @@ describe("unset builtin", () => {
   describe("unset associative array elements", () => {
     it("should unset associative array element with variable key", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         declare -A dict=()
         key=mykey
@@ -162,7 +162,7 @@ describe("unset builtin", () => {
 
     it("should unset associative array element with special characters in key", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         declare -A dict=()
         key='1],a[1'
@@ -178,7 +178,7 @@ describe("unset builtin", () => {
 
     it("should unset associative array element with single-quoted key", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         declare -A dict=()
         dict['literal']=bar
@@ -193,7 +193,7 @@ describe("unset builtin", () => {
 
     it("should unset associative array element with plain literal key", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         declare -A dict=()
         dict[plainkey]=value

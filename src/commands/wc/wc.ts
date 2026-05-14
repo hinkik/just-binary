@@ -1,6 +1,6 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
-import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { decode, decodeArgs } from "../../utils/bytes.js";
 import { readFiles } from "../../utils/file-reader.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
@@ -56,10 +56,10 @@ export const wcCommand: Command = {
     if (files.length === 0) {
       const stats = countStats(decode(readResult.files[0].content));
       return {
-        stdout: encode(
+        stdout: fromString(
           `${formatStats(stats, showLines, showWords, showChars, "", 0)}\n`,
         ),
-        stderr: EMPTY,
+        stderr: emptyStream(),
         exitCode: 0,
       };
     }
@@ -122,8 +122,8 @@ export const wcCommand: Command = {
     }
 
     return {
-      stdout: encode(stdout),
-      stderr: encode(readResult.stderr),
+      stdout: fromString(stdout),
+      stderr: fromString(readResult.stderr),
       exitCode: readResult.exitCode,
     };
   },
@@ -193,6 +193,7 @@ function formatStats(
   return result;
 }
 
+import { emptyStream, fromString } from "../../utils/stream.js";
 import type { CommandFuzzInfo } from "../fuzz-flags-types.js";
 
 export const flagsForFuzzing: CommandFuzzInfo = {

@@ -15,7 +15,8 @@
  */
 
 import type { ExecResult } from "../../types.js";
-import { EMPTY, encode, envGet, envSet } from "../../utils/bytes.js";
+import { envGet, envSet } from "../../utils/bytes.js";
+import { emptyStream, fromString } from "../../utils/stream.js";
 import { failure } from "../helpers/result.js";
 import type { InterpreterContext } from "../types.js";
 
@@ -76,7 +77,11 @@ export function handleGetopts(
     // When returning because OPTIND is past all args, bash sets OPTIND to args.length + 1
     envSet(ctx.state.env, "OPTIND", String(argsToProcess.length + 1));
     envSet(ctx.state.env, "__GETOPTS_CHARINDEX", "0");
-    return { exitCode: invalidVarName ? 2 : 1, stdout: EMPTY, stderr: EMPTY };
+    return {
+      exitCode: invalidVarName ? 2 : 1,
+      stdout: emptyStream(),
+      stderr: emptyStream(),
+    };
   }
 
   // Get current argument (0-indexed in array, but OPTIND is 1-based)
@@ -88,7 +93,11 @@ export function handleGetopts(
     if (!invalidVarName) {
       envSet(ctx.state.env, varName, "?");
     }
-    return { exitCode: invalidVarName ? 2 : 1, stdout: EMPTY, stderr: EMPTY };
+    return {
+      exitCode: invalidVarName ? 2 : 1,
+      stdout: emptyStream(),
+      stderr: emptyStream(),
+    };
   }
 
   // Check for -- (end of options marker)
@@ -98,7 +107,11 @@ export function handleGetopts(
     if (!invalidVarName) {
       envSet(ctx.state.env, varName, "?");
     }
-    return { exitCode: invalidVarName ? 2 : 1, stdout: EMPTY, stderr: EMPTY };
+    return {
+      exitCode: invalidVarName ? 2 : 1,
+      stdout: emptyStream(),
+      stderr: emptyStream(),
+    };
   }
 
   // Get the option character to process
@@ -139,8 +152,8 @@ export function handleGetopts(
 
     return {
       exitCode: invalidVarName ? 2 : 0,
-      stdout: EMPTY,
-      stderr: encode(stderrMsg),
+      stdout: emptyStream(),
+      stderr: fromString(stderrMsg),
     };
   }
 
@@ -177,8 +190,8 @@ export function handleGetopts(
         envSet(ctx.state.env, "__GETOPTS_CHARINDEX", "0");
         return {
           exitCode: invalidVarName ? 2 : 0,
-          stdout: EMPTY,
-          stderr: encode(stderrMsg),
+          stdout: emptyStream(),
+          stderr: fromString(stderrMsg),
         };
       }
       envSet(ctx.state.env, "OPTARG", argsToProcess[optind]); // Next arg (0-indexed: optind)
@@ -202,5 +215,9 @@ export function handleGetopts(
     envSet(ctx.state.env, varName, optChar);
   }
 
-  return { exitCode: invalidVarName ? 2 : 0, stdout: EMPTY, stderr: EMPTY };
+  return {
+    exitCode: invalidVarName ? 2 : 0,
+    stdout: emptyStream(),
+    stderr: emptyStream(),
+  };
 }

@@ -18,7 +18,7 @@ describe("Numeric Edge Cases", () => {
 
   describe("Integer Overflow", () => {
     it("should handle max 32-bit signed integer", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $((2147483647))
       `),
@@ -28,7 +28,7 @@ describe("Numeric Edge Cases", () => {
     });
 
     it("should handle min 32-bit signed integer", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $((-2147483648))
       `),
@@ -38,7 +38,7 @@ describe("Numeric Edge Cases", () => {
     });
 
     it("should handle overflow from max int", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $((2147483647 + 1))
       `),
@@ -49,7 +49,7 @@ describe("Numeric Edge Cases", () => {
     });
 
     it("should handle underflow from min int", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $((-2147483648 - 1))
       `),
@@ -60,7 +60,7 @@ describe("Numeric Edge Cases", () => {
     });
 
     it("should handle multiplication overflow", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $((100000 * 100000))
       `),
@@ -71,7 +71,7 @@ describe("Numeric Edge Cases", () => {
     });
 
     it("should handle power of 2 boundary", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $((1 << 30))
         echo $((1 << 31))
@@ -85,7 +85,7 @@ describe("Numeric Edge Cases", () => {
 
   describe("Division Edge Cases", () => {
     it("should handle division by zero", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $((10 / 0)) 2>&1 || echo "division error"
       `),
@@ -95,7 +95,7 @@ describe("Numeric Edge Cases", () => {
     });
 
     it("should handle modulo by zero", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $((10 % 0)) 2>&1 || echo "modulo error"
       `),
@@ -106,7 +106,7 @@ describe("Numeric Edge Cases", () => {
 
     it("should handle MIN_INT / -1", async () => {
       // This is a special case that can cause overflow in C
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $((-2147483648 / -1)) 2>&1 || echo "overflow handled"
       `),
@@ -116,7 +116,7 @@ describe("Numeric Edge Cases", () => {
     });
 
     it("should handle integer division truncation", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $((7 / 3))
         echo $((-7 / 3))
@@ -130,7 +130,7 @@ describe("Numeric Edge Cases", () => {
     });
 
     it("should handle modulo with negative numbers", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $((7 % 3))
         echo $((-7 % 3))
@@ -146,7 +146,7 @@ describe("Numeric Edge Cases", () => {
 
   describe("Radix Edge Cases", () => {
     it("should handle binary numbers", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $((2#1010))
         echo $((2#11111111))
@@ -157,7 +157,7 @@ describe("Numeric Edge Cases", () => {
     });
 
     it("should handle octal numbers", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $((8#77))
         echo $((8#755))
@@ -169,7 +169,7 @@ describe("Numeric Edge Cases", () => {
     });
 
     it("should handle hex numbers", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $((16#ff))
         echo $((16#DEADBEEF))
@@ -182,7 +182,7 @@ describe("Numeric Edge Cases", () => {
     });
 
     it("should handle base 36", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $((36#z))
         echo $((36#zz))
@@ -193,7 +193,7 @@ describe("Numeric Edge Cases", () => {
     });
 
     it("should reject invalid base", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $((64#abc)) 2>&1 || echo "invalid base"
       `),
@@ -203,7 +203,7 @@ describe("Numeric Edge Cases", () => {
     });
 
     it("should reject invalid digits for base", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $((2#123)) 2>&1 || echo "invalid digit"
       `),
@@ -215,7 +215,7 @@ describe("Numeric Edge Cases", () => {
 
   describe("Arithmetic Operators", () => {
     it("should handle bitwise NOT", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $((~0))
         echo $((~1))
@@ -227,7 +227,7 @@ describe("Numeric Edge Cases", () => {
     });
 
     it("should handle bitwise AND", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $((255 & 15))
         echo $((0xff & 0x0f))
@@ -238,7 +238,7 @@ describe("Numeric Edge Cases", () => {
     });
 
     it("should handle bitwise OR", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $((240 | 15))
         echo $((0xf0 | 0x0f))
@@ -249,7 +249,7 @@ describe("Numeric Edge Cases", () => {
     });
 
     it("should handle bitwise XOR", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $((255 ^ 170))
         echo $((0xff ^ 0xaa))
@@ -260,7 +260,7 @@ describe("Numeric Edge Cases", () => {
     });
 
     it("should handle left shift", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $((1 << 0))
         echo $((1 << 8))
@@ -272,7 +272,7 @@ describe("Numeric Edge Cases", () => {
     });
 
     it("should handle right shift", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $((256 >> 4))
         echo $((-16 >> 2))
@@ -283,7 +283,7 @@ describe("Numeric Edge Cases", () => {
     });
 
     it("should handle large shift counts", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $((1 << 31))
         echo $((1 << 32)) 2>&1 || echo "shift handled"
@@ -294,7 +294,7 @@ describe("Numeric Edge Cases", () => {
     });
 
     it("should handle negative shift counts", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $((1 << -1)) 2>&1 || echo "negative shift handled"
       `),
@@ -306,7 +306,7 @@ describe("Numeric Edge Cases", () => {
 
   describe("Comparison and Logical Operators", () => {
     it("should handle equality comparison", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $((5 == 5))
         echo $((5 == 6))
@@ -317,7 +317,7 @@ describe("Numeric Edge Cases", () => {
     });
 
     it("should handle inequality comparison", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $((5 != 5))
         echo $((5 != 6))
@@ -328,7 +328,7 @@ describe("Numeric Edge Cases", () => {
     });
 
     it("should handle relational operators", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $((5 < 6))
         echo $((5 > 6))
@@ -341,7 +341,7 @@ describe("Numeric Edge Cases", () => {
     });
 
     it("should handle logical AND", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $((1 && 1))
         echo $((1 && 0))
@@ -353,7 +353,7 @@ describe("Numeric Edge Cases", () => {
     });
 
     it("should handle logical OR", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $((1 || 0))
         echo $((0 || 1))
@@ -365,7 +365,7 @@ describe("Numeric Edge Cases", () => {
     });
 
     it("should handle logical NOT", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $((!0))
         echo $((!1))
@@ -377,7 +377,7 @@ describe("Numeric Edge Cases", () => {
     });
 
     it("should handle ternary operator", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $((1 ? 10 : 20))
         echo $((0 ? 10 : 20))
@@ -392,7 +392,7 @@ describe("Numeric Edge Cases", () => {
 
   describe("Assignment Operators", () => {
     it("should handle basic assignment", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         (( x = 5 ))
         echo $x
@@ -404,7 +404,7 @@ describe("Numeric Edge Cases", () => {
 
     it("should handle compound assignment", async () => {
       // Test += operator
-      const r1 = toText(
+      const r1 = await toText(
         await bash.exec(`
         x=10
         (( x += 5 ))
@@ -416,7 +416,7 @@ describe("Numeric Edge Cases", () => {
 
       // Test that compound assignment operations work
       // Note: Variable state may not persist across (( )) in just-bash
-      const r2 = toText(
+      const r2 = await toText(
         await bash.exec(`
         y=15
         z=$((y - 3))
@@ -428,7 +428,7 @@ describe("Numeric Edge Cases", () => {
     });
 
     it("should handle bitwise compound assignment", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         x=255
         (( x &= 15 ))
@@ -447,7 +447,7 @@ describe("Numeric Edge Cases", () => {
 
     it("should handle shift compound assignment", async () => {
       // Note: Shift compound assignment may have different behavior
-      const r1 = toText(
+      const r1 = await toText(
         await bash.exec(`
         x=1
         (( x <<= 8 ))
@@ -457,7 +457,7 @@ describe("Numeric Edge Cases", () => {
       // May not fully support <<= - test documents behavior
       expect(typeof r1.exitCode).toBe("number");
 
-      const r2 = toText(
+      const r2 = await toText(
         await bash.exec(`
         x=256
         (( x >>= 4 ))
@@ -468,7 +468,7 @@ describe("Numeric Edge Cases", () => {
     });
 
     it("should handle increment/decrement", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         x=5
         echo $((x++))
@@ -488,7 +488,7 @@ describe("Numeric Edge Cases", () => {
 
   describe("Operator Precedence", () => {
     it("should handle multiplication before addition", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $((2 + 3 * 4))
         echo $((2 * 3 + 4))
@@ -499,7 +499,7 @@ describe("Numeric Edge Cases", () => {
     });
 
     it("should handle parentheses", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $(((2 + 3) * 4))
         echo $((2 * (3 + 4)))
@@ -510,7 +510,7 @@ describe("Numeric Edge Cases", () => {
     });
 
     it("should handle comparison before logical", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $((1 < 2 && 3 < 4))
         echo $((1 < 2 || 3 > 4))
@@ -521,7 +521,7 @@ describe("Numeric Edge Cases", () => {
     });
 
     it("should handle bitwise before comparison", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $((5 & 3 == 1))
         echo $(((5 & 3) == 1))
@@ -533,7 +533,7 @@ describe("Numeric Edge Cases", () => {
 
   describe("Variable in Arithmetic", () => {
     it("should evaluate undefined variable as 0", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         unset undefined_var
         echo $((undefined_var + 5))
@@ -544,7 +544,7 @@ describe("Numeric Edge Cases", () => {
     });
 
     it("should handle variable chains in arithmetic", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         a=5
         b=a
@@ -557,7 +557,7 @@ describe("Numeric Edge Cases", () => {
     });
 
     it("should handle array elements in arithmetic", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         arr=(10 20 30)
         echo $((arr[0] + arr[1] + arr[2]))
@@ -568,7 +568,7 @@ describe("Numeric Edge Cases", () => {
     });
 
     it("should handle string as number", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         x="abc"
         echo $((x + 5)) 2>&1 || echo "handled"
@@ -579,7 +579,7 @@ describe("Numeric Edge Cases", () => {
     });
 
     it("should handle numeric prefix in string", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         x="123abc"
         echo $((x + 5)) 2>&1 || echo "handled"
@@ -592,7 +592,7 @@ describe("Numeric Edge Cases", () => {
 
   describe("Comma Operator", () => {
     it("should handle comma operator", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $((1, 2, 3))
       `),
@@ -603,7 +603,7 @@ describe("Numeric Edge Cases", () => {
     });
 
     it("should evaluate all expressions in comma", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         x=0
         y=0
@@ -618,7 +618,7 @@ describe("Numeric Edge Cases", () => {
 
   describe("Let Command", () => {
     it("should handle basic let", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         let "x = 5"
         echo $x
@@ -629,7 +629,7 @@ describe("Numeric Edge Cases", () => {
     });
 
     it("should handle multiple let expressions", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         let "x = 5" "y = 10"
         echo "$x $y"
@@ -640,7 +640,7 @@ describe("Numeric Edge Cases", () => {
     });
 
     it("should return exit code based on result", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         let "x = 0"
         echo "exit: $?"
@@ -657,7 +657,7 @@ describe("Numeric Edge Cases", () => {
 
   describe("(( )) Compound", () => {
     it("should handle (( )) for assignment", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         (( x = 10 ))
         echo $x
@@ -668,7 +668,7 @@ describe("Numeric Edge Cases", () => {
     });
 
     it("should handle (( )) for conditions", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         x=5
         if (( x > 3 )); then
@@ -683,7 +683,7 @@ describe("Numeric Edge Cases", () => {
     });
 
     it("should handle (( )) with multiple statements", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         (( x = 1, y = 2, z = x + y ))
         echo "$x $y $z"
@@ -696,7 +696,7 @@ describe("Numeric Edge Cases", () => {
 
   describe("Special Values", () => {
     it("should handle zero", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $((0))
         echo $((-0))
@@ -708,7 +708,7 @@ describe("Numeric Edge Cases", () => {
     });
 
     it("should handle negative numbers", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $((-5))
         echo $((--5))
@@ -720,7 +720,7 @@ describe("Numeric Edge Cases", () => {
     });
 
     it("should handle unary plus", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $((+5))
         echo $(( + + 5 ))
@@ -731,7 +731,7 @@ describe("Numeric Edge Cases", () => {
     });
 
     it("should handle pre-increment on variable", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         x=5
         echo $((++x))

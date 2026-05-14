@@ -17,7 +17,9 @@ describe("sed with binary content", () => {
       },
     });
 
-    const result = toText(await env.exec("sed 's/hello/world/' /data.bin"));
+    const result = await toText(
+      await env.exec("sed 's/hello/world/' /data.bin"),
+    );
     expect(result.stdout).toBe("world\n");
     expect(result.exitCode).toBe(0);
   });

@@ -6,7 +6,7 @@ describe("break builtin", () => {
   describe("basic break", () => {
     it("should exit for loop early", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         for i in 1 2 3 4 5; do
           if [ $i -eq 3 ]; then break; fi
@@ -21,7 +21,7 @@ describe("break builtin", () => {
 
     it("should exit while loop early", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         x=0
         while [ $x -lt 10 ]; do
@@ -38,7 +38,7 @@ describe("break builtin", () => {
 
     it("should exit until loop early", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         x=0
         until [ $x -ge 10 ]; do
@@ -57,7 +57,7 @@ describe("break builtin", () => {
   describe("break with level argument", () => {
     it("should break multiple levels with break n", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         for i in 1 2; do
           for j in a b c; do
@@ -74,7 +74,7 @@ describe("break builtin", () => {
 
     it("should break single level with break 1", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         for i in 1 2 3; do
           if [ $i -eq 2 ]; then break 1; fi
@@ -88,7 +88,7 @@ describe("break builtin", () => {
 
     it("should handle break with level exceeding loop depth", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         for i in 1 2; do
           break 10
@@ -105,7 +105,7 @@ describe("break builtin", () => {
   describe("error cases", () => {
     it("should silently do nothing when not in loop", async () => {
       const env = new Bash();
-      const result = toText(await env.exec("break"));
+      const result = await toText(await env.exec("break"));
       // In bash, break outside a loop silently does nothing
       expect(result.stderr).toBe("");
       expect(result.exitCode).toBe(0);
@@ -113,7 +113,7 @@ describe("break builtin", () => {
 
     it("should error on invalid argument", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         for i in 1 2 3; do
           break abc
@@ -126,7 +126,7 @@ describe("break builtin", () => {
 
     it("should error on zero argument", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         for i in 1 2 3; do
           break 0
@@ -139,7 +139,7 @@ describe("break builtin", () => {
 
     it("should error on negative argument", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         for i in 1 2 3; do
           break -1
@@ -152,7 +152,7 @@ describe("break builtin", () => {
 
     it("should error on too many arguments (bash behavior)", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         for x in a b c; do
           echo $x
@@ -171,7 +171,7 @@ describe("break builtin", () => {
   describe("break in nested constructs", () => {
     it("should work with case statements inside loops", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         for x in a b c; do
           case $x in
@@ -187,7 +187,7 @@ describe("break builtin", () => {
 
     it("should work with if statements inside loops", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         for i in 1 2 3 4 5; do
           if [ $i -gt 2 ]; then
@@ -202,7 +202,7 @@ describe("break builtin", () => {
 
     it("should work in function inside loop", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         check() {
           if [ $1 -eq 3 ]; then

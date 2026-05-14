@@ -3,7 +3,7 @@
  */
 
 import type { CommandContext, ExecResult } from "../../types.js";
-import { decode, EMPTY, encode } from "../../utils/bytes.js";
+import { collectText, emptyStream, fromString } from "../../utils/stream.js";
 import { unknownOption } from "../help.js";
 
 export interface HeadTailOptions {
@@ -80,8 +80,8 @@ export function parseHeadTailArgs(
     return {
       ok: false,
       error: {
-        stdout: EMPTY,
-        stderr: encode(`${cmdName}: invalid number of bytes\n`),
+        stdout: emptyStream(),
+        stderr: fromString(`${cmdName}: invalid number of bytes\n`),
         exitCode: 1,
       },
     };
@@ -92,8 +92,8 @@ export function parseHeadTailArgs(
     return {
       ok: false,
       error: {
-        stdout: EMPTY,
-        stderr: encode(`${cmdName}: invalid number of lines\n`),
+        stdout: emptyStream(),
+        stderr: fromString(`${cmdName}: invalid number of lines\n`),
         exitCode: 1,
       },
     };
@@ -120,8 +120,8 @@ export async function processHeadTailFiles(
   // If no files, read from stdin
   if (files.length === 0) {
     return {
-      stdout: encode(contentProcessor(decode(ctx.stdin))),
-      stderr: EMPTY,
+      stdout: fromString(contentProcessor(await collectText(ctx.stdin))),
+      stderr: emptyStream(),
       exitCode: 0,
     };
   }
@@ -140,7 +140,7 @@ export async function processHeadTailFiles(
 
     try {
       const filePath = ctx.fs.resolvePath(ctx.cwd, file);
-      const content = await ctx.fs.readFile(filePath);
+      const content = await ctx.fs.readFileText(filePath);
 
       // Show header if needed - only after we know the file exists
       if (showHeaders) {
@@ -155,7 +155,7 @@ export async function processHeadTailFiles(
     }
   }
 
-  return { stdout: encode(stdout), stderr: encode(stderr), exitCode };
+  return { stdout: fromString(stdout), stderr: fromString(stderr), exitCode };
 }
 
 /**

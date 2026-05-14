@@ -421,7 +421,7 @@ describe("Input Redirection (<) - Real Bash Comparison", () => {
   describe("stdin redirection error handling", () => {
     it("should error on missing input file", async () => {
       const env = await setupFiles(testDir, {});
-      const result = toText(await env.exec("cat < nonexistent.txt"));
+      const result = await toText(await env.exec("cat < nonexistent.txt"));
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("No such file");
     });

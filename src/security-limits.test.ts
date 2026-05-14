@@ -21,7 +21,7 @@ describe("Security Limits", () => {
       });
 
       // Generate a string that exceeds the limit
-      const result = toText(
+      const result = await toText(
         await limitedBash.exec('x=$(printf "%200s" " "); echo "done"'),
       );
       expect(result.exitCode).toBe(126); // ExecutionLimitError exit code
@@ -33,7 +33,7 @@ describe("Security Limits", () => {
         executionLimits: { maxStringLength: 1000 },
       });
 
-      const result = toText(await limitedBash.exec('echo "hello world"'));
+      const result = await toText(await limitedBash.exec('echo "hello world"'));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("hello world\n");
     });
@@ -47,7 +47,7 @@ describe("Security Limits", () => {
 
       // Try to read more lines than allowed using a heredoc
       // Use set -e to exit on first failure
-      const result = toText(
+      const result = await toText(
         await limitedBash.exec(`
 set -e
 mapfile -t arr <<'LINES'
@@ -71,7 +71,7 @@ echo "count: \${#arr[@]}"
         executionLimits: { maxArrayElements: 10 },
       });
 
-      const result = toText(
+      const result = await toText(
         await limitedBash.exec(`
 mapfile -t arr <<'LINES'
 1
@@ -93,7 +93,7 @@ echo "count: \${#arr[@]}"
       });
 
       // Create deeply nested command substitution
-      const result = toText(
+      const result = await toText(
         await limitedBash.exec("echo $(echo $(echo $(echo $(echo too-deep))))"),
       );
       expect(result.exitCode).toBe(126);
@@ -107,7 +107,7 @@ echo "count: \${#arr[@]}"
         executionLimits: { maxSubstitutionDepth: 5 },
       });
 
-      const result = toText(
+      const result = await toText(
         await limitedBash.exec("echo $(echo $(echo hello))"),
       );
       expect(result.exitCode).toBe(0);
@@ -130,7 +130,9 @@ echo "count: \${#arr[@]}"
       `);
 
       // Try to glob - this should exceed the low limit on readdir
-      const result = toText(await limitedBash.exec("echo /tmp/globtest/*"));
+      const result = await toText(
+        await limitedBash.exec("echo /tmp/globtest/*"),
+      );
       expect(result.exitCode).toBe(126); // ExecutionLimitError exit code
       expect(result.stderr).toContain("Glob operation limit exceeded");
     });
@@ -147,7 +149,9 @@ echo "count: \${#arr[@]}"
       `);
 
       // Glob should work fine with reasonable limit
-      const result = toText(await limitedBash.exec("echo /tmp/globtest2/*"));
+      const result = await toText(
+        await limitedBash.exec("echo /tmp/globtest2/*"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("/tmp/globtest2/a");
     });
@@ -155,7 +159,7 @@ echo "count: \${#arr[@]}"
 
   describe("heredoc size limit", () => {
     it("should allow normal heredocs", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         cat <<EOF
         This is a normal heredoc
@@ -170,7 +174,7 @@ echo "count: \${#arr[@]}"
 
   describe("null byte validation in filesystem", () => {
     it("should reject paths with null bytes", async () => {
-      const result = toText(await bash.exec('cat "/etc\\x00/passwd"'));
+      const result = await toText(await bash.exec('cat "/etc\\x00/passwd"'));
       expect(result.exitCode).not.toBe(0);
     });
   });

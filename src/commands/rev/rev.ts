@@ -9,7 +9,8 @@
  */
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs } from "../../utils/bytes.js";
+import { collectText, emptyStream, fromString } from "../../utils/stream.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
 const revHelp = {
@@ -73,34 +74,36 @@ export const rev: Command = {
 
     if (files.length === 0) {
       // Read from stdin
-      const input = decode(ctx.stdin);
+      const input = await collectText(ctx.stdin);
       output = processContent(input);
     } else {
       // Process each file
+      let stdinText: string | null = null;
       for (const file of files) {
         if (file === "-") {
           // Dash means read from stdin
-          const input = decode(ctx.stdin);
-          output += processContent(input);
+          if (stdinText === null) stdinText = await collectText(ctx.stdin);
+          output += processContent(stdinText);
         } else {
           const filePath = ctx.fs.resolvePath(ctx.cwd, file);
-          const content = await ctx.fs.readFile(filePath);
-          if (content === null) {
+          try {
+            const content = await ctx.fs.readFileText(filePath);
+            output += processContent(content);
+          } catch {
             return {
               exitCode: 1,
-              stdout: encode(output),
-              stderr: encode(`rev: ${file}: No such file or directory\n`),
+              stdout: fromString(output),
+              stderr: fromString(`rev: ${file}: No such file or directory\n`),
             };
           }
-          output += processContent(content);
         }
       }
     }
 
     return {
       exitCode: 0,
-      stdout: encode(output),
-      stderr: EMPTY,
+      stdout: fromString(output),
+      stderr: emptyStream(),
     };
   },
 };

@@ -56,8 +56,8 @@ export const printfCommand: Command = {
 
     if (a.length === 0) {
       return {
-        stdout: EMPTY,
-        stderr: encode("printf: usage: printf format [arguments]\n"),
+        stdout: emptyStream(),
+        stderr: fromString("printf: usage: printf format [arguments]\n"),
         exitCode: 2,
       };
     }
@@ -77,8 +77,8 @@ export const printfCommand: Command = {
         // Store result in variable
         if (argIndex + 1 >= a.length) {
           return {
-            stdout: EMPTY,
-            stderr: encode("printf: -v: option requires an argument\n"),
+            stdout: emptyStream(),
+            stderr: fromString("printf: -v: option requires an argument\n"),
             exitCode: 1,
           };
         }
@@ -86,8 +86,10 @@ export const printfCommand: Command = {
         // Validate variable name
         if (!/^[a-zA-Z_][a-zA-Z0-9_]*(\[[^\]]+\])?$/.test(targetVar)) {
           return {
-            stdout: EMPTY,
-            stderr: encode(`printf: \`${targetVar}': not a valid identifier\n`),
+            stdout: emptyStream(),
+            stderr: fromString(
+              `printf: \`${targetVar}': not a valid identifier\n`,
+            ),
             exitCode: 2,
           };
         }
@@ -102,8 +104,8 @@ export const printfCommand: Command = {
 
     if (argIndex >= a.length) {
       return {
-        stdout: EMPTY,
-        stderr: encode("printf: usage: printf format [arguments]\n"),
+        stdout: emptyStream(),
+        stderr: fromString("printf: usage: printf format [arguments]\n"),
         exitCode: 1,
       };
     }
@@ -184,15 +186,15 @@ export const printfCommand: Command = {
           envSet(ctx.env, targetVar, outputStr);
         }
         return {
-          stdout: EMPTY,
-          stderr: encode(errorMessage),
+          stdout: emptyStream(),
+          stderr: fromString(errorMessage),
           exitCode: hadError ? 1 : 0,
         };
       }
 
       return {
-        stdout: output,
-        stderr: encode(errorMessage),
+        stdout: fromBytes(output),
+        stderr: fromString(errorMessage),
         exitCode: hadError ? 1 : 0,
       };
     } catch (error) {
@@ -200,8 +202,8 @@ export const printfCommand: Command = {
         throw error;
       }
       return {
-        stdout: EMPTY,
-        stderr: encode(`printf: ${getErrorMessage(error)}\n`),
+        stdout: emptyStream(),
+        stderr: fromString(`printf: ${getErrorMessage(error)}\n`),
         exitCode: 1,
       };
     }
@@ -1196,6 +1198,7 @@ function processBEscapes(str: string): {
   return { value: new Uint8Array(bytes), stopped: false };
 }
 
+import { emptyStream, fromBytes, fromString } from "../../utils/stream.js";
 import type { CommandFuzzInfo } from "../fuzz-flags-types.js";
 
 export const flagsForFuzzing: CommandFuzzInfo = {

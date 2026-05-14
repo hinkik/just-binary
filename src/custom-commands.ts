@@ -5,7 +5,8 @@
  */
 
 import type { Command, CommandContext, ExecResult } from "./types.js";
-import { createStringEnvAdapter, decodeArgs, encode } from "./utils/bytes.js";
+import { createStringEnvAdapter, decodeArgs } from "./utils/bytes.js";
+import { fromString } from "./utils/stream.js";
 
 /**
  * An ExecResult with string stdout/stderr, for ergonomic custom commands.
@@ -84,8 +85,8 @@ export function defineCommand(
       const raw = await execute(decodeArgs(rawArgs), stringCtx);
       if (typeof raw.stdout === "string") {
         return {
-          stdout: encode(raw.stdout),
-          stderr: encode(raw.stderr as string),
+          stdout: fromString(raw.stdout),
+          stderr: fromString(raw.stderr as string),
           exitCode: raw.exitCode,
         };
       }

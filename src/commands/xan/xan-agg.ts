@@ -3,7 +3,7 @@
  */
 
 import type { CommandContext, ExecResult } from "../../types.js";
-import { EMPTY, encode } from "../../utils/bytes.js";
+import { emptyStream, fromString } from "../../utils/stream.js";
 import type { EvaluateOptions } from "../query-engine/index.js";
 import { buildAggRow, computeAgg, parseAggExpr } from "./aggregation.js";
 import {
@@ -34,8 +34,8 @@ export async function cmdAgg(
 
   if (!expr) {
     return {
-      stdout: EMPTY,
-      stderr: encode("xan agg: no aggregation expression\n"),
+      stdout: emptyStream(),
+      stderr: fromString("xan agg: no aggregation expression\n"),
       exitCode: 1,
     };
   }
@@ -54,8 +54,8 @@ export async function cmdAgg(
   const row = buildAggRow(data, specs, evalOptions);
 
   return {
-    stdout: encode(formatCsv(headers, [row])),
-    stderr: EMPTY,
+    stdout: fromString(formatCsv(headers, [row])),
+    stderr: emptyStream(),
     exitCode: 0,
   };
 }
@@ -85,8 +85,8 @@ export async function cmdGroupby(
 
   if (!groupCols || !aggExpr) {
     return {
-      stdout: EMPTY,
-      stderr: encode("xan groupby: usage: xan groupby COLS EXPR [FILE]\n"),
+      stdout: emptyStream(),
+      stderr: fromString("xan groupby: usage: xan groupby COLS EXPR [FILE]\n"),
       exitCode: 1,
     };
   }
@@ -135,8 +135,8 @@ export async function cmdGroupby(
   }
 
   return {
-    stdout: encode(formatCsv(headers, results)),
-    stderr: EMPTY,
+    stdout: fromString(formatCsv(headers, results)),
+    stderr: emptyStream(),
     exitCode: 0,
   };
 }
@@ -266,8 +266,8 @@ export async function cmdFrequency(
   }
 
   return {
-    stdout: encode(formatCsv(resultHeaders, results)),
-    stderr: EMPTY,
+    stdout: fromString(formatCsv(resultHeaders, results)),
+    stderr: emptyStream(),
     exitCode: 0,
   };
 }
@@ -319,8 +319,8 @@ export async function cmdStats(
   }
 
   return {
-    stdout: encode(formatCsv(statsHeaders, results)),
-    stderr: EMPTY,
+    stdout: fromString(formatCsv(statsHeaders, results)),
+    stderr: emptyStream(),
     exitCode: 0,
   };
 }

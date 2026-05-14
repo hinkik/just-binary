@@ -8,7 +8,8 @@
  */
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs } from "../../utils/bytes.js";
+import { collectText, emptyStream, fromString } from "../../utils/stream.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
 const joinHelp = {
@@ -194,8 +195,8 @@ export const join: Command = {
         if (Number.isNaN(field) || field < 1) {
           return {
             exitCode: 1,
-            stdout: EMPTY,
-            stderr: encode(`join: invalid field number: '${a[i + 1]}'\n`),
+            stdout: emptyStream(),
+            stderr: fromString(`join: invalid field number: '${a[i + 1]}'\n`),
           };
         }
         options.field1 = field;
@@ -205,8 +206,8 @@ export const join: Command = {
         if (Number.isNaN(field) || field < 1) {
           return {
             exitCode: 1,
-            stdout: EMPTY,
-            stderr: encode(`join: invalid field number: '${a[i + 1]}'\n`),
+            stdout: emptyStream(),
+            stderr: fromString(`join: invalid field number: '${a[i + 1]}'\n`),
           };
         }
         options.field2 = field;
@@ -225,8 +226,8 @@ export const join: Command = {
         if (fileNum !== 1 && fileNum !== 2) {
           return {
             exitCode: 1,
-            stdout: EMPTY,
-            stderr: encode(`join: invalid file number: '${a[i + 1]}'\n`),
+            stdout: emptyStream(),
+            stderr: fromString(`join: invalid file number: '${a[i + 1]}'\n`),
           };
         }
         options.printUnpairable.add(fileNum);
@@ -239,8 +240,8 @@ export const join: Command = {
         if (fileNum !== 1 && fileNum !== 2) {
           return {
             exitCode: 1,
-            stdout: EMPTY,
-            stderr: encode(`join: invalid file number: '${a[i + 1]}'\n`),
+            stdout: emptyStream(),
+            stderr: fromString(`join: invalid file number: '${a[i + 1]}'\n`),
           };
         }
         options.onlyUnpairable.add(fileNum);
@@ -256,8 +257,8 @@ export const join: Command = {
         if (!format) {
           return {
             exitCode: 1,
-            stdout: EMPTY,
-            stderr: encode(`join: invalid field spec: '${a[i + 1]}'\n`),
+            stdout: emptyStream(),
+            stderr: fromString(`join: invalid field spec: '${a[i + 1]}'\n`),
           };
         }
         options.outputFormat = format;
@@ -280,8 +281,8 @@ export const join: Command = {
     if (files.length !== 2) {
       return {
         exitCode: 1,
-        stdout: EMPTY,
-        stderr: encode(
+        stdout: emptyStream(),
+        stderr: fromString(
           files.length < 2
             ? "join: missing file operand\n"
             : "join: extra operand\n",
@@ -293,18 +294,19 @@ export const join: Command = {
     const contents: string[] = [];
     for (const file of files) {
       if (file === "-") {
-        contents.push(decode(ctx.stdin));
+        contents.push(await collectText(ctx.stdin));
       } else {
         const filePath = ctx.fs.resolvePath(ctx.cwd, file);
-        const content = await ctx.fs.readFile(filePath);
-        if (content === null) {
+        try {
+          const content = await ctx.fs.readFileText(filePath);
+          contents.push(content);
+        } catch {
           return {
             exitCode: 1,
-            stdout: EMPTY,
-            stderr: encode(`join: ${file}: No such file or directory\n`),
+            stdout: emptyStream(),
+            stderr: fromString(`join: ${file}: No such file or directory\n`),
           };
         }
-        contents.push(content);
       }
     }
 
@@ -371,8 +373,8 @@ export const join: Command = {
 
     return {
       exitCode: 0,
-      stdout: encode(output.length > 0 ? `${output.join("\n")}\n` : ""),
-      stderr: EMPTY,
+      stdout: fromString(output.length > 0 ? `${output.join("\n")}\n` : ""),
+      stderr: emptyStream(),
     };
   },
 };

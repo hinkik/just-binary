@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
 import { toText } from "../../test-utils.js";
+import { collectBytes } from "../../utils/stream.js";
 
 describe("base64 with binary data", () => {
   describe("binary file encoding", () => {
@@ -11,7 +12,7 @@ describe("base64 with binary data", () => {
         },
       });
 
-      const result = toText(await env.exec("base64 /binary.bin"));
+      const result = await toText(await env.exec("base64 /binary.bin"));
       expect(result.exitCode).toBe(0);
       // Verify it produces valid base64 output
       expect(result.stdout.trim()).toMatch(/^[A-Za-z0-9+/]+=*$/);
@@ -26,12 +27,13 @@ describe("base64 with binary data", () => {
 
       await env.exec("base64 /nulls.bin > /encoded.txt");
       const decodeResult = await env.exec("base64 -d /encoded.txt");
+      const out = await collectBytes(decodeResult.stdout);
 
-      expect(decodeResult.stdout[0]).toBe(0x41); // A
-      expect(decodeResult.stdout[1]).toBe(0x00);
-      expect(decodeResult.stdout[2]).toBe(0x42); // B
-      expect(decodeResult.stdout[3]).toBe(0x00);
-      expect(decodeResult.stdout[4]).toBe(0x43); // C
+      expect(out[0]).toBe(0x41); // A
+      expect(out[1]).toBe(0x00);
+      expect(out[2]).toBe(0x42); // B
+      expect(out[3]).toBe(0x00);
+      expect(out[4]).toBe(0x43); // C
     });
 
     it("should encode and decode file with all byte values", async () => {
@@ -45,10 +47,11 @@ describe("base64 with binary data", () => {
 
       await env.exec("base64 /allbytes.bin > /encoded.txt");
       const decodeResult = await env.exec("base64 -d /encoded.txt");
+      const out = await collectBytes(decodeResult.stdout);
 
-      expect(decodeResult.stdout.length).toBe(256);
+      expect(out.length).toBe(256);
       for (let i = 0; i < 256; i++) {
-        expect(decodeResult.stdout[i]).toBe(i);
+        expect(out[i]).toBe(i);
       }
     });
   });
@@ -61,7 +64,7 @@ describe("base64 with binary data", () => {
         },
       });
 
-      const result = toText(await env.exec("cat /binary.bin | base64"));
+      const result = await toText(await env.exec("cat /binary.bin | base64"));
       // Verify it encodes without error
       expect(result.exitCode).toBe(0);
       expect(result.stdout.trim().length).toBeGreaterThan(0);
@@ -76,12 +79,13 @@ describe("base64 with binary data", () => {
 
       await env.exec("cat /binary.bin | base64 > /encoded.txt");
       const result = await env.exec("base64 -d /encoded.txt");
+      const out = await collectBytes(result.stdout);
 
-      expect(result.stdout[0]).toBe(0x80);
-      expect(result.stdout[1]).toBe(0xff);
-      expect(result.stdout[2]).toBe(0x90);
-      expect(result.stdout[3]).toBe(0xab);
-      expect(result.stdout[4]).toBe(0xcd);
+      expect(out[0]).toBe(0x80);
+      expect(out[1]).toBe(0xff);
+      expect(out[2]).toBe(0x90);
+      expect(out[3]).toBe(0xab);
+      expect(out[4]).toBe(0xcd);
     });
 
     it("should decode base64 from stdin", async () => {
@@ -92,7 +96,9 @@ describe("base64 with binary data", () => {
         },
       });
 
-      const result = toText(await env.exec("cat /encoded.txt | base64 -d"));
+      const result = await toText(
+        await env.exec("cat /encoded.txt | base64 -d"),
+      );
       expect(result.stdout).toBe("Hello");
     });
 
@@ -104,7 +110,9 @@ describe("base64 with binary data", () => {
         },
       });
 
-      const result = toText(await env.exec("cat /encoded.txt | base64 -d"));
+      const result = await toText(
+        await env.exec("cat /encoded.txt | base64 -d"),
+      );
       expect(result.stdout).toBe("ABC");
     });
   });
@@ -118,7 +126,7 @@ describe("base64 with binary data", () => {
       });
 
       await env.exec("base64 /data.txt > /encoded.txt");
-      const result = toText(await env.exec("base64 -d /encoded.txt"));
+      const result = await toText(await env.exec("base64 -d /encoded.txt"));
 
       expect(result.stdout).toBe("Hello World 123");
     });
@@ -131,7 +139,7 @@ describe("base64 with binary data", () => {
       });
 
       await env.exec("cat /data.txt | base64 > /encoded.txt");
-      const result = toText(await env.exec("base64 -d /encoded.txt"));
+      const result = await toText(await env.exec("base64 -d /encoded.txt"));
 
       expect(result.stdout).toBe("test content");
     });
@@ -157,8 +165,8 @@ describe("base64 with binary data", () => {
       await env.exec("base64 -d /encoded.txt > /decoded.bin");
 
       // Verify the decoded file matches the original
-      const decoded = await env.fs.readFileBuffer(
-        env.fs.resolvePath("/", "/decoded.bin"),
+      const decoded = await collectBytes(
+        await env.fs.readFile(env.fs.resolvePath("/", "/decoded.bin")),
       );
 
       expect(decoded.length).toBe(size);
@@ -192,8 +200,8 @@ describe("base64 with binary data", () => {
       await env.exec("cat /medium.bin | base64 | base64 -d > /output.bin");
 
       // Verify the output matches the original
-      const output = await env.fs.readFileBuffer(
-        env.fs.resolvePath("/", "/output.bin"),
+      const output = await collectBytes(
+        await env.fs.readFile(env.fs.resolvePath("/", "/output.bin")),
       );
 
       expect(output.length).toBe(size);

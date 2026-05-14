@@ -44,7 +44,7 @@ describe("curl timeouts", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://api.example.com"] },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec("curl -m 5 https://api.example.com/test"),
       );
       expect(result.exitCode).toBe(0);
@@ -56,7 +56,7 @@ describe("curl timeouts", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://api.example.com"] },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec("curl --max-time 10 https://api.example.com/test"),
       );
       expect(result.exitCode).toBe(0);
@@ -66,7 +66,7 @@ describe("curl timeouts", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://api.example.com"] },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec("curl --max-time=30 https://api.example.com/test"),
       );
       expect(result.exitCode).toBe(0);
@@ -76,7 +76,7 @@ describe("curl timeouts", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://api.example.com"] },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec("curl -m 0.5 https://api.example.com/test"),
       );
       expect(result.exitCode).toBe(0);
@@ -88,7 +88,7 @@ describe("curl timeouts", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://api.example.com"] },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec("curl --connect-timeout 5 https://api.example.com/test"),
       );
       expect(result.exitCode).toBe(0);
@@ -98,7 +98,7 @@ describe("curl timeouts", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://api.example.com"] },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec(
           "curl --connect-timeout=10 https://api.example.com/test",
         ),
@@ -125,7 +125,7 @@ describe("curl timeouts", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://api.example.com"] },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec("curl -m 1 https://api.example.com/slow"),
       );
 

@@ -6,7 +6,7 @@ describe("awk associative arrays", () => {
   describe("basic array operations", () => {
     it("should create and access array elements", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "" | awk 'BEGIN { a["foo"] = 42; print a["foo"] }'`,
         ),
@@ -17,7 +17,7 @@ describe("awk associative arrays", () => {
 
     it("should support numeric indices", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "" | awk 'BEGIN { a[1] = "one"; a[2] = "two"; print a[1], a[2] }'`,
         ),
@@ -28,7 +28,7 @@ describe("awk associative arrays", () => {
 
     it("should return empty string for uninitialized element", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "" | awk 'BEGIN { print "[" a["missing"] "]" }'`),
       );
       expect(result.stdout).toBe("[]\n");
@@ -37,7 +37,7 @@ describe("awk associative arrays", () => {
 
     it("should overwrite existing array elements", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "" | awk 'BEGIN { a["x"] = 1; a["x"] = 2; print a["x"] }'`,
         ),
@@ -48,7 +48,7 @@ describe("awk associative arrays", () => {
 
     it("should support expressions as indices", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "" | awk 'BEGIN { i=5; a[i*2] = "ten"; print a[10] }'`,
         ),
@@ -59,7 +59,7 @@ describe("awk associative arrays", () => {
 
     it("should support string concatenation as index", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "" | awk 'BEGIN { a["key" "1"] = "value"; print a["key1"] }'`,
         ),
@@ -72,7 +72,7 @@ describe("awk associative arrays", () => {
   describe("in operator", () => {
     it("should return true for existing key", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "" | awk 'BEGIN { a["x"] = 1; if ("x" in a) print "found" }'`,
         ),
@@ -83,7 +83,7 @@ describe("awk associative arrays", () => {
 
     it("should return false for missing key", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "" | awk 'BEGIN { a["x"] = 1; if ("y" in a) print "found"; else print "not found" }'`,
         ),
@@ -94,7 +94,7 @@ describe("awk associative arrays", () => {
 
     it("should work with numeric keys", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "" | awk 'BEGIN { a[42] = "answer"; print (42 in a), (99 in a) }'`,
         ),
@@ -105,7 +105,7 @@ describe("awk associative arrays", () => {
 
     it("should not create element when checking with in", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "" | awk 'BEGIN { if ("x" in a) print "yes"; for (k in a) print k }'`,
         ),
@@ -118,7 +118,7 @@ describe("awk associative arrays", () => {
   describe("delete statement", () => {
     it("should delete array element", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "" | awk 'BEGIN { a["x"] = 1; delete a["x"]; print ("x" in a) }'`,
         ),
@@ -129,7 +129,7 @@ describe("awk associative arrays", () => {
 
     it("should not error when deleting non-existent element", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "" | awk 'BEGIN { delete a["missing"]; print "ok" }'`,
         ),
@@ -140,7 +140,7 @@ describe("awk associative arrays", () => {
 
     it("should delete entire array", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "" | awk 'BEGIN { a[1]=1; a[2]=2; a[3]=3; delete a; for(k in a) count++; print count+0 }'`,
         ),
@@ -153,7 +153,7 @@ describe("awk associative arrays", () => {
   describe("for-in loops", () => {
     it("should iterate over array keys", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "" | awk 'BEGIN { a["a"]=1; a["b"]=2; a["c"]=3; for (k in a) count++; print count }'`,
         ),
@@ -164,7 +164,7 @@ describe("awk associative arrays", () => {
 
     it("should access values via key in loop", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "" | awk 'BEGIN { a[1]=10; a[2]=20; a[3]=30; sum=0; for (k in a) sum += a[k]; print sum }'`,
         ),
@@ -175,7 +175,7 @@ describe("awk associative arrays", () => {
 
     it("should handle empty array", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "" | awk 'BEGIN { for (k in a) print k; print "done" }'`,
         ),
@@ -188,7 +188,7 @@ describe("awk associative arrays", () => {
   describe("split() function with arrays", () => {
     it("should split string into array", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "" | awk 'BEGIN { n = split("a:b:c", arr, ":"); print n, arr[1], arr[2], arr[3] }'`,
         ),
@@ -199,7 +199,7 @@ describe("awk associative arrays", () => {
 
     it("should return count of elements", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "" | awk 'BEGIN { n = split("one,two,three,four", arr, ","); print n }'`,
         ),
@@ -210,7 +210,7 @@ describe("awk associative arrays", () => {
 
     it("should split on whitespace by default", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "" | awk 'BEGIN { n = split("a b c", arr); print n, arr[1], arr[2], arr[3] }'`,
         ),
@@ -221,7 +221,7 @@ describe("awk associative arrays", () => {
 
     it("should clear existing array before split", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "" | awk 'BEGIN { arr[5]="old"; split("a:b", arr, ":"); print (5 in arr), arr[1], arr[2] }'`,
         ),
@@ -236,7 +236,7 @@ describe("awk associative arrays", () => {
       const env = new Bash({
         files: { "/data.txt": "apple\nbanana\napple\ncherry\napple\n" },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `awk '{ count[$1]++ } END { print count["apple"] }' /data.txt`,
         ),
@@ -249,7 +249,7 @@ describe("awk associative arrays", () => {
       const env = new Bash({
         files: { "/data.txt": "a\nb\na\nc\nb\na\n" },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `awk '{ seen[$1]++ } END { for (k in seen) n++; print n }' /data.txt`,
         ),
@@ -262,7 +262,7 @@ describe("awk associative arrays", () => {
       const env = new Bash({
         files: { "/data.csv": "fruit,10\nveg,20\nfruit,15\nveg,5\n" },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `awk -F, '{ sum[$1]+=$2 } END { print sum["fruit"], sum["veg"] }' /data.csv`,
         ),
@@ -275,7 +275,7 @@ describe("awk associative arrays", () => {
   describe("multi-dimensional arrays (SUBSEP)", () => {
     it("should simulate 2D array with SUBSEP", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "" | awk 'BEGIN { a[1,2] = "val"; print a[1,2] }'`,
         ),
@@ -286,7 +286,7 @@ describe("awk associative arrays", () => {
 
     it("should store matrix values", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "" | awk 'BEGIN {
           a[0,0]=1; a[0,1]=2;
@@ -301,7 +301,7 @@ describe("awk associative arrays", () => {
 
     it("should check multi-dimensional key with in", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "" | awk 'BEGIN { a[1,2] = "x"; print ((1,2) in a), ((1,3) in a) }'`,
         ),
@@ -316,7 +316,7 @@ describe("awk associative arrays", () => {
       const env = new Bash({
         files: { "/data.txt": "alice 100\nbob 200\nalice 50\n" },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `awk '{ totals[$1] += $2 } END { print totals["alice"], totals["bob"] }' /data.txt`,
         ),
@@ -329,7 +329,7 @@ describe("awk associative arrays", () => {
       const env = new Bash({
         files: { "/data.txt": "1 first\n2 second\n3 third\n" },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `awk '{ lines[$1] = $2 } END { print lines[2] }' /data.txt`,
         ),
@@ -342,7 +342,7 @@ describe("awk associative arrays", () => {
   describe("array increment patterns", () => {
     it("should pre-increment array element", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "" | awk 'BEGIN { a["x"] = 5; print ++a["x"], a["x"] }'`,
         ),
@@ -353,7 +353,7 @@ describe("awk associative arrays", () => {
 
     it("should post-increment array element", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "" | awk 'BEGIN { a["x"] = 5; print a["x"]++, a["x"] }'`,
         ),
@@ -364,7 +364,7 @@ describe("awk associative arrays", () => {
 
     it("should compound assign to array element", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "" | awk 'BEGIN { a["x"] = 10; a["x"] += 5; a["x"] *= 2; print a["x"] }'`,
         ),

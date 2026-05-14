@@ -25,6 +25,7 @@
 import { type ParseException, Parser, parse } from "../../parser/parser.js";
 import type { ExecResult } from "../../types.js";
 import { decode, EMPTY, encode, envGet, envSet } from "../../utils/bytes.js";
+import { collectBytes, emptyStream } from "../../utils/stream.js";
 import { matchPattern } from "../conditionals.js";
 import { expandWord, getArrayElements } from "../expansion.js";
 import { callFunction } from "../functions.js";
@@ -473,7 +474,12 @@ export async function handleCompgen(
 
       try {
         // Call the function - errors during execution return exit code 1
-        const funcResult = await callFunction(ctx, func, funcArgs, EMPTY);
+        const funcResult = await callFunction(
+          ctx,
+          func,
+          funcArgs,
+          emptyStream(),
+        );
 
         // Check if there was an error (e.g., division by zero)
         if (funcResult.exitCode !== 0) {
@@ -484,7 +490,7 @@ export async function handleCompgen(
         }
 
         // Capture function stdout (e.g., debug output from the function)
-        functionStdout = decode(funcResult.stdout);
+        functionStdout = decode(await collectBytes(funcResult.stdout));
 
         // Get COMPREPLY values (supports both scalar and array)
         const compreplyValues = getCompreplyValues(ctx);
@@ -518,8 +524,9 @@ export async function handleCompgen(
 
       // Split stdout into lines and add as completions
       // All non-empty lines are used as completions (no prefix filtering)
-      if (cmdResult.stdout.length > 0) {
-        const lines = decode(cmdResult.stdout).split("\n");
+      const stdoutBytes = await collectBytes(cmdResult.stdout);
+      if (stdoutBytes.length > 0) {
+        const lines = decode(stdoutBytes).split("\n");
         for (const line of lines) {
           // Skip empty lines
           if (line.length > 0) {

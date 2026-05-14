@@ -73,7 +73,7 @@ test('validatePrice works', () => {
 
   it("should list project structure", async () => {
     const env = createEnv();
-    const result = toText(await env.exec("ls /project"));
+    const result = await toText(await env.exec("ls /project"));
     expect(result.stdout).toBe("BUGS.md\nsrc\ntests\n");
     expect(result.stderr).toBe("");
     expect(result.exitCode).toBe(0);
@@ -81,7 +81,7 @@ test('validatePrice works', () => {
 
   it("should read bug report", async () => {
     const env = createEnv();
-    const result = toText(await env.exec("cat /project/BUGS.md"));
+    const result = await toText(await env.exec("cat /project/BUGS.md"));
     expect(result.stdout).toBe(`# Known Bugs
 
 ## BUG-001: Percentage formatting incorrect
@@ -100,7 +100,7 @@ test('validatePrice works', () => {
 
   it("should find formatPercent function", async () => {
     const env = createEnv();
-    const result = toText(
+    const result = await toText(
       await env.exec('grep -n "formatPercent" /project/src/utils/format.ts'),
     );
     expect(result.stdout).toBe(
@@ -112,7 +112,9 @@ test('validatePrice works', () => {
 
   it("should read the format utils file", async () => {
     const env = createEnv();
-    const result = toText(await env.exec("cat /project/src/utils/format.ts"));
+    const result = await toText(
+      await env.exec("cat /project/src/utils/format.ts"),
+    );
     expect(
       result.stdout,
     ).toBe(`export function formatPrice(price: number): string {
@@ -134,7 +136,7 @@ export function formatPercent(value: number): string {
 
   it("should find BUG comments in code", async () => {
     const env = createEnv();
-    const result = toText(await env.exec('grep -r "BUG:" /project/src'));
+    const result = await toText(await env.exec('grep -r "BUG:" /project/src'));
     expect(
       result.stdout,
     ).toBe(`/project/src/utils/format.ts:  // BUG: Should multiply by 100
@@ -146,7 +148,7 @@ export function formatPercent(value: number): string {
 
   it("should find validatePrice function", async () => {
     const env = createEnv();
-    const result = toText(
+    const result = await toText(
       await env.exec('grep -n "validatePrice" /project/src/utils/validate.ts'),
     );
     expect(result.stdout).toBe(
@@ -158,7 +160,9 @@ export function formatPercent(value: number): string {
 
   it("should read the validation utils file", async () => {
     const env = createEnv();
-    const result = toText(await env.exec("cat /project/src/utils/validate.ts"));
+    const result = await toText(
+      await env.exec("cat /project/src/utils/validate.ts"),
+    );
     expect(
       result.stdout,
     ).toBe(`export function validateEmail(email: string): boolean {
@@ -176,7 +180,7 @@ export function validatePrice(price: number): boolean {
 
   it("should find related test file", async () => {
     const env = createEnv();
-    const result = toText(await env.exec("ls /project/tests"));
+    const result = await toText(await env.exec("ls /project/tests"));
     expect(result.stdout).toBe("format.test.ts\nvalidate.test.ts\n");
     expect(result.stderr).toBe("");
     expect(result.exitCode).toBe(0);
@@ -184,7 +188,9 @@ export function validatePrice(price: number): boolean {
 
   it("should read format tests", async () => {
     const env = createEnv();
-    const result = toText(await env.exec("cat /project/tests/format.test.ts"));
+    const result = await toText(
+      await env.exec("cat /project/tests/format.test.ts"),
+    );
     expect(
       result.stdout,
     ).toBe(`import { formatPrice, formatPercent } from '../src/utils/format';
@@ -205,7 +211,7 @@ test('formatPercent formats correctly', () => {
 
   it("should find test for formatPercent", async () => {
     const env = createEnv();
-    const result = toText(
+    const result = await toText(
       await env.exec('grep -n "formatPercent" /project/tests/format.test.ts'),
     );
     expect(
@@ -221,7 +227,7 @@ test('formatPercent formats correctly', () => {
 
   it("should read validate tests", async () => {
     const env = createEnv();
-    const result = toText(
+    const result = await toText(
       await env.exec("cat /project/tests/validate.test.ts"),
     );
     expect(
@@ -243,7 +249,9 @@ test('validatePrice works', () => {
 
   it("should count BUG comments", async () => {
     const env = createEnv();
-    const result = toText(await env.exec('grep -r -c "BUG:" /project/src'));
+    const result = await toText(
+      await env.exec('grep -r -c "BUG:" /project/src'),
+    );
     expect(result.stdout).toBe(`/project/src/utils/format.ts:1
 /project/src/utils/validate.ts:1
 `);
@@ -253,7 +261,7 @@ test('validatePrice works', () => {
 
   it("should find all Open bugs in report", async () => {
     const env = createEnv();
-    const result = toText(
+    const result = await toText(
       await env.exec('grep "Status: Open" /project/BUGS.md'),
     );
     expect(result.stdout).toBe(`- Status: Open
@@ -265,7 +273,7 @@ test('validatePrice works', () => {
 
   it("should count open bugs", async () => {
     const env = createEnv();
-    const result = toText(
+    const result = await toText(
       await env.exec('grep -c "Status: Open" /project/BUGS.md'),
     );
     expect(result.stdout).toBe("2\n");

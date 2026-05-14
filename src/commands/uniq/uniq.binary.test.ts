@@ -17,7 +17,7 @@ describe("uniq with binary content", () => {
       },
     });
 
-    const result = toText(await env.exec("uniq /data.bin"));
+    const result = await toText(await env.exec("uniq /data.bin"));
     expect(result.stdout).toBe("a\nb\n");
     expect(result.exitCode).toBe(0);
   });

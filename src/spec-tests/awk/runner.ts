@@ -3,7 +3,7 @@
  */
 
 import { Bash } from "../../Bash.js";
-import { decode } from "../../utils/bytes.js";
+import { collectText } from "../../utils/stream.js";
 import type { AwkTestCase } from "./parser.js";
 
 export interface AwkTestResult {
@@ -106,8 +106,12 @@ export async function runAwkTestCase(
     }
 
     const result = await env.exec(script);
+    const [stdoutText, stderrText] = await Promise.all([
+      collectText(result.stdout),
+      collectText(result.stderr),
+    ]);
 
-    const actualOutput = normalizeOutput(decode(result.stdout));
+    const actualOutput = normalizeOutput(stdoutText);
     const expectedOutput = normalizeOutput(testCase.expectedOutput);
 
     let passed = actualOutput === expectedOutput;
@@ -126,8 +130,8 @@ export async function runAwkTestCase(
           passed: false,
           skipped: false,
           unexpectedPass: true,
-          actualOutput: decode(result.stdout),
-          actualStderr: decode(result.stderr),
+          actualOutput: stdoutText,
+          actualStderr: stderrText,
           actualStatus: result.exitCode,
           expectedOutput: testCase.expectedOutput,
           error: `UNEXPECTED PASS: This test was marked skip (${skipReason}) but now passes. Please remove the skip.`,
@@ -139,8 +143,8 @@ export async function runAwkTestCase(
         passed: true,
         skipped: true,
         skipReason: `skip: ${skipReason}`,
-        actualOutput: decode(result.stdout),
-        actualStderr: decode(result.stderr),
+        actualOutput: stdoutText,
+        actualStderr: stderrText,
         actualStatus: result.exitCode,
         expectedOutput: testCase.expectedOutput,
       };
@@ -150,8 +154,8 @@ export async function runAwkTestCase(
       testCase,
       passed,
       skipped: false,
-      actualOutput: decode(result.stdout),
-      actualStderr: decode(result.stderr),
+      actualOutput: stdoutText,
+      actualStderr: stderrText,
       actualStatus: result.exitCode,
       expectedOutput: testCase.expectedOutput,
       error: passed

@@ -12,7 +12,7 @@ describe("xan transform", () => {
 
   it("transforms a column with expression", async () => {
     const bash = new Bash({ files: { "/data.csv": DATA } });
-    const result = toText(
+    const result = await toText(
       await bash.exec("xan transform b 'add(a, b)' /data.csv"),
     );
     expect(result.exitCode).toBe(0);
@@ -21,7 +21,7 @@ describe("xan transform", () => {
 
   it("transforms with rename", async () => {
     const bash = new Bash({ files: { "/data.csv": DATA } });
-    const result = toText(
+    const result = await toText(
       await bash.exec("xan transform b 'add(a, b)' -r sum /data.csv"),
     );
     expect(result.exitCode).toBe(0);
@@ -30,7 +30,7 @@ describe("xan transform", () => {
 
   it("transforms with underscore reference", async () => {
     const bash = new Bash({ files: { "/data.csv": DATA } });
-    const result = toText(
+    const result = await toText(
       await bash.exec("xan transform b 'mul(_, 2)' /data.csv"),
     );
     expect(result.exitCode).toBe(0);
@@ -39,7 +39,7 @@ describe("xan transform", () => {
 
   it("transforms multiple columns", async () => {
     const bash = new Bash({ files: { "/data.csv": DATA } });
-    const result = toText(
+    const result = await toText(
       await bash.exec("xan transform a,b 'mul(_, 10)' /data.csv"),
     );
     expect(result.exitCode).toBe(0);
@@ -48,7 +48,7 @@ describe("xan transform", () => {
 
   it("transforms multiple columns with rename", async () => {
     const bash = new Bash({ files: { "/data.csv": DATA } });
-    const result = toText(
+    const result = await toText(
       await bash.exec("xan transform a,b 'mul(_, 10)' -r x,y /data.csv"),
     );
     expect(result.exitCode).toBe(0);
@@ -57,7 +57,7 @@ describe("xan transform", () => {
 
   it("errors on missing column", async () => {
     const bash = new Bash({ files: { "/data.csv": DATA } });
-    const result = toText(
+    const result = await toText(
       await bash.exec("xan transform z 'add(a, b)' /data.csv"),
     );
     expect(result.exitCode).toBe(1);
@@ -66,7 +66,7 @@ describe("xan transform", () => {
 
   it("errors on missing arguments", async () => {
     const bash = new Bash({ files: { "/data.csv": DATA } });
-    const result = toText(await bash.exec("xan transform"));
+    const result = await toText(await bash.exec("xan transform"));
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("usage");
   });
@@ -74,7 +74,7 @@ describe("xan transform", () => {
   it("errors on missing expression", async () => {
     const bash = new Bash({ files: { "/data.csv": DATA } });
     // Piping empty data to simulate no expression
-    const result = toText(await bash.exec("echo '' | xan transform a"));
+    const result = await toText(await bash.exec("echo '' | xan transform a"));
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("usage");
   });
@@ -83,7 +83,7 @@ describe("xan transform", () => {
     const bash = new Bash({
       files: { "/data.csv": "name,value\nhello,1\nworld,2\n" },
     });
-    const result = toText(
+    const result = await toText(
       await bash.exec("xan transform name 'upper(_)' /data.csv"),
     );
     expect(result.exitCode).toBe(0);

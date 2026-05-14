@@ -1,6 +1,6 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
-import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { decode, decodeArgs } from "../../utils/bytes.js";
 import { readAndConcat } from "../../utils/file-reader.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
@@ -53,7 +53,7 @@ export const uniqCommand: Command = {
     }
 
     if (lines.length === 0) {
-      return { stdout: EMPTY, stderr: EMPTY, exitCode: 0 };
+      return { stdout: emptyStream(), stderr: emptyStream(), exitCode: 0 };
     }
 
     // Process adjacent duplicates
@@ -98,10 +98,11 @@ export const uniqCommand: Command = {
       }
     }
 
-    return { stdout: encode(output), stderr: EMPTY, exitCode: 0 };
+    return { stdout: fromString(output), stderr: emptyStream(), exitCode: 0 };
   },
 };
 
+import { emptyStream, fromString } from "../../utils/stream.js";
 import type { CommandFuzzInfo } from "../fuzz-flags-types.js";
 
 export const flagsForFuzzing: CommandFuzzInfo = {

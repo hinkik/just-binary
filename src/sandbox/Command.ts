@@ -1,6 +1,5 @@
 import type { Bash } from "../Bash.js";
-import type { ExecResult } from "../types.js";
-import { decode } from "../utils/bytes.js";
+import { collectText } from "../utils/stream.js";
 
 export interface OutputMessage {
   type: "stdout" | "stderr";
@@ -18,7 +17,11 @@ export class Command {
   private cmdLine: string;
   private env?: Record<string, string>;
   private explicitCwd: boolean;
-  private resultPromise: Promise<ExecResult>;
+  private resultPromise: Promise<{
+    stdoutText: string;
+    stderrText: string;
+    exitCode: number;
+  }>;
 
   constructor(
     bashEnv: Bash,
@@ -39,7 +42,11 @@ export class Command {
     this.resultPromise = this.execute();
   }
 
-  private async execute(): Promise<ExecResult> {
+  private async execute(): Promise<{
+    stdoutText: string;
+    stderrText: string;
+    exitCode: number;
+  }> {
     // Only pass options if they were explicitly provided (to avoid creating isolated state unnecessarily)
     const options =
       this.env || this.explicitCwd
@@ -47,24 +54,28 @@ export class Command {
         : undefined;
     const result = await this.bashEnv.exec(this.cmdLine, options);
     this.exitCode = result.exitCode;
-    return result;
+    const [stdoutText, stderrText] = await Promise.all([
+      collectText(result.stdout),
+      collectText(result.stderr),
+    ]);
+    return { stdoutText, stderrText, exitCode: result.exitCode };
   }
 
   async *logs(): AsyncGenerator<OutputMessage, void, unknown> {
     const result = await this.resultPromise;
 
     // For Bash, we don't have true streaming, so emit all at once
-    if (result.stdout.length > 0) {
+    if (result.stdoutText.length > 0) {
       yield {
         type: "stdout",
-        data: decode(result.stdout),
+        data: result.stdoutText,
         timestamp: new Date(),
       };
     }
-    if (result.stderr.length > 0) {
+    if (result.stderrText.length > 0) {
       yield {
         type: "stderr",
-        data: decode(result.stderr),
+        data: result.stderrText,
         timestamp: new Date(),
       };
     }
@@ -77,17 +88,17 @@ export class Command {
 
   async output(): Promise<string> {
     const result = await this.resultPromise;
-    return decode(result.stdout) + decode(result.stderr);
+    return result.stdoutText + result.stderrText;
   }
 
   async stdout(): Promise<string> {
     const result = await this.resultPromise;
-    return decode(result.stdout);
+    return result.stdoutText;
   }
 
   async stderr(): Promise<string> {
     const result = await this.resultPromise;
-    return decode(result.stderr);
+    return result.stderrText;
   }
 
   async kill(): Promise<void> {

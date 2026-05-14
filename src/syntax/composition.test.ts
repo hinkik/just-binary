@@ -6,7 +6,7 @@ describe("Syntax Feature Composition", () => {
   describe("If statements with other features", () => {
     it("should use command substitution in if condition", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         if [[ $(echo hello) == "hello" ]]; then
           echo "matched"
@@ -18,7 +18,7 @@ describe("Syntax Feature Composition", () => {
 
     it("should use arithmetic in if condition", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         export X=5
         if [[ $((X + 3)) -eq 8 ]]; then
@@ -31,7 +31,7 @@ describe("Syntax Feature Composition", () => {
 
     it("should use here document inside if block", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         if [[ 1 -eq 1 ]]; then
           cat <<EOF
@@ -45,7 +45,7 @@ EOF
 
     it("should use case statement inside if block", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         export VAR=apple
         if [[ -n "$VAR" ]]; then
@@ -61,7 +61,7 @@ EOF
 
     it("should use pipes inside if block", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         if [[ 1 -eq 1 ]]; then
           echo -e "line1\\nline2\\nline3" | grep line2
@@ -75,7 +75,7 @@ EOF
   describe("Here documents with pipes and commands", () => {
     it("should pipe here document through multiple commands", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`cat <<EOF | grep hello | wc -l
 hello world
 goodbye world
@@ -87,7 +87,7 @@ EOF`),
 
     it("should use variable expansion in here doc piped to grep", async () => {
       const env = new Bash({ env: { PATTERN: "world" } });
-      const result = toText(
+      const result = await toText(
         await env.exec(`cat <<EOF | grep $PATTERN
 hello world
 goodbye moon
@@ -98,7 +98,7 @@ EOF`),
 
     it("should use command substitution in here document", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`cat <<EOF
 The answer is $(echo 42)
 EOF`),
@@ -108,7 +108,7 @@ EOF`),
 
     it("should use arithmetic expansion in here document", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`cat <<EOF
 5 + 3 = $((5 + 3))
 EOF`),
@@ -118,7 +118,7 @@ EOF`),
 
     it("should combine here doc with sort and uniq", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`cat <<EOF | sort | uniq
 banana
 apple
@@ -134,7 +134,7 @@ EOF`),
   describe("Case statements with other features", () => {
     it("should use command substitution as case word", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         case $(echo test) in
           test) echo "matched command output";;
@@ -147,7 +147,7 @@ EOF`),
 
     it("should use arithmetic result as case word", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         case $((2 + 3)) in
           5) echo "five";;
@@ -160,7 +160,7 @@ EOF`),
 
     it("should use pipes inside case branch", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         case "process" in
           process)
@@ -174,7 +174,7 @@ EOF`),
 
     it("should use here document inside case branch", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         case "heredoc" in
           heredoc)
@@ -190,7 +190,7 @@ EOF
 
     it("should nest case in case", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         case "outer" in
           outer)
@@ -208,7 +208,7 @@ EOF
   describe("Test expressions with other features", () => {
     it("should test command substitution result", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         if [[ $(echo "yes") == "yes" ]]; then
           echo "command output matched"
@@ -220,7 +220,7 @@ EOF
 
     it("should test arithmetic result", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         if [[ $((10 / 2)) -eq 5 ]]; then
           echo "arithmetic correct"
@@ -233,7 +233,7 @@ EOF
     it("should use test expression with file created by previous command", async () => {
       const env = new Bash();
       await env.exec("echo 'content' > /tmp/testfile.txt");
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         if [[ -f /tmp/testfile.txt ]]; then
           echo "file exists"
@@ -245,7 +245,7 @@ EOF
 
     it("should combine multiple test conditions with command substitution", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         export COUNT=3
         if [[ $COUNT -gt 0 && $(echo "valid") == "valid" ]]; then
@@ -260,7 +260,7 @@ EOF
   describe("Loops with syntax features", () => {
     it("should use command substitution in for loop", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         for item in $(echo "a b c"); do
           echo "item: $item"
@@ -272,7 +272,7 @@ EOF
 
     it("should use arithmetic in while loop condition", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         export I=0
         while [[ $I -lt 3 ]]; do
@@ -286,7 +286,7 @@ EOF
 
     it("should use case statement inside loop", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         for fruit in apple banana cherry; do
           case $fruit in
@@ -302,7 +302,7 @@ EOF
 
     it("should use here document inside loop", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         for i in 1 2; do
           cat <<EOF
@@ -316,7 +316,7 @@ EOF
 
     it("should pipe loop output", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         for i in 3 1 2; do
           echo $i
@@ -330,7 +330,7 @@ EOF
   describe("Functions with syntax features", () => {
     it("should use command substitution in function", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         greet() {
           local name=$(echo "World")
@@ -344,7 +344,7 @@ EOF
 
     it("should use arithmetic in function", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         add() {
           echo $(($1 + $2))
@@ -357,7 +357,7 @@ EOF
 
     it("should use case statement in function", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         get_color() {
           case $1 in
@@ -376,7 +376,7 @@ EOF
 
     it("should use test expression in function", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         is_positive() {
           if [[ $1 -gt 0 ]]; then
@@ -395,7 +395,7 @@ EOF
 
     it("should use here document in function", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         generate_config() {
           cat <<EOF
@@ -411,7 +411,7 @@ EOF
 
     it("should call function with command substitution", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         double() {
           echo $(($1 * 2))
@@ -427,7 +427,7 @@ EOF
   describe("Complex multi-feature compositions", () => {
     it("should combine if, case, and command substitution", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         export TYPE=$(echo "fruit")
         if [[ $TYPE == "fruit" ]]; then
@@ -443,7 +443,7 @@ EOF
 
     it("should use here doc with command substitution and pipes", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         export PREFIX=">>>"
         cat <<EOF | grep world
@@ -457,7 +457,7 @@ EOF`),
 
     it("should nest loops with conditionals and arithmetic", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         for i in 1 2 3; do
           for j in 1 2; do
@@ -473,7 +473,7 @@ EOF`),
 
     it("should use function with loop, case, and arithmetic", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         process_numbers() {
           local sum=0
@@ -493,7 +493,7 @@ EOF`),
 
     it("should pipe function output through multiple commands", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         generate_data() {
           for i in 3 1 4 1 5 9 2 6; do
@@ -508,7 +508,7 @@ EOF`),
 
     it("should combine test expression with file operations and here doc", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         cat <<EOF > /tmp/data.txt
 line1
@@ -527,7 +527,7 @@ EOF
 
     it("should use nested command substitution", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         echo "Result: $(echo "inner: $(echo deep)")"
       `),
@@ -537,7 +537,7 @@ EOF
 
     it("should combine arithmetic with comparison in loop", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         export N=1
         while [[ $((N * N)) -le 10 ]]; do
@@ -555,7 +555,7 @@ EOF
   describe("Error handling in composed features", () => {
     it("should handle failed command in command substitution", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         result=$(cat /nonexistent/file 2>/dev/null)
         if [[ -z "$result" ]]; then
@@ -568,7 +568,7 @@ EOF
 
     it("should handle empty here document in pipe", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`cat <<EOF | wc -l
 EOF`),
       );
@@ -577,7 +577,7 @@ EOF`),
 
     it("should handle case with no matching pattern", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         case "nomatch" in
           a) echo "a";;

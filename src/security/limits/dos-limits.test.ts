@@ -22,7 +22,7 @@ describe("DoS Prevention - Execution Limits", () => {
     it("should limit brace expansion with hardcoded internal limit", async () => {
       // Brace expansion has hardcoded limit of 10000 results
       // {a..z}{a..z} = 676 items, which is within limit
-      const result = toText(
+      const result = await toText(
         await bash.exec("arr=({a..z}{a..z}); echo ${#arr[@]}"),
       );
       expect(result.exitCode).toBe(0);
@@ -31,7 +31,7 @@ describe("DoS Prevention - Execution Limits", () => {
 
     it("should handle very large brace expansion gracefully", async () => {
       // {1..10000} is at the hardcoded limit boundary
-      const result = toText(
+      const result = await toText(
         await bash.exec("arr=({1..10001}); echo ${#arr[@]}"),
       );
       // Should either succeed or fail gracefully, not crash
@@ -39,13 +39,13 @@ describe("DoS Prevention - Execution Limits", () => {
     });
 
     it("should allow brace expansion within limits", async () => {
-      const result = toText(await bash.exec("echo {1..10}"));
+      const result = await toText(await bash.exec("echo {1..10}"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("1 2 3 4 5 6 7 8 9 10\n");
     });
 
     it("should handle nested brace expansion", async () => {
-      const result = toText(await bash.exec("echo {a,b}{c,d}{e,f}"));
+      const result = await toText(await bash.exec("echo {a,b}{c,d}{e,f}"));
       expect(result.exitCode).toBe(0);
       // 2*2*2 = 8 combinations
       expect(result.stdout).toBe("ace acf ade adf bce bcf bde bdf\n");
@@ -58,7 +58,7 @@ describe("DoS Prevention - Execution Limits", () => {
         executionLimits: { maxLoopIterations: 10 },
       });
 
-      const result = toText(
+      const result = await toText(
         await limitedBash.exec(`
         i=0
         while true; do
@@ -76,7 +76,7 @@ describe("DoS Prevention - Execution Limits", () => {
         executionLimits: { maxLoopIterations: 5 },
       });
 
-      const result = toText(
+      const result = await toText(
         await limitedBash.exec(`
         for i in {1..100}; do
           echo $i
@@ -92,7 +92,7 @@ describe("DoS Prevention - Execution Limits", () => {
         executionLimits: { maxLoopIterations: 5 },
       });
 
-      const result = toText(
+      const result = await toText(
         await limitedBash.exec(`
         i=0
         until false; do
@@ -112,7 +112,7 @@ describe("DoS Prevention - Execution Limits", () => {
         executionLimits: { maxLoopIterations: 5 },
       });
 
-      const result = toText(
+      const result = await toText(
         await limitedBash.exec(`
         for i in 1 2 3; do
           for j in 1 2 3 4 5 6 7 8 9 10; do
@@ -130,7 +130,7 @@ describe("DoS Prevention - Execution Limits", () => {
         executionLimits: { maxLoopIterations: 15 },
       });
 
-      const result = toText(
+      const result = await toText(
         await limitedBash.exec(`
         for i in 1 2 3 4 5; do
           echo "for: $i"
@@ -151,7 +151,7 @@ describe("DoS Prevention - Execution Limits", () => {
         executionLimits: { maxLoopIterations: 100 },
       });
 
-      const result = toText(
+      const result = await toText(
         await limitedBash.exec(`
         for i in 1 2 3 4 5; do
           echo $i
@@ -169,7 +169,7 @@ describe("DoS Prevention - Execution Limits", () => {
         executionLimits: { maxCommandCount: 5 },
       });
 
-      const result = toText(
+      const result = await toText(
         await limitedBash.exec(`
         echo 1
         echo 2
@@ -189,7 +189,7 @@ describe("DoS Prevention - Execution Limits", () => {
         executionLimits: { maxCommandCount: 5 },
       });
 
-      const result = toText(
+      const result = await toText(
         await limitedBash.exec(`
         echo 1
         (echo 2; echo 3; echo 4)
@@ -208,7 +208,7 @@ describe("DoS Prevention - Execution Limits", () => {
       });
 
       // Execute multiple independent pipelines to accumulate command count
-      const result = toText(
+      const result = await toText(
         await limitedBash.exec(`
         echo a | cat
         echo b | cat
@@ -224,7 +224,7 @@ describe("DoS Prevention - Execution Limits", () => {
         executionLimits: { maxCommandCount: 5 },
       });
 
-      const result = toText(
+      const result = await toText(
         await limitedBash.exec(`
         eval 'echo 1; echo 2; echo 3; echo 4; echo 5; echo 6'
       `),
@@ -238,7 +238,7 @@ describe("DoS Prevention - Execution Limits", () => {
         executionLimits: { maxCommandCount: 10 },
       });
 
-      const result = toText(
+      const result = await toText(
         await limitedBash.exec(`
         echo 1
         echo 2
@@ -256,7 +256,7 @@ describe("DoS Prevention - Execution Limits", () => {
         executionLimits: { maxCallDepth: 5 },
       });
 
-      const result = toText(
+      const result = await toText(
         await limitedBash.exec(`
         recurse() {
           echo "depth: $1"
@@ -274,7 +274,7 @@ describe("DoS Prevention - Execution Limits", () => {
         executionLimits: { maxCallDepth: 10 },
       });
 
-      const result = toText(
+      const result = await toText(
         await limitedBash.exec(`
         func_a() {
           echo "a: $1"
@@ -296,7 +296,7 @@ describe("DoS Prevention - Execution Limits", () => {
         executionLimits: { maxSubstitutionDepth: 3 },
       });
 
-      const result = toText(
+      const result = await toText(
         await limitedBash.exec("echo $(echo $(echo $(echo $(echo too-deep))))"),
       );
       expect(result.exitCode).toBe(126);
@@ -310,7 +310,7 @@ describe("DoS Prevention - Execution Limits", () => {
         executionLimits: { maxCallDepth: 10 },
       });
 
-      const result = toText(
+      const result = await toText(
         await limitedBash.exec(`
         countdown() {
           if [ $1 -le 0 ]; then
@@ -334,7 +334,7 @@ describe("DoS Prevention - Execution Limits", () => {
         executionLimits: { maxLoopIterations: 10 },
       });
 
-      const result = toText(
+      const result = await toText(
         await limitedBash.exec(`
         for ((i=0; i<1000; i++)); do
           echo $i
@@ -350,7 +350,7 @@ describe("DoS Prevention - Execution Limits", () => {
         executionLimits: { maxLoopIterations: 5 },
       });
 
-      const result = toText(
+      const result = await toText(
         await limitedBash.exec(`
         for ((;;)); do
           echo "infinite"
@@ -371,7 +371,7 @@ describe("DoS Prevention - Execution Limits", () => {
         },
       });
 
-      const result = toText(
+      const result = await toText(
         await limitedBash.exec(`
         for i in {1..100}; do
           echo $(echo $(echo $i))
@@ -391,7 +391,7 @@ describe("DoS Prevention - Execution Limits", () => {
         },
       });
 
-      const result = toText(
+      const result = await toText(
         await limitedBash.exec(`
         bomb() {
           for i in 1 2 3 4 5; do
@@ -414,7 +414,7 @@ describe("DoS Prevention - Execution Limits", () => {
         },
       });
 
-      const result = toText(
+      const result = await toText(
         await limitedBash.exec(`
         for i in {1..100}; do
           eval "echo iteration $i"
@@ -433,7 +433,7 @@ describe("DoS Prevention - Execution Limits", () => {
       });
 
       // Create deeply nested arithmetic expression
-      const result = toText(
+      const result = await toText(
         await limitedBash.exec(
           "echo $((1+$((2+$((3+$((4+$((5+$((6+$((7+$((8+$((9+$((10+$((11))))))))))))))))))))))",
         ),
@@ -448,7 +448,7 @@ describe("DoS Prevention - Execution Limits", () => {
       });
 
       // This tests arithmetic variable chains
-      const result = toText(
+      const result = await toText(
         await limitedBash.exec(`
         a=1
         b='a+1'
@@ -468,7 +468,7 @@ describe("DoS Prevention - Execution Limits", () => {
       // Both loop iteration (10000) and command count (10000) limits apply
       const defaultBash = new Bash();
 
-      const result = toText(
+      const result = await toText(
         await defaultBash.exec(`
         i=0
         while true; do
@@ -488,7 +488,7 @@ describe("DoS Prevention - Execution Limits", () => {
     it("should allow normal scripts to run with defaults", async () => {
       const defaultBash = new Bash();
 
-      const result = toText(
+      const result = await toText(
         await defaultBash.exec(`
         sum=0
         for i in {1..100}; do
@@ -508,7 +508,7 @@ describe("DoS Prevention - Execution Limits", () => {
         executionLimits: { maxLoopIterations: 100 },
       });
 
-      const result = toText(
+      const result = await toText(
         await limitedBash.exec(`
         i=0
         while true; do
@@ -530,7 +530,7 @@ describe("DoS Prevention - Execution Limits", () => {
         executionLimits: { maxLoopIterations: 100 },
       });
 
-      const result = toText(
+      const result = await toText(
         await limitedBash.exec(`
         for i in 1 2 3 4 5; do
           if [ $i -eq 3 ]; then
@@ -549,7 +549,7 @@ describe("DoS Prevention - Execution Limits", () => {
         executionLimits: { maxLoopIterations: 100 },
       });
 
-      const result = toText(
+      const result = await toText(
         await limitedBash.exec(`
         find_three() {
           for i in 1 2 3 4 5; do
@@ -572,7 +572,7 @@ describe("DoS Prevention - Execution Limits", () => {
         executionLimits: { maxLoopIterations: 100 },
       });
 
-      const result = toText(
+      const result = await toText(
         await limitedBash.exec(`
         for i in 1 2 3 4 5; do
           if [ $i -eq 3 ]; then

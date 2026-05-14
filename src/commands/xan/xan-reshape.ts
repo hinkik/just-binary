@@ -3,7 +3,7 @@
  */
 
 import type { CommandContext, ExecResult } from "../../types.js";
-import { EMPTY, encode } from "../../utils/bytes.js";
+import { emptyStream, fromString } from "../../utils/stream.js";
 import {
   type CsvData,
   type CsvRow,
@@ -50,8 +50,8 @@ export async function cmdExplode(
 
   if (!column) {
     return {
-      stdout: EMPTY,
-      stderr: encode("xan explode: usage: xan explode COLUMN [FILE]\n"),
+      stdout: emptyStream(),
+      stderr: fromString("xan explode: usage: xan explode COLUMN [FILE]\n"),
       exitCode: 1,
     };
   }
@@ -61,8 +61,8 @@ export async function cmdExplode(
 
   if (!headers.includes(column)) {
     return {
-      stdout: EMPTY,
-      stderr: encode(`xan explode: column '${column}' not found\n`),
+      stdout: emptyStream(),
+      stderr: fromString(`xan explode: column '${column}' not found\n`),
       exitCode: 1,
     };
   }
@@ -100,8 +100,8 @@ export async function cmdExplode(
   }
 
   return {
-    stdout: encode(formatCsv(newHeaders, newData)),
-    stderr: EMPTY,
+    stdout: fromString(formatCsv(newHeaders, newData)),
+    stderr: emptyStream(),
     exitCode: 0,
   };
 }
@@ -138,8 +138,8 @@ export async function cmdImplode(
 
   if (!column) {
     return {
-      stdout: EMPTY,
-      stderr: encode("xan implode: usage: xan implode COLUMN [FILE]\n"),
+      stdout: emptyStream(),
+      stderr: fromString("xan implode: usage: xan implode COLUMN [FILE]\n"),
       exitCode: 1,
     };
   }
@@ -149,8 +149,8 @@ export async function cmdImplode(
 
   if (!headers.includes(column)) {
     return {
-      stdout: EMPTY,
-      stderr: encode(`xan implode: column '${column}' not found\n`),
+      stdout: emptyStream(),
+      stderr: fromString(`xan implode: column '${column}' not found\n`),
       exitCode: 1,
     };
   }
@@ -205,8 +205,8 @@ export async function cmdImplode(
   }
 
   return {
-    stdout: encode(formatCsv(newHeaders, newData)),
-    stderr: EMPTY,
+    stdout: fromString(formatCsv(newHeaders, newData)),
+    stderr: emptyStream(),
     exitCode: 0,
   };
 }
@@ -252,8 +252,8 @@ export async function cmdJoin(
 
   if (!key1 || !file1 || !key2 || !file2) {
     return {
-      stdout: EMPTY,
-      stderr: encode(
+      stdout: emptyStream(),
+      stderr: fromString(
         "xan join: usage: xan join KEY1 FILE1 KEY2 FILE2 [OPTIONS]\n",
       ),
       exitCode: 1,
@@ -272,15 +272,19 @@ export async function cmdJoin(
 
   if (!headers1.includes(key1)) {
     return {
-      stdout: EMPTY,
-      stderr: encode(`xan join: column '${key1}' not found in first file\n`),
+      stdout: emptyStream(),
+      stderr: fromString(
+        `xan join: column '${key1}' not found in first file\n`,
+      ),
       exitCode: 1,
     };
   }
   if (!headers2.includes(key2)) {
     return {
-      stdout: EMPTY,
-      stderr: encode(`xan join: column '${key2}' not found in second file\n`),
+      stdout: emptyStream(),
+      stderr: fromString(
+        `xan join: column '${key2}' not found in second file\n`,
+      ),
       exitCode: 1,
     };
   }
@@ -352,8 +356,8 @@ export async function cmdJoin(
   }
 
   return {
-    stdout: encode(formatCsv(newHeaders, newData)),
-    stderr: EMPTY,
+    stdout: fromString(formatCsv(newHeaders, newData)),
+    stderr: emptyStream(),
     exitCode: 0,
   };
 }
@@ -389,8 +393,8 @@ export async function cmdPivot(
 
   if (!pivotCol || !aggExpr) {
     return {
-      stdout: EMPTY,
-      stderr: encode(
+      stdout: emptyStream(),
+      stderr: fromString(
         "xan pivot: usage: xan pivot COLUMN AGG_EXPR [OPTIONS] [FILE]\n",
       ),
       exitCode: 1,
@@ -402,8 +406,8 @@ export async function cmdPivot(
 
   if (!headers.includes(pivotCol)) {
     return {
-      stdout: EMPTY,
-      stderr: encode(`xan pivot: column '${pivotCol}' not found\n`),
+      stdout: emptyStream(),
+      stderr: fromString(`xan pivot: column '${pivotCol}' not found\n`),
       exitCode: 1,
     };
   }
@@ -412,8 +416,8 @@ export async function cmdPivot(
   const aggMatch = aggExpr.match(/^(\w+)\((\w+)\)$/);
   if (!aggMatch) {
     return {
-      stdout: EMPTY,
-      stderr: encode(
+      stdout: emptyStream(),
+      stderr: fromString(
         `xan pivot: invalid aggregation expression '${aggExpr}'\n`,
       ),
       exitCode: 1,
@@ -484,8 +488,8 @@ export async function cmdPivot(
   }
 
   return {
-    stdout: encode(formatCsv(newHeaders, newData)),
-    stderr: EMPTY,
+    stdout: fromString(formatCsv(newHeaders, newData)),
+    stderr: emptyStream(),
     exitCode: 0,
   };
 }
@@ -545,8 +549,10 @@ export async function cmdMerge(
 
   if (fileArgs.length < 2) {
     return {
-      stdout: EMPTY,
-      stderr: encode("xan merge: usage: xan merge [OPTIONS] FILE1 FILE2 ...\n"),
+      stdout: emptyStream(),
+      stderr: fromString(
+        "xan merge: usage: xan merge [OPTIONS] FILE1 FILE2 ...\n",
+      ),
       exitCode: 1,
     };
   }
@@ -565,8 +571,8 @@ export async function cmdMerge(
       JSON.stringify(commonHeaders) !== JSON.stringify(result.headers)
     ) {
       return {
-        stdout: EMPTY,
-        stderr: encode("xan merge: all files must have the same headers\n"),
+        stdout: emptyStream(),
+        stderr: fromString("xan merge: all files must have the same headers\n"),
         exitCode: 1,
       };
     }
@@ -575,7 +581,7 @@ export async function cmdMerge(
   }
 
   if (!commonHeaders) {
-    return { stdout: EMPTY, stderr: EMPTY, exitCode: 0 };
+    return { stdout: emptyStream(), stderr: emptyStream(), exitCode: 0 };
   }
 
   // Merge all data
@@ -588,8 +594,8 @@ export async function cmdMerge(
   if (sortCol) {
     if (!commonHeaders.includes(sortCol)) {
       return {
-        stdout: EMPTY,
-        stderr: encode(`xan merge: column '${sortCol}' not found\n`),
+        stdout: emptyStream(),
+        stderr: fromString(`xan merge: column '${sortCol}' not found\n`),
         exitCode: 1,
       };
     }
@@ -608,8 +614,8 @@ export async function cmdMerge(
   }
 
   return {
-    stdout: encode(formatCsv(commonHeaders, merged)),
-    stderr: EMPTY,
+    stdout: fromString(formatCsv(commonHeaders, merged)),
+    stderr: emptyStream(),
     exitCode: 0,
   };
 }

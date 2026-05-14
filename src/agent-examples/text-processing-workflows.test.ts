@@ -99,7 +99,7 @@ export class AuthService {
   describe("Finding TODOs and FIXMEs", () => {
     it("should find all TODO comments in codebase", async () => {
       const env = createCodebaseEnv();
-      const result = toText(await env.exec('grep -r "TODO" src/'));
+      const result = await toText(await env.exec('grep -r "TODO" src/'));
       expect(result.stdout).toContain("TODO: Add error handling");
       expect(result.stdout).toContain("TODO: Add caching");
       expect(result.stdout).toContain("TODO: Implement refresh tokens");
@@ -108,14 +108,16 @@ export class AuthService {
 
     it("should count TODOs per file", async () => {
       const env = createCodebaseEnv();
-      const result = toText(await env.exec('grep -c "TODO" src/index.ts'));
+      const result = await toText(
+        await env.exec('grep -c "TODO" src/index.ts'),
+      );
       expect(result.stdout).toBe("2\n");
       expect(result.exitCode).toBe(0);
     });
 
     it("should find FIXMEs with line numbers", async () => {
       const env = createCodebaseEnv();
-      const result = toText(await env.exec('grep -rn "FIXME" src/'));
+      const result = await toText(await env.exec('grep -rn "FIXME" src/'));
       expect(result.stdout).toContain(":11:"); // Line number
       expect(result.stdout).toContain("FIXME");
       expect(result.exitCode).toBe(0);
@@ -123,7 +125,7 @@ export class AuthService {
 
     it("should find both TODO and FIXME", async () => {
       const env = createCodebaseEnv();
-      const result = toText(await env.exec('grep -rE "TODO|FIXME" src/'));
+      const result = await toText(await env.exec('grep -rE "TODO|FIXME" src/'));
       expect(result.stdout).toContain("TODO");
       expect(result.stdout).toContain("FIXME");
       expect(result.exitCode).toBe(0);
@@ -133,7 +135,7 @@ export class AuthService {
   describe("Finding imports and dependencies", () => {
     it("should find all import statements", async () => {
       const env = createCodebaseEnv();
-      const result = toText(await env.exec('grep -r "^import" src/'));
+      const result = await toText(await env.exec('grep -r "^import" src/'));
       expect(result.stdout).toContain("import { UserService }");
       expect(result.stdout).toContain("import { Database }");
       expect(result.exitCode).toBe(0);
@@ -141,7 +143,7 @@ export class AuthService {
 
     it("should find files importing Logger", async () => {
       const env = createCodebaseEnv();
-      const result = toText(await env.exec('grep -rl "Logger" src'));
+      const result = await toText(await env.exec('grep -rl "Logger" src'));
       expect(result.stdout).toContain("index.ts");
       expect(result.stdout).toContain("user.ts");
       expect(result.exitCode).toBe(0);
@@ -149,7 +151,9 @@ export class AuthService {
 
     it("should find class definitions", async () => {
       const env = createCodebaseEnv();
-      const result = toText(await env.exec('grep -r "^export class" src/'));
+      const result = await toText(
+        await env.exec('grep -r "^export class" src/'),
+      );
       expect(result.stdout).toContain("export class UserService");
       expect(result.stdout).toContain("export class AuthService");
       expect(result.stdout).toContain("export class Logger");
@@ -160,7 +164,7 @@ export class AuthService {
   describe("Finding patterns with context", () => {
     it("should show context around matches", async () => {
       const env = createCodebaseEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec('grep -A2 "async getUser" src/services/user.ts'),
       );
       expect(result.stdout).toContain("async getUser");
@@ -170,7 +174,7 @@ export class AuthService {
 
     it("should show context before matches", async () => {
       const env = createCodebaseEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec('grep -B1 "return this.db" src/services/user.ts'),
       );
       expect(result.stdout).toContain("logger.debug");
@@ -218,7 +222,7 @@ function setUserName(name) {
       await env.exec(
         "sed -i 's|http://localhost:3000|https://api.production.com|' config.ts",
       );
-      const result = toText(await env.exec("cat config.ts"));
+      const result = await toText(await env.exec("cat config.ts"));
       expect(result.stdout).toContain("https://api.production.com");
       expect(result.stdout).not.toContain("localhost");
       expect(result.exitCode).toBe(0);
@@ -227,7 +231,7 @@ function setUserName(name) {
     it("should change debug flag to false", async () => {
       const env = createRefactoringEnv();
       await env.exec("sed -i 's/debug: true/debug: false/' config.ts");
-      const result = toText(await env.exec("cat config.ts"));
+      const result = await toText(await env.exec("cat config.ts"));
       expect(result.stdout).toContain("debug: false");
       expect(result.exitCode).toBe(0);
     });
@@ -235,7 +239,7 @@ function setUserName(name) {
     it("should update timeout value", async () => {
       const env = createRefactoringEnv();
       await env.exec("sed -i 's/timeout: 5000/timeout: 10000/' config.ts");
-      const result = toText(await env.exec("cat config.ts"));
+      const result = await toText(await env.exec("cat config.ts"));
       expect(result.stdout).toContain("timeout: 10000");
       expect(result.exitCode).toBe(0);
     });
@@ -245,7 +249,7 @@ function setUserName(name) {
     it("should rename variable globally in file", async () => {
       const env = createRefactoringEnv();
       await env.exec("sed -i 's/userName/username/g' legacy.ts");
-      const result = toText(await env.exec("cat legacy.ts"));
+      const result = await toText(await env.exec("cat legacy.ts"));
       expect(result.stdout).toContain("const username");
       expect(result.stdout).toContain("return username");
       expect(result.stdout).not.toContain("userName");
@@ -255,7 +259,7 @@ function setUserName(name) {
     it("should rename function", async () => {
       const env = createRefactoringEnv();
       await env.exec("sed -i 's/getUserName/getUsername/g' legacy.ts");
-      const result = toText(await env.exec("cat legacy.ts"));
+      const result = await toText(await env.exec("cat legacy.ts"));
       expect(result.stdout).toContain("function getUsername");
       expect(result.exitCode).toBe(0);
     });
@@ -265,7 +269,7 @@ function setUserName(name) {
     it("should remove old comment", async () => {
       const env = createRefactoringEnv();
       await env.exec("sed -i '/Old naming convention/d' legacy.ts");
-      const result = toText(await env.exec("cat legacy.ts"));
+      const result = await toText(await env.exec("cat legacy.ts"));
       expect(result.stdout).not.toContain("Old naming convention");
       expect(result.exitCode).toBe(0);
     });
@@ -274,7 +278,7 @@ function setUserName(name) {
   describe("Multiple substitutions", () => {
     it("should chain multiple sed commands with pipe", async () => {
       const env = createRefactoringEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           "cat config.ts | sed 's/3000/8080/' | sed 's/5000/10000/'",
         ),
@@ -328,14 +332,16 @@ describe("Agent Workflow: Data Extraction with awk", () => {
   describe("CSV parsing", () => {
     it("should extract specific column from CSV", async () => {
       const env = createDataEnv();
-      const result = toText(await env.exec("awk -F, '{print $2}' users.csv"));
+      const result = await toText(
+        await env.exec("awk -F, '{print $2}' users.csv"),
+      );
       expect(result.stdout).toBe("name\nAlice\nBob\nCharlie\nDiana\nEve\n");
       expect(result.exitCode).toBe(0);
     });
 
     it("should extract email column (skip header)", async () => {
       const env = createDataEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec("awk -F, 'NR>1 {print $3}' users.csv"),
       );
       expect(result.stdout).toBe(
@@ -346,7 +352,7 @@ describe("Agent Workflow: Data Extraction with awk", () => {
 
     it("should filter rows by role", async () => {
       const env = createDataEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec("awk -F, '$4==\"admin\"' users.csv"),
       );
       expect(result.stdout).toContain("Alice");
@@ -358,7 +364,7 @@ describe("Agent Workflow: Data Extraction with awk", () => {
     it("should count users by role", async () => {
       const env = createDataEnv();
       // Count admins
-      const result = toText(
+      const result = await toText(
         await env.exec("awk -F, '$4==\"admin\"' users.csv | wc -l"),
       );
       expect(result.stdout.trim()).toBe("2");
@@ -367,7 +373,7 @@ describe("Agent Workflow: Data Extraction with awk", () => {
 
     it("should reformat CSV output", async () => {
       const env = createDataEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec('awk -F, \'NR>1 {print $2 " <" $3 ">"}\' users.csv'),
       );
       expect(result.stdout).toContain("Alice <alice@example.com>");
@@ -379,7 +385,7 @@ describe("Agent Workflow: Data Extraction with awk", () => {
   describe("TSV parsing", () => {
     it("should parse tab-separated values", async () => {
       const env = createDataEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec("awk -F'\\t' 'NR>1 {print $2, $3}' metrics.tsv"),
       );
       expect(result.stdout).toContain("api 45");
@@ -389,7 +395,7 @@ describe("Agent Workflow: Data Extraction with awk", () => {
 
     it("should filter by status code", async () => {
       const env = createDataEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec("awk -F'\\t' '$4==500' metrics.tsv"),
       );
       expect(result.stdout).toContain("500");
@@ -401,7 +407,7 @@ describe("Agent Workflow: Data Extraction with awk", () => {
   describe("Log parsing", () => {
     it("should extract unique IP addresses", async () => {
       const env = createDataEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec("awk '{print $1}' access.log | sort | uniq"),
       );
       expect(result.stdout).toContain("192.168.1.100");
@@ -412,7 +418,7 @@ describe("Agent Workflow: Data Extraction with awk", () => {
 
     it("should count requests per IP", async () => {
       const env = createDataEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           "awk '{print $1}' access.log | sort | uniq -c | sort -rn",
         ),
@@ -423,7 +429,7 @@ describe("Agent Workflow: Data Extraction with awk", () => {
 
     it("should find failed requests (non-200)", async () => {
       const env = createDataEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec("awk '$9!=200 {print $0}' access.log"),
       );
       expect(result.stdout).toContain("401");
@@ -433,7 +439,7 @@ describe("Agent Workflow: Data Extraction with awk", () => {
     it("should extract request paths", async () => {
       const env = createDataEnv();
       // Field 6 contains the request path in Apache combined log format
-      const result = toText(
+      const result = await toText(
         await env.exec("awk '{print $6}' access.log | sort | uniq"),
       );
       expect(result.stdout).toContain("/api/users");
@@ -447,7 +453,7 @@ describe("Agent Workflow: Data Extraction with awk", () => {
     it("should calculate average latency", async () => {
       const env = createDataEnv();
       // Sum latencies and count, then divide
-      const result = toText(
+      const result = await toText(
         await env.exec(
           "awk -F'\\t' 'NR>1 {sum+=$3; count++} END{print sum/count}' metrics.tsv",
         ),
@@ -459,7 +465,7 @@ describe("Agent Workflow: Data Extraction with awk", () => {
 
     it("should find max latency", async () => {
       const env = createDataEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           "awk -F'\\t' 'NR>1 && $3>max {max=$3} END{print max}' metrics.tsv",
         ),
@@ -552,7 +558,7 @@ export function useFetch<T>(url: string) {
   describe("Find and analyze patterns", () => {
     it("should find all React components", async () => {
       const env = createPipelineEnv();
-      const result = toText(await env.exec('grep -r "React.FC" src/'));
+      const result = await toText(await env.exec('grep -r "React.FC" src/'));
       expect(result.stdout).toContain("Button");
       expect(result.stdout).toContain("Input");
       expect(result.exitCode).toBe(0);
@@ -561,7 +567,7 @@ export function useFetch<T>(url: string) {
     it("should list all custom hooks", async () => {
       const env = createPipelineEnv();
       // Use glob pattern to search multiple files (grep requires -r for directories)
-      const result = toText(
+      const result = await toText(
         await env.exec('grep -l "^export function use" src/hooks/*.ts'),
       );
       expect(result.stdout).toContain("useAuth.ts");
@@ -571,7 +577,7 @@ export function useFetch<T>(url: string) {
 
     it("should find useState usage and extract hook names", async () => {
       const env = createPipelineEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           "grep -h 'useState' src/hooks/*.ts | awk '{print $1, $2, $3}'",
         ),
@@ -582,7 +588,7 @@ export function useFetch<T>(url: string) {
 
     it("should find files with useEffect", async () => {
       const env = createPipelineEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec('grep -l "useEffect" src/hooks/*.ts'),
       );
       expect(result.stdout).toContain("useAuth.ts");
@@ -594,7 +600,7 @@ export function useFetch<T>(url: string) {
   describe("Code statistics", () => {
     it("should count lines in each component", async () => {
       const env = createPipelineEnv();
-      const result = toText(await env.exec("wc -l src/components/*.tsx"));
+      const result = await toText(await env.exec("wc -l src/components/*.tsx"));
       expect(result.stdout).toContain("Button.tsx");
       expect(result.stdout).toContain("Input.tsx");
       expect(result.exitCode).toBe(0);
@@ -602,7 +608,7 @@ export function useFetch<T>(url: string) {
 
     it("should count interface definitions", async () => {
       const env = createPipelineEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec('grep -c "^interface" src/components/Button.tsx'),
       );
       expect(result.stdout.trim()).toBe("1");
@@ -613,7 +619,7 @@ export function useFetch<T>(url: string) {
   describe("Complex pipelines", () => {
     it("should find imports and sort uniquely", async () => {
       const env = createPipelineEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           'grep -h "^import" src/**/*.ts src/**/*.tsx | sort | uniq',
         ),
@@ -627,7 +633,7 @@ export function useFetch<T>(url: string) {
 
     it("should extract prop types from components", async () => {
       const env = createPipelineEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           "grep -A5 '^interface.*Props' src/components/Button.tsx",
         ),
@@ -698,7 +704,7 @@ END_RECORD`,
   describe("Extracting error blocks from logs", () => {
     it("should extract all error blocks using pattern range", async () => {
       const env = createLogEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           "awk '/ERROR BLOCK START/,/ERROR BLOCK END/' /logs/server.log",
         ),
@@ -711,7 +717,7 @@ END_RECORD`,
 
     it("should extract error blocks with custom formatting", async () => {
       const env = createLogEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           "awk '/ERROR BLOCK START/,/ERROR BLOCK END/ { print \"  \" $0 }' /logs/server.log",
         ),
@@ -723,7 +729,7 @@ END_RECORD`,
 
     it("should count lines in error blocks", async () => {
       const env = createLogEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           "awk '/ERROR BLOCK START/,/ERROR BLOCK END/ { count++ } END { print count }' /logs/server.log",
         ),
@@ -738,7 +744,7 @@ END_RECORD`,
     it("should extract database section from config", async () => {
       const env = createLogEnv();
       // Use grep to find database section lines
-      const result = toText(
+      const result = await toText(
         await env.exec("grep -A3 '\\[database\\]' /logs/config.ini"),
       );
       expect(result.stdout).toContain("[database]");
@@ -749,7 +755,7 @@ END_RECORD`,
 
     it("should extract cache settings", async () => {
       const env = createLogEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec("grep -A3 '\\[cache\\]' /logs/config.ini"),
       );
       expect(result.stdout).toContain("[cache]");
@@ -762,7 +768,7 @@ END_RECORD`,
   describe("Processing multi-line records with getline", () => {
     it("should combine record fields using getline", async () => {
       const env = createLogEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           'awk \'/^RECORD:/ { id=$2; getline; split($0,a,": "); name=a[2]; getline; split($0,b,": "); email=b[2]; print id, name, email }\' /data/records.txt',
         ),
@@ -777,7 +783,7 @@ END_RECORD`,
     it("should extract records with role field", async () => {
       const env = createLogEnv();
       // Simpler approach: use pattern range to get admin record
-      const result = toText(
+      const result = await toText(
         await env.exec(
           "awk '/RECORD: user001/,/END_RECORD/' /data/records.txt | grep role",
         ),
@@ -789,7 +795,7 @@ END_RECORD`,
     it("should skip header lines using getline", async () => {
       const env = createLogEnv();
       // Read and discard the RECORD line, then print remaining fields
-      const result = toText(
+      const result = await toText(
         await env.exec("awk '/^RECORD:/ { getline; print }' /data/records.txt"),
       );
       expect(result.stdout).toContain("name: Alice Johnson");
@@ -826,7 +832,7 @@ Stack trace follows...`,
   describe("Sanitizing user input", () => {
     it("should keep only alphanumeric and spaces", async () => {
       const env = createSanitizeEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec("cat /data/user-input.txt | tr -cd 'a-zA-Z0-9 \\n'"),
       );
       expect(result.stdout).not.toContain("@");
@@ -840,7 +846,7 @@ Stack trace follows...`,
     it("should keep only printable ASCII characters", async () => {
       const env = createSanitizeEnv();
       // Delete all except printable ASCII (space through tilde)
-      const result = toText(
+      const result = await toText(
         await env.exec("echo 'Hello World 123!' | tr -cd 'A-Za-z0-9 !\\n'"),
       );
       expect(result.stdout).toContain("Hello World 123!");
@@ -849,7 +855,7 @@ Stack trace follows...`,
 
     it("should extract only digits from phone number", async () => {
       const env = createSanitizeEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec("grep Phone /data/user-input.txt | tr -cd '0-9\\n'"),
       );
       expect(result.stdout.trim()).toBe("15551234567");
@@ -860,7 +866,7 @@ Stack trace follows...`,
   describe("Sanitizing filenames", () => {
     it("should replace unsafe filename characters with underscores", async () => {
       const env = createSanitizeEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec("cat /data/filenames.txt | tr -c 'a-zA-Z0-9._-\\n' '_'"),
       );
       expect(result.stdout).toContain("report_2024.pdf");
@@ -873,7 +879,7 @@ Stack trace follows...`,
     it("should normalize IDs to lowercase alphanumeric", async () => {
       const env = createSanitizeEnv();
       // First remove non-alphanumeric, then lowercase
-      const result = toText(
+      const result = await toText(
         await env.exec(
           "cat /data/ids.txt | tr -cd 'a-zA-Z0-9\\n' | tr 'A-Z' 'a-z'",
         ),
@@ -889,7 +895,7 @@ Stack trace follows...`,
   describe("Extracting data with tr -c", () => {
     it("should extract only letters for word analysis", async () => {
       const env = createSanitizeEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           "head -1 /data/user-input.txt | tr -cs 'a-zA-Z' '\\n' | head -5",
         ),
@@ -903,7 +909,7 @@ Stack trace follows...`,
 
     it("should extract timestamp digits from log", async () => {
       const env = createSanitizeEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec("head -1 /data/log-entry.txt | tr -cd '0-9 :'"),
       );
       expect(result.stdout).toContain("2024");
@@ -913,7 +919,7 @@ Stack trace follows...`,
 
     it("should extract IP address octets", async () => {
       const env = createSanitizeEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec("grep host /data/log-entry.txt | tr -cd '0-9.\\n'"),
       );
       expect(result.stdout).toContain("192.168.1.100");
@@ -925,7 +931,7 @@ Stack trace follows...`,
     it("should remove potential XSS characters", async () => {
       const env = createSanitizeEnv();
       // Remove < and > to neutralize HTML tags
-      const result = toText(
+      const result = await toText(
         await env.exec("grep script /data/user-input.txt | tr -d '<>'"),
       );
       expect(result.stdout).not.toContain("<");
@@ -936,7 +942,7 @@ Stack trace follows...`,
 
     it("should sanitize for SQL safety (remove quotes)", async () => {
       const env = createSanitizeEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec('echo "user\'; DROP TABLE users;--" | tr -d "\';"'),
       );
       expect(result.stdout).not.toContain("'");
@@ -950,38 +956,38 @@ Stack trace follows...`,
 describe("Agent Workflow: printf formatting", () => {
   it("should format numbers with padding", async () => {
     const env = new Bash();
-    const result = toText(await env.exec("printf '%05d\\n' 42"));
+    const result = await toText(await env.exec("printf '%05d\\n' 42"));
     expect(result.stdout).toBe("00042\n");
   });
 
   it("should format floats with precision", async () => {
     const env = new Bash();
-    const result = toText(await env.exec("printf '%.2f\\n' 3.14159"));
+    const result = await toText(await env.exec("printf '%.2f\\n' 3.14159"));
     expect(result.stdout).toBe("3.14\n");
   });
 
   it("should format hex numbers", async () => {
     const env = new Bash();
-    const result = toText(await env.exec("printf '%x\\n' 255"));
+    const result = await toText(await env.exec("printf '%x\\n' 255"));
     expect(result.stdout).toBe("ff\n");
   });
 
   it("should format with width specifier", async () => {
     const env = new Bash();
-    const result = toText(await env.exec("printf '%10s\\n' hello"));
+    const result = await toText(await env.exec("printf '%10s\\n' hello"));
     expect(result.stdout).toBe("     hello\n");
   });
 
   it("should left-justify with minus flag", async () => {
     const env = new Bash();
-    const result = toText(await env.exec("printf '%-10s|\\n' hello"));
+    const result = await toText(await env.exec("printf '%-10s|\\n' hello"));
     expect(result.stdout).toBe("hello     |\n");
   });
 
   it("should format table-like output", async () => {
     const env = new Bash();
     // %-10s = "Item" + 6 spaces (10 chars), space, %5d = 3 spaces + "42" (5 chars), space, %8.2f = 4 spaces + "3.14" (8 chars)
-    const result = toText(
+    const result = await toText(
       await env.exec("printf '%-10s %5d %8.2f\\n' Item 42 3.14"),
     );
     expect(result.stdout).toBe("Item          42     3.14\n");

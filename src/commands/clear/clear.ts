@@ -1,5 +1,5 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const clearHelp = {
@@ -21,10 +21,15 @@ export const clearCommand: Command = {
     // ANSI escape sequence to clear screen and move cursor to top-left
     const clearSequence = "\x1B[2J\x1B[H";
 
-    return { stdout: encode(clearSequence), stderr: EMPTY, exitCode: 0 };
+    return {
+      stdout: fromString(clearSequence),
+      stderr: emptyStream(),
+      exitCode: 0,
+    };
   },
 };
 
+import { emptyStream, fromString } from "../../utils/stream.js";
 import type { CommandFuzzInfo } from "../fuzz-flags-types.js";
 
 export const flagsForFuzzing: CommandFuzzInfo = {

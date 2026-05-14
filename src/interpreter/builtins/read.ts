@@ -4,6 +4,7 @@
 
 import type { ExecResult } from "../../types.js";
 import { decode, EMPTY, encode, envSet } from "../../utils/bytes.js";
+import { collectBytes, emptyStream, fromBytes } from "../../utils/stream.js";
 import { clearArray } from "../helpers/array.js";
 import {
   getIfs,
@@ -53,12 +54,12 @@ function encodeRwFdContent(
   return `__rw__:${path.length}:${path}:${position}:${content}`;
 }
 
-export function handleRead(
+export async function handleRead(
   ctx: InterpreterContext,
   args: string[],
   stdinBytes: Uint8Array,
   stdinSourceFd = -1,
-): ExecResult {
+): Promise<ExecResult> {
   const stdin = decode(stdinBytes);
   // Parse options
   let raw = false;
@@ -210,11 +211,11 @@ export function handleRead(
       const parseResult = parseOption(arg, i);
       if (parseResult.nextArgIndex === -1) {
         // Invalid argument (e.g., unknown option) - return exit code 2
-        return { stdout: EMPTY, stderr: EMPTY, exitCode: 2 };
+        return { stdout: emptyStream(), stderr: emptyStream(), exitCode: 2 };
       }
       if (parseResult.nextArgIndex === -2) {
         // Invalid argument value (e.g., -u with negative number) - return exit code 1
-        return { stdout: EMPTY, stderr: EMPTY, exitCode: 1 };
+        return { stdout: emptyStream(), stderr: emptyStream(), exitCode: 1 };
       }
       i = parseResult.nextArgIndex;
     } else if (arg === "--") {
@@ -277,7 +278,7 @@ export function handleRead(
       effectiveStdin = "";
     }
   } else if (!effectiveStdin && ctx.state.groupStdin !== undefined) {
-    effectiveStdin = decode(ctx.state.groupStdin);
+    effectiveStdin = decode(await collectBytes(ctx.state.groupStdin));
   }
 
   // Handle -d '' (empty delimiter) - reads until NUL byte
@@ -311,7 +312,9 @@ export function handleRead(
         }
       }
     } else if (ctx.state.groupStdin !== undefined && !stdin) {
-      ctx.state.groupStdin = encode(effectiveStdin.substring(bytesConsumed));
+      ctx.state.groupStdin = fromBytes(
+        encode(effectiveStdin.substring(bytesConsumed)),
+      );
     }
   };
 

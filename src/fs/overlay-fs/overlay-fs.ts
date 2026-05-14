@@ -7,15 +7,18 @@
 
 import * as fs from "node:fs";
 import * as nodePath from "node:path";
+import { type ByteStream, fromChunks } from "../../utils/stream.js";
 import {
-  type FileContent,
-  fromBuffer,
+  contentToChunks,
+  contentToChunksSync,
+  decodeChunks,
   getEncoding,
-  toBuffer,
 } from "../encoding.js";
 import type {
+  BufferEncoding,
   CpOptions,
   DirentEntry,
+  FileContent,
   FsStat,
   IFileSystem,
   MkdirOptions,
@@ -26,7 +29,8 @@ import type {
 
 interface MemoryFileEntry {
   type: "file";
-  content: Uint8Array;
+  chunks: Uint8Array[];
+  size: number;
   mode: number;
   mtime: Date;
 }
@@ -196,13 +200,11 @@ export class OverlayFs implements IFileSystem {
     if (parent !== "/") {
       this.mkdirSync(parent);
     }
-    const buffer =
-      content instanceof Uint8Array
-        ? content
-        : new TextEncoder().encode(content);
+    const { chunks, size } = contentToChunksSync(content);
     this.memory.set(normalized, {
       type: "file",
-      content: buffer,
+      chunks,
+      size,
       mode: 0o644,
       mtime: new Date(),
     });
@@ -341,23 +343,32 @@ export class OverlayFs implements IFileSystem {
     }
   }
 
-  async readFile(
+  async readFile(path: string): Promise<ByteStream> {
+    const chunks = await this.readFileChunks(path);
+    return fromChunks(chunks);
+  }
+
+  async readFileText(
     path: string,
     options?: ReadFileOptions | BufferEncoding,
   ): Promise<string> {
-    const buffer = await this.readFileBuffer(path);
+    const chunks = await this.readFileChunks(path);
     const encoding = getEncoding(options);
-    return fromBuffer(buffer, encoding);
+    return decodeChunks(chunks, encoding);
   }
 
-  async readFileBuffer(
+  /**
+   * Internal: resolve symlinks and produce raw chunks. Memory hits return
+   * the chunk array directly (zero copy); real-fs hits stream the file
+   * from disk in CHUNK_SIZE pieces.
+   */
+  private async readFileChunks(
     path: string,
     seen: Set<string> = new Set(),
-  ): Promise<Uint8Array> {
+  ): Promise<Uint8Array[]> {
     validatePath(path, "open");
     const normalized = this.normalizePath(path);
 
-    // Detect symlink loops
     if (seen.has(normalized)) {
       throw new Error(
         `ELOOP: too many levels of symbolic links, open '${path}'`,
@@ -365,27 +376,24 @@ export class OverlayFs implements IFileSystem {
     }
     seen.add(normalized);
 
-    // Check if deleted
     if (this.deleted.has(normalized)) {
       throw new Error(`ENOENT: no such file or directory, open '${path}'`);
     }
 
-    // Check memory layer first
     const memEntry = this.memory.get(normalized);
     if (memEntry) {
       if (memEntry.type === "symlink") {
         const target = this.resolveSymlink(normalized, memEntry.target);
-        return this.readFileBuffer(target, seen);
+        return this.readFileChunks(target, seen);
       }
       if (memEntry.type !== "file") {
         throw new Error(
           `EISDIR: illegal operation on a directory, read '${path}'`,
         );
       }
-      return memEntry.content;
+      return memEntry.chunks;
     }
 
-    // Fall back to real filesystem
     const realPath = this.toRealPath(normalized);
     if (!realPath) {
       throw new Error(`ENOENT: no such file or directory, open '${path}'`);
@@ -396,7 +404,7 @@ export class OverlayFs implements IFileSystem {
       if (stat.isSymbolicLink()) {
         const target = await fs.promises.readlink(realPath);
         const resolvedTarget = this.resolveSymlink(normalized, target);
-        return this.readFileBuffer(resolvedTarget, seen);
+        return this.readFileChunks(resolvedTarget, seen);
       }
       if (stat.isDirectory()) {
         throw new Error(
@@ -409,7 +417,14 @@ export class OverlayFs implements IFileSystem {
         );
       }
       const content = await fs.promises.readFile(realPath);
-      return new Uint8Array(content);
+      const bytes = new Uint8Array(
+        content.buffer,
+        content.byteOffset,
+        content.byteLength,
+      );
+      // Split if larger than chunk size to keep chunk semantics consistent.
+      const { chunks } = contentToChunksSync(bytes);
+      return chunks;
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code === "ENOENT") {
         throw new Error(`ENOENT: no such file or directory, open '${path}'`);
@@ -429,11 +444,12 @@ export class OverlayFs implements IFileSystem {
     this.ensureParentDirs(normalized);
 
     const encoding = getEncoding(options);
-    const buffer = toBuffer(content, encoding);
+    const { chunks, size } = await contentToChunks(content, encoding);
 
     this.memory.set(normalized, {
       type: "file",
-      content: buffer,
+      chunks,
+      size,
       mode: 0o644,
       mtime: new Date(),
     });
@@ -449,24 +465,26 @@ export class OverlayFs implements IFileSystem {
     this.assertWritable(`append '${path}'`);
     const normalized = this.normalizePath(path);
     const encoding = getEncoding(options);
-    const newBuffer = toBuffer(content, encoding);
+    const { chunks: newChunks, size: newSize } = await contentToChunks(
+      content,
+      encoding,
+    );
 
-    // Try to read existing content
-    let existingBuffer: Uint8Array;
+    // Try to read existing content as chunks
+    let existingChunks: Uint8Array[] = [];
+    let existingSize = 0;
     try {
-      existingBuffer = await this.readFileBuffer(normalized);
+      existingChunks = await this.readFileChunks(normalized);
+      for (const c of existingChunks) existingSize += c.length;
     } catch {
-      existingBuffer = new Uint8Array(0);
+      // file doesn't exist yet
     }
-
-    const combined = new Uint8Array(existingBuffer.length + newBuffer.length);
-    combined.set(existingBuffer);
-    combined.set(newBuffer, existingBuffer.length);
 
     this.ensureParentDirs(normalized);
     this.memory.set(normalized, {
       type: "file",
-      content: combined,
+      chunks: [...existingChunks, ...newChunks],
+      size: existingSize + newSize,
       mode: 0o644,
       mtime: new Date(),
     });
@@ -507,7 +525,7 @@ export class OverlayFs implements IFileSystem {
 
       let size = 0;
       if (entry.type === "file") {
-        size = entry.content.length;
+        size = entry.size;
       }
 
       return {
@@ -568,7 +586,7 @@ export class OverlayFs implements IFileSystem {
 
       let size = 0;
       if (entry.type === "file") {
-        size = entry.content.length;
+        size = entry.size;
       }
 
       return {
@@ -875,8 +893,8 @@ export class OverlayFs implements IFileSystem {
     const srcStat = await this.stat(srcNorm);
 
     if (srcStat.isFile) {
-      const content = await this.readFileBuffer(srcNorm);
-      await this.writeFile(destNorm, content);
+      const chunks = await this.readFileChunks(srcNorm);
+      await this.writeFile(destNorm, fromChunks(chunks));
     } else if (srcStat.isDirectory) {
       if (!options?.recursive) {
         throw new Error(`EISDIR: is a directory, cp '${src}'`);
@@ -967,10 +985,13 @@ export class OverlayFs implements IFileSystem {
     // If from real fs, we need to copy to memory layer first
     const stat = await this.stat(normalized);
     if (stat.isFile) {
-      const content = await this.readFileBuffer(normalized);
+      const chunks = await this.readFileChunks(normalized);
+      let size = 0;
+      for (const c of chunks) size += c.length;
       this.memory.set(normalized, {
         type: "file",
-        content,
+        chunks,
+        size,
         mode,
         mtime: new Date(),
       });
@@ -1028,11 +1049,14 @@ export class OverlayFs implements IFileSystem {
     }
 
     // Copy content to new location
-    const content = await this.readFileBuffer(existingNorm);
+    const chunks = await this.readFileChunks(existingNorm);
+    let size = 0;
+    for (const c of chunks) size += c.length;
     this.ensureParentDirs(newNorm);
     this.memory.set(newNorm, {
       type: "file",
-      content,
+      chunks,
+      size,
       mode: existingStat.mode,
       mtime: new Date(),
     });
@@ -1206,10 +1230,13 @@ export class OverlayFs implements IFileSystem {
     // If from real fs, we need to copy to memory layer first
     const stat = await this.stat(normalized);
     if (stat.isFile) {
-      const content = await this.readFileBuffer(normalized);
+      const chunks = await this.readFileChunks(normalized);
+      let size = 0;
+      for (const c of chunks) size += c.length;
       this.memory.set(normalized, {
         type: "file",
-        content,
+        chunks,
+        size,
         mode: stat.mode,
         mtime,
       });

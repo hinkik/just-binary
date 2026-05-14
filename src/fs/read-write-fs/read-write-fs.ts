@@ -10,15 +10,14 @@
 
 import * as fs from "node:fs";
 import * as nodePath from "node:path";
-import {
-  type FileContent,
-  fromBuffer,
-  getEncoding,
-  toBuffer,
-} from "../encoding.js";
+import { Readable } from "node:stream";
+import { type ByteStream, collectBytes } from "../../utils/stream.js";
+import { contentToChunks, getEncoding } from "../encoding.js";
 import type {
+  BufferEncoding,
   CpOptions,
   DirentEntry,
+  FileContent,
   FsStat,
   IFileSystem,
   MkdirOptions,
@@ -96,41 +95,49 @@ export class ReadWriteFs implements IFileSystem {
     return `/${resolved.join("/")}` || "/";
   }
 
-  async readFile(
-    path: string,
-    options?: ReadFileOptions | BufferEncoding,
-  ): Promise<string> {
-    const buffer = await this.readFileBuffer(path);
-    const encoding = getEncoding(options);
-    return fromBuffer(buffer, encoding);
-  }
-
-  async readFileBuffer(path: string): Promise<Uint8Array> {
+  async readFile(path: string): Promise<ByteStream> {
     const realPath = this.toRealPath(path);
 
     try {
-      if (this.maxFileReadSize > 0) {
-        const stat = await fs.promises.lstat(realPath);
-        if (stat.size > this.maxFileReadSize) {
-          throw new Error(
-            `EFBIG: file too large, read '${path}' (${stat.size} bytes, max ${this.maxFileReadSize})`,
-          );
-        }
+      const stat = await fs.promises.lstat(realPath);
+      if (stat.isDirectory()) {
+        throw new Error(
+          `EISDIR: illegal operation on a directory, read '${path}'`,
+        );
       }
-      const content = await fs.promises.readFile(realPath);
-      return new Uint8Array(content);
+      if (this.maxFileReadSize > 0 && stat.size > this.maxFileReadSize) {
+        throw new Error(
+          `EFBIG: file too large, read '${path}' (${stat.size} bytes, max ${this.maxFileReadSize})`,
+        );
+      }
     } catch (e) {
       const err = e as NodeJS.ErrnoException;
       if (err.code === "ENOENT") {
         throw new Error(`ENOENT: no such file or directory, open '${path}'`);
       }
-      if (err.code === "EISDIR") {
-        throw new Error(
-          `EISDIR: illegal operation on a directory, read '${path}'`,
-        );
-      }
       throw e;
     }
+
+    // Node Readable → Web ReadableStream<Uint8Array>
+    const nodeStream = fs.createReadStream(realPath);
+    return Readable.toWeb(nodeStream) as ByteStream;
+  }
+
+  async readFileText(
+    path: string,
+    options?: ReadFileOptions | BufferEncoding,
+  ): Promise<string> {
+    const stream = await this.readFile(path);
+    const bytes = await collectBytes(stream);
+    const encoding = getEncoding(options) ?? "utf8";
+    // Use TextDecoder for utf8; for other encodings, fall back to Buffer.
+    if (encoding === "utf8" || encoding === "utf-8") {
+      return new TextDecoder().decode(bytes);
+    }
+    if (typeof Buffer !== "undefined") {
+      return Buffer.from(bytes).toString(encoding as BufferEncoding);
+    }
+    return new TextDecoder().decode(bytes);
   }
 
   async writeFile(
@@ -140,12 +147,19 @@ export class ReadWriteFs implements IFileSystem {
   ): Promise<void> {
     const realPath = this.toRealPath(path);
     const encoding = getEncoding(options);
-    const buffer = toBuffer(content, encoding);
 
     // Ensure parent directory exists
     const dir = nodePath.dirname(realPath);
     await fs.promises.mkdir(dir, { recursive: true });
 
+    // Collect content (stream or otherwise) to bytes via chunks helper.
+    const { chunks, size } = await contentToChunks(content, encoding);
+    const buffer = new Uint8Array(size);
+    let offset = 0;
+    for (const c of chunks) {
+      buffer.set(c, offset);
+      offset += c.length;
+    }
     await fs.promises.writeFile(realPath, buffer);
   }
 
@@ -156,12 +170,18 @@ export class ReadWriteFs implements IFileSystem {
   ): Promise<void> {
     const realPath = this.toRealPath(path);
     const encoding = getEncoding(options);
-    const buffer = toBuffer(content, encoding);
 
     // Ensure parent directory exists
     const dir = nodePath.dirname(realPath);
     await fs.promises.mkdir(dir, { recursive: true });
 
+    const { chunks, size } = await contentToChunks(content, encoding);
+    const buffer = new Uint8Array(size);
+    let offset = 0;
+    for (const c of chunks) {
+      buffer.set(c, offset);
+      offset += c.length;
+    }
     await fs.promises.appendFile(realPath, buffer);
   }
 

@@ -19,7 +19,9 @@ describe("awk with binary content", () => {
       },
     });
 
-    const result = toText(await env.exec("awk '{print $1 + $2}' /data.bin"));
+    const result = await toText(
+      await env.exec("awk '{print $1 + $2}' /data.bin"),
+    );
     expect(result.stdout).toBe("3\n7\n");
     expect(result.exitCode).toBe(0);
   });

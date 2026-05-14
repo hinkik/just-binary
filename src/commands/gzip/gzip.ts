@@ -7,13 +7,7 @@
 import { constants, gunzipSync, gzipSync } from "node:zlib";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
-import {
-  concat,
-  decode,
-  decodeArgs,
-  EMPTY,
-  encode,
-} from "../../utils/bytes.js";
+import { concat, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const gzipHelp = {
@@ -265,7 +259,7 @@ async function processFile(
 
   // Handle stdin
   if (file === "-" || file === "") {
-    inputData = ctx.stdin;
+    inputData = await collectBytes(ctx.stdin);
     if (decompress) {
       if (!isGzip(inputData)) {
         if (!flags.quiet) {
@@ -341,7 +335,7 @@ async function processFile(
 
   // Read input file
   try {
-    inputData = await ctx.fs.readFileBuffer(inputPath);
+    inputData = await collectBytes(await ctx.fs.readFile(inputPath));
   } catch {
     return {
       stdout: EMPTY,
@@ -581,11 +575,11 @@ async function listFile(
   let inputData: Uint8Array;
 
   if (file === "-" || file === "") {
-    inputData = ctx.stdin;
+    inputData = await collectBytes(ctx.stdin);
   } else {
     const inputPath = ctx.fs.resolvePath(ctx.cwd, file);
     try {
-      inputData = await ctx.fs.readFileBuffer(inputPath);
+      inputData = await collectBytes(await ctx.fs.readFile(inputPath));
     } catch {
       return {
         stdout: EMPTY,
@@ -632,11 +626,11 @@ async function testFile(
   let inputData: Uint8Array;
 
   if (file === "-" || file === "") {
-    inputData = ctx.stdin;
+    inputData = await collectBytes(ctx.stdin);
   } else {
     const inputPath = ctx.fs.resolvePath(ctx.cwd, file);
     try {
-      inputData = await ctx.fs.readFileBuffer(inputPath);
+      inputData = await collectBytes(await ctx.fs.readFile(inputPath));
     } catch {
       return {
         stdout: EMPTY,
@@ -694,9 +688,7 @@ async function executeGzip(
   const parsed = parseArgs(cmdName, a, argDefs);
   if (!parsed.ok) {
     // Check if it's an unknown option error
-    if (decode(parsed.error.stderr).includes("unrecognized option")) {
-      return parsed.error;
-    }
+    // Pass parse error through (covers both unknown option and other errors)
     return parsed.error;
   }
 
@@ -728,7 +720,7 @@ async function executeGzip(
       if (result.exitCode !== 0) exitCode = result.exitCode;
     }
 
-    return { stdout, stderr: encode(stderr), exitCode };
+    return { stdout: fromBytes(stdout), stderr: fromString(stderr), exitCode };
   }
 
   // Handle -t (test)
@@ -746,7 +738,7 @@ async function executeGzip(
       if (result.exitCode !== 0) exitCode = result.exitCode;
     }
 
-    return { stdout, stderr: encode(stderr), exitCode };
+    return { stdout: fromBytes(stdout), stderr: fromString(stderr), exitCode };
   }
 
   // No files specified - use stdin
@@ -772,7 +764,7 @@ async function executeGzip(
     if (result.exitCode !== 0) exitCode = result.exitCode;
   }
 
-  return { stdout, stderr: encode(stderr), exitCode };
+  return { stdout: fromBytes(stdout), stderr: fromString(stderr), exitCode };
 }
 
 export const gzipCommand: Command = {
@@ -796,6 +788,7 @@ export const zcatCommand: Command = {
   },
 };
 
+import { collectBytes, fromBytes, fromString } from "../../utils/stream.js";
 import type { CommandFuzzInfo } from "../fuzz-flags-types.js";
 
 export const flagsForFuzzing: CommandFuzzInfo = {

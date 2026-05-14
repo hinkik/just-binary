@@ -17,7 +17,7 @@ describe("SED Execution Limits", () => {
     it("should protect against branch loop (b command)", async () => {
       const env = new Bash();
       // :label followed by b label creates infinite loop
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "test" | sed ':loop; b loop'`),
       );
 
@@ -29,7 +29,7 @@ describe("SED Execution Limits", () => {
     it("should protect against test loop (t command)", async () => {
       const env = new Bash();
       // Substitution that always succeeds + t branch = infinite loop
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "test" | sed ':loop; s/./&/; t loop'`),
       );
 
@@ -39,7 +39,7 @@ describe("SED Execution Limits", () => {
 
     it("should protect against unconditional branch at start", async () => {
       const env = new Bash();
-      const result = toText(await env.exec(`echo "test" | sed 'b; p'`));
+      const result = await toText(await env.exec(`echo "test" | sed 'b; p'`));
 
       // Should complete - this isn't infinite but tests branch handling
       expect(result.exitCode).toBeDefined();
@@ -52,7 +52,7 @@ describe("SED Execution Limits", () => {
       const longLine = "a".repeat(100000);
       await env.writeFile("/input.txt", longLine);
 
-      const result = toText(await env.exec(`sed 's/a/b/g' /input.txt`));
+      const result = await toText(await env.exec(`sed 's/a/b/g' /input.txt`));
 
       // Should complete without hanging
       expect(result.exitCode).toBe(0);
@@ -62,7 +62,7 @@ describe("SED Execution Limits", () => {
     it("should handle backreference expansion limits", async () => {
       const env = new Bash();
       // Many backreferences
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "abcdefghij" | sed 's/\\(.\\)\\(.\\)\\(.\\)\\(.\\)\\(.\\)\\(.\\)\\(.\\)\\(.\\)\\(.\\)\\(.\\)/\\1\\2\\3\\4\\5\\6\\7\\8\\9\\1/'`,
         ),
@@ -74,7 +74,7 @@ describe("SED Execution Limits", () => {
     it("should limit output from repeated substitution", async () => {
       const env = new Bash();
       // Substitution that doubles content
-      const result = toText(await env.exec(`echo "x" | sed 's/./&&/g'`));
+      const result = await toText(await env.exec(`echo "x" | sed 's/./&&/g'`));
 
       expect(result.exitCode).toBe(0);
     });
@@ -87,7 +87,7 @@ describe("SED Execution Limits", () => {
       await env.writeFile("/input.txt", lines);
 
       // Append all lines to hold space
-      const result = toText(await env.exec(`sed 'H' /input.txt`));
+      const result = await toText(await env.exec(`sed 'H' /input.txt`));
 
       expect(result.exitCode).toBeDefined();
     });
@@ -97,7 +97,7 @@ describe("SED Execution Limits", () => {
       const longLine = "x".repeat(10000);
       await env.writeFile("/input.txt", longLine);
 
-      const result = toText(await env.exec(`sed 'h; x; x' /input.txt`));
+      const result = await toText(await env.exec(`sed 'h; x; x' /input.txt`));
 
       expect(result.exitCode).toBe(0);
     });
@@ -108,7 +108,7 @@ describe("SED Execution Limits", () => {
     it.skip("should handle pathological regex patterns", async () => {
       const env = new Bash();
       // ReDoS-style pattern
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaab" | sed '/^\\(a\\+\\)\\+$/p'`,
         ),
@@ -120,7 +120,7 @@ describe("SED Execution Limits", () => {
 
     it("should handle complex alternation", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "test" | sed 's/a\\|b\\|c\\|d\\|e\\|f\\|g\\|h\\|i\\|j/X/g'`,
         ),
@@ -133,7 +133,9 @@ describe("SED Execution Limits", () => {
   describe("address range limits", () => {
     it("should handle large line number addresses", async () => {
       const env = new Bash();
-      const result = toText(await env.exec(`echo "test" | sed '999999999p'`));
+      const result = await toText(
+        await env.exec(`echo "test" | sed '999999999p'`),
+      );
 
       // Should not hang trying to reach that line
       expect(result.exitCode).toBe(0);
@@ -144,7 +146,7 @@ describe("SED Execution Limits", () => {
       const lines = Array(10000).fill("line").join("\n");
       await env.writeFile("/input.txt", lines);
 
-      const result = toText(await env.exec(`sed -n '0~100p' /input.txt`));
+      const result = await toText(await env.exec(`sed -n '0~100p' /input.txt`));
 
       expect(result.exitCode).toBeDefined();
     });
@@ -154,7 +156,9 @@ describe("SED Execution Limits", () => {
     it("should handle many commands", async () => {
       const env = new Bash();
       const commands = Array(100).fill("s/a/b/").join("; ");
-      const result = toText(await env.exec(`echo "aaa" | sed '${commands}'`));
+      const result = await toText(
+        await env.exec(`echo "aaa" | sed '${commands}'`),
+      );
 
       expect(result.exitCode).toBeDefined();
     });
@@ -162,7 +166,7 @@ describe("SED Execution Limits", () => {
     it("should handle deeply nested braces", async () => {
       const env = new Bash();
       // Nested command blocks
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "test" | sed '{ { { p } } }'`),
       );
 
@@ -178,7 +182,7 @@ describe("SED Execution Limits", () => {
 
       // N accumulates lines but quits when no more lines available
       // This should complete successfully (not loop forever)
-      const result = toText(await env.exec(`sed ':a; N; ba' /input.txt`));
+      const result = await toText(await env.exec(`sed ':a; N; ba' /input.txt`));
 
       // N quits when there's no next line, so this completes
       expect(result.exitCode).toBe(0);

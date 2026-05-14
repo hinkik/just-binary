@@ -60,7 +60,14 @@ import type {
   FeatureCoverageWriter,
   TraceCallback,
 } from "./types.js";
-import { decode, EMPTY, encode, envSet } from "./utils/bytes.js";
+import { EMPTY, envSet } from "./utils/bytes.js";
+import {
+  type ByteStream,
+  collectText,
+  emptyStream,
+  fromString,
+  teeStream,
+} from "./utils/stream.js";
 
 export type { ExecutionLimits } from "./limits.js";
 
@@ -202,10 +209,12 @@ export interface ExecOptions {
    */
   rawScript?: boolean;
   /**
-   * Standard input to pass to the script.
+   * Standard input to pass to the script as a byte stream.
    * This will be available to commands via stdin (e.g., for `bash -c 'cat'`).
+   *
+   * Wrap a Uint8Array with `fromBytes(...)` or a string with `fromString(...)`.
    */
-  stdin?: Uint8Array;
+  stdin?: ByteStream;
 }
 
 export class Bash {
@@ -420,17 +429,36 @@ export class Bash {
     }
   }
 
-  private logResult(result: BashExecResult): BashExecResult {
-    if (this.logger) {
-      if (result.stdout.length > 0) {
-        this.logger.debug("stdout", { output: decode(result.stdout) });
-      }
-      if (result.stderr.length > 0) {
-        this.logger.info("stderr", { output: decode(result.stderr) });
-      }
-      this.logger.info("exit", { exitCode: result.exitCode });
+  private async logResult(result: BashExecResult): Promise<BashExecResult> {
+    if (!this.logger) {
+      return result;
     }
-    return result;
+    const logger = this.logger;
+    // Tee streams so the logger can read independently. We await both log
+    // drains before returning so callers can read `logger.logs` synchronously
+    // after `await bash.exec(...)`. The user-facing tee branches retain their
+    // chunks (Web Streams tee buffers per-branch), so the caller still gets
+    // the full output when they consume the returned streams.
+    const [stdoutForUser, stdoutForLog] = teeStream(result.stdout);
+    const [stderrForUser, stderrForLog] = teeStream(result.stderr);
+
+    const [stdoutText, stderrText] = await Promise.all([
+      collectText(stdoutForLog),
+      collectText(stderrForLog),
+    ]);
+    if (stdoutText.length > 0) {
+      logger.debug("stdout", { output: stdoutText });
+    }
+    if (stderrText.length > 0) {
+      logger.info("stderr", { output: stderrText });
+    }
+    logger.info("exit", { exitCode: result.exitCode });
+
+    return {
+      ...result,
+      stdout: stdoutForUser,
+      stderr: stderrForUser,
+    };
   }
 
   async exec(
@@ -444,8 +472,8 @@ export class Bash {
     this.state.commandCount++;
     if (this.state.commandCount > this.limits.maxCommandCount) {
       return {
-        stdout: EMPTY,
-        stderr: encode(
+        stdout: emptyStream(),
+        stderr: fromString(
           `bash: maximum command count (${this.limits.maxCommandCount}) exceeded (possible infinite loop). Increase with executionLimits.maxCommandCount option.\n`,
         ),
         exitCode: 1,
@@ -455,8 +483,8 @@ export class Bash {
 
     if (!commandLine.trim()) {
       return {
-        stdout: EMPTY,
-        stderr: EMPTY,
+        stdout: emptyStream(),
+        stderr: emptyStream(),
         exitCode: 0,
         env: mapToRecordWithExtras(this.state.env, options?.env),
       };
@@ -606,16 +634,18 @@ export class Bash {
       // SecurityViolationError is thrown when defense-in-depth detects a blocked operation
       if (error instanceof SecurityViolationError) {
         return this.logResult({
-          stdout: EMPTY,
-          stderr: encode(`bash: security violation: ${error.message}\n`),
+          stdout: emptyStream(),
+          stderr: fromString(`bash: security violation: ${error.message}\n`),
           exitCode: 1,
           env: mapToRecordWithExtras(this.state.env, options?.env),
         });
       }
       if ((error as ParseException).name === "ParseException") {
         return this.logResult({
-          stdout: EMPTY,
-          stderr: encode(`bash: syntax error: ${(error as Error).message}\n`),
+          stdout: emptyStream(),
+          stderr: fromString(
+            `bash: syntax error: ${(error as Error).message}\n`,
+          ),
           exitCode: 2,
           env: mapToRecordWithExtras(this.state.env, options?.env),
         });
@@ -623,8 +653,8 @@ export class Bash {
       // LexerError is thrown for lexer-level issues like unterminated quotes
       if (error instanceof LexerError) {
         return this.logResult({
-          stdout: EMPTY,
-          stderr: encode(`bash: ${error.message}\n`),
+          stdout: emptyStream(),
+          stderr: fromString(`bash: ${error.message}\n`),
           exitCode: 2,
           env: mapToRecordWithExtras(this.state.env, options?.env),
         });
@@ -632,8 +662,8 @@ export class Bash {
       // RangeError occurs when JavaScript call stack is exceeded (deep recursion)
       if (error instanceof RangeError) {
         return this.logResult({
-          stdout: EMPTY,
-          stderr: encode(`bash: ${error.message}\n`),
+          stdout: emptyStream(),
+          stderr: fromString(`bash: ${error.message}\n`),
           exitCode: 1,
           env: mapToRecordWithExtras(this.state.env, options?.env),
         });
@@ -650,7 +680,7 @@ export class Bash {
   // ===========================================================================
 
   async readFile(path: string): Promise<string> {
-    return this.fs.readFile(this.fs.resolvePath(this.state.cwd, path));
+    return this.fs.readFileText(this.fs.resolvePath(this.state.cwd, path));
   }
 
   async writeFile(path: string, content: string): Promise<void> {

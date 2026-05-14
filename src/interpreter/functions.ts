@@ -13,11 +13,18 @@ import type {
   WordNode,
 } from "../ast/types.js";
 import type { ExecResult } from "../types.js";
-import { EMPTY, encode, envGet, envSet } from "../utils/bytes.js";
+import { envGet, envSet } from "../utils/bytes.js";
+import {
+  type ByteStream,
+  collectBytes,
+  emptyStream,
+  fromBytes,
+  fromString,
+} from "../utils/stream.js";
 import { clearLocalVarStackForScope } from "./builtins/variable-assignment.js";
 import { ExitError, ReturnError } from "./errors.js";
 import { expandWord } from "./expansion.js";
-import { OK, result, throwExecutionLimit } from "./helpers/result.js";
+import { ok, result, throwExecutionLimit } from "./helpers/result.js";
 import { POSIX_SPECIAL_BUILTINS } from "./helpers/shell-constants.js";
 import { applyRedirections, preExpandRedirectTargets } from "./redirections.js";
 import type { InterpreterContext } from "./types.js";
@@ -30,7 +37,7 @@ export function executeFunctionDef(
   // This is a fatal error that exits the script
   if (ctx.state.options.posix && POSIX_SPECIAL_BUILTINS.has(node.name)) {
     const stderr = `bash: line ${ctx.state.currentLine}: \`${node.name}': is a special builtin\n`;
-    throw new ExitError(2, EMPTY, encode(stderr));
+    throw new ExitError(2, emptyStream(), fromString(stderr));
   }
   // Store the source file where this function is defined (for BASH_SOURCE)
   // Use currentSource from state, or the node's sourceFile, or "main" as default
@@ -39,7 +46,7 @@ export function executeFunctionDef(
     sourceFile: node.sourceFile ?? ctx.state.currentSource ?? "main",
   };
   ctx.state.functions.set(node.name, funcWithSource);
-  return OK;
+  return ok();
 }
 
 /**
@@ -49,8 +56,9 @@ export function executeFunctionDef(
 async function processInputRedirections(
   ctx: InterpreterContext,
   redirections: RedirectionNode[],
-): Promise<Uint8Array> {
-  let stdin: Uint8Array = EMPTY;
+): Promise<ByteStream> {
+  let stdin: ByteStream = emptyStream();
+  let hasStdin = false;
 
   for (const redir of redirections) {
     if (
@@ -69,21 +77,28 @@ async function processInputRedirections(
       // Only handle fd 0 (stdin) for now
       const fd = redir.fd ?? 0;
       if (fd === 0) {
-        stdin = encode(content);
+        stdin = fromString(content);
+        hasStdin = true;
       }
     } else if (redir.operator === "<<<" && redir.target.type === "Word") {
-      stdin = encode(`${await expandWord(ctx, redir.target as WordNode)}\n`);
+      stdin = fromString(
+        `${await expandWord(ctx, redir.target as WordNode)}\n`,
+      );
+      hasStdin = true;
     } else if (redir.operator === "<" && redir.target.type === "Word") {
       const target = await expandWord(ctx, redir.target as WordNode);
       const filePath = ctx.fs.resolvePath(ctx.state.cwd, target);
       try {
-        stdin = encode(await ctx.fs.readFile(filePath));
+        stdin = await ctx.fs.readFile(filePath);
+        hasStdin = true;
       } catch {
         // File not found - stdin remains unchanged
       }
     }
   }
 
+  // Tag whether we actually set anything via a marker — caller checks size
+  void hasStdin;
   return stdin;
 }
 
@@ -91,7 +106,7 @@ export async function callFunction(
   ctx: InterpreterContext,
   func: FunctionDefNode,
   args: string[],
-  stdin: Uint8Array = EMPTY,
+  stdin: ByteStream = emptyStream(),
   callLine?: number,
 ): Promise<ExecResult> {
   ctx.state.callDepth++;
@@ -203,17 +218,21 @@ export async function callFunction(
 
   if (expandError) {
     cleanup();
-    return result(EMPTY, encode(expandError), 1);
+    return result(emptyStream(), fromString(expandError), 1);
   }
 
   try {
     // Process redirections on the function definition to get stdin
     // Only use redirection-based stdin if no pipeline stdin was passed
-    const redirectionStdin = await processInputRedirections(
-      ctx,
-      func.redirections,
-    );
-    const effectiveStdin = stdin.length > 0 ? stdin : redirectionStdin;
+    // We need to check if pipeline stdin is non-empty; the cleanest way is
+    // to peek by collecting — pipeline stdin into a function is typically small.
+    const pipelineBytes = await collectBytes(stdin);
+    let effectiveStdin: ByteStream;
+    if (pipelineBytes.length > 0) {
+      effectiveStdin = fromBytes(pipelineBytes);
+    } else {
+      effectiveStdin = await processInputRedirections(ctx, func.redirections);
+    }
     const execResult = await ctx.executeCommand(func.body, effectiveStdin);
     cleanup();
     // Apply output redirections from the function definition using pre-expanded targets

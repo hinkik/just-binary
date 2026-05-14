@@ -18,7 +18,7 @@ describe("Injection Attack Prevention", () => {
 
   describe("Variable Name Injection", () => {
     it("should validate variable names in declare", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         declare validname=value
         echo $validname
@@ -29,7 +29,7 @@ describe("Injection Attack Prevention", () => {
     });
 
     it("should reject invalid variable names", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         declare "123invalid"=value 2>&1 || true
       `),
@@ -39,7 +39,7 @@ describe("Injection Attack Prevention", () => {
     });
 
     it("should validate variable names in export", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         export VALID_VAR=value
         printenv VALID_VAR
@@ -50,7 +50,7 @@ describe("Injection Attack Prevention", () => {
     });
 
     it("should validate variable names in local", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         testfunc() {
           local valid_local=value
@@ -64,7 +64,7 @@ describe("Injection Attack Prevention", () => {
     });
 
     it("should handle variable names with underscores", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         _underscore_var=value
         echo $_underscore_var
@@ -75,7 +75,7 @@ describe("Injection Attack Prevention", () => {
     });
 
     it("should handle variable names starting with underscore", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         __private=value
         echo $__private
@@ -88,7 +88,7 @@ describe("Injection Attack Prevention", () => {
 
   describe("Arithmetic Expression Safety", () => {
     it("should handle basic arithmetic safely", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         x=5
         y=3
@@ -100,7 +100,7 @@ describe("Injection Attack Prevention", () => {
     });
 
     it("should handle nested arithmetic", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         a=2
         b=3
@@ -112,7 +112,7 @@ describe("Injection Attack Prevention", () => {
     });
 
     it("should handle arithmetic in array index", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         arr=(a b c d e)
         i=2
@@ -124,7 +124,7 @@ describe("Injection Attack Prevention", () => {
     });
 
     it("should handle arithmetic variable chains", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         a=5
         b=a
@@ -137,7 +137,7 @@ describe("Injection Attack Prevention", () => {
     });
 
     it("should handle division by zero gracefully", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $((10 / 0)) 2>&1 || true
       `),
@@ -147,7 +147,7 @@ describe("Injection Attack Prevention", () => {
     });
 
     it("should handle modulo by zero gracefully", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $((10 % 0)) 2>&1 || true
       `),
@@ -158,7 +158,7 @@ describe("Injection Attack Prevention", () => {
 
   describe("Pattern Matching Safety", () => {
     it("should handle basic glob patterns", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         mkdir -p /tmp/patterntest
         touch /tmp/patterntest/file1.txt /tmp/patterntest/file2.txt
@@ -172,7 +172,7 @@ describe("Injection Attack Prevention", () => {
     });
 
     it("should handle character classes in patterns", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         mkdir -p /tmp/charpattern
         touch /tmp/charpattern/a.txt /tmp/charpattern/b.txt /tmp/charpattern/1.txt
@@ -187,7 +187,7 @@ describe("Injection Attack Prevention", () => {
     });
 
     it("should handle extglob patterns where enabled", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         shopt -s extglob
         mkdir -p /tmp/extglob
@@ -200,7 +200,7 @@ describe("Injection Attack Prevention", () => {
     });
 
     it("should handle pattern matching in case statements", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         test_case() {
           case "$1" in
@@ -217,7 +217,7 @@ describe("Injection Attack Prevention", () => {
     });
 
     it("should handle regex in [[ ]]", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         str="hello123world"
         if [[ $str =~ ^hello[0-9]+world$ ]]; then
@@ -234,7 +234,7 @@ describe("Injection Attack Prevention", () => {
 
   describe("IFS Manipulation", () => {
     it("should handle default IFS", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         read -a arr <<< "a b c"
         echo \${#arr[@]}
@@ -245,7 +245,7 @@ describe("Injection Attack Prevention", () => {
     });
 
     it("should handle custom IFS", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         IFS=:
         read -a arr <<< "a:b:c"
@@ -257,7 +257,7 @@ describe("Injection Attack Prevention", () => {
     });
 
     it("should handle empty IFS", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         IFS=''
         str="a b c"
@@ -272,7 +272,7 @@ describe("Injection Attack Prevention", () => {
     });
 
     it("should restore IFS after local scope", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         test_ifs() {
           local IFS=:
@@ -288,7 +288,7 @@ describe("Injection Attack Prevention", () => {
     });
 
     it("should handle IFS with special characters", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         IFS=$'\\n'
         str=$'line1\\nline2\\nline3'
@@ -306,7 +306,7 @@ describe("Injection Attack Prevention", () => {
 
   describe("Command Substitution Safety", () => {
     it("should handle nested command substitution", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo $(echo $(echo "nested"))
       `),
@@ -316,7 +316,7 @@ describe("Injection Attack Prevention", () => {
     });
 
     it("should isolate command substitution environment", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         outer=original
         result=$(outer=modified; echo $outer)
@@ -328,7 +328,7 @@ describe("Injection Attack Prevention", () => {
     });
 
     it("should handle command substitution with special chars", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         special="hello; echo pwned"
         result=$(echo "$special")
@@ -347,7 +347,7 @@ describe("Injection Attack Prevention", () => {
         executionLimits: { maxCommandCount: 10 },
       });
 
-      const result = toText(
+      const result = await toText(
         await limitedBash.exec(`
         eval 'echo hello'
       `),
@@ -361,7 +361,7 @@ describe("Injection Attack Prevention", () => {
         executionLimits: { maxCommandCount: 3 },
       });
 
-      const result = toText(
+      const result = await toText(
         await limitedBash.exec(`
         eval 'echo 1; echo 2; echo 3; echo 4; echo 5'
       `),
@@ -371,7 +371,7 @@ describe("Injection Attack Prevention", () => {
     });
 
     it("should handle nested eval", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         eval 'eval "echo nested"'
       `),
@@ -383,7 +383,7 @@ describe("Injection Attack Prevention", () => {
 
   describe("Parameter Expansion Safety", () => {
     it("should handle ${var:-default} safely", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         unset myvar
         echo \${myvar:-default}
@@ -394,7 +394,7 @@ describe("Injection Attack Prevention", () => {
     });
 
     it("should handle ${var:=default} safely", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         unset myvar
         echo \${myvar:=assigned}
@@ -406,7 +406,7 @@ describe("Injection Attack Prevention", () => {
     });
 
     it("should handle ${var:+alternate} safely", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         myvar=set
         echo \${myvar:+alternate}
@@ -417,7 +417,7 @@ describe("Injection Attack Prevention", () => {
     });
 
     it("should handle ${var:?error} safely", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         unset myvar
         echo \${myvar:?custom error} 2>&1 || true
@@ -427,7 +427,7 @@ describe("Injection Attack Prevention", () => {
     });
 
     it("should handle ${!prefix*} safely", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         PREFIX_A=1
         PREFIX_B=2
@@ -440,7 +440,7 @@ describe("Injection Attack Prevention", () => {
     });
 
     it("should handle ${#var} safely", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         str="hello"
         echo \${#str}
@@ -451,7 +451,7 @@ describe("Injection Attack Prevention", () => {
     });
 
     it("should handle ${var//pattern/replacement} safely", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         str="hello world"
         echo \${str//o/0}
@@ -464,7 +464,7 @@ describe("Injection Attack Prevention", () => {
 
   describe("Array Injection Safety", () => {
     it("should handle array with special characters", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         arr=('a b' 'c;d' 'e|f')
         for item in "\${arr[@]}"; do
@@ -477,7 +477,7 @@ describe("Injection Attack Prevention", () => {
     });
 
     it("should handle associative array with special keys", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         declare -A assoc
         assoc["key with spaces"]="value1"
@@ -491,7 +491,7 @@ describe("Injection Attack Prevention", () => {
     });
 
     it("should handle array indices safely", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         arr=(a b c d e)
         i=2

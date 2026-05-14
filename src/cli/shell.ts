@@ -12,7 +12,7 @@ import * as readline from "node:readline";
 import { Bash } from "../Bash.js";
 import { OverlayFs } from "../fs/overlay-fs/overlay-fs.js";
 import { getErrorMessage } from "../interpreter/helpers/errors.js";
-import { decode } from "../utils/bytes.js";
+import { collectText, streamChunks } from "../utils/stream.js";
 
 // ANSI colors
 const colors = {
@@ -138,14 +138,13 @@ class VirtualShell {
     try {
       const result = await this.env.exec(trimmed);
 
-      if (result.stdout.length > 0) {
-        process.stdout.write(result.stdout);
+      for await (const chunk of streamChunks(result.stdout)) {
+        process.stdout.write(chunk);
       }
 
-      if (result.stderr.length > 0) {
-        process.stderr.write(
-          `${colors.red}${decode(result.stderr)}${colors.reset}`,
-        );
+      const stderrText = await collectText(result.stderr);
+      if (stderrText.length > 0) {
+        process.stderr.write(`${colors.red}${stderrText}${colors.reset}`);
       }
     } catch (error) {
       console.error(

@@ -12,7 +12,7 @@ describe("curl URL allow-list", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://api.example.com"] },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec("curl https://api.example.com/test"),
       );
       // May fail due to actual network, but should not be "access denied"
@@ -23,7 +23,7 @@ describe("curl URL allow-list", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://api.example.com"] },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec("curl https://other-domain.com/test"),
       );
       expect(result.exitCode).toBe(7);
@@ -36,7 +36,7 @@ describe("curl URL allow-list", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://api.example.com/v1/"] },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec("curl https://api.example.com/v1/users"),
       );
       expect(result.stderr).not.toContain("Network access denied");
@@ -46,7 +46,7 @@ describe("curl URL allow-list", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://api.example.com/v1/"] },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec("curl https://api.example.com/v2/users"),
       );
       expect(result.stderr).toContain("Network access denied");
@@ -64,12 +64,12 @@ describe("curl URL allow-list", () => {
         },
       });
 
-      const result1 = toText(
+      const result1 = await toText(
         await env.exec("curl https://api1.example.com/test"),
       );
       expect(result1.stderr).not.toContain("Network access denied");
 
-      const result2 = toText(
+      const result2 = await toText(
         await env.exec("curl https://api2.example.com/test"),
       );
       expect(result2.stderr).not.toContain("Network access denied");
@@ -84,7 +84,7 @@ describe("curl URL allow-list", () => {
           ],
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec("curl https://api3.example.com/test"),
       );
       expect(result.stderr).toContain("Network access denied");
@@ -96,7 +96,9 @@ describe("curl URL allow-list", () => {
       const env = new Bash({
         network: { dangerouslyAllowFullInternetAccess: true },
       });
-      const result = toText(await env.exec("curl https://any-domain.com/test"));
+      const result = await toText(
+        await env.exec("curl https://any-domain.com/test"),
+      );
       expect(result.stderr).not.toContain("Network access denied");
     });
   });
@@ -106,7 +108,7 @@ describe("curl URL allow-list", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://example.com"] },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec("curl https://evil.example.com/path"),
       );
       expect(result.exitCode).toBe(7);
@@ -116,7 +118,9 @@ describe("curl URL allow-list", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://api.example.com"] },
       });
-      const result = toText(await env.exec("curl http://api.example.com/data"));
+      const result = await toText(
+        await env.exec("curl http://api.example.com/data"),
+      );
       expect(result.exitCode).toBe(7);
     });
 
@@ -124,7 +128,7 @@ describe("curl URL allow-list", () => {
       const env = new Bash({
         network: { allowedUrlPrefixes: ["https://api.example.com"] },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec("curl https://api.example.com:8080/data"),
       );
       expect(result.exitCode).toBe(7);

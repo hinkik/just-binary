@@ -26,7 +26,7 @@ describe("rg misc: single_file", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = toText(await bash.exec("rg Sherlock sherlock"));
+    const result = await toText(await bash.exec("rg Sherlock sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       "For the Doctor Watsons of this world, as opposed to the Sherlock\nbe, to a very large extent, the result of luck. Sherlock Holmes\n",
@@ -43,7 +43,7 @@ describe("rg misc: dir", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = toText(await bash.exec("rg Sherlock"));
+    const result = await toText(await bash.exec("rg Sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       "sherlock:1:For the Doctor Watsons of this world, as opposed to the Sherlock\nsherlock:3:be, to a very large extent, the result of luck. Sherlock Holmes\n",
@@ -60,7 +60,7 @@ describe("rg misc: line_numbers", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = toText(await bash.exec("rg -n Sherlock sherlock"));
+    const result = await toText(await bash.exec("rg -n Sherlock sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       "1:For the Doctor Watsons of this world, as opposed to the Sherlock\n3:be, to a very large extent, the result of luck. Sherlock Holmes\n",
@@ -77,7 +77,9 @@ describe("rg misc: columns", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = toText(await bash.exec("rg --column Sherlock sherlock"));
+    const result = await toText(
+      await bash.exec("rg --column Sherlock sherlock"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       "1:57:For the Doctor Watsons of this world, as opposed to the Sherlock\n3:49:be, to a very large extent, the result of luck. Sherlock Holmes\n",
@@ -94,7 +96,7 @@ describe("rg misc: with_filename", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = toText(await bash.exec("rg -H Sherlock sherlock"));
+    const result = await toText(await bash.exec("rg -H Sherlock sherlock"));
     expect(result.exitCode).toBe(0);
     // -H forces filename prefix even for single file
     expect(result.stdout).toBe(
@@ -112,7 +114,9 @@ describe("rg misc: with_heading", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = toText(await bash.exec("rg --heading Sherlock sherlock"));
+    const result = await toText(
+      await bash.exec("rg --heading Sherlock sherlock"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       "sherlock\nFor the Doctor Watsons of this world, as opposed to the Sherlock\nbe, to a very large extent, the result of luck. Sherlock Holmes\n",
@@ -132,7 +136,7 @@ describe("rg misc: inverted", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = toText(await bash.exec("rg -v Sherlock sherlock"));
+    const result = await toText(await bash.exec("rg -v Sherlock sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       "Holmeses, success in the province of detective work must always\ncan extract a clew from a wisp of straw or a flake of cigar ash;\nbut Doctor Watson has to have it taken out for him and dusted,\nand exhibited clearly, with a label attached.\n",
@@ -149,7 +153,7 @@ describe("rg misc: inverted_line_numbers", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = toText(await bash.exec("rg -n -v Sherlock sherlock"));
+    const result = await toText(await bash.exec("rg -n -v Sherlock sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       "2:Holmeses, success in the province of detective work must always\n4:can extract a clew from a wisp of straw or a flake of cigar ash;\n5:but Doctor Watson has to have it taken out for him and dusted,\n6:and exhibited clearly, with a label attached.\n",
@@ -166,7 +170,7 @@ describe("rg misc: case_insensitive", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = toText(await bash.exec("rg -i sherlock sherlock"));
+    const result = await toText(await bash.exec("rg -i sherlock sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       "For the Doctor Watsons of this world, as opposed to the Sherlock\nbe, to a very large extent, the result of luck. Sherlock Holmes\n",
@@ -183,7 +187,7 @@ describe("rg misc: word", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = toText(await bash.exec("rg -w as sherlock"));
+    const result = await toText(await bash.exec("rg -w as sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       "For the Doctor Watsons of this world, as opposed to the Sherlock\n",
@@ -202,7 +206,7 @@ describe("rg misc: word_period", () => {
         "/home/user/haystack": "...\n",
       },
     });
-    const result = toText(await bash.exec("rg -ow '.' haystack"));
+    const result = await toText(await bash.exec("rg -ow '.' haystack"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(".\n.\n.\n");
   });
@@ -217,7 +221,7 @@ describe("rg misc: line", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = toText(
+    const result = await toText(
       await bash.exec(
         "rg -x 'Watson|and exhibited clearly, with a label attached.' sherlock",
       ),
@@ -238,7 +242,7 @@ describe("rg misc: literal", () => {
         "/home/user/file": "blib\n()\nblab\n",
       },
     });
-    const result = toText(await bash.exec("rg -F '()' file"));
+    const result = await toText(await bash.exec("rg -F '()' file"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("()\n");
   });
@@ -253,7 +257,7 @@ describe("rg misc: quiet", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = toText(await bash.exec("rg -q Sherlock sherlock"));
+    const result = await toText(await bash.exec("rg -q Sherlock sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("");
   });
@@ -268,7 +272,9 @@ describe("rg misc: replace", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = toText(await bash.exec("rg -r FooBar Sherlock sherlock"));
+    const result = await toText(
+      await bash.exec("rg -r FooBar Sherlock sherlock"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       "For the Doctor Watsons of this world, as opposed to the FooBar\nbe, to a very large extent, the result of luck. FooBar Holmes\n",
@@ -285,7 +291,7 @@ describe("rg misc: replace_groups", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = toText(
+    const result = await toText(
       await bash.exec(`rg -r '$2, $1' '([A-Z][a-z]+) ([A-Z][a-z]+)' sherlock`),
     );
     expect(result.exitCode).toBe(0);
@@ -304,7 +310,7 @@ describe("rg misc: replace_named_groups", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = toText(
+    const result = await toText(
       await bash.exec(
         `rg -r '$last, $first' '(?P<first>[A-Z][a-z]+) (?P<last>[A-Z][a-z]+)' sherlock`,
       ),
@@ -325,7 +331,7 @@ describe("rg misc: replace_with_only_matching", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = toText(
+    const result = await toText(
       await bash.exec(`rg -o -r '$1' 'of (\\w+)' sherlock`),
     );
     expect(result.exitCode).toBe(0);
@@ -344,7 +350,7 @@ describe("rg misc: file_types", () => {
         "/home/user/file.rs": "Sherlock\n",
       },
     });
-    const result = toText(await bash.exec("rg -t rust Sherlock"));
+    const result = await toText(await bash.exec("rg -t rust Sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.rs:1:Sherlock\n");
   });
@@ -360,7 +366,7 @@ describe("rg misc: file_types_all", () => {
         "/home/user/file.py": "Sherlock\n",
       },
     });
-    const result = toText(await bash.exec("rg -t all Sherlock"));
+    const result = await toText(await bash.exec("rg -t all Sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.py:1:Sherlock\n");
   });
@@ -376,7 +382,7 @@ describe("rg misc: file_types_negate", () => {
         "/home/user/file.rs": "Sherlock\n",
       },
     });
-    const result = toText(await bash.exec("rg -T rust Sherlock"));
+    const result = await toText(await bash.exec("rg -T rust Sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.py:1:Sherlock\n");
   });
@@ -392,7 +398,7 @@ describe("rg misc: file_types_negate_all", () => {
         "/home/user/file.py": "Sherlock\n",
       },
     });
-    const result = toText(await bash.exec("rg -T all Sherlock"));
+    const result = await toText(await bash.exec("rg -T all Sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       "sherlock:1:For the Doctor Watsons of this world, as opposed to the Sherlock\nsherlock:3:be, to a very large extent, the result of luck. Sherlock Holmes\n",
@@ -411,7 +417,9 @@ describe("rg misc: file_type_clear", () => {
       },
     });
     // Clear py type, then search for it - should find nothing
-    const result = toText(await bash.exec("rg --type-clear py -t py test"));
+    const result = await toText(
+      await bash.exec("rg --type-clear py -t py test"),
+    );
     expect(result.exitCode).toBe(1); // No matches since py type is empty
     expect(result.stdout).toBe("");
   });
@@ -428,7 +436,7 @@ describe("rg misc: file_type_add", () => {
       },
     });
     // Add new type 'custom' for .foo files
-    const result = toText(
+    const result = await toText(
       await bash.exec("rg --type-add 'custom:*.foo' -t custom test"),
     );
     expect(result.exitCode).toBe(0);
@@ -448,7 +456,7 @@ describe("rg misc: file_type_add_compose", () => {
       },
     });
     // Create 'web' type that includes js type patterns
-    const result = toText(
+    const result = await toText(
       await bash.exec("rg --type-add 'web:include:js' -t web test"),
     );
     expect(result.exitCode).toBe(0);
@@ -467,7 +475,9 @@ describe("rg misc: preprocessing", () => {
     });
     // Create a preprocessor that transforms content
     // Since we need a command, let's use a simple echo-based transform
-    const result = toText(await bash.exec(`rg --pre 'cat' test file.txt`));
+    const result = await toText(
+      await bash.exec(`rg --pre 'cat' test file.txt`),
+    );
     // The cat preprocessor just outputs the file, so we won't find 'test'
     expect(result.exitCode).toBe(1);
   });
@@ -481,7 +491,7 @@ describe("rg misc: preprocessing", () => {
       },
     });
     // Use --pre-glob to only preprocess .dat files
-    const result = toText(
+    const result = await toText(
       await bash.exec("rg --pre 'cat' --pre-glob '*.dat' hello"),
     );
     expect(result.exitCode).toBe(0);
@@ -501,7 +511,7 @@ describe("rg misc: glob", () => {
         "/home/user/file.rs": "Sherlock\n",
       },
     });
-    const result = toText(await bash.exec("rg -g '*.rs' Sherlock"));
+    const result = await toText(await bash.exec("rg -g '*.rs' Sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.rs:1:Sherlock\n");
   });
@@ -517,7 +527,7 @@ describe("rg misc: glob_negate", () => {
         "/home/user/file.rs": "Sherlock\n",
       },
     });
-    const result = toText(await bash.exec("rg -g '!*.rs' Sherlock"));
+    const result = await toText(await bash.exec("rg -g '!*.rs' Sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.py:1:Sherlock\n");
   });
@@ -533,7 +543,9 @@ describe("rg misc: glob_case_insensitive", () => {
         "/home/user/file2.html": "Sherlock\n",
       },
     });
-    const result = toText(await bash.exec("rg --iglob '*.html' Sherlock"));
+    const result = await toText(
+      await bash.exec("rg --iglob '*.html' Sherlock"),
+    );
     expect(result.exitCode).toBe(0);
     // Both files should match since iglob is case-insensitive
     expect(result.stdout).toBe(
@@ -552,7 +564,7 @@ describe("rg misc: glob_case_sensitive", () => {
         "/home/user/file2.html": "Sherlock\n",
       },
     });
-    const result = toText(await bash.exec("rg --glob '*.html' Sherlock"));
+    const result = await toText(await bash.exec("rg --glob '*.html' Sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file2.html:1:Sherlock\n");
   });
@@ -568,7 +580,7 @@ describe("rg misc: glob_always_case_insensitive", () => {
         "/home/user/file2.html": "Sherlock\n",
       },
     });
-    const result = toText(
+    const result = await toText(
       await bash.exec("rg --glob-case-insensitive --glob '*.html' Sherlock"),
     );
     expect(result.exitCode).toBe(0);
@@ -588,7 +600,7 @@ describe("rg misc: byte_offset_only_matching", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = toText(await bash.exec("rg -b -o Sherlock"));
+    const result = await toText(await bash.exec("rg -b -o Sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("sherlock:56:Sherlock\nsherlock:177:Sherlock\n");
   });
@@ -603,7 +615,7 @@ describe("rg misc: count", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = toText(await bash.exec("rg --count Sherlock"));
+    const result = await toText(await bash.exec("rg --count Sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("sherlock:2\n");
   });
@@ -618,7 +630,7 @@ describe("rg misc: count_matches", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = toText(await bash.exec("rg --count-matches the"));
+    const result = await toText(await bash.exec("rg --count-matches the"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("sherlock:4\n");
   });
@@ -633,7 +645,7 @@ describe("rg misc: count_matches_inverted", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = toText(
+    const result = await toText(
       await bash.exec("rg --count-matches --invert-match Sherlock"),
     );
     expect(result.exitCode).toBe(0);
@@ -650,7 +662,9 @@ describe("rg misc: count_matches_via_only", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = toText(await bash.exec("rg --count --only-matching the"));
+    const result = await toText(
+      await bash.exec("rg --count --only-matching the"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("sherlock:4\n");
   });
@@ -665,7 +679,9 @@ describe("rg misc: include_zero", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = toText(await bash.exec("rg --count --include-zero nada"));
+    const result = await toText(
+      await bash.exec("rg --count --include-zero nada"),
+    );
     expect(result.exitCode).toBe(1);
     expect(result.stdout).toBe("sherlock:0\n");
   });
@@ -683,7 +699,9 @@ describe("rg misc: files_with_matches", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = toText(await bash.exec("rg --files-with-matches Sherlock"));
+    const result = await toText(
+      await bash.exec("rg --files-with-matches Sherlock"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("sherlock\n");
   });
@@ -699,7 +717,9 @@ describe("rg misc: files_without_match", () => {
         "/home/user/file.py": "foo\n",
       },
     });
-    const result = toText(await bash.exec("rg --files-without-match Sherlock"));
+    const result = await toText(
+      await bash.exec("rg --files-without-match Sherlock"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.py\n");
   });
@@ -714,7 +734,7 @@ describe("rg misc: after_context", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = toText(await bash.exec("rg -A 1 Sherlock sherlock"));
+    const result = await toText(await bash.exec("rg -A 1 Sherlock sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       "For the Doctor Watsons of this world, as opposed to the Sherlock\nHolmeses, success in the province of detective work must always\nbe, to a very large extent, the result of luck. Sherlock Holmes\ncan extract a clew from a wisp of straw or a flake of cigar ash;\n",
@@ -731,7 +751,9 @@ describe("rg misc: after_context_line_numbers", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = toText(await bash.exec("rg -A 1 -n Sherlock sherlock"));
+    const result = await toText(
+      await bash.exec("rg -A 1 -n Sherlock sherlock"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       "1:For the Doctor Watsons of this world, as opposed to the Sherlock\n2-Holmeses, success in the province of detective work must always\n3:be, to a very large extent, the result of luck. Sherlock Holmes\n4-can extract a clew from a wisp of straw or a flake of cigar ash;\n",
@@ -748,7 +770,7 @@ describe("rg misc: before_context", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = toText(await bash.exec("rg -B 1 Sherlock sherlock"));
+    const result = await toText(await bash.exec("rg -B 1 Sherlock sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       "For the Doctor Watsons of this world, as opposed to the Sherlock\nHolmeses, success in the province of detective work must always\nbe, to a very large extent, the result of luck. Sherlock Holmes\n",
@@ -765,7 +787,9 @@ describe("rg misc: before_context_line_numbers", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = toText(await bash.exec("rg -B 1 -n Sherlock sherlock"));
+    const result = await toText(
+      await bash.exec("rg -B 1 -n Sherlock sherlock"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       "1:For the Doctor Watsons of this world, as opposed to the Sherlock\n2-Holmeses, success in the province of detective work must always\n3:be, to a very large extent, the result of luck. Sherlock Holmes\n",
@@ -782,7 +806,9 @@ describe("rg misc: context", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = toText(await bash.exec("rg -C 1 'world|attached' sherlock"));
+    const result = await toText(
+      await bash.exec("rg -C 1 'world|attached' sherlock"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       "For the Doctor Watsons of this world, as opposed to the Sherlock\nHolmeses, success in the province of detective work must always\n--\nbut Doctor Watson has to have it taken out for him and dusted,\nand exhibited clearly, with a label attached.\n",
@@ -799,7 +825,7 @@ describe("rg misc: context_line_numbers", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = toText(
+    const result = await toText(
       await bash.exec("rg -C 1 -n 'world|attached' sherlock"),
     );
     expect(result.exitCode).toBe(0);
@@ -820,7 +846,9 @@ describe("rg misc: max_filesize", () => {
       },
     });
     // Only small file should match
-    const result = toText(await bash.exec("rg --max-filesize 50 Sherlock"));
+    const result = await toText(
+      await bash.exec("rg --max-filesize 50 Sherlock"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("small.txt:1:Sherlock\n");
   });
@@ -832,7 +860,9 @@ describe("rg misc: max_filesize", () => {
         "/home/user/test.txt": "Sherlock\n",
       },
     });
-    const result = toText(await bash.exec("rg --max-filesize 1K Sherlock"));
+    const result = await toText(
+      await bash.exec("rg --max-filesize 1K Sherlock"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("test.txt:1:Sherlock\n");
   });
@@ -844,7 +874,9 @@ describe("rg misc: max_filesize", () => {
         "/home/user/test.txt": "Sherlock\n",
       },
     });
-    const result = toText(await bash.exec("rg --max-filesize 1M Sherlock"));
+    const result = await toText(
+      await bash.exec("rg --max-filesize 1M Sherlock"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("test.txt:1:Sherlock\n");
   });
@@ -859,7 +891,7 @@ describe("rg misc: ignore_hidden", () => {
         "/home/user/.sherlock": SHERLOCK,
       },
     });
-    const result = toText(await bash.exec("rg Sherlock"));
+    const result = await toText(await bash.exec("rg Sherlock"));
     expect(result.exitCode).toBe(1);
   });
 });
@@ -873,7 +905,7 @@ describe("rg misc: no_ignore_hidden", () => {
         "/home/user/.sherlock": SHERLOCK,
       },
     });
-    const result = toText(await bash.exec("rg --hidden Sherlock"));
+    const result = await toText(await bash.exec("rg --hidden Sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       ".sherlock:1:For the Doctor Watsons of this world, as opposed to the Sherlock\n.sherlock:3:be, to a very large extent, the result of luck. Sherlock Holmes\n",
@@ -892,7 +924,7 @@ describe("rg misc: ignore_git", () => {
         "/home/user/.gitignore": "sherlock\n",
       },
     });
-    const result = toText(await bash.exec("rg Sherlock"));
+    const result = await toText(await bash.exec("rg Sherlock"));
     expect(result.exitCode).toBe(1);
   });
 });
@@ -907,7 +939,7 @@ describe("rg misc: ignore_generic", () => {
         "/home/user/.ignore": "sherlock\n",
       },
     });
-    const result = toText(await bash.exec("rg Sherlock"));
+    const result = await toText(await bash.exec("rg Sherlock"));
     expect(result.exitCode).toBe(1);
   });
 });
@@ -922,7 +954,7 @@ describe("rg misc: ignore_ripgrep", () => {
         "/home/user/.rgignore": "sherlock\n",
       },
     });
-    const result = toText(await bash.exec("rg Sherlock"));
+    const result = await toText(await bash.exec("rg Sherlock"));
     expect(result.exitCode).toBe(1);
   });
 });
@@ -937,7 +969,7 @@ describe("rg misc: no_ignore", () => {
         "/home/user/.gitignore": "sherlock\n",
       },
     });
-    const result = toText(await bash.exec("rg --no-ignore Sherlock"));
+    const result = await toText(await bash.exec("rg --no-ignore Sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       "sherlock:1:For the Doctor Watsons of this world, as opposed to the Sherlock\nsherlock:3:be, to a very large extent, the result of luck. Sherlock Holmes\n",
@@ -964,7 +996,7 @@ describe("rg misc: symlink_nofollow", () => {
     // Create a symlink to a file inside the search directory
     await bash.exec("ln -s real.txt /home/user/searchdir/link.txt");
     // Without -L, should only find via real file, not symlink
-    const result = toText(await bash.exec("rg test searchdir"));
+    const result = await toText(await bash.exec("rg test searchdir"));
     expect(result.exitCode).toBe(0);
     // Only the real file should be searched
     expect(result.stdout).toContain("searchdir/real.txt:");
@@ -983,7 +1015,7 @@ describe("rg misc: symlink_follow", () => {
     // Create a symlink to a file inside the search directory
     await bash.exec("ln -s real.txt /home/user/searchdir/link.txt");
     // With -L, should find via both real file and symlink
-    const result = toText(await bash.exec("rg -L test searchdir"));
+    const result = await toText(await bash.exec("rg -L test searchdir"));
     expect(result.exitCode).toBe(0);
     // Both files should be searched
     expect(result.stdout).toContain("searchdir/real.txt:");
@@ -1002,7 +1034,7 @@ describe("rg misc: unrestricted1", () => {
         "/home/user/.gitignore": "sherlock\n",
       },
     });
-    const result = toText(await bash.exec("rg -u Sherlock"));
+    const result = await toText(await bash.exec("rg -u Sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       "sherlock:1:For the Doctor Watsons of this world, as opposed to the Sherlock\nsherlock:3:be, to a very large extent, the result of luck. Sherlock Holmes\n",
@@ -1019,7 +1051,7 @@ describe("rg misc: unrestricted2", () => {
         "/home/user/.sherlock": SHERLOCK,
       },
     });
-    const result = toText(await bash.exec("rg -uu Sherlock"));
+    const result = await toText(await bash.exec("rg -uu Sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       ".sherlock:1:For the Doctor Watsons of this world, as opposed to the Sherlock\n.sherlock:3:be, to a very large extent, the result of luck. Sherlock Holmes\n",
@@ -1037,7 +1069,7 @@ describe("rg misc: unrestricted3", () => {
         "/home/user/hay": "foo\x00bar\nfoo\x00baz\n",
       },
     });
-    const result = toText(await bash.exec("rg -uuu foo"));
+    const result = await toText(await bash.exec("rg -uuu foo"));
     expect(result.exitCode).toBe(0);
     // Binary file message
     expect(result.stdout).toContain("hay:");
@@ -1053,7 +1085,9 @@ describe("rg misc: vimgrep", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = toText(await bash.exec("rg --vimgrep 'Sherlock|Watson'"));
+    const result = await toText(
+      await bash.exec("rg --vimgrep 'Sherlock|Watson'"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       "sherlock:1:16:For the Doctor Watsons of this world, as opposed to the Sherlock\nsherlock:1:57:For the Doctor Watsons of this world, as opposed to the Sherlock\nsherlock:3:49:be, to a very large extent, the result of luck. Sherlock Holmes\nsherlock:5:12:but Doctor Watson has to have it taken out for him and dusted,\n",
@@ -1070,7 +1104,9 @@ describe("rg misc: vimgrep_no_line", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = toText(await bash.exec("rg --vimgrep -N 'Sherlock|Watson'"));
+    const result = await toText(
+      await bash.exec("rg --vimgrep -N 'Sherlock|Watson'"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       "sherlock:16:For the Doctor Watsons of this world, as opposed to the Sherlock\nsherlock:57:For the Doctor Watsons of this world, as opposed to the Sherlock\nsherlock:49:be, to a very large extent, the result of luck. Sherlock Holmes\nsherlock:12:but Doctor Watson has to have it taken out for him and dusted,\n",
@@ -1096,7 +1132,7 @@ describe("rg misc: compressed_gzip", () => {
         "/home/user/sherlock.gz": compressed,
       },
     });
-    const result = toText(await bash.exec("rg -z Sherlock sherlock.gz"));
+    const result = await toText(await bash.exec("rg -z Sherlock sherlock.gz"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       "For the Doctor Watsons of this world, as opposed to the Sherlock\nbe, to a very large extent, the result of luck. Sherlock Holmes\n",
@@ -1123,7 +1159,7 @@ describe("rg misc: binary_convert", () => {
         "/home/user/file": "foo\x00bar\nfoo\x00baz\n",
       },
     });
-    const result = toText(await bash.exec("rg foo file"));
+    const result = await toText(await bash.exec("rg foo file"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       'binary file matches (found "\\0" byte around offset 3)\n',
@@ -1150,7 +1186,7 @@ describe("rg misc: binary_search_no_mmap", () => {
         "/home/user/file": "foo\x00bar\nfoo\x00baz\n",
       },
     });
-    const result = toText(await bash.exec("rg -a foo file"));
+    const result = await toText(await bash.exec("rg -a foo file"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("foo\x00bar\nfoo\x00baz\n");
   });
@@ -1166,7 +1202,7 @@ describe("rg misc: files", () => {
         "/home/user/dir/file": "",
       },
     });
-    const result = toText(await bash.exec("rg --files"));
+    const result = await toText(await bash.exec("rg --files"));
     expect(result.exitCode).toBe(0);
     const files = result.stdout.trim().split("\n").sort();
     expect(files).toEqual(["dir/file", "file"]);
@@ -1180,7 +1216,7 @@ describe("rg misc: type_list", () => {
       cwd: "/home/user",
       files: {},
     });
-    const result = toText(await bash.exec("rg --type-list"));
+    const result = await toText(await bash.exec("rg --type-list"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("rust");
     expect(result.stdout).toContain("py");
@@ -1199,7 +1235,7 @@ describe("rg misc: sort_files", () => {
         "/home/user/dir/d": "test\n",
       },
     });
-    const result = toText(await bash.exec("rg --sort path test"));
+    const result = await toText(await bash.exec("rg --sort path test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       "a:1:test\nb:1:test\ndir/c:1:test\ndir/d:1:test\n",

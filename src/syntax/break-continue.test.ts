@@ -6,7 +6,7 @@ describe("Bash Syntax - break and continue", () => {
   describe("break", () => {
     it("should exit for loop early", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         for i in 1 2 3 4 5; do
           if [ $i -eq 3 ]; then break; fi
@@ -21,7 +21,7 @@ describe("Bash Syntax - break and continue", () => {
 
     it("should exit while loop early", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         x=0
         while [ $x -lt 10 ]; do
@@ -38,7 +38,7 @@ describe("Bash Syntax - break and continue", () => {
 
     it("should exit until loop early", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         x=0
         until [ $x -ge 10 ]; do
@@ -55,7 +55,7 @@ describe("Bash Syntax - break and continue", () => {
 
     it("should break multiple levels with break n", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         for i in 1 2; do
           for j in a b c; do
@@ -72,7 +72,7 @@ describe("Bash Syntax - break and continue", () => {
 
     it("should silently do nothing when not in loop", async () => {
       const env = new Bash();
-      const result = toText(await env.exec("break"));
+      const result = await toText(await env.exec("break"));
       // In bash, break outside a loop silently does nothing
       expect(result.stderr).toBe("");
       expect(result.exitCode).toBe(0);
@@ -80,7 +80,7 @@ describe("Bash Syntax - break and continue", () => {
 
     it("should error on invalid argument", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         for i in 1 2 3; do
           break abc
@@ -95,7 +95,7 @@ describe("Bash Syntax - break and continue", () => {
   describe("continue", () => {
     it("should skip to next iteration in for loop", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         for i in 1 2 3 4 5; do
           if [ $i -eq 3 ]; then continue; fi
@@ -110,7 +110,7 @@ describe("Bash Syntax - break and continue", () => {
 
     it("should skip to next iteration in while loop", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         x=0
         while [ $x -lt 5 ]; do
@@ -127,7 +127,7 @@ describe("Bash Syntax - break and continue", () => {
 
     it("should continue multiple levels with continue n", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         for i in 1 2; do
           for j in a b c; do
@@ -145,7 +145,7 @@ describe("Bash Syntax - break and continue", () => {
 
     it("should silently do nothing when not in loop", async () => {
       const env = new Bash();
-      const result = toText(await env.exec("continue"));
+      const result = await toText(await env.exec("continue"));
       // In bash, continue outside a loop silently does nothing
       expect(result.stderr).toBe("");
       expect(result.exitCode).toBe(0);
@@ -155,7 +155,7 @@ describe("Bash Syntax - break and continue", () => {
   describe("nested control flow", () => {
     it("should work with case statements inside loops", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         for x in a b c; do
           case $x in
@@ -173,7 +173,7 @@ describe("Bash Syntax - break and continue", () => {
       // break inside subshell should exit the subshell (no loop context)
       // bash outputs: 1\n3\ndone\n (break exits subshell on i=2, no echo)
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         for i in 1 2 3; do
           (

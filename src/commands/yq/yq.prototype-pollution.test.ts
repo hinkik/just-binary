@@ -21,7 +21,7 @@ describe("yq prototype pollution defense", () => {
     for (const keyword of DANGEROUS_KEYWORDS.slice(0, 3)) {
       it(`should handle YAML key '${keyword}'`, async () => {
         const env = new Bash();
-        const result = toText(
+        const result = await toText(
           await env.exec(`echo '${keyword}: value' | yq '.${keyword}'`),
         );
         expect(result.exitCode).toBe(0);
@@ -34,7 +34,7 @@ describe("yq prototype pollution defense", () => {
     for (const keyword of DANGEROUS_KEYWORDS.slice(0, 3)) {
       it(`should handle JSON key '${keyword}'`, async () => {
         const env = new Bash();
-        const result = toText(
+        const result = await toText(
           await env.exec(
             `echo '{"${keyword}": "value"}' | yq -p json '.${keyword}'`,
           ),
@@ -48,7 +48,7 @@ describe("yq prototype pollution defense", () => {
   describe("yq key operations with dangerous keys", () => {
     it("should list keys including __proto__", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         echo '__proto__: a
 constructor: b
@@ -62,7 +62,7 @@ normal: c' | yq 'keys'
 
     it("should handle to_entries with dangerous keys", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         echo 'constructor: val' | yq 'to_entries | .[0].key'
       `),
@@ -73,7 +73,7 @@ normal: c' | yq 'keys'
 
     it("should handle has() with dangerous key", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         echo 'constructor: value' | yq 'has("constructor")'
       `),
@@ -84,7 +84,7 @@ normal: c' | yq 'keys'
 
     it("should return false for has() on missing dangerous key", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         echo 'other: value' | yq 'has("__proto__")'
       `),
@@ -97,7 +97,7 @@ normal: c' | yq 'keys'
   describe("yq $ENV with dangerous keywords", () => {
     it("should access $ENV.constructor safely", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         export constructor=ctor_value
         echo 'null' | yq '$ENV.constructor'
@@ -109,7 +109,7 @@ normal: c' | yq 'keys'
 
     it("should access $ENV.prototype safely", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         export prototype=proto_value
         echo 'null' | yq '$ENV.prototype'
@@ -123,7 +123,7 @@ normal: c' | yq 'keys'
   describe("yq add with dangerous keys", () => {
     it("should add objects with constructor key", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         echo '[{"constructor": "a"}, {"normal": "b"}]' | yq -p json 'add | .constructor'
       `),
@@ -136,7 +136,7 @@ normal: c' | yq 'keys'
   describe("yq getpath with dangerous keys", () => {
     it("should getpath with constructor", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         echo 'constructor: value' | yq 'getpath(["constructor"])'
       `),

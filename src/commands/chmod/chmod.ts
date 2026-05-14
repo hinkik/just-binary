@@ -1,5 +1,5 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const chmodHelp = {
@@ -24,8 +24,8 @@ export const chmodCommand: Command = {
 
     if (a.length < 2) {
       return {
-        stdout: EMPTY,
-        stderr: encode("chmod: missing operand\n"),
+        stdout: emptyStream(),
+        stderr: fromString("chmod: missing operand\n"),
         exitCode: 1,
       };
     }
@@ -59,8 +59,8 @@ export const chmodCommand: Command = {
           continue;
         }
         return {
-          stdout: EMPTY,
-          stderr: encode(`chmod: invalid option -- '${arg.slice(1)}'\n`),
+          stdout: emptyStream(),
+          stderr: fromString(`chmod: invalid option -- '${arg.slice(1)}'\n`),
           exitCode: 1,
         };
       }
@@ -68,8 +68,8 @@ export const chmodCommand: Command = {
 
     if (a.length - argIdx < 2) {
       return {
-        stdout: EMPTY,
-        stderr: encode("chmod: missing operand\n"),
+        stdout: emptyStream(),
+        stderr: fromString("chmod: missing operand\n"),
         exitCode: 1,
       };
     }
@@ -91,8 +91,8 @@ export const chmodCommand: Command = {
         parseMode(modeArg, 0o644);
       } catch {
         return {
-          stdout: EMPTY,
-          stderr: encode(`chmod: invalid mode: '${modeArg}'\n`),
+          stdout: emptyStream(),
+          stderr: fromString(`chmod: invalid mode: '${modeArg}'\n`),
           exitCode: 1,
         };
       }
@@ -140,8 +140,8 @@ export const chmodCommand: Command = {
     }
 
     return {
-      stdout: encode(stdout),
-      stderr: encode(stderr),
+      stdout: fromString(stdout),
+      stderr: fromString(stderr),
       exitCode: anyError ? 1 : 0,
     };
   },
@@ -284,6 +284,7 @@ function parseMode(modeStr: string, currentMode = 0o644): number {
   return mode;
 }
 
+import { emptyStream, fromString } from "../../utils/stream.js";
 import type { CommandFuzzInfo } from "../fuzz-flags-types.js";
 
 export const flagsForFuzzing: CommandFuzzInfo = {

@@ -48,7 +48,7 @@ describe("curl write-out format", () => {
   describe("%{http_code} format", () => {
     it("should output HTTP status code", async () => {
       const env = createEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           'curl -s -w "%{http_code}" https://api.example.com/test',
         ),
@@ -58,7 +58,7 @@ describe("curl write-out format", () => {
 
     it("should output code after response body", async () => {
       const env = createEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           'curl -s -w "%{http_code}" https://api.example.com/test',
         ),
@@ -68,7 +68,7 @@ describe("curl write-out format", () => {
 
     it("should support code on new line", async () => {
       const env = createEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           'curl -s -w "\\n%{http_code}" https://api.example.com/test',
         ),
@@ -80,7 +80,7 @@ describe("curl write-out format", () => {
   describe("%{content_type} format", () => {
     it("should output content type header", async () => {
       const env = createEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           'curl -s -w "%{content_type}" https://api.example.com/test',
         ),
@@ -92,7 +92,7 @@ describe("curl write-out format", () => {
   describe("%{url_effective} format", () => {
     it("should output the effective URL", async () => {
       const env = createEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           'curl -s -w "%{url_effective}" https://api.example.com/test',
         ),
@@ -104,7 +104,7 @@ describe("curl write-out format", () => {
   describe("%{size_download} format", () => {
     it("should output downloaded body size", async () => {
       const env = createEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           'curl -s -w "%{size_download}" https://api.example.com/test',
         ),
@@ -117,7 +117,7 @@ describe("curl write-out format", () => {
   describe("combined format strings", () => {
     it("should support multiple format specifiers", async () => {
       const env = createEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           'curl -s -w "code:%{http_code} type:%{content_type}" https://api.example.com/test',
         ),
@@ -128,7 +128,7 @@ describe("curl write-out format", () => {
 
     it("should support newlines between format specifiers", async () => {
       const env = createEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           'curl -s -w "\\ncode: %{http_code}\\ntype: %{content_type}\\n" https://api.example.com/test',
         ),
@@ -139,7 +139,7 @@ describe("curl write-out format", () => {
 
     it("should handle literal text with format specifiers", async () => {
       const env = createEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           'curl -s -w "HTTP %{http_code} OK" https://api.example.com/test',
         ),
@@ -151,7 +151,7 @@ describe("curl write-out format", () => {
   describe("--write-out option form", () => {
     it("should work with --write-out=value", async () => {
       const env = createEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           'curl -s --write-out="%{http_code}" https://api.example.com/test',
         ),
@@ -163,20 +163,20 @@ describe("curl write-out format", () => {
   describe("write-out with other options", () => {
     it("should work with -o output file", async () => {
       const env = createEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           'curl -s -o /output.json -w "%{http_code}" https://api.example.com/test',
         ),
       );
       // Write-out goes to stdout, body goes to file
       expect(result.stdout).toBe("201");
-      const fileContent = await env.fs.readFile("/output.json");
+      const fileContent = await env.fs.readFileText("/output.json");
       expect(fileContent).toBe('{"result":"success"}');
     });
 
     it("should work with -i include headers", async () => {
       const env = createEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           'curl -s -i -w "\\nCODE:%{http_code}" https://api.example.com/test',
         ),
@@ -189,7 +189,7 @@ describe("curl write-out format", () => {
   describe("invalid/unknown format specifiers", () => {
     it("should pass through unknown format specifiers", async () => {
       const env = createEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           'curl -s -w "%{unknown_var}" https://api.example.com/test',
         ),

@@ -1,5 +1,5 @@
 import type { Command, ExecResult } from "../../types.js";
-import { decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs } from "../../utils/bytes.js";
 
 /**
  * seq - print a sequence of numbers
@@ -74,8 +74,8 @@ export const seqCommand: Command = {
 
     if (nums.length === 0) {
       return {
-        stdout: EMPTY,
-        stderr: encode("seq: missing operand\n"),
+        stdout: emptyStream(),
+        stderr: fromString("seq: missing operand\n"),
         exitCode: 1,
       };
     }
@@ -99,16 +99,18 @@ export const seqCommand: Command = {
     if (Number.isNaN(first) || Number.isNaN(increment) || Number.isNaN(last)) {
       const invalid = nums.find((n) => Number.isNaN(parseFloat(n)));
       return {
-        stdout: EMPTY,
-        stderr: encode(`seq: invalid floating point argument: '${invalid}'\n`),
+        stdout: emptyStream(),
+        stderr: fromString(
+          `seq: invalid floating point argument: '${invalid}'\n`,
+        ),
         exitCode: 1,
       };
     }
 
     if (increment === 0) {
       return {
-        stdout: EMPTY,
-        stderr: encode("seq: invalid Zero increment value: '0'\n"),
+        stdout: emptyStream(),
+        stderr: fromString("seq: invalid Zero increment value: '0'\n"),
         exitCode: 1,
       };
     }
@@ -162,13 +164,14 @@ export const seqCommand: Command = {
 
     const output = results.join(separator);
     return {
-      stdout: encode(output ? `${output}\n` : ""),
-      stderr: EMPTY,
+      stdout: fromString(output ? `${output}\n` : ""),
+      stderr: emptyStream(),
       exitCode: 0,
     };
   },
 };
 
+import { emptyStream, fromString } from "../../utils/stream.js";
 import type { CommandFuzzInfo } from "../fuzz-flags-types.js";
 
 export const flagsForFuzzing: CommandFuzzInfo = {

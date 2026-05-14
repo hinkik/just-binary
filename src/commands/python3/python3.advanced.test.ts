@@ -14,7 +14,9 @@ def countdown(n):
 
 print(list(countdown(3)))
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_generator.py`));
+      const result = await toText(
+        await env.exec(`python3 /tmp/test_generator.py`),
+      );
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("[3, 2, 1]\n");
       expect(result.exitCode).toBe(0);
@@ -22,7 +24,7 @@ EOF`);
 
     it("should support generator expressions", async () => {
       const env = new Bash({ python: true });
-      const result = toText(
+      const result = await toText(
         await env.exec(`python3 -c "print(sum(x**2 for x in range(5)))"`),
       );
       expect(result.stderr).toBe("");
@@ -37,7 +39,7 @@ from itertools import islice, count
 result = list(islice(count(10), 5))
 print(result)
 EOF`);
-      const result = toText(
+      const result = await toText(
         await env.exec(`python3 /tmp/test_infinite_gen.py`),
       );
       expect(result.stderr).toBe("");
@@ -62,7 +64,9 @@ def greet(name):
 
 print(greet("world"))
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_decorator.py`));
+      const result = await toText(
+        await env.exec(`python3 /tmp/test_decorator.py`),
+      );
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("HELLO WORLD\n");
       expect(result.exitCode).toBe(0);
@@ -87,7 +91,7 @@ def say_hi():
 
 print(say_hi())
 EOF`);
-      const result = toText(
+      const result = await toText(
         await env.exec(`python3 /tmp/test_decorator_args.py`),
       );
       expect(result.stderr).toBe("");
@@ -115,7 +119,7 @@ def message():
 
 print(message())
 EOF`);
-      const result = toText(
+      const result = await toText(
         await env.exec(`python3 /tmp/test_stacked_decorators.py`),
       );
       expect(result.stderr).toBe("");
@@ -140,7 +144,7 @@ class Timer:
 with Timer():
     print("inside")
 EOF`);
-      const result = toText(
+      const result = await toText(
         await env.exec(`python3 /tmp/test_context_class.py`),
       );
       expect(result.stderr).toBe("");
@@ -162,7 +166,9 @@ def tag(name):
 with tag("div"):
     print("content")
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_contextlib.py`));
+      const result = await toText(
+        await env.exec(`python3 /tmp/test_contextlib.py`),
+      );
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("<div>\ncontent\n</div>\n");
       expect(result.exitCode).toBe(0);
@@ -172,7 +178,7 @@ EOF`);
   describe("lambda functions", () => {
     it("should create and use lambdas", async () => {
       const env = new Bash({ python: true });
-      const result = toText(
+      const result = await toText(
         await env.exec(`python3 -c "f = lambda x, y: x + y; print(f(3, 4))"`),
       );
       expect(result.stderr).toBe("");
@@ -189,7 +195,9 @@ evens = list(filter(lambda x: x % 2 == 0, numbers))
 print(squared)
 print(evens)
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_lambda.py`));
+      const result = await toText(
+        await env.exec(`python3 /tmp/test_lambda.py`),
+      );
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("[1, 4, 9, 16, 25]\n[2, 4]\n");
       expect(result.exitCode).toBe(0);
@@ -202,7 +210,9 @@ pairs = [(1, 'one'), (2, 'two'), (3, 'three')]
 sorted_by_name = sorted(pairs, key=lambda x: x[1])
 print([p[1] for p in sorted_by_name])
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_lambda_sort.py`));
+      const result = await toText(
+        await env.exec(`python3 /tmp/test_lambda_sort.py`),
+      );
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("['one', 'three', 'two']\n");
       expect(result.exitCode).toBe(0);
@@ -223,7 +233,9 @@ triple = make_multiplier(3)
 print(double(5))
 print(triple(5))
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_closure.py`));
+      const result = await toText(
+        await env.exec(`python3 /tmp/test_closure.py`),
+      );
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("10\n15\n");
       expect(result.exitCode).toBe(0);
@@ -245,7 +257,9 @@ print(c())
 print(c())
 print(c())
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_nonlocal.py`));
+      const result = await toText(
+        await env.exec(`python3 /tmp/test_nonlocal.py`),
+      );
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("1\n2\n3\n");
       expect(result.exitCode).toBe(0);
@@ -265,7 +279,7 @@ def add(a: int, b: int) -> int:
 print(greet("World"))
 print(add(3, 4))
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_types.py`));
+      const result = await toText(await env.exec(`python3 /tmp/test_types.py`));
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("Hello, World\n7\n");
       expect(result.exitCode).toBe(0);
@@ -288,7 +302,9 @@ print(process([1, 2, 3]))
 print(maybe_double(5))
 print(maybe_double(None))
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_typing.py`));
+      const result = await toText(
+        await env.exec(`python3 /tmp/test_typing.py`),
+      );
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("{'sum': 6, 'count': 3}\n10\n0\n");
       expect(result.exitCode).toBe(0);
@@ -303,7 +319,9 @@ numbers = [1, 2, 3, 4, 5]
 if (n := len(numbers)) > 3:
     print(f"list has {n} elements")
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_walrus.py`));
+      const result = await toText(
+        await env.exec(`python3 /tmp/test_walrus.py`),
+      );
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("list has 5 elements\n");
       expect(result.exitCode).toBe(0);
@@ -316,7 +334,9 @@ data = [1, 2, 3, 4, 5]
 results = [y for x in data if (y := x * 2) > 4]
 print(results)
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_walrus_comp.py`));
+      const result = await toText(
+        await env.exec(`python3 /tmp/test_walrus_comp.py`),
+      );
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("[6, 8, 10]\n");
       expect(result.exitCode).toBe(0);
@@ -326,7 +346,7 @@ EOF`);
   describe("f-strings", () => {
     it("should support basic f-strings", async () => {
       const env = new Bash({ python: true });
-      const result = toText(
+      const result = await toText(
         await env.exec(`python3 -c "name='World'; print(f'Hello, {name}!')"`),
       );
       expect(result.stderr).toBe("");
@@ -336,7 +356,7 @@ EOF`);
 
     it("should support f-string expressions", async () => {
       const env = new Bash({ python: true });
-      const result = toText(
+      const result = await toText(
         await env.exec(`python3 -c "print(f'{2 + 2 = }')"`),
       );
       expect(result.stderr).toBe("");
@@ -352,7 +372,9 @@ print(f"{pi:.2f}")
 n = 42
 print(f"{n:05d}")
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_fstring.py`));
+      const result = await toText(
+        await env.exec(`python3 /tmp/test_fstring.py`),
+      );
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("3.14\n00042\n");
       expect(result.exitCode).toBe(0);
@@ -368,7 +390,9 @@ print(first)
 print(middle)
 print(last)
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_unpack.py`));
+      const result = await toText(
+        await env.exec(`python3 /tmp/test_unpack.py`),
+      );
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("1\n[2, 3, 4]\n5\n");
       expect(result.exitCode).toBe(0);
@@ -382,7 +406,9 @@ d2 = {'c': 3, 'd': 4}
 merged = {**d1, **d2}
 print(sorted(merged.items()))
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_dict_unpack.py`));
+      const result = await toText(
+        await env.exec(`python3 /tmp/test_dict_unpack.py`),
+      );
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("[('a', 1), ('b', 2), ('c', 3), ('d', 4)]\n");
       expect(result.exitCode).toBe(0);
@@ -406,7 +432,7 @@ print(describe(0))
 print(describe(1))
 print(describe(42))
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_match.py`));
+      const result = await toText(await env.exec(`python3 /tmp/test_match.py`));
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("zero\none\nother\n");
       expect(result.exitCode).toBe(0);
@@ -427,7 +453,7 @@ def process(data):
 print(process([1, 2]))
 print(process([1, 2, 3]))
 EOF`);
-      const result = toText(
+      const result = await toText(
         await env.exec(`python3 /tmp/test_match_pattern.py`),
       );
       expect(result.stderr).toBe("");
@@ -453,7 +479,7 @@ async def main():
 
 asyncio.run(main())
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_async.py`));
+      const result = await toText(await env.exec(`python3 /tmp/test_async.py`));
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("hello\n");
       expect(result.exitCode).toBe(0);
@@ -474,7 +500,9 @@ async def main():
 
 asyncio.run(main())
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_async_list.py`));
+      const result = await toText(
+        await env.exec(`python3 /tmp/test_async_list.py`),
+      );
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("[0, 2, 4]\n");
       expect(result.exitCode).toBe(0);
@@ -496,7 +524,7 @@ print(Color.RED)
 print(Color.RED.value)
 print(Color.RED.name)
 EOF`);
-      const result = toText(await env.exec(`python3 /tmp/test_enum.py`));
+      const result = await toText(await env.exec(`python3 /tmp/test_enum.py`));
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe("Color.RED\n1\nRED\n");
       expect(result.exitCode).toBe(0);

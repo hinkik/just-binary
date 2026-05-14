@@ -8,7 +8,7 @@ import { toText } from "../../test-utils.js";
 describe("yq format strings", () => {
   it("@base64 encodes string", async () => {
     const bash = new Bash();
-    const result = toText(
+    const result = await toText(
       await bash.exec("echo '\"hello\"' | yq -o json '@base64'"),
     );
     expect(result.exitCode).toBe(0);
@@ -17,7 +17,7 @@ describe("yq format strings", () => {
 
   it("@base64d decodes string", async () => {
     const bash = new Bash();
-    const result = toText(
+    const result = await toText(
       await bash.exec("echo '\"aGVsbG8=\"' | yq -o json '@base64d'"),
     );
     expect(result.exitCode).toBe(0);
@@ -26,7 +26,7 @@ describe("yq format strings", () => {
 
   it("@uri encodes string", async () => {
     const bash = new Bash();
-    const result = toText(
+    const result = await toText(
       await bash.exec("echo '\"hello world\"' | yq -o json '@uri'"),
     );
     expect(result.exitCode).toBe(0);
@@ -35,7 +35,7 @@ describe("yq format strings", () => {
 
   it("@csv formats array", async () => {
     const bash = new Bash();
-    const result = toText(
+    const result = await toText(
       await bash.exec('echo \'["a","b","c"]\' | yq -o json \'@csv\''),
     );
     expect(result.exitCode).toBe(0);
@@ -44,7 +44,7 @@ describe("yq format strings", () => {
 
   it("@csv escapes values with commas", async () => {
     const bash = new Bash();
-    const result = toText(
+    const result = await toText(
       await bash.exec('echo \'["a","b,c","d"]\' | yq -o json \'@csv\''),
     );
     expect(result.exitCode).toBe(0);
@@ -55,7 +55,7 @@ describe("yq format strings", () => {
 
   it("@tsv formats array", async () => {
     const bash = new Bash();
-    const result = toText(
+    const result = await toText(
       await bash.exec('echo \'["a","b","c"]\' | yq -o json \'@tsv\''),
     );
     expect(result.exitCode).toBe(0);
@@ -64,7 +64,7 @@ describe("yq format strings", () => {
 
   it("@json converts to JSON string", async () => {
     const bash = new Bash();
-    const result = toText(
+    const result = await toText(
       await bash.exec("echo '{\"a\":1}' | yq -o json '@json'"),
     );
     expect(result.exitCode).toBe(0);
@@ -73,7 +73,7 @@ describe("yq format strings", () => {
 
   it("@html escapes special characters", async () => {
     const bash = new Bash();
-    const result = toText(
+    const result = await toText(
       await bash.exec(
         "echo '\"<script>alert(1)</script>\"' | yq -o json '@html'",
       ),
@@ -84,7 +84,7 @@ describe("yq format strings", () => {
 
   it("@sh escapes for shell", async () => {
     const bash = new Bash();
-    const result = toText(
+    const result = await toText(
       await bash.exec("echo '\"hello world\"' | yq -o json '@sh'"),
     );
     expect(result.exitCode).toBe(0);
@@ -93,7 +93,7 @@ describe("yq format strings", () => {
 
   it("@sh escapes single quotes", async () => {
     const bash = new Bash();
-    const result = toText(
+    const result = await toText(
       await bash.exec("echo '\"it'\"'\"'s\"' | yq -o json '@sh'"),
     );
     expect(result.exitCode).toBe(0);
@@ -102,7 +102,7 @@ describe("yq format strings", () => {
 
   it("@text converts to string", async () => {
     const bash = new Bash();
-    const result = toText(
+    const result = await toText(
       await bash.exec("echo '\"test\"' | yq -o json '@text'"),
     );
     expect(result.exitCode).toBe(0);
@@ -114,7 +114,7 @@ describe("yq format strings", () => {
     it("@base64 with unicode", async () => {
       const bash = new Bash();
       // "héllo" in base64
-      const result = toText(
+      const result = await toText(
         await bash.exec("echo '\"héllo\"' | yq -o json '@base64'"),
       );
       expect(result.exitCode).toBe(0);
@@ -123,7 +123,7 @@ describe("yq format strings", () => {
 
     it("@base64 on non-string returns null", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec("echo '123' | yq -o json '@base64'"),
       );
       expect(result.exitCode).toBe(0);
@@ -132,7 +132,7 @@ describe("yq format strings", () => {
 
     it("@base64 on array returns null", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec("echo '[\"a\",\"b\"]' | yq -o json '@base64'"),
       );
       expect(result.exitCode).toBe(0);
@@ -141,7 +141,7 @@ describe("yq format strings", () => {
 
     it("@csv with null values", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec("echo '[\"a\",null,\"c\"]' | yq -o json '@csv'"),
       );
       expect(result.exitCode).toBe(0);
@@ -150,7 +150,7 @@ describe("yq format strings", () => {
 
     it("@csv with numbers", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec("echo '[1,2,3]' | yq -o json '@csv'"),
       );
       expect(result.exitCode).toBe(0);
@@ -159,7 +159,9 @@ describe("yq format strings", () => {
 
     it("@csv with empty array", async () => {
       const bash = new Bash();
-      const result = toText(await bash.exec("echo '[]' | yq -o json '@csv'"));
+      const result = await toText(
+        await bash.exec("echo '[]' | yq -o json '@csv'"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe('""\n');
     });
@@ -168,7 +170,7 @@ describe("yq format strings", () => {
       const bash = new Bash();
       // Input: ["a", 'b"c', "d"]
       // CSV should double the quotes: a,"b""c",d
-      const result = toText(
+      const result = await toText(
         await bash.exec('echo \'["a","b\\"c","d"]\' | yq -o json \'@csv\''),
       );
       expect(result.exitCode).toBe(0);
@@ -178,7 +180,7 @@ describe("yq format strings", () => {
 
     it("@csv on non-array returns null", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec("echo '\"test\"' | yq -o json '@csv'"),
       );
       expect(result.exitCode).toBe(0);
@@ -187,7 +189,7 @@ describe("yq format strings", () => {
 
     it("@uri encodes all special characters", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec("echo '\"a=1&b=2?c#d\"' | yq -o json '@uri'"),
       );
       expect(result.exitCode).toBe(0);
@@ -196,7 +198,7 @@ describe("yq format strings", () => {
 
     it("@html escapes ampersand", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec("echo '\"a & b\"' | yq -o json '@html'"),
       );
       expect(result.exitCode).toBe(0);
@@ -205,21 +207,25 @@ describe("yq format strings", () => {
 
     it("@html on non-string returns null", async () => {
       const bash = new Bash();
-      const result = toText(await bash.exec("echo '123' | yq -o json '@html'"));
+      const result = await toText(
+        await bash.exec("echo '123' | yq -o json '@html'"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("null\n");
     });
 
     it("@sh on non-string returns null", async () => {
       const bash = new Bash();
-      const result = toText(await bash.exec("echo '123' | yq -o json '@sh'"));
+      const result = await toText(
+        await bash.exec("echo '123' | yq -o json '@sh'"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("null\n");
     });
 
     it("@text on null returns empty string", async () => {
       const bash = new Bash();
-      const result = toText(
+      const result = await toText(
         await bash.exec("echo 'null' | yq -o json '@text'"),
       );
       expect(result.exitCode).toBe(0);
@@ -228,7 +234,9 @@ describe("yq format strings", () => {
 
     it("@text on number converts to string", async () => {
       const bash = new Bash();
-      const result = toText(await bash.exec("echo '42' | yq -o json '@text'"));
+      const result = await toText(
+        await bash.exec("echo '42' | yq -o json '@text'"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe('"42"\n');
     });

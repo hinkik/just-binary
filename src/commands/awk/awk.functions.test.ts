@@ -6,7 +6,7 @@ describe("awk user-defined functions", () => {
   describe("basic function definition", () => {
     it("should define and call a simple function", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "5" | awk 'function double(x) { return x * 2 } { print double($1) }'`,
         ),
@@ -17,7 +17,7 @@ describe("awk user-defined functions", () => {
 
     it("should define function with multiple parameters", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "3 4" | awk 'function add(a, b) { return a + b } { print add($1, $2) }'`,
         ),
@@ -28,7 +28,7 @@ describe("awk user-defined functions", () => {
 
     it("should support function with no parameters", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "" | awk 'function greet() { return "hello" } BEGIN { print greet() }'`,
         ),
@@ -42,7 +42,7 @@ describe("awk user-defined functions", () => {
     it("should make non-parameter variables global", async () => {
       const env = new Bash();
       // Variables assigned in function (not parameters) should persist globally
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "" | awk 'function foo() { x = 42 } BEGIN { foo(); print x }'`,
         ),
@@ -54,7 +54,7 @@ describe("awk user-defined functions", () => {
     it("should make parameters local to function", async () => {
       const env = new Bash();
       // Parameters should not affect global variables with same name
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "" | awk 'function foo(x) { x = 99 } BEGIN { x = 1; foo(5); print x }'`,
         ),
@@ -66,7 +66,7 @@ describe("awk user-defined functions", () => {
     it("should use extra parameters as local variables", async () => {
       const env = new Bash();
       // Extra parameters (declared but not passed) are local and initialized to ""
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "" | awk 'function foo(a,    local) { local = 100; return a + local } BEGIN { local = 5; print foo(1), local }'`,
         ),
@@ -77,7 +77,7 @@ describe("awk user-defined functions", () => {
 
     it("should handle local variables in function", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "5" | awk 'function square(x) { result = x * x; return result } { print square($1) }'`,
         ),
@@ -90,7 +90,7 @@ describe("awk user-defined functions", () => {
   describe("recursive functions", () => {
     it("should support simple recursion", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "5" | awk 'function fact(n) { if (n <= 1) return 1; return n * fact(n-1) } { print fact($1) }'`,
         ),
@@ -101,7 +101,7 @@ describe("awk user-defined functions", () => {
 
     it("should support fibonacci", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "10" | awk 'function fib(n) { if (n <= 2) return 1; return fib(n-1) + fib(n-2) } { print fib($1) }'`,
         ),
@@ -114,7 +114,7 @@ describe("awk user-defined functions", () => {
   describe("function calling other functions", () => {
     it("should allow functions to call other functions", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "3" | awk 'function double(x) { return x * 2 } function quadruple(x) { return double(double(x)) } { print quadruple($1) }'`,
         ),
@@ -127,7 +127,7 @@ describe("awk user-defined functions", () => {
   describe("function with string operations", () => {
     it("should handle string return values", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "world" | awk 'function greet(name) { return "hello " name } { print greet($1) }'`,
         ),
@@ -140,7 +140,7 @@ describe("awk user-defined functions", () => {
   describe("function in BEGIN/END blocks", () => {
     it("should work in BEGIN block", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "" | awk 'function sum(a,b) { return a+b } BEGIN { print sum(10, 20) }'`,
         ),
@@ -153,7 +153,7 @@ describe("awk user-defined functions", () => {
   describe("multiple functions", () => {
     it("should support multiple function definitions", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "4" | awk 'function square(x) { return x*x } function cube(x) { return x*x*x } { print square($1), cube($1) }'`,
         ),
@@ -170,7 +170,7 @@ describe("awk multiple rules", () => {
       const env = new Bash({
         files: { "/data.txt": "apple\nbanana\ncherry\n" },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `awk '/apple/{print "FRUIT"} /banana/{print "YELLOW"}' /data.txt`,
         ),
@@ -183,7 +183,9 @@ describe("awk multiple rules", () => {
       const env = new Bash({
         files: { "/data.txt": "a\nb\nc\n" },
       });
-      const result = toText(await env.exec(`awk '/b/{next}{print}' /data.txt`));
+      const result = await toText(
+        await env.exec(`awk '/b/{next}{print}' /data.txt`),
+      );
       expect(result.stdout).toBe("a\nc\n");
       expect(result.exitCode).toBe(0);
     });
@@ -192,7 +194,7 @@ describe("awk multiple rules", () => {
       const env = new Bash({
         files: { "/data.txt": "hello\nworld\nhello world\n" },
       });
-      const result = toText(await env.exec(`awk '/hello/' /data.txt`));
+      const result = await toText(await env.exec(`awk '/hello/' /data.txt`));
       expect(result.stdout).toBe("hello\nhello world\n");
       expect(result.exitCode).toBe(0);
     });
@@ -201,7 +203,7 @@ describe("awk multiple rules", () => {
       const env = new Bash({
         files: { "/data.txt": "1\n2\n3\n" },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec(`awk '/2/{print "TWO"} {print "line:" $0}' /data.txt`),
       );
       expect(result.stdout).toBe("line:1\nTWO\nline:2\nline:3\n");
@@ -214,7 +216,7 @@ describe("awk multiple rules", () => {
       const env = new Bash({
         files: { "/data.txt": "a\nb\n" },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `awk 'BEGIN{print "START"} {print $0} END{print "END"}' /data.txt`,
         ),
@@ -231,7 +233,7 @@ describe("awk control flow", () => {
       const env = new Bash({
         files: { "/data.txt": "1\n2\n3\n4\n5\n" },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec(`awk '{ if ($1 % 2 == 0) next; print }' /data.txt`),
       );
       expect(result.stdout).toBe("1\n3\n5\n");
@@ -242,7 +244,7 @@ describe("awk control flow", () => {
       const env = new Bash({
         files: { "/data.txt": "skip\nkeep\n" },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec(`awk '/skip/{next}{print "processed:", $0}' /data.txt`),
       );
       expect(result.stdout).toBe("processed: keep\n");
@@ -255,7 +257,7 @@ describe("awk control flow", () => {
       const env = new Bash({
         files: { "/data.txt": "1\n2\n3\n" },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec(`awk '{ if ($1 == 2) exit 42; print }' /data.txt`),
       );
       expect(result.stdout).toBe("1\n");
@@ -266,7 +268,7 @@ describe("awk control flow", () => {
       const env = new Bash({
         files: { "/data.txt": "1\n2\n3\n" },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec(`awk '{ if ($1 == 2) exit; print }' /data.txt`),
       );
       expect(result.stdout).toBe("1\n");
@@ -277,7 +279,7 @@ describe("awk control flow", () => {
   describe("break and continue in loops", () => {
     it("should break out of for loop", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "" | awk 'BEGIN { for(i=1; i<=10; i++) { if(i>5) break; print i } }'`,
         ),
@@ -288,7 +290,7 @@ describe("awk control flow", () => {
 
     it("should continue to next iteration", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "" | awk 'BEGIN { for(i=1; i<=5; i++) { if(i==3) continue; print i } }'`,
         ),
@@ -299,7 +301,7 @@ describe("awk control flow", () => {
 
     it("should break out of while loop", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "" | awk 'BEGIN { i=0; while(1) { i++; if(i>3) break; print i } }'`,
         ),
@@ -310,7 +312,7 @@ describe("awk control flow", () => {
 
     it("should continue in while loop", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "" | awk 'BEGIN { i=0; while(i<5) { i++; if(i==3) continue; print i } }'`,
         ),
@@ -323,7 +325,7 @@ describe("awk control flow", () => {
   describe("do-while loops", () => {
     it("should execute body at least once", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "" | awk 'BEGIN { i=10; do { print i; i++ } while(i<10) }'`,
         ),
@@ -334,7 +336,7 @@ describe("awk control flow", () => {
 
     it("should loop while condition is true", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "" | awk 'BEGIN { i=1; do { print i; i++ } while(i<=3) }'`,
         ),
@@ -351,14 +353,16 @@ describe("awk built-in variables", () => {
       const env = new Bash({
         files: { "/test.txt": "line1\n" },
       });
-      const result = toText(await env.exec(`awk '{print FILENAME}' /test.txt`));
+      const result = await toText(
+        await env.exec(`awk '{print FILENAME}' /test.txt`),
+      );
       expect(result.stdout).toBe("/test.txt\n");
       expect(result.exitCode).toBe(0);
     });
 
     it("should be empty for stdin", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "test" | awk '{print FILENAME}'`),
       );
       expect(result.stdout).toBe("\n");
@@ -374,7 +378,7 @@ describe("awk built-in variables", () => {
           "/b.txt": "b1\nb2\nb3\n",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec(`awk '{print FILENAME, FNR, NR}' /a.txt /b.txt`),
       );
       expect(result.stdout).toBe(
@@ -387,7 +391,7 @@ describe("awk built-in variables", () => {
   describe("RSTART and RLENGTH", () => {
     it("should be set by match()", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "hello world" | awk '{ match($0, /wor/); print RSTART, RLENGTH }'`,
         ),
@@ -398,7 +402,7 @@ describe("awk built-in variables", () => {
 
     it("should be 0 and -1 when no match", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "hello" | awk '{ match($0, /xyz/); print RSTART, RLENGTH }'`,
         ),
@@ -413,7 +417,7 @@ describe("awk string functions", () => {
   describe("match()", () => {
     it("should return position of match", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "hello world" | awk '{ print match($0, /world/) }'`,
         ),
@@ -424,7 +428,7 @@ describe("awk string functions", () => {
 
     it("should return 0 for no match", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "hello" | awk '{ print match($0, /xyz/) }'`),
       );
       expect(result.stdout).toBe("0\n");
@@ -433,7 +437,7 @@ describe("awk string functions", () => {
 
     it("should work with regex patterns", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "test123abc" | awk '{ match($0, /[0-9]+/); print RSTART, RLENGTH }'`,
         ),
@@ -446,7 +450,7 @@ describe("awk string functions", () => {
   describe("gensub()", () => {
     it("should replace first occurrence", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "hello hello" | awk '{ print gensub(/hello/, "hi", 1) }'`,
         ),
@@ -457,7 +461,7 @@ describe("awk string functions", () => {
 
     it("should replace all occurrences with g", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "hello hello" | awk '{ print gensub(/hello/, "hi", "g") }'`,
         ),
@@ -468,7 +472,7 @@ describe("awk string functions", () => {
 
     it("should support backreferences", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "hello world" | awk '{ print gensub(/([a-z]+) ([a-z]+)/, "\\\\2 \\\\1", 1) }'`,
         ),
@@ -479,7 +483,7 @@ describe("awk string functions", () => {
 
     it("should replace Nth occurrence", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           `echo "a b a b a" | awk '{ print gensub(/a/, "X", 2) }'`,
         ),
@@ -494,7 +498,7 @@ describe("awk arithmetic", () => {
   describe("power operator", () => {
     it("should compute power with ^", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "" | awk 'BEGIN { print 2^10 }'`),
       );
       expect(result.stdout).toBe("1024\n");
@@ -503,7 +507,7 @@ describe("awk arithmetic", () => {
 
     it("should compute power with **", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "" | awk 'BEGIN { print 3**4 }'`),
       );
       expect(result.stdout).toBe("81\n");
@@ -512,7 +516,7 @@ describe("awk arithmetic", () => {
 
     it("should handle fractional exponents", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "" | awk 'BEGIN { print 9^0.5 }'`),
       );
       expect(result.stdout).toBe("3\n");
@@ -525,7 +529,7 @@ describe("awk printf formats", () => {
   describe("hexadecimal %x", () => {
     it("should format as hex lowercase", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "" | awk 'BEGIN { printf "%x\\n", 255 }'`),
       );
       expect(result.stdout).toBe("ff\n");
@@ -534,7 +538,7 @@ describe("awk printf formats", () => {
 
     it("should format as hex uppercase", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "" | awk 'BEGIN { printf "%X\\n", 255 }'`),
       );
       expect(result.stdout).toBe("FF\n");
@@ -545,7 +549,7 @@ describe("awk printf formats", () => {
   describe("octal %o", () => {
     it("should format as octal", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "" | awk 'BEGIN { printf "%o\\n", 64 }'`),
       );
       expect(result.stdout).toBe("100\n");
@@ -556,7 +560,7 @@ describe("awk printf formats", () => {
   describe("character %c", () => {
     it("should format number as character", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "" | awk 'BEGIN { printf "%c\\n", 65 }'`),
       );
       expect(result.stdout).toBe("A\n");
@@ -565,7 +569,7 @@ describe("awk printf formats", () => {
 
     it("should format string first char", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "" | awk 'BEGIN { printf "%c\\n", "hello" }'`),
       );
       expect(result.stdout).toBe("h\n");
@@ -576,7 +580,7 @@ describe("awk printf formats", () => {
   describe("scientific %e", () => {
     it("should format in scientific notation", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`echo "" | awk 'BEGIN { printf "%.2e\\n", 1234.5 }'`),
       );
       expect(result.stdout).toBe("1.23e+3\n");
@@ -591,7 +595,7 @@ describe("awk field separator", () => {
       const env = new Bash({
         files: { "/data.txt": "a1b2c3d\n" },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec(`awk -F'[0-9]' '{print $1, $2, $3, $4}' /data.txt`),
       );
       expect(result.stdout).toBe("a b c d\n");
@@ -602,7 +606,7 @@ describe("awk field separator", () => {
       const env = new Bash({
         files: { "/data.txt": "a::b::c\n" },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec(`awk -F'::' '{print $1, $2, $3}' /data.txt`),
       );
       expect(result.stdout).toBe("a b c\n");
@@ -613,7 +617,7 @@ describe("awk field separator", () => {
       const env = new Bash({
         files: { "/data.txt": "a,b;c:d\n" },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec(`awk -F'[,;:]' '{print $1, $2, $3, $4}' /data.txt`),
       );
       expect(result.stdout).toBe("a b c d\n");

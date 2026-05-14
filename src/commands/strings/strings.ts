@@ -8,7 +8,8 @@
  */
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs } from "../../utils/bytes.js";
+import { collectText, emptyStream, fromString } from "../../utils/stream.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
 const stringsHelp = {
@@ -135,8 +136,8 @@ export const strings: Command = {
         if (Number.isNaN(min) || min < 1) {
           return {
             exitCode: 1,
-            stdout: EMPTY,
-            stderr: encode(
+            stdout: emptyStream(),
+            stderr: fromString(
               `strings: invalid minimum string length: '${a[i + 1]}'\n`,
             ),
           };
@@ -148,8 +149,8 @@ export const strings: Command = {
         if (Number.isNaN(min) || min < 1) {
           return {
             exitCode: 1,
-            stdout: EMPTY,
-            stderr: encode(
+            stdout: emptyStream(),
+            stderr: fromString(
               `strings: invalid minimum string length: '${arg.slice(2)}'\n`,
             ),
           };
@@ -162,8 +163,8 @@ export const strings: Command = {
         if (Number.isNaN(min) || min < 1) {
           return {
             exitCode: 1,
-            stdout: EMPTY,
-            stderr: encode(
+            stdout: emptyStream(),
+            stderr: fromString(
               `strings: invalid minimum string length: '${arg.slice(1)}'\n`,
             ),
           };
@@ -175,8 +176,8 @@ export const strings: Command = {
         if (format !== "o" && format !== "x" && format !== "d") {
           return {
             exitCode: 1,
-            stdout: EMPTY,
-            stderr: encode(`strings: invalid radix: '${format}'\n`),
+            stdout: emptyStream(),
+            stderr: fromString(`strings: invalid radix: '${format}'\n`),
           };
         }
         options.offsetFormat = format;
@@ -186,8 +187,8 @@ export const strings: Command = {
         if (format !== "o" && format !== "x" && format !== "d") {
           return {
             exitCode: 1,
-            stdout: EMPTY,
-            stderr: encode(`strings: invalid radix: '${format}'\n`),
+            stdout: emptyStream(),
+            stderr: fromString(`strings: invalid radix: '${format}'\n`),
           };
         }
         options.offsetFormat = format as OffsetFormat;
@@ -205,8 +206,8 @@ export const strings: Command = {
         if (encoding !== "s" && encoding !== "S") {
           return {
             exitCode: 1,
-            stdout: EMPTY,
-            stderr: encode(`strings: invalid encoding: '${encoding}'\n`),
+            stdout: emptyStream(),
+            stderr: fromString(`strings: invalid encoding: '${encoding}'\n`),
           };
         }
         // We treat both the same for simplicity
@@ -216,8 +217,8 @@ export const strings: Command = {
         if (encoding !== "s" && encoding !== "S") {
           return {
             exitCode: 1,
-            stdout: EMPTY,
-            stderr: encode(`strings: invalid encoding: '${encoding}'\n`),
+            stdout: emptyStream(),
+            stderr: fromString(`strings: invalid encoding: '${encoding}'\n`),
           };
         }
         i++;
@@ -236,23 +237,28 @@ export const strings: Command = {
 
     if (files.length === 0) {
       // Read from stdin
-      const input = decode(ctx.stdin);
+      const input = await collectText(ctx.stdin);
       const strings = extractStrings(input, options);
       output = strings.length > 0 ? `${strings.join("\n")}\n` : "";
     } else {
       // Process each file
+      let stdinText: string | null = null;
       for (const file of files) {
-        let content: string | null;
+        let content: string;
         if (file === "-") {
-          content = decode(ctx.stdin);
+          if (stdinText === null) stdinText = await collectText(ctx.stdin);
+          content = stdinText;
         } else {
           const filePath = ctx.fs.resolvePath(ctx.cwd, file);
-          content = await ctx.fs.readFile(filePath);
-          if (content === null) {
+          try {
+            content = await ctx.fs.readFileText(filePath);
+          } catch {
             return {
               exitCode: 1,
-              stdout: encode(output),
-              stderr: encode(`strings: ${file}: No such file or directory\n`),
+              stdout: fromString(output),
+              stderr: fromString(
+                `strings: ${file}: No such file or directory\n`,
+              ),
             };
           }
         }
@@ -265,8 +271,8 @@ export const strings: Command = {
 
     return {
       exitCode: 0,
-      stdout: encode(output),
-      stderr: EMPTY,
+      stdout: fromString(output),
+      stderr: emptyStream(),
     };
   },
 };

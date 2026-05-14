@@ -111,7 +111,7 @@ services:
   it("should find hardcoded API keys and secrets", async () => {
     const env = createEnv();
     // Search specifically in config.ts to avoid matching function parameters
-    const result = toText(
+    const result = await toText(
       await env.exec('grep -n "apiKey\\|secret\\|password" /app/src/config.ts'),
     );
     expect(result.stdout).toBe(`2:  apiKey: 'sk-1234567890abcdef',
@@ -124,7 +124,7 @@ services:
   it("should find SQL injection vulnerabilities", async () => {
     const env = createEnv();
     // Search for SQL queries with string interpolation
-    const result = toText(
+    const result = await toText(
       await env.exec('grep -n "SELECT.*\\$" /app/src/auth/login.ts'),
     );
     expect(result.stdout).toBe(
@@ -135,7 +135,7 @@ services:
 
   it("should find dangerous eval usage", async () => {
     const env = createEnv();
-    const result = toText(await env.exec('grep -rn "eval(" /app/src'));
+    const result = await toText(await env.exec('grep -rn "eval(" /app/src'));
     expect(result.stdout).toBe(
       "/app/src/auth/login.ts:8:  const userData = eval(response.body);\n",
     );
@@ -144,7 +144,9 @@ services:
 
   it("should find XSS vulnerabilities with innerHTML", async () => {
     const env = createEnv();
-    const result = toText(await env.exec('grep -rn "innerHTML" /app/src'));
+    const result = await toText(
+      await env.exec('grep -rn "innerHTML" /app/src'),
+    );
     // Both the comment and the actual innerHTML usage match
     expect(
       result.stdout,
@@ -157,7 +159,7 @@ services:
   it("should find missing authorization checks", async () => {
     const env = createEnv();
     // Look for route handlers that don't check auth
-    const result = toText(
+    const result = await toText(
       await env.exec('grep -B2 -A5 "function.*req.*res" /app/src/api/users.ts'),
     );
     expect(result.stdout).toBe(`import { Request, Response } from 'express';
@@ -180,7 +182,7 @@ export function deleteUser(req: Request, res: Response) {
 
   it("should find sensitive data in .env file", async () => {
     const env = createEnv();
-    const result = toText(
+    const result = await toText(
       await env.exec('grep -n "KEY\\|SECRET\\|PASSWORD" /app/.env'),
     );
     expect(result.stdout).toBe(`2:API_SECRET=very-secret-key
@@ -192,7 +194,7 @@ export function deleteUser(req: Request, res: Response) {
 
   it("should find hardcoded credentials in docker-compose", async () => {
     const env = createEnv();
-    const result = toText(
+    const result = await toText(
       await env.exec('grep -n "PASSWORD\\|password" /app/docker-compose.yml'),
     );
     expect(result.stdout).toBe(`6:      POSTGRES_PASSWORD: admin123
@@ -203,7 +205,9 @@ export function deleteUser(req: Request, res: Response) {
   it("should check for vulnerable dependencies", async () => {
     const env = createEnv();
     // lodash 4.17.20 has known vulnerabilities
-    const result = toText(await env.exec('grep "lodash" /app/package.json'));
+    const result = await toText(
+      await env.exec('grep "lodash" /app/package.json'),
+    );
     expect(result.stdout).toBe('    "lodash": "4.17.20",\n');
     expect(result.exitCode).toBe(0);
   });
@@ -212,13 +216,13 @@ export function deleteUser(req: Request, res: Response) {
     const env = createEnv();
 
     // Count different vulnerability types
-    const evalCount = toText(
+    const evalCount = await toText(
       await env.exec('grep -r -c "eval(" /app/src | grep -v ":0$" | wc -l'),
     );
-    const innerHtmlCount = toText(
+    const innerHtmlCount = await toText(
       await env.exec('grep -r -c "innerHTML" /app/src | grep -v ":0$" | wc -l'),
     );
-    const secretsInCode = toText(
+    const secretsInCode = await toText(
       await env.exec(
         'grep -rn "secret\\|password\\|apiKey" /app/src/config.ts | wc -l',
       ),
@@ -231,7 +235,9 @@ export function deleteUser(req: Request, res: Response) {
 
   it("should find all files that need security review", async () => {
     const env = createEnv();
-    const result = toText(await env.exec('find /app/src -name "*.ts" | sort'));
+    const result = await toText(
+      await env.exec('find /app/src -name "*.ts" | sort'),
+    );
     expect(result.stdout).toBe(`/app/src/api/render.ts
 /app/src/api/users.ts
 /app/src/auth/jwt.ts
@@ -244,10 +250,10 @@ export function deleteUser(req: Request, res: Response) {
   it("should compare .env with .env.example for undocumented secrets", async () => {
     const env = createEnv();
     // Get variable names from both files
-    const envVars = toText(
+    const envVars = await toText(
       await env.exec("grep -o '^[A-Z_]*' /app/.env | sort"),
     );
-    const exampleVars = toText(
+    const exampleVars = await toText(
       await env.exec("grep -o '^[A-Z_]*' /app/.env.example | sort"),
     );
 
@@ -265,7 +271,7 @@ DATABASE_URL
 
   it("should identify auth-related files for focused review", async () => {
     const env = createEnv();
-    const result = toText(
+    const result = await toText(
       await env.exec(
         'find /app/src -type f -name "*auth*" -o -type f -name "*login*" -o -type f -name "*jwt*" | sort',
       ),
@@ -315,7 +321,9 @@ describe("Agent Scenario: File Permission Audit with find -perm", () => {
   describe("Finding executable files", () => {
     it("should find all executable scripts", async () => {
       const env = createPermEnv();
-      const result = toText(await env.exec("find /server -type f -perm -100"));
+      const result = await toText(
+        await env.exec("find /server -type f -perm -100"),
+      );
       expect(result.stdout).toContain("/server/bin/start.sh");
       expect(result.stdout).toContain("/server/bin/deploy.sh");
       expect(result.stdout).toContain("/server/bin/backup.sh");
@@ -327,7 +335,9 @@ describe("Agent Scenario: File Permission Audit with find -perm", () => {
     it("should find world-executable files (security concern)", async () => {
       const env = createPermEnv();
       // Files with other-execute bit set (potentially dangerous)
-      const result = toText(await env.exec("find /server -type f -perm -001"));
+      const result = await toText(
+        await env.exec("find /server -type f -perm -001"),
+      );
       expect(result.stdout).toContain("/server/scripts/cleanup.sh");
       expect(result.stdout).toContain("/server/bin/start.sh");
       expect(result.stdout).not.toContain("backup.sh"); // 0o700 has no other-execute
@@ -339,7 +349,9 @@ describe("Agent Scenario: File Permission Audit with find -perm", () => {
     it("should find world-writable files (security risk)", async () => {
       const env = createPermEnv();
       // Files with 666 or 777 permissions (world-writable)
-      const result = toText(await env.exec("find /server -type f -perm -002"));
+      const result = await toText(
+        await env.exec("find /server -type f -perm -002"),
+      );
       expect(result.stdout).toContain("/server/data/cache.db");
       expect(result.stdout).toContain("/server/scripts/cleanup.sh");
       expect(result.exitCode).toBe(0);
@@ -347,14 +359,18 @@ describe("Agent Scenario: File Permission Audit with find -perm", () => {
 
     it("should find files with exact 777 permissions", async () => {
       const env = createPermEnv();
-      const result = toText(await env.exec("find /server -type f -perm 777"));
+      const result = await toText(
+        await env.exec("find /server -type f -perm 777"),
+      );
       expect(result.stdout.trim()).toBe("/server/scripts/cleanup.sh");
       expect(result.exitCode).toBe(0);
     });
 
     it("should find files with exact 666 permissions", async () => {
       const env = createPermEnv();
-      const result = toText(await env.exec("find /server -type f -perm 666"));
+      const result = await toText(
+        await env.exec("find /server -type f -perm 666"),
+      );
       expect(result.stdout.trim()).toBe("/server/data/cache.db");
       expect(result.exitCode).toBe(0);
     });
@@ -363,7 +379,9 @@ describe("Agent Scenario: File Permission Audit with find -perm", () => {
   describe("Finding properly secured files", () => {
     it("should find files with restricted permissions (600)", async () => {
       const env = createPermEnv();
-      const result = toText(await env.exec("find /server -type f -perm 600"));
+      const result = await toText(
+        await env.exec("find /server -type f -perm 600"),
+      );
       expect(result.stdout).toContain("/server/config/secrets.json");
       expect(result.stdout).toContain("/server/data/users.db");
       expect(result.exitCode).toBe(0);
@@ -372,7 +390,7 @@ describe("Agent Scenario: File Permission Audit with find -perm", () => {
     it("should find owner-only readable files", async () => {
       const env = createPermEnv();
       // Files where only owner has read (no group or world read)
-      const result = toText(
+      const result = await toText(
         await env.exec("find /server/config -type f -perm 600"),
       );
       expect(result.stdout).toContain("secrets.json");
@@ -385,7 +403,9 @@ describe("Agent Scenario: File Permission Audit with find -perm", () => {
     it("should find files with any execute bit set", async () => {
       const env = createPermEnv();
       // /111 = any of user/group/other execute bits
-      const result = toText(await env.exec("find /server -type f -perm /111"));
+      const result = await toText(
+        await env.exec("find /server -type f -perm /111"),
+      );
       expect(result.stdout).toContain("start.sh");
       expect(result.stdout).toContain("deploy.sh");
       expect(result.stdout).toContain("backup.sh");
@@ -397,7 +417,9 @@ describe("Agent Scenario: File Permission Audit with find -perm", () => {
     it("should find files with any write bit for group or other", async () => {
       const env = createPermEnv();
       // /022 = group-write OR other-write
-      const result = toText(await env.exec("find /server -type f -perm /022"));
+      const result = await toText(
+        await env.exec("find /server -type f -perm /022"),
+      );
       expect(result.stdout).toContain("cache.db");
       expect(result.stdout).toContain("cleanup.sh");
       expect(result.exitCode).toBe(0);
@@ -408,7 +430,7 @@ describe("Agent Scenario: File Permission Audit with find -perm", () => {
     it("should audit sensitive config files permissions", async () => {
       const env = createPermEnv();
       // Check that secrets.json is properly secured (600)
-      const result = toText(
+      const result = await toText(
         await env.exec('find /server/config -name "secret*" -type f -perm 600'),
       );
       expect(result.stdout).toContain("secrets.json");
@@ -418,10 +440,10 @@ describe("Agent Scenario: File Permission Audit with find -perm", () => {
     it("should find scripts that need permission review", async () => {
       const env = createPermEnv();
       // Find all .sh files and check for overly permissive ones
-      const allScripts = toText(
+      const allScripts = await toText(
         await env.exec('find /server -name "*.sh" -type f'),
       );
-      const dangerousScripts = toText(
+      const dangerousScripts = await toText(
         await env.exec('find /server -name "*.sh" -type f -perm -002'),
       );
 
@@ -434,7 +456,7 @@ describe("Agent Scenario: File Permission Audit with find -perm", () => {
     it("should find database files with incorrect permissions", async () => {
       const env = createPermEnv();
       // DB files should not be world-readable
-      const result = toText(
+      const result = await toText(
         await env.exec('find /server/data -name "*.db" -type f -perm /044'),
       );
       // cache.db is 666 (world-readable/writable) - security issue

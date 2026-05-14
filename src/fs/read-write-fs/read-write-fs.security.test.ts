@@ -50,7 +50,7 @@ describe("ReadWriteFs Security - Path Traversal Prevention", () => {
 
   describe("basic path traversal with ..", () => {
     it("should block simple ../", async () => {
-      const content = await rwfs.readFile("/../allowed.txt");
+      const content = await rwfs.readFileText("/../allowed.txt");
       // Path normalizes to /allowed.txt within root
       expect(content).toBe("This is allowed");
     });
@@ -58,36 +58,36 @@ describe("ReadWriteFs Security - Path Traversal Prevention", () => {
     it("should not read files outside root with ../", async () => {
       // Attempting to read outside should fail or read from within root
       await expect(
-        rwfs.readFile("/../../../../../../../etc/passwd"),
+        rwfs.readFileText("/../../../../../../../etc/passwd"),
       ).rejects.toThrow();
     });
 
     it("should block ../ from subdirectory", async () => {
       // This should read allowed.txt from within root, not escape
-      const content = await rwfs.readFile("/subdir/../allowed.txt");
+      const content = await rwfs.readFileText("/subdir/../allowed.txt");
       expect(content).toBe("This is allowed");
     });
 
     it("should block deeply nested escape attempts", async () => {
       const deepPath =
         "/a/b/c/d/e/../../../../../../../../../../../../../etc/passwd";
-      await expect(rwfs.readFile(deepPath)).rejects.toThrow();
+      await expect(rwfs.readFileText(deepPath)).rejects.toThrow();
     });
   });
 
   describe("absolute path injection", () => {
     it("should not allow reading /etc/passwd directly", async () => {
       // /etc/passwd as a virtual path should not read the real /etc/passwd
-      await expect(rwfs.readFile("/etc/passwd")).rejects.toThrow();
+      await expect(rwfs.readFileText("/etc/passwd")).rejects.toThrow();
     });
 
     it("should not allow reading the outside secret file by absolute path", async () => {
       // The absolute path should be treated as a virtual path within root
-      await expect(rwfs.readFile(outsideFile)).rejects.toThrow();
+      await expect(rwfs.readFileText(outsideFile)).rejects.toThrow();
     });
 
     it("should not allow reading outside directory", async () => {
-      await expect(rwfs.readFile(outsideDir)).rejects.toThrow();
+      await expect(rwfs.readFileText(outsideDir)).rejects.toThrow();
     });
   });
 
@@ -240,7 +240,7 @@ describe("ReadWriteFs Security - Path Traversal Prevention", () => {
         return;
       }
 
-      const content = await rwfs.readFile("/link");
+      const content = await rwfs.readFileText("/link");
       expect(content).toBe("content");
     });
 
@@ -256,7 +256,7 @@ describe("ReadWriteFs Security - Path Traversal Prevention", () => {
         return;
       }
 
-      const content = await rwfs.readFile("/link");
+      const content = await rwfs.readFileText("/link");
       expect(content).toBe("nested");
     });
 
@@ -271,7 +271,7 @@ describe("ReadWriteFs Security - Path Traversal Prevention", () => {
 
       // The symlink should point to ${root}/etc/passwd, not real /etc/passwd
       // Since that file doesn't exist within our sandbox, reading should fail
-      await expect(rwfs.readFile("/escape-link")).rejects.toThrow("ENOENT");
+      await expect(rwfs.readFileText("/escape-link")).rejects.toThrow("ENOENT");
     });
 
     it("should prevent symlink escape with relative path traversal", async () => {
@@ -284,7 +284,9 @@ describe("ReadWriteFs Security - Path Traversal Prevention", () => {
 
       // The symlink should be transformed to point within root
       // Reading should fail since /etc/passwd doesn't exist in sandbox
-      await expect(rwfs.readFile("/escape-link2")).rejects.toThrow("ENOENT");
+      await expect(rwfs.readFileText("/escape-link2")).rejects.toThrow(
+        "ENOENT",
+      );
     });
 
     it("should prevent reading outside files via symlink to absolute path", async () => {
@@ -296,7 +298,7 @@ describe("ReadWriteFs Security - Path Traversal Prevention", () => {
       }
 
       // Should NOT be able to read the real outside file
-      const result = await rwfs.readFile("/steal-secret").catch((e) => e);
+      const result = await rwfs.readFileText("/steal-secret").catch((e) => e);
       expect(result).toBeInstanceOf(Error);
       // If it somehow succeeded, it must not contain the secret
       if (typeof result === "string") {
@@ -307,29 +309,29 @@ describe("ReadWriteFs Security - Path Traversal Prevention", () => {
 
   describe("special characters and encoding attacks", () => {
     it("should handle null bytes in path", async () => {
-      await expect(rwfs.readFile("/etc\x00/passwd")).rejects.toThrow();
+      await expect(rwfs.readFileText("/etc\x00/passwd")).rejects.toThrow();
     });
 
     it("should handle paths with newlines", async () => {
-      await expect(rwfs.readFile("/etc\n/../passwd")).rejects.toThrow();
+      await expect(rwfs.readFileText("/etc\n/../passwd")).rejects.toThrow();
     });
 
     it("should handle backslash as regular character", async () => {
       // On Unix, backslash is a valid filename character
       await rwfs.writeFile("/back\\slash", "content");
-      const content = await rwfs.readFile("/back\\slash");
+      const content = await rwfs.readFileText("/back\\slash");
       expect(content).toBe("content");
     });
 
     it("should handle unicode filenames safely", async () => {
       await rwfs.writeFile("/файл.txt", "unicode content");
-      const content = await rwfs.readFile("/файл.txt");
+      const content = await rwfs.readFileText("/файл.txt");
       expect(content).toBe("unicode content");
     });
 
     it("should handle emoji filenames", async () => {
       await rwfs.writeFile("/📁file.txt", "emoji content");
-      const content = await rwfs.readFile("/📁file.txt");
+      const content = await rwfs.readFileText("/📁file.txt");
       expect(content).toBe("emoji content");
     });
   });
@@ -337,29 +339,29 @@ describe("ReadWriteFs Security - Path Traversal Prevention", () => {
   describe("URL-style encoding (should be treated literally)", () => {
     it("should treat %2e%2e as literal filename not ..", async () => {
       await rwfs.writeFile("/%2e%2e", "not parent");
-      const content = await rwfs.readFile("/%2e%2e");
+      const content = await rwfs.readFileText("/%2e%2e");
       expect(content).toBe("not parent");
     });
 
     it("should not decode URL-encoded path traversal", async () => {
       // %2e = . and %2f = /
-      await expect(rwfs.readFile("/%2e%2e%2fetc/passwd")).rejects.toThrow();
+      await expect(rwfs.readFileText("/%2e%2e%2fetc/passwd")).rejects.toThrow();
     });
   });
 
   describe("path normalization edge cases", () => {
     it("should handle multiple consecutive slashes", async () => {
-      const content = await rwfs.readFile("////allowed.txt");
+      const content = await rwfs.readFileText("////allowed.txt");
       expect(content).toBe("This is allowed");
     });
 
     it("should handle trailing slashes on files", async () => {
-      const content = await rwfs.readFile("/allowed.txt/");
+      const content = await rwfs.readFileText("/allowed.txt/");
       expect(content).toBe("This is allowed");
     });
 
     it("should handle . and .. combinations", async () => {
-      const content = await rwfs.readFile("/./subdir/../allowed.txt");
+      const content = await rwfs.readFileText("/./subdir/../allowed.txt");
       expect(content).toBe("This is allowed");
     });
 
@@ -390,7 +392,7 @@ describe("ReadWriteFs Security - Path Traversal Prevention", () => {
         .fill(null)
         .map((_, i) => {
           const escapePath = `${"../".repeat(i + 1)}etc/passwd`;
-          return rwfs.readFile(escapePath).catch(() => "blocked");
+          return rwfs.readFileText(escapePath).catch(() => "blocked");
         });
 
       const results = await Promise.all(attacks);
@@ -418,18 +420,20 @@ describe("ReadWriteFs Security - Path Traversal Prevention", () => {
 
   describe("Windows-style attacks (should be handled on any OS)", () => {
     it("should handle backslash path traversal attempts", async () => {
-      await expect(rwfs.readFile("\\..\\..\\etc\\passwd")).rejects.toThrow();
+      await expect(
+        rwfs.readFileText("\\..\\..\\etc\\passwd"),
+      ).rejects.toThrow();
     });
 
     it("should handle mixed slash styles", async () => {
       await expect(
-        rwfs.readFile("/subdir\\..\\..\\etc/passwd"),
+        rwfs.readFileText("/subdir\\..\\..\\etc/passwd"),
       ).rejects.toThrow();
     });
 
     it("should handle UNC-style paths", async () => {
       await expect(
-        rwfs.readFile("//server/share/../../etc/passwd"),
+        rwfs.readFileText("//server/share/../../etc/passwd"),
       ).rejects.toThrow();
     });
   });
@@ -437,13 +441,13 @@ describe("ReadWriteFs Security - Path Traversal Prevention", () => {
   describe("real-world attack scenarios", () => {
     it("should prevent reading SSH keys", async () => {
       await expect(
-        rwfs.readFile("/../../../root/.ssh/id_rsa"),
+        rwfs.readFileText("/../../../root/.ssh/id_rsa"),
       ).rejects.toThrow();
-      await expect(rwfs.readFile("/~/.ssh/id_rsa")).rejects.toThrow();
+      await expect(rwfs.readFileText("/~/.ssh/id_rsa")).rejects.toThrow();
     });
 
     it("should prevent reading shadow file", async () => {
-      await expect(rwfs.readFile("/../../../etc/shadow")).rejects.toThrow();
+      await expect(rwfs.readFileText("/../../../etc/shadow")).rejects.toThrow();
     });
 
     it("should prevent writing to crontab", async () => {

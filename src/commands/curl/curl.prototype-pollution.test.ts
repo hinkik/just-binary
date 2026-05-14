@@ -26,7 +26,7 @@ describe("curl prototype pollution defense", () => {
         const env = new Bash();
         // This tests that curl parses headers without polluting prototypes
         // The actual fetch would fail due to network restrictions in tests
-        const result = toText(
+        const result = await toText(
           await env.exec(`curl -H "${keyword}: test-value" http://example.com`),
         );
         // We expect this to fail due to network, but it should not pollute prototype

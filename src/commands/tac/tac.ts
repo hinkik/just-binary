@@ -7,7 +7,8 @@
  */
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs } from "../../utils/bytes.js";
+import { collectText, emptyStream, fromString } from "../../utils/stream.js";
 
 async function tacExecute(
   args: Uint8Array[],
@@ -20,35 +21,38 @@ async function tacExecute(
     // Try to read from file
     const filePath = a[0].startsWith("/") ? a[0] : `${ctx.cwd}/${a[0]}`;
     try {
-      const content = await ctx.fs.readFile(filePath);
+      const content = await ctx.fs.readFileText(filePath);
       const lines = content.split("\n");
       if (lines[lines.length - 1] === "") {
         lines.pop();
       }
       const reversed = lines.reverse();
       return {
-        stdout: encode(reversed.length > 0 ? `${reversed.join("\n")}\n` : ""),
-        stderr: EMPTY,
+        stdout: fromString(
+          reversed.length > 0 ? `${reversed.join("\n")}\n` : "",
+        ),
+        stderr: emptyStream(),
         exitCode: 0,
       };
     } catch {
       return {
-        stdout: EMPTY,
-        stderr: encode(`tac: ${a[0]}: No such file or directory\n`),
+        stdout: emptyStream(),
+        stderr: fromString(`tac: ${a[0]}: No such file or directory\n`),
         exitCode: 1,
       };
     }
   }
 
   // Read from stdin
-  const lines = decode(ctx.stdin).split("\n");
+  const text = await collectText(ctx.stdin);
+  const lines = text.split("\n");
   if (lines[lines.length - 1] === "") {
     lines.pop();
   }
   const reversed = lines.reverse();
   return {
-    stdout: encode(reversed.length > 0 ? `${reversed.join("\n")}\n` : ""),
-    stderr: EMPTY,
+    stdout: fromString(reversed.length > 0 ? `${reversed.join("\n")}\n` : ""),
+    stderr: emptyStream(),
     exitCode: 0,
   };
 }

@@ -7,7 +7,7 @@ describe("mv", () => {
     const env = new Bash({
       files: { "/old.txt": "content" },
     });
-    const result = toText(await env.exec("mv /old.txt /new.txt"));
+    const result = await toText(await env.exec("mv /old.txt /new.txt"));
     expect(result.exitCode).toBe(0);
     const content = await env.readFile("/new.txt");
     expect(content).toBe("content");
@@ -18,7 +18,7 @@ describe("mv", () => {
       files: { "/old.txt": "content" },
     });
     await env.exec("mv /old.txt /new.txt");
-    const cat = toText(await env.exec("cat /old.txt"));
+    const cat = await toText(await env.exec("cat /old.txt"));
     expect(cat.exitCode).toBe(1);
   });
 
@@ -63,7 +63,9 @@ describe("mv", () => {
         "/b.txt": "",
       },
     });
-    const result = toText(await env.exec("mv /a.txt /b.txt /nonexistent"));
+    const result = await toText(
+      await env.exec("mv /a.txt /b.txt /nonexistent"),
+    );
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("not a directory");
   });
@@ -75,7 +77,7 @@ describe("mv", () => {
     await env.exec("mv /srcdir /dstdir");
     const content = await env.readFile("/dstdir/file.txt");
     expect(content).toBe("content");
-    const ls = toText(await env.exec("ls /srcdir"));
+    const ls = await toText(await env.exec("ls /srcdir"));
     expect(ls.exitCode).not.toBe(0);
   });
 
@@ -105,7 +107,7 @@ describe("mv", () => {
 
   it("should error on missing source", async () => {
     const env = new Bash();
-    const result = toText(await env.exec("mv /missing.txt /dst.txt"));
+    const result = await toText(await env.exec("mv /missing.txt /dst.txt"));
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toBe(
       "mv: cannot stat '/missing.txt': No such file or directory\n",
@@ -116,7 +118,7 @@ describe("mv", () => {
     const env = new Bash({
       files: { "/src.txt": "" },
     });
-    const result = toText(await env.exec("mv /src.txt"));
+    const result = await toText(await env.exec("mv /src.txt"));
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toBe("mv: missing destination file operand\n");
   });
@@ -151,7 +153,7 @@ describe("mv", () => {
           "/dst.txt": "old",
         },
       });
-      const result = toText(await env.exec("mv -f /src.txt /dst.txt"));
+      const result = await toText(await env.exec("mv -f /src.txt /dst.txt"));
       expect(result.exitCode).toBe(0);
       expect(result.stderr).toBe("");
       const content = await env.readFile("/dst.txt");
@@ -165,11 +167,11 @@ describe("mv", () => {
           "/dst.txt": "old",
         },
       });
-      const result = toText(await env.exec("mv -n /src.txt /dst.txt"));
+      const result = await toText(await env.exec("mv -n /src.txt /dst.txt"));
       expect(result.exitCode).toBe(0);
       expect(result.stderr).toBe("");
       // Source should still exist since move was skipped
-      const srcExists = toText(await env.exec("cat /src.txt"));
+      const srcExists = await toText(await env.exec("cat /src.txt"));
       expect(srcExists.exitCode).toBe(0);
       // Destination should be unchanged
       const content = await env.readFile("/dst.txt");
@@ -180,7 +182,7 @@ describe("mv", () => {
       const env = new Bash({
         files: { "/src.txt": "content" },
       });
-      const result = toText(await env.exec("mv -n /src.txt /dst.txt"));
+      const result = await toText(await env.exec("mv -n /src.txt /dst.txt"));
       expect(result.exitCode).toBe(0);
       const content = await env.readFile("/dst.txt");
       expect(content).toBe("content");
@@ -190,7 +192,7 @@ describe("mv", () => {
       const env = new Bash({
         files: { "/old.txt": "content" },
       });
-      const result = toText(await env.exec("mv -v /old.txt /new.txt"));
+      const result = await toText(await env.exec("mv -v /old.txt /new.txt"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("renamed '/old.txt' -> '/new.txt'\n");
     });
@@ -202,7 +204,7 @@ describe("mv", () => {
           "/dst.txt": "old",
         },
       });
-      const result = toText(await env.exec("mv -fv /src.txt /dst.txt"));
+      const result = await toText(await env.exec("mv -fv /src.txt /dst.txt"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("renamed '/src.txt' -> '/dst.txt'\n");
     });
@@ -214,7 +216,7 @@ describe("mv", () => {
           "/dst.txt": "old",
         },
       });
-      const result = toText(await env.exec("mv -fn /src.txt /dst.txt"));
+      const result = await toText(await env.exec("mv -fn /src.txt /dst.txt"));
       expect(result.exitCode).toBe(0);
       // Source should still exist (no-clobber took precedence)
       const srcContent = await env.readFile("/src.txt");
@@ -223,7 +225,7 @@ describe("mv", () => {
 
     it("should show help with --help", async () => {
       const env = new Bash();
-      const result = toText(await env.exec("mv --help"));
+      const result = await toText(await env.exec("mv --help"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("mv");
       expect(result.stdout).toContain("--force");
@@ -235,7 +237,7 @@ describe("mv", () => {
       const env = new Bash({
         files: { "/src.txt": "content" },
       });
-      const result = toText(await env.exec("mv -x /src.txt /dst.txt"));
+      const result = await toText(await env.exec("mv -x /src.txt /dst.txt"));
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("invalid option");
     });

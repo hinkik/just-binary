@@ -19,7 +19,7 @@ describe("find basic", () => {
 
   it("should find all files and directories from path", async () => {
     const env = createEnv();
-    const result = toText(await env.exec("find /project"));
+    const result = await toText(await env.exec("find /project"));
     expect(result.stdout).toBe(`/project
 /project/README.md
 /project/package.json
@@ -38,7 +38,7 @@ describe("find basic", () => {
 
   it("should find files by name pattern", async () => {
     const env = createEnv();
-    const result = toText(await env.exec('find /project -name "*.ts"'));
+    const result = await toText(await env.exec('find /project -name "*.ts"'));
     expect(result.stdout).toBe(`/project/src/index.ts
 /project/src/utils/format.ts
 /project/src/utils/helpers.ts
@@ -50,7 +50,7 @@ describe("find basic", () => {
 
   it("should find files only with -type f", async () => {
     const env = createEnv();
-    const result = toText(await env.exec("find /project -type f"));
+    const result = await toText(await env.exec("find /project -type f"));
     expect(result.stdout).toBe(`/project/README.md
 /project/package.json
 /project/src/index.ts
@@ -65,7 +65,7 @@ describe("find basic", () => {
 
   it("should find directories only with -type d", async () => {
     const env = createEnv();
-    const result = toText(await env.exec("find /project -type d"));
+    const result = await toText(await env.exec("find /project -type d"));
     expect(result.stdout).toBe(`/project
 /project/src
 /project/src/utils
@@ -77,7 +77,7 @@ describe("find basic", () => {
 
   it("should find files matching JSON pattern", async () => {
     const env = createEnv();
-    const result = toText(await env.exec('find /project -name "*.json"'));
+    const result = await toText(await env.exec('find /project -name "*.json"'));
     expect(result.stdout).toBe(`/project/package.json
 /project/tsconfig.json
 `);
@@ -87,7 +87,7 @@ describe("find basic", () => {
 
   it("should find from current directory with .", async () => {
     const env = createEnv();
-    const result = toText(await env.exec('find . -name "*.md"'));
+    const result = await toText(await env.exec('find . -name "*.md"'));
     expect(result.stdout).toBe("./README.md\n");
     expect(result.stderr).toBe("");
     expect(result.exitCode).toBe(0);
@@ -95,7 +95,9 @@ describe("find basic", () => {
 
   it("should combine -name and -type", async () => {
     const env = createEnv();
-    const result = toText(await env.exec('find /project -name "*.ts" -type f'));
+    const result = await toText(
+      await env.exec('find /project -name "*.ts" -type f'),
+    );
     expect(result.stdout).toBe(`/project/src/index.ts
 /project/src/utils/format.ts
 /project/src/utils/helpers.ts
@@ -107,7 +109,9 @@ describe("find basic", () => {
 
   it("should find specific filename", async () => {
     const env = createEnv();
-    const result = toText(await env.exec('find /project -name "index.ts"'));
+    const result = await toText(
+      await env.exec('find /project -name "index.ts"'),
+    );
     expect(result.stdout).toBe("/project/src/index.ts\n");
     expect(result.stderr).toBe("");
     expect(result.exitCode).toBe(0);
@@ -115,7 +119,7 @@ describe("find basic", () => {
 
   it("should return error for non-existent path", async () => {
     const env = createEnv();
-    const result = toText(await env.exec("find /nonexistent"));
+    const result = await toText(await env.exec("find /nonexistent"));
     expect(result.stdout).toBe("");
     expect(result.stderr).toBe(
       "find: /nonexistent: No such file or directory\n",
@@ -125,7 +129,9 @@ describe("find basic", () => {
 
   it("should find test files", async () => {
     const env = createEnv();
-    const result = toText(await env.exec('find /project -name "*.test.ts"'));
+    const result = await toText(
+      await env.exec('find /project -name "*.test.ts"'),
+    );
     expect(result.stdout).toBe("/project/tests/index.test.ts\n");
     expect(result.stderr).toBe("");
     expect(result.exitCode).toBe(0);
@@ -133,7 +139,9 @@ describe("find basic", () => {
 
   it("should handle ? wildcard in name pattern", async () => {
     const env = createEnv();
-    const result = toText(await env.exec('find /project -name "???*.json"'));
+    const result = await toText(
+      await env.exec('find /project -name "???*.json"'),
+    );
     expect(result.stdout).toBe(`/project/package.json
 /project/tsconfig.json
 `);
@@ -144,7 +152,7 @@ describe("find basic", () => {
   describe("--help option", () => {
     it("should show help text", async () => {
       const env = createEnv();
-      const result = toText(await env.exec("find --help"));
+      const result = await toText(await env.exec("find --help"));
       expect(result.stdout).toContain("find");
       expect(result.stdout).toContain("-name");
       expect(result.stdout).toContain("-maxdepth");
@@ -155,21 +163,21 @@ describe("find basic", () => {
   describe("unknown option handling", () => {
     it("should error on unknown predicate", async () => {
       const env = createEnv();
-      const result = toText(await env.exec("find /project -unknown"));
+      const result = await toText(await env.exec("find /project -unknown"));
       expect(result.stderr).toContain("find: unknown predicate '-unknown'");
       expect(result.exitCode).toBe(1);
     });
 
     it("should error on unknown long option", async () => {
       const env = createEnv();
-      const result = toText(await env.exec("find /project --badoption"));
+      const result = await toText(await env.exec("find /project --badoption"));
       expect(result.stderr).toContain("find: unknown predicate '--badoption'");
       expect(result.exitCode).toBe(1);
     });
 
     it("should error on invalid -type argument", async () => {
       const env = createEnv();
-      const result = toText(await env.exec("find /project -type x"));
+      const result = await toText(await env.exec("find /project -type x"));
       expect(result.stderr).toContain("Unknown argument to -type");
       expect(result.exitCode).toBe(1);
     });
@@ -184,7 +192,9 @@ describe("find basic", () => {
           "/dir3/c.txt": "c",
         },
       });
-      const result = toText(await env.exec('find /dir1 /dir2 -name "*.txt"'));
+      const result = await toText(
+        await env.exec('find /dir1 /dir2 -name "*.txt"'),
+      );
       expect(result.stdout).toBe("/dir1/a.txt\n/dir2/b.txt\n");
       expect(result.stderr).toBe("");
       expect(result.exitCode).toBe(0);
@@ -196,7 +206,9 @@ describe("find basic", () => {
           "/dir1/a.txt": "a",
         },
       });
-      const result = toText(await env.exec("find /dir1 /nonexistent -type f"));
+      const result = await toText(
+        await env.exec("find /dir1 /nonexistent -type f"),
+      );
       expect(result.stdout).toBe("/dir1/a.txt\n");
       expect(result.stderr).toBe(
         "find: /nonexistent: No such file or directory\n",
@@ -212,7 +224,9 @@ describe("find basic", () => {
           "/c/file.txt": "c",
         },
       });
-      const result = toText(await env.exec('find /a /b /c -name "*.txt"'));
+      const result = await toText(
+        await env.exec('find /a /b /c -name "*.txt"'),
+      );
       expect(result.stdout).toBe("/a/file.txt\n/b/file.txt\n/c/file.txt\n");
       expect(result.stderr).toBe("");
       expect(result.exitCode).toBe(0);
@@ -227,7 +241,7 @@ describe("find basic", () => {
           "/dir/normal.txt": "content",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -name "file with spaces.txt"'),
       );
       expect(result.stdout).toBe("/dir/file with spaces.txt\n");
@@ -242,7 +256,7 @@ describe("find basic", () => {
           "/dir/normal.txt": "content",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -name "file\twith\ttabs.txt"'),
       );
       expect(result.stdout).toBe("/dir/file\twith\ttabs.txt\n");
@@ -258,7 +272,7 @@ describe("find basic", () => {
           "/dir/normal.txt": "content",
         },
       });
-      const result = toText(await env.exec('find /dir -name "* *"'));
+      const result = await toText(await env.exec('find /dir -name "* *"'));
       expect(result.stdout).toBe(
         "/dir/another file.txt\n/dir/file with spaces.txt\n",
       );
@@ -277,7 +291,7 @@ describe("find basic", () => {
         },
         cwd: "/",
       });
-      const result = toText(
+      const result = await toText(
         await env.exec(
           "find . -type f -path './src/*' -o -type f -path './bin/script.sh' | sort",
         ),
@@ -296,7 +310,7 @@ describe("find basic", () => {
         },
         cwd: "/",
       });
-      const result = toText(await env.exec('find . -name "file.txt"'));
+      const result = await toText(await env.exec('find . -name "file.txt"'));
       expect(result.stdout).toBe("./abc/file.txt\n");
       expect(result.stderr).toBe("");
       expect(result.exitCode).toBe(0);
@@ -309,7 +323,9 @@ describe("find basic", () => {
         },
         cwd: "/project",
       });
-      const result = toText(await env.exec('find /project/ -name "*.ts"'));
+      const result = await toText(
+        await env.exec('find /project/ -name "*.ts"'),
+      );
       expect(result.stdout).toBe("/project/src/index.ts\n");
       expect(result.stderr).toBe("");
       expect(result.exitCode).toBe(0);

@@ -48,37 +48,39 @@ describe("OverlayFs Security - Path Traversal Prevention", () => {
 
   describe("basic path traversal with ..", () => {
     it("should block simple ../", async () => {
-      await expect(overlay.readFile("/../secret.txt")).rejects.toThrow();
+      await expect(overlay.readFileText("/../secret.txt")).rejects.toThrow();
     });
 
     it("should block multiple ../../../", async () => {
       await expect(
-        overlay.readFile("/../../../../../../../etc/passwd"),
+        overlay.readFileText("/../../../../../../../etc/passwd"),
       ).rejects.toThrow();
     });
 
     it("should block ../ from subdirectory", async () => {
       await expect(
-        overlay.readFile("/subdir/../../secret.txt"),
+        overlay.readFileText("/subdir/../../secret.txt"),
       ).rejects.toThrow();
     });
 
     it("should block deeply nested escape attempts", async () => {
       const deepPath =
         "/a/b/c/d/e/../../../../../../../../../../../../../etc/passwd";
-      await expect(overlay.readFile(deepPath)).rejects.toThrow();
+      await expect(overlay.readFileText(deepPath)).rejects.toThrow();
     });
 
     it("should block .. at the end of path", async () => {
-      await expect(overlay.readFile("/subdir/..")).rejects.toThrow();
+      await expect(overlay.readFileText("/subdir/..")).rejects.toThrow();
     });
 
     it("should block bare ..", async () => {
-      await expect(overlay.readFile("..")).rejects.toThrow();
+      await expect(overlay.readFileText("..")).rejects.toThrow();
     });
 
     it("should normalize but contain /./../../", async () => {
-      await expect(overlay.readFile("/./../../etc/passwd")).rejects.toThrow();
+      await expect(
+        overlay.readFileText("/./../../etc/passwd"),
+      ).rejects.toThrow();
     });
   });
 
@@ -90,73 +92,77 @@ describe("OverlayFs Security - Path Traversal Prevention", () => {
     });
 
     it("should block triple dots ...", async () => {
-      await expect(overlay.readFile("/.../etc/passwd")).rejects.toThrow();
+      await expect(overlay.readFileText("/.../etc/passwd")).rejects.toThrow();
     });
 
     it("should block dots with spaces (. .)", async () => {
-      await expect(overlay.readFile("/. ./. ./etc/passwd")).rejects.toThrow();
+      await expect(
+        overlay.readFileText("/. ./. ./etc/passwd"),
+      ).rejects.toThrow();
     });
 
     it("should handle .hidden files correctly (not escape)", async () => {
       await overlay.writeFile("/.hidden", "hidden content");
-      const content = await overlay.readFile("/.hidden");
+      const content = await overlay.readFileText("/.hidden");
       expect(content).toBe("hidden content");
     });
 
     it("should handle ..hidden files correctly (not escape)", async () => {
       await overlay.writeFile("/..hidden", "hidden content");
-      const content = await overlay.readFile("/..hidden");
+      const content = await overlay.readFileText("/..hidden");
       expect(content).toBe("hidden content");
     });
 
     it("should handle files named just dots", async () => {
       await overlay.writeFile("/...", "dots");
-      const content = await overlay.readFile("/...");
+      const content = await overlay.readFileText("/...");
       expect(content).toBe("dots");
     });
   });
 
   describe("absolute path injection", () => {
     it("should not allow reading /etc/passwd directly", async () => {
-      await expect(overlay.readFile("/etc/passwd")).rejects.toThrow();
+      await expect(overlay.readFileText("/etc/passwd")).rejects.toThrow();
     });
 
     it("should not allow reading /etc/shadow", async () => {
-      await expect(overlay.readFile("/etc/shadow")).rejects.toThrow();
+      await expect(overlay.readFileText("/etc/shadow")).rejects.toThrow();
     });
 
     it("should not allow reading the outside secret file by absolute path", async () => {
-      await expect(overlay.readFile(outsideFile)).rejects.toThrow();
+      await expect(overlay.readFileText(outsideFile)).rejects.toThrow();
     });
 
     it("should contain paths starting with the real temp dir path", async () => {
       // Try to inject the real absolute path
-      await expect(overlay.readFile(outsideDir)).rejects.toThrow();
+      await expect(overlay.readFileText(outsideDir)).rejects.toThrow();
     });
   });
 
   describe("symlink escape attempts", () => {
     it("should not follow symlink pointing to absolute path outside", async () => {
       await overlay.symlink("/etc/passwd", "/escape-link");
-      await expect(overlay.readFile("/escape-link")).rejects.toThrow("ENOENT");
+      await expect(overlay.readFileText("/escape-link")).rejects.toThrow(
+        "ENOENT",
+      );
     });
 
     it("should not follow symlink pointing to relative path escaping root", async () => {
       await overlay.symlink("../../../etc/passwd", "/relative-escape");
-      await expect(overlay.readFile("/relative-escape")).rejects.toThrow();
+      await expect(overlay.readFileText("/relative-escape")).rejects.toThrow();
     });
 
     it("should not follow chained symlinks escaping root", async () => {
       await overlay.symlink("../", "/link1");
       await overlay.symlink("/link1/../etc/passwd", "/link2");
-      await expect(overlay.readFile("/link2")).rejects.toThrow();
+      await expect(overlay.readFileText("/link2")).rejects.toThrow();
     });
 
     it("should not allow symlink to outside file even if it exists on real fs", async () => {
       // Create a symlink in memory pointing to the secret file
       await overlay.symlink(outsideFile, "/secret-link");
       // Reading should fail because the target is outside our virtual root
-      await expect(overlay.readFile("/secret-link")).rejects.toThrow();
+      await expect(overlay.readFileText("/secret-link")).rejects.toThrow();
     });
 
     it("should not follow real filesystem symlinks pointing outside", async () => {
@@ -171,18 +177,18 @@ describe("OverlayFs Security - Path Traversal Prevention", () => {
 
       // The overlay should not be able to read through this symlink
       // because the target resolves to outside the root
-      await expect(overlay.readFile("/real-escape-link")).rejects.toThrow();
+      await expect(overlay.readFileText("/real-escape-link")).rejects.toThrow();
     });
 
     it("should handle circular symlinks safely", async () => {
       await overlay.symlink("/link2", "/link1");
       await overlay.symlink("/link1", "/link2");
-      await expect(overlay.readFile("/link1")).rejects.toThrow();
+      await expect(overlay.readFileText("/link1")).rejects.toThrow();
     });
 
     it("should handle self-referential symlinks", async () => {
       await overlay.symlink("/self", "/self");
-      await expect(overlay.readFile("/self")).rejects.toThrow();
+      await expect(overlay.readFileText("/self")).rejects.toThrow();
     });
   });
 
@@ -192,7 +198,7 @@ describe("OverlayFs Security - Path Traversal Prevention", () => {
       await overlay.writeFile("/inside.txt", "inside");
       // Try to create a hard link - this should work within the overlay
       await overlay.link("/inside.txt", "/hardlink.txt");
-      const content = await overlay.readFile("/hardlink.txt");
+      const content = await overlay.readFileText("/hardlink.txt");
       expect(content).toBe("inside");
     });
 
@@ -239,7 +245,7 @@ describe("OverlayFs Security - Path Traversal Prevention", () => {
       await overlay.writeFile("/original.txt", "modified content");
 
       // The hardlink should still have the original content (copy semantics)
-      const hardlinkContent = await overlay.readFile("/hardlink.txt");
+      const hardlinkContent = await overlay.readFileText("/hardlink.txt");
       expect(hardlinkContent).toBe("original content");
     });
 
@@ -309,56 +315,56 @@ describe("OverlayFs Security - Path Traversal Prevention", () => {
 
   describe("special characters and encoding attacks", () => {
     it("should handle null bytes in path", async () => {
-      await expect(overlay.readFile("/etc\x00/passwd")).rejects.toThrow();
+      await expect(overlay.readFileText("/etc\x00/passwd")).rejects.toThrow();
     });
 
     it("should handle paths with newlines", async () => {
-      await expect(overlay.readFile("/etc\n/../passwd")).rejects.toThrow();
+      await expect(overlay.readFileText("/etc\n/../passwd")).rejects.toThrow();
     });
 
     it("should handle paths with carriage returns", async () => {
-      await expect(overlay.readFile("/etc\r/../passwd")).rejects.toThrow();
+      await expect(overlay.readFileText("/etc\r/../passwd")).rejects.toThrow();
     });
 
     it("should handle paths with tabs", async () => {
-      await expect(overlay.readFile("/etc\t/passwd")).rejects.toThrow();
+      await expect(overlay.readFileText("/etc\t/passwd")).rejects.toThrow();
     });
 
     it("should handle backslash as regular character (not path separator)", async () => {
       // On Unix, backslash is a valid filename character
       await overlay.writeFile("/back\\slash", "content");
-      const content = await overlay.readFile("/back\\slash");
+      const content = await overlay.readFileText("/back\\slash");
       expect(content).toBe("content");
     });
 
     it("should handle paths with unicode", async () => {
       await overlay.writeFile("/файл.txt", "unicode content");
-      const content = await overlay.readFile("/файл.txt");
+      const content = await overlay.readFileText("/файл.txt");
       expect(content).toBe("unicode content");
     });
 
     it("should handle paths with emoji", async () => {
       await overlay.writeFile("/📁file.txt", "emoji content");
-      const content = await overlay.readFile("/📁file.txt");
+      const content = await overlay.readFileText("/📁file.txt");
       expect(content).toBe("emoji content");
     });
 
     it("should handle very long paths", async () => {
       const longName = "a".repeat(255);
       await overlay.writeFile(`/${longName}`, "long name content");
-      const content = await overlay.readFile(`/${longName}`);
+      const content = await overlay.readFileText(`/${longName}`);
       expect(content).toBe("long name content");
     });
 
     it("should handle paths with spaces", async () => {
       await overlay.writeFile("/path with spaces/file.txt", "spaced");
-      const content = await overlay.readFile("/path with spaces/file.txt");
+      const content = await overlay.readFileText("/path with spaces/file.txt");
       expect(content).toBe("spaced");
     });
 
     it("should handle paths with quotes", async () => {
       await overlay.writeFile('/file"with"quotes.txt', "quoted");
-      const content = await overlay.readFile('/file"with"quotes.txt');
+      const content = await overlay.readFileText('/file"with"quotes.txt');
       expect(content).toBe("quoted");
     });
   });
@@ -367,40 +373,42 @@ describe("OverlayFs Security - Path Traversal Prevention", () => {
     // These encodings should NOT be decoded - they should be literal filenames
     it("should treat %2e%2e as literal filename not ..", async () => {
       await overlay.writeFile("/%2e%2e", "not parent");
-      const content = await overlay.readFile("/%2e%2e");
+      const content = await overlay.readFileText("/%2e%2e");
       expect(content).toBe("not parent");
     });
 
     it("should treat %2f as literal not /", async () => {
       await overlay.writeFile("/%2f", "not slash");
-      const content = await overlay.readFile("/%2f");
+      const content = await overlay.readFileText("/%2f");
       expect(content).toBe("not slash");
     });
 
     it("should not decode URL-encoded path traversal", async () => {
       // %2e = . and %2f = /
       // %2e%2e%2f = ../
-      await expect(overlay.readFile("/%2e%2e%2fetc/passwd")).rejects.toThrow();
+      await expect(
+        overlay.readFileText("/%2e%2e%2fetc/passwd"),
+      ).rejects.toThrow();
     });
   });
 
   describe("path normalization edge cases", () => {
     it("should handle multiple consecutive slashes", async () => {
       await overlay.writeFile("/file.txt", "content");
-      const content = await overlay.readFile("////file.txt");
+      const content = await overlay.readFileText("////file.txt");
       expect(content).toBe("content");
     });
 
     it("should handle trailing slashes on files", async () => {
       await overlay.writeFile("/file.txt", "content");
       // Trailing slash is stripped during normalization, so this reads the file
-      const content = await overlay.readFile("/file.txt/");
+      const content = await overlay.readFileText("/file.txt/");
       expect(content).toBe("content");
     });
 
     it("should handle empty path components", async () => {
       await overlay.writeFile("/file.txt", "content");
-      const content = await overlay.readFile("/./file.txt");
+      const content = await overlay.readFileText("/./file.txt");
       expect(content).toBe("content");
     });
 
@@ -410,12 +418,14 @@ describe("OverlayFs Security - Path Traversal Prevention", () => {
     });
 
     it("should handle . and .. combinations", async () => {
-      await expect(overlay.readFile("/./../etc/passwd")).rejects.toThrow();
+      await expect(overlay.readFileText("/./../etc/passwd")).rejects.toThrow();
     });
 
     it("should handle ../ at various positions", async () => {
-      await expect(overlay.readFile("/../")).rejects.toThrow();
-      await expect(overlay.readFile("/a/../b/../c/../..")).rejects.toThrow();
+      await expect(overlay.readFileText("/../")).rejects.toThrow();
+      await expect(
+        overlay.readFileText("/a/../b/../c/../.."),
+      ).rejects.toThrow();
     });
   });
 
@@ -636,46 +646,46 @@ describe("OverlayFs Security - Path Traversal Prevention", () => {
   describe("BashEnv integration security", () => {
     it("should not allow cat to read files outside root", async () => {
       const env = new Bash({ fs: overlay });
-      const result = toText(await env.exec(`cat ${outsideFile}`));
+      const result = await toText(await env.exec(`cat ${outsideFile}`));
       expect(result.exitCode).not.toBe(0);
       expect(result.stdout).not.toContain("TOP SECRET");
     });
 
     it("should not allow cat with path traversal", async () => {
       const env = new Bash({ fs: overlay });
-      const result = toText(await env.exec("cat /../../../etc/passwd"));
+      const result = await toText(await env.exec("cat /../../../etc/passwd"));
       expect(result.exitCode).not.toBe(0);
     });
 
     it("should not allow ls to list directories outside root", async () => {
       const env = new Bash({ fs: overlay });
-      const result = toText(await env.exec(`ls ${outsideDir}`));
+      const result = await toText(await env.exec(`ls ${outsideDir}`));
       expect(result.stdout).not.toContain("secret.txt");
     });
 
     it("should not allow find to search outside root", async () => {
       const env = new Bash({ fs: overlay, cwd: "/" });
-      const result = toText(await env.exec("find / -name secret.txt"));
+      const result = await toText(await env.exec("find / -name secret.txt"));
       expect(result.stdout).not.toContain(outsideDir);
       expect(result.stdout).not.toContain("secret.txt");
     });
 
     it("should not allow grep to read outside root", async () => {
       const env = new Bash({ fs: overlay });
-      const result = toText(await env.exec(`grep SECRET ${outsideFile}`));
+      const result = await toText(await env.exec(`grep SECRET ${outsideFile}`));
       expect(result.exitCode).not.toBe(0);
       expect(result.stdout).not.toContain("TOP SECRET");
     });
 
     it("should not allow head to read outside root", async () => {
       const env = new Bash({ fs: overlay });
-      const result = toText(await env.exec(`head ${outsideFile}`));
+      const result = await toText(await env.exec(`head ${outsideFile}`));
       expect(result.exitCode).not.toBe(0);
     });
 
     it("should not allow tail to read outside root", async () => {
       const env = new Bash({ fs: overlay });
-      const result = toText(await env.exec(`tail ${outsideFile}`));
+      const result = await toText(await env.exec(`tail ${outsideFile}`));
       expect(result.exitCode).not.toBe(0);
     });
 
@@ -689,14 +699,14 @@ describe("OverlayFs Security - Path Traversal Prevention", () => {
     it("should not allow symlink command to escape", async () => {
       const env = new Bash({ fs: overlay });
       await env.exec(`ln -s ${outsideFile} /escape`);
-      const result = toText(await env.exec("cat /escape"));
+      const result = await toText(await env.exec("cat /escape"));
       expect(result.exitCode).not.toBe(0);
       expect(result.stdout).not.toContain("TOP SECRET");
     });
 
     it("should not allow source command to read outside", async () => {
       const env = new Bash({ fs: overlay });
-      const result = toText(await env.exec(`source ${outsideFile}`));
+      const result = await toText(await env.exec(`source ${outsideFile}`));
       expect(result.exitCode).not.toBe(0);
     });
   });
@@ -710,7 +720,7 @@ describe("OverlayFs Security - Path Traversal Prevention", () => {
           (async () => {
             try {
               await overlay.writeFile("/race.txt", `content-${i}`);
-              await overlay.readFile("/race.txt");
+              await overlay.readFileText("/race.txt");
               await overlay.rm("/race.txt");
             } catch {
               // Ignore errors from race conditions
@@ -728,7 +738,7 @@ describe("OverlayFs Security - Path Traversal Prevention", () => {
         .fill(null)
         .map((_, i) => {
           const escapePath = `${"../".repeat(i + 1)}etc/passwd`;
-          return overlay.readFile(escapePath).catch(() => "blocked");
+          return overlay.readFileText(escapePath).catch(() => "blocked");
         });
 
       const results = await Promise.all(attempts);
@@ -751,7 +761,7 @@ describe("OverlayFs Security - Path Traversal Prevention", () => {
       const resolved = overlay.resolvePath("/subdir", "/etc/passwd");
       expect(resolved).toBe("/etc/passwd");
       // But reading it should fail - this is where security is enforced
-      await expect(overlay.readFile(resolved)).rejects.toThrow();
+      await expect(overlay.readFileText(resolved)).rejects.toThrow();
     });
   });
 
@@ -781,7 +791,7 @@ describe("OverlayFs Security - Path Traversal Prevention", () => {
 
       // The virtual file at that path contains the appended content
       // (but it's completely isolated from the real file)
-      const virtualContent = await overlay.readFile(outsideFile);
+      const virtualContent = await overlay.readFileText(outsideFile);
       expect(virtualContent).toBe("PWNED");
     });
 
@@ -789,7 +799,7 @@ describe("OverlayFs Security - Path Traversal Prevention", () => {
       // Try to append to what looks like the real path
       // The overlay shouldn't read from the real file first
       await overlay.appendFile(outsideFile, "-suffix");
-      const content = await overlay.readFile(outsideFile);
+      const content = await overlay.readFileText(outsideFile);
       // Should just be the suffix, not the real file content + suffix
       expect(content).toBe("-suffix");
       expect(content).not.toContain("TOP SECRET");
@@ -804,7 +814,7 @@ describe("OverlayFs Security - Path Traversal Prevention", () => {
       // readlink just returns the target as stored, which is fine
       // The security is in not being able to READ through it
       expect(target).toBe("/etc/passwd");
-      await expect(overlay.readFile("/link")).rejects.toThrow();
+      await expect(overlay.readFileText("/link")).rejects.toThrow();
     });
   });
 
@@ -813,30 +823,32 @@ describe("OverlayFs Security - Path Traversal Prevention", () => {
       // On Windows, backslash is a path separator
       // On Unix, it's a valid filename character
       // Either way, this shouldn't escape
-      await expect(overlay.readFile("\\..\\..\\etc\\passwd")).rejects.toThrow();
+      await expect(
+        overlay.readFileText("\\..\\..\\etc\\passwd"),
+      ).rejects.toThrow();
     });
 
     it("should handle mixed slash styles", async () => {
       await expect(
-        overlay.readFile("/subdir\\..\\..\\etc/passwd"),
+        overlay.readFileText("/subdir\\..\\..\\etc/passwd"),
       ).rejects.toThrow();
     });
 
     it("should handle UNC-style paths", async () => {
       await expect(
-        overlay.readFile("//server/share/../../etc/passwd"),
+        overlay.readFileText("//server/share/../../etc/passwd"),
       ).rejects.toThrow();
     });
 
     it("should handle device names", async () => {
       // Windows device names like NUL, CON, COM1, etc.
-      await expect(overlay.readFile("/NUL")).rejects.toThrow();
-      await expect(overlay.readFile("/CON")).rejects.toThrow();
+      await expect(overlay.readFileText("/NUL")).rejects.toThrow();
+      await expect(overlay.readFileText("/CON")).rejects.toThrow();
     });
 
     it("should handle alternate data streams syntax", async () => {
       // Windows NTFS alternate data streams: file.txt:stream
-      await expect(overlay.readFile("/file.txt:secret")).rejects.toThrow();
+      await expect(overlay.readFileText("/file.txt:secret")).rejects.toThrow();
     });
   });
 });

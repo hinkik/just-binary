@@ -35,7 +35,7 @@ export async function handleSource(
   if (filename.includes("/")) {
     const directPath = ctx.fs.resolvePath(ctx.state.cwd, filename);
     try {
-      content = await ctx.fs.readFile(directPath);
+      content = await ctx.fs.readFileText(directPath);
       _resolvedPath = directPath;
     } catch {
       // File not found
@@ -53,7 +53,7 @@ export async function handleSource(
         if (stat.isDirectory) {
           continue; // Skip directories
         }
-        content = await ctx.fs.readFile(candidate);
+        content = await ctx.fs.readFileText(candidate);
         _resolvedPath = candidate;
         break;
       } catch {
@@ -65,7 +65,7 @@ export async function handleSource(
     if (content === null) {
       const directPath = ctx.fs.resolvePath(ctx.state.cwd, filename);
       try {
-        content = await ctx.fs.readFile(directPath);
+        content = await ctx.fs.readFileText(directPath);
         _resolvedPath = directPath;
       } catch {
         // File not found

@@ -1,5 +1,5 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs } from "../../utils/bytes.js";
 
 // Command categories for organized display
 const CATEGORIES = new Map<string, string[]>([
@@ -91,7 +91,7 @@ export const helpCommand: Command = {
     // Handle --help
     if (a.includes("--help") || a.includes("-h")) {
       return {
-        stdout: encode(`help - display available commands
+        stdout: fromString(`help - display available commands
 
 Usage: help [command]
 
@@ -101,7 +101,7 @@ Options:
 If a command name is provided, shows help for that command.
 Otherwise, lists all available commands.
 `),
-        stderr: EMPTY,
+        stderr: emptyStream(),
         exitCode: 0,
       };
     }
@@ -115,13 +115,14 @@ Otherwise, lists all available commands.
     // List all available commands
     const commands = ctx.getRegisteredCommands?.() ?? [];
     return {
-      stdout: encode(formatHelp(commands)),
-      stderr: EMPTY,
+      stdout: fromString(formatHelp(commands)),
+      stderr: emptyStream(),
       exitCode: 0,
     };
   },
 };
 
+import { emptyStream, fromString } from "../../utils/stream.js";
 import type { CommandFuzzInfo } from "../fuzz-flags-types.js";
 
 export const flagsForFuzzing: CommandFuzzInfo = {

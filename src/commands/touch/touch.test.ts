@@ -5,7 +5,7 @@ import { toText } from "../../test-utils.js";
 describe("touch", () => {
   it("should create empty file", async () => {
     const env = new Bash();
-    const result = toText(await env.exec("touch /newfile.txt"));
+    const result = await toText(await env.exec("touch /newfile.txt"));
     expect(result.exitCode).toBe(0);
     const content = await env.readFile("/newfile.txt");
     expect(content).toBe("");
@@ -39,7 +39,7 @@ describe("touch", () => {
 
   it("should error with no arguments", async () => {
     const env = new Bash();
-    const result = toText(await env.exec("touch"));
+    const result = await toText(await env.exec("touch"));
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("missing file operand");
   });

@@ -1,4 +1,5 @@
 import { toText } from "../test-utils.js";
+import { collectText } from "../utils/stream.js";
 /**
  * Concurrent Execution Tests for Defense-in-Depth Box
  *
@@ -206,8 +207,8 @@ describe("DefenseInDepthBox concurrent execution", () => {
         bash.exec('echo "second"'),
       ]);
 
-      expect(new TextDecoder().decode(result1.stdout).trim()).toBe("first");
-      expect(new TextDecoder().decode(result2.stdout).trim()).toBe("second");
+      expect((await collectText(result1.stdout)).trim()).toBe("first");
+      expect((await collectText(result2.stdout)).trim()).toBe("second");
       expect(result1.exitCode).toBe(0);
       expect(result2.exitCode).toBe(0);
     });
@@ -215,7 +216,7 @@ describe("DefenseInDepthBox concurrent execution", () => {
     it("should not interfere with normal bash execution", async () => {
       const bash = new Bash({ defenseInDepth: true });
 
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         x=5
         y=3
@@ -230,7 +231,7 @@ describe("DefenseInDepthBox concurrent execution", () => {
     it("should allow disabling defense-in-depth", async () => {
       const bash = new Bash({ defenseInDepth: false });
 
-      const result = toText(await bash.exec('echo "no defense"'));
+      const result = await toText(await bash.exec('echo "no defense"'));
 
       expect(result.stdout.trim()).toBe("no defense");
       expect(result.exitCode).toBe(0);
@@ -246,7 +247,7 @@ describe("DefenseInDepthBox concurrent execution", () => {
         },
       });
 
-      const result = toText(await bash.exec('echo "audit mode"'));
+      const result = await toText(await bash.exec('echo "audit mode"'));
 
       expect(result.stdout.trim()).toBe("audit mode");
       expect(result.exitCode).toBe(0);

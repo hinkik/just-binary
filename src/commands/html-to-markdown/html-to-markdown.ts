@@ -6,7 +6,7 @@
 
 import TurndownService from "turndown";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
 const htmlToMarkdownHelp = {
@@ -97,15 +97,15 @@ export const htmlToMarkdownCommand: Command = {
     // Get input
     let input: string;
     if (files.length === 0 || (files.length === 1 && files[0] === "-")) {
-      input = decode(ctx.stdin);
+      input = await collectText(ctx.stdin);
     } else {
       try {
         const filePath = ctx.fs.resolvePath(ctx.cwd, files[0]);
-        input = await ctx.fs.readFile(filePath);
+        input = await ctx.fs.readFileText(filePath);
       } catch {
         return {
-          stdout: EMPTY,
-          stderr: encode(
+          stdout: emptyStream(),
+          stderr: fromString(
             `html-to-markdown: ${files[0]}: No such file or directory\n`,
           ),
           exitCode: 1,
@@ -114,7 +114,7 @@ export const htmlToMarkdownCommand: Command = {
     }
 
     if (!input.trim()) {
-      return { stdout: EMPTY, stderr: EMPTY, exitCode: 0 };
+      return { stdout: emptyStream(), stderr: emptyStream(), exitCode: 0 };
     }
 
     try {
@@ -131,14 +131,14 @@ export const htmlToMarkdownCommand: Command = {
 
       const markdown = turndownService.turndown(input).trim();
       return {
-        stdout: encode(`${markdown}\n`),
-        stderr: EMPTY,
+        stdout: fromString(`${markdown}\n`),
+        stderr: emptyStream(),
         exitCode: 0,
       };
     } catch (error) {
       return {
-        stdout: EMPTY,
-        stderr: encode(
+        stdout: emptyStream(),
+        stderr: fromString(
           `html-to-markdown: conversion error: ${(error as Error).message}\n`,
         ),
         exitCode: 1,
@@ -147,6 +147,7 @@ export const htmlToMarkdownCommand: Command = {
   },
 };
 
+import { collectText, emptyStream, fromString } from "../../utils/stream.js";
 import type { CommandFuzzInfo } from "../fuzz-flags-types.js";
 
 export const flagsForFuzzing: CommandFuzzInfo = {

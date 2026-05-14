@@ -18,7 +18,7 @@ describe("Command Security", () => {
 
   describe("Dangerous Command Handling", () => {
     it("should handle rm safely in sandbox", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo "content" > /tmp/testfile.txt
         cat /tmp/testfile.txt
@@ -32,7 +32,7 @@ describe("Command Security", () => {
     });
 
     it("should handle rm -rf in sandbox", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         mkdir -p /tmp/testdir/subdir
         echo "file" > /tmp/testdir/subdir/file.txt
@@ -45,7 +45,7 @@ describe("Command Security", () => {
     });
 
     it("should handle chmod command", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo "content" > /tmp/chmodtest.txt
         chmod 755 /tmp/chmodtest.txt 2>&1 || echo "chmod handled"
@@ -57,7 +57,7 @@ describe("Command Security", () => {
     });
 
     it("should handle chown command", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo "content" > /tmp/chowntest.txt
         chown root /tmp/chowntest.txt 2>&1 || echo "chown handled"
@@ -69,7 +69,7 @@ describe("Command Security", () => {
     });
 
     it("should handle mv command", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo "content" > /tmp/mvtest1.txt
         mv /tmp/mvtest1.txt /tmp/mvtest2.txt
@@ -81,7 +81,7 @@ describe("Command Security", () => {
     });
 
     it("should handle cp command", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo "content" > /tmp/cptest1.txt
         cp /tmp/cptest1.txt /tmp/cptest2.txt
@@ -93,7 +93,7 @@ describe("Command Security", () => {
     });
 
     it("should handle ln command", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo "content" > /tmp/lntest.txt
         ln -s /tmp/lntest.txt /tmp/lnlink.txt
@@ -107,7 +107,7 @@ describe("Command Security", () => {
 
   describe("PATH Manipulation", () => {
     it("should handle PATH modification", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         PATH="/custom/bin:$PATH"
         echo "PATH set"
@@ -118,7 +118,7 @@ describe("Command Security", () => {
     });
 
     it("should not allow PATH hijacking to affect command resolution", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         PATH=""
         ls /tmp 2>&1 || echo "ls still works: yes"
@@ -131,7 +131,7 @@ describe("Command Security", () => {
     it("should handle empty PATH", async () => {
       // Note: In just-bash, setting PATH="" may affect command resolution
       // This is expected behavior - commands are resolved via PATH
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         PATH=""
         echo "hello" 2>&1 || echo "echo failed"
@@ -142,7 +142,7 @@ describe("Command Security", () => {
     });
 
     it("should handle PATH with current directory", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         PATH=".:$PATH"
         echo "done"
@@ -155,7 +155,7 @@ describe("Command Security", () => {
 
   describe("Hash Table Behavior", () => {
     it("should handle hash command", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         hash 2>&1 || echo "hash handled"
       `),
@@ -164,7 +164,7 @@ describe("Command Security", () => {
     });
 
     it("should handle hash -r", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         hash -r 2>&1 || echo "hash -r handled"
         echo "done"
@@ -174,7 +174,7 @@ describe("Command Security", () => {
     });
 
     it("should handle type command", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         type echo 2>&1 || echo "type handled"
       `),
@@ -183,7 +183,7 @@ describe("Command Security", () => {
     });
 
     it("should handle which command", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         which ls 2>&1 || echo "which handled"
       `),
@@ -192,7 +192,7 @@ describe("Command Security", () => {
     });
 
     it("should handle command -v", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         command -v echo 2>&1 || echo "command -v handled"
       `),
@@ -203,7 +203,7 @@ describe("Command Security", () => {
 
   describe("Builtin Commands", () => {
     it("should handle builtin keyword", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         builtin echo "test" 2>&1 || echo "builtin handled"
       `),
@@ -212,7 +212,7 @@ describe("Command Security", () => {
     });
 
     it("should handle enable command", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         enable echo 2>&1 || echo "enable handled"
         echo "done"
@@ -222,7 +222,7 @@ describe("Command Security", () => {
     });
 
     it("should handle help command", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         help 2>&1 || echo "help handled"
       `),
@@ -233,7 +233,7 @@ describe("Command Security", () => {
 
   describe("Command Execution Controls", () => {
     it("should handle exec command", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         exec echo "execed" 2>&1 || echo "exec handled"
       `),
@@ -242,7 +242,7 @@ describe("Command Security", () => {
     });
 
     it("should handle command builtin", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         command echo "via command"
       `),
@@ -252,7 +252,7 @@ describe("Command Security", () => {
     });
 
     it("should handle set -e", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         set -e
         true
@@ -264,7 +264,7 @@ describe("Command Security", () => {
     });
 
     it("should handle set -e with failure", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         set -e
         false
@@ -278,7 +278,7 @@ describe("Command Security", () => {
     it("should handle set -u", async () => {
       // Note: set -u behavior may vary in implementation
       // Test documents that it doesn't crash
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         set -u
         echo $UNDEFINED_VAR 2>&1 || echo "caught undefined"
@@ -289,7 +289,7 @@ describe("Command Security", () => {
     });
 
     it("should handle set -o pipefail", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         set -o pipefail
         false | true
@@ -303,7 +303,7 @@ describe("Command Security", () => {
 
   describe("Subcommand Safety", () => {
     it("should handle xargs safely", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo "a b c" | xargs echo 2>&1 || echo "xargs handled"
       `),
@@ -312,7 +312,7 @@ describe("Command Security", () => {
     });
 
     it("should handle find command", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         mkdir -p /tmp/findtest
         touch /tmp/findtest/file.txt
@@ -323,7 +323,7 @@ describe("Command Security", () => {
     });
 
     it("should handle tee command", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo "content" | tee /tmp/teetest.txt 2>&1 || echo "tee handled"
       `),
@@ -334,7 +334,7 @@ describe("Command Security", () => {
 
   describe("Background and Job Control", () => {
     it("should handle & background operator", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo "background" &
         wait 2>/dev/null || true
@@ -346,7 +346,7 @@ describe("Command Security", () => {
     });
 
     it("should handle jobs command", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         jobs 2>&1 || echo "jobs handled"
         echo "done"
@@ -356,7 +356,7 @@ describe("Command Security", () => {
     });
 
     it("should handle fg command", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         fg 2>&1 || echo "fg handled"
         echo "done"
@@ -366,7 +366,7 @@ describe("Command Security", () => {
     });
 
     it("should handle bg command", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         bg 2>&1 || echo "bg handled"
         echo "done"
@@ -376,7 +376,7 @@ describe("Command Security", () => {
     });
 
     it("should handle wait command", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         wait 2>&1 || true
         echo "waited"
@@ -389,7 +389,7 @@ describe("Command Security", () => {
 
   describe("Shell Options Security", () => {
     it("should handle shopt command", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         shopt 2>&1 || echo "shopt handled"
         echo "done"
@@ -399,7 +399,7 @@ describe("Command Security", () => {
     });
 
     it("should handle shopt -s extglob", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         shopt -s extglob 2>/dev/null || true
         echo "extglob set"
@@ -410,7 +410,7 @@ describe("Command Security", () => {
     });
 
     it("should handle shopt -s nullglob", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         shopt -s nullglob 2>/dev/null || true
         echo "nullglob set"
@@ -421,7 +421,7 @@ describe("Command Security", () => {
     });
 
     it("should handle shopt -s dotglob", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         shopt -s dotglob 2>/dev/null || true
         echo "dotglob set"
@@ -434,7 +434,7 @@ describe("Command Security", () => {
 
   describe("Time and Resource Commands", () => {
     it("should handle time command", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         time echo "timed" 2>&1 || echo "time handled"
       `),
@@ -443,7 +443,7 @@ describe("Command Security", () => {
     });
 
     it("should handle ulimit command", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         ulimit -a 2>&1 || echo "ulimit handled"
         echo "done"
@@ -453,7 +453,7 @@ describe("Command Security", () => {
     });
 
     it("should handle times command", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         times 2>&1 || echo "times handled"
         echo "done"
@@ -465,7 +465,7 @@ describe("Command Security", () => {
 
   describe("Directory Stack Commands", () => {
     it("should handle pushd command", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         mkdir -p /tmp/pushtest
         pushd /tmp/pushtest 2>&1 || echo "pushd handled"
@@ -476,7 +476,7 @@ describe("Command Security", () => {
     });
 
     it("should handle popd command", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         mkdir -p /tmp/poptest
         pushd /tmp/poptest 2>/dev/null || true
@@ -488,7 +488,7 @@ describe("Command Security", () => {
     });
 
     it("should handle dirs command", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         dirs 2>&1 || echo "dirs handled"
         echo "done"
@@ -500,7 +500,7 @@ describe("Command Security", () => {
 
   describe("Exit and Return Safety", () => {
     it("should handle exit with code", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         exit 42
       `),
@@ -509,7 +509,7 @@ describe("Command Security", () => {
     });
 
     it("should handle exit in subshell", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         (exit 5)
         echo "exit code: $?"
@@ -520,7 +520,7 @@ describe("Command Security", () => {
     });
 
     it("should handle return in function", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         myfunc() {
           return 7
@@ -534,7 +534,7 @@ describe("Command Security", () => {
     });
 
     it("should handle return outside function", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         return 2>/dev/null || echo "return outside func"
       `),
@@ -545,7 +545,7 @@ describe("Command Security", () => {
 
   describe("printf Safety", () => {
     it("should handle printf format strings", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         printf "%s %d\\n" "hello" 42
       `),
@@ -556,7 +556,7 @@ describe("Command Security", () => {
 
     it("should handle printf %n safely", async () => {
       // %n can be dangerous in C - should be handled safely
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         printf "%n" 2>&1 || echo "handled"
       `),
@@ -565,7 +565,7 @@ describe("Command Security", () => {
     });
 
     it("should handle printf with missing args", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         printf "%s %s\\n" "only one"
       `),
@@ -575,7 +575,7 @@ describe("Command Security", () => {
     });
 
     it("should handle printf with hex/octal", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         printf "\\x41\\n"
         printf "\\101\\n"
@@ -588,7 +588,7 @@ describe("Command Security", () => {
 
   describe("Read Command Safety", () => {
     it("should handle read from stdin", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo "input" | { read var; echo "got: $var"; }
       `),
@@ -598,7 +598,7 @@ describe("Command Security", () => {
     });
 
     it("should handle read with timeout", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         read -t 0 var 2>&1 || echo "timeout handled"
         echo "done"
@@ -608,7 +608,7 @@ describe("Command Security", () => {
     });
 
     it("should handle read -n", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo "hello" | { read -n 2 var; echo "got: $var"; }
       `),
@@ -617,7 +617,7 @@ describe("Command Security", () => {
     });
 
     it("should handle read -r", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo 'a\\tb' | { read -r var; echo "got: $var"; }
       `),
@@ -626,7 +626,7 @@ describe("Command Security", () => {
     });
 
     it("should handle read -p", async () => {
-      const result = toText(
+      const result = await toText(
         await bash.exec(`
         echo "input" | { read -p "prompt: " var; echo "got: $var"; }
       `),

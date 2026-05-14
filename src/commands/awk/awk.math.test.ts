@@ -6,7 +6,7 @@ describe("awk math functions", () => {
   describe("basic math functions", () => {
     it("int() truncates to integer", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec("echo '3.7' | awk '{ print int($1) }'"),
       );
       expect(result.stdout).toBe("3\n");
@@ -14,7 +14,7 @@ describe("awk math functions", () => {
 
     it("int() handles negative numbers", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec("echo '-3.7' | awk '{ print int($1) }'"),
       );
       expect(result.stdout).toBe("-4\n");
@@ -22,7 +22,7 @@ describe("awk math functions", () => {
 
     it("sqrt() calculates square root", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec("echo '16' | awk '{ print sqrt($1) }'"),
       );
       expect(result.stdout).toBe("4\n");
@@ -30,7 +30,7 @@ describe("awk math functions", () => {
 
     it("exp() calculates e^x", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec("echo '0' | awk '{ print exp($1) }'"),
       );
       expect(result.stdout).toBe("1\n");
@@ -38,7 +38,7 @@ describe("awk math functions", () => {
 
     it("log() calculates natural logarithm", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec("echo '1' | awk '{ print log($1) }'"),
       );
       expect(result.stdout).toBe("0\n");
@@ -48,7 +48,7 @@ describe("awk math functions", () => {
   describe("trigonometric functions", () => {
     it("sin(0) returns 0", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec("echo '0' | awk '{ print sin($1) }'"),
       );
       expect(result.stdout).toBe("0\n");
@@ -56,7 +56,7 @@ describe("awk math functions", () => {
 
     it("cos(0) returns 1", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec("echo '0' | awk '{ print cos($1) }'"),
       );
       expect(result.stdout).toBe("1\n");
@@ -64,7 +64,7 @@ describe("awk math functions", () => {
 
     it("atan2(1, 1) returns pi/4", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec("echo '1 1' | awk '{ print atan2($1, $2) }'"),
       );
       const value = parseFloat(result.stdout.trim());
@@ -73,7 +73,7 @@ describe("awk math functions", () => {
 
     it("atan2(0, 1) returns 0", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec("echo '0 1' | awk '{ print atan2($1, $2) }'"),
       );
       expect(result.stdout).toBe("0\n");
@@ -83,7 +83,9 @@ describe("awk math functions", () => {
   describe("random functions", () => {
     it("rand() returns a value between 0 and 1", async () => {
       const env = new Bash();
-      const result = toText(await env.exec("echo '' | awk '{ print rand() }'"));
+      const result = await toText(
+        await env.exec("echo '' | awk '{ print rand() }'"),
+      );
       const value = parseFloat(result.stdout.trim());
       expect(value).toBeGreaterThanOrEqual(0);
       expect(value).toBeLessThan(1);
@@ -91,7 +93,7 @@ describe("awk math functions", () => {
 
     it("srand() can be called with a seed", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec("echo '' | awk '{ srand(42); print rand() }'"),
       );
       const value = parseFloat(result.stdout.trim());
@@ -103,7 +105,7 @@ describe("awk math functions", () => {
   describe("combined calculations", () => {
     it("calculates hypotenuse using sqrt", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec("echo '3 4' | awk '{ print sqrt($1*$1 + $2*$2) }'"),
       );
       expect(result.stdout).toBe("5\n");
@@ -112,7 +114,7 @@ describe("awk math functions", () => {
     it("calculates distance using atan2", async () => {
       const env = new Bash();
       // atan2(1, 0) = pi/2
-      const result = toText(
+      const result = await toText(
         await env.exec("echo '1 0' | awk '{ print atan2($1, $2) }'"),
       );
       const value = parseFloat(result.stdout.trim());

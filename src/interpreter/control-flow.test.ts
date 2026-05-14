@@ -6,7 +6,7 @@ describe("control flow execution", () => {
   describe("if/elif/else", () => {
     it("should execute if branch when condition is true", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         if true; then
           echo "yes"
@@ -19,7 +19,7 @@ describe("control flow execution", () => {
 
     it("should skip if branch when condition is false", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         if false; then
           echo "yes"
@@ -33,7 +33,7 @@ describe("control flow execution", () => {
 
     it("should execute else branch when condition is false", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         if false; then
           echo "yes"
@@ -48,7 +48,7 @@ describe("control flow execution", () => {
 
     it("should evaluate elif chain", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         x=2
         if [ $x -eq 1 ]; then
@@ -68,7 +68,7 @@ describe("control flow execution", () => {
 
     it("should handle complex conditions", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         a=5
         b=10
@@ -83,7 +83,7 @@ describe("control flow execution", () => {
 
     it("should handle nested if statements", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         a=1
         b=2
@@ -102,7 +102,7 @@ describe("control flow execution", () => {
   describe("for loops", () => {
     it("should iterate over word list", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         for i in a b c; do
           echo $i
@@ -115,7 +115,7 @@ describe("control flow execution", () => {
 
     it("should iterate over expanded variable", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         items="x y z"
         for i in $items; do
@@ -129,7 +129,7 @@ describe("control flow execution", () => {
 
     it("should handle IFS splitting", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         IFS=:
         items="a:b:c"
@@ -144,7 +144,7 @@ describe("control flow execution", () => {
 
     it("should iterate over empty list without body execution", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         for i in; do
           echo $i
@@ -158,7 +158,7 @@ describe("control flow execution", () => {
 
     it("should preserve loop variable after loop", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         for i in 1 2 3; do
           :
@@ -174,7 +174,7 @@ describe("control flow execution", () => {
       const env = new Bash({
         env: { "@": "arg1 arg2 arg3" },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         for i; do
           echo $i
@@ -187,7 +187,7 @@ describe("control flow execution", () => {
 
     it("should handle brace expansion", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         for i in {1..3}; do
           echo $i
@@ -200,7 +200,7 @@ describe("control flow execution", () => {
 
     it("should error on invalid variable name", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         for 123 in a b c; do
           echo $i
@@ -215,7 +215,7 @@ describe("control flow execution", () => {
   describe("C-style for loops", () => {
     it("should execute basic C-style for", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         for ((i=0; i<3; i++)); do
           echo $i
@@ -228,7 +228,7 @@ describe("control flow execution", () => {
 
     it("should handle complex expressions", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         for ((i=10; i>=0; i-=3)); do
           echo $i
@@ -241,7 +241,7 @@ describe("control flow execution", () => {
 
     it("should handle empty init", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         i=0
         for ((; i<3; i++)); do
@@ -255,7 +255,7 @@ describe("control flow execution", () => {
 
     it("should handle empty condition (infinite loop with break)", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         for ((i=0; ; i++)); do
           echo $i
@@ -269,7 +269,7 @@ describe("control flow execution", () => {
 
     it("should run update on continue", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         for ((i=0; i<5; i++)); do
           if [ $i -eq 2 ]; then continue; fi
@@ -285,7 +285,7 @@ describe("control flow execution", () => {
   describe("while loops", () => {
     it("should execute while body while condition is true", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         x=0
         while [ $x -lt 3 ]; do
@@ -300,7 +300,7 @@ describe("control flow execution", () => {
 
     it("should not execute body if condition is initially false", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         while false; do
           echo "inside"
@@ -314,7 +314,7 @@ describe("control flow execution", () => {
 
     it("should handle nested while loops", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         i=0
         while [ $i -lt 2 ]; do
@@ -335,7 +335,7 @@ describe("control flow execution", () => {
   describe("until loops", () => {
     it("should execute until body until condition is true", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         x=0
         until [ $x -ge 3 ]; do
@@ -350,7 +350,7 @@ describe("control flow execution", () => {
 
     it("should not execute body if condition is initially true", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         until true; do
           echo "inside"
@@ -366,7 +366,7 @@ describe("control flow execution", () => {
   describe("break and continue", () => {
     it("should break out of for loop", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         for i in 1 2 3 4 5; do
           if [ $i -eq 3 ]; then break; fi
@@ -381,7 +381,7 @@ describe("control flow execution", () => {
 
     it("should continue to next iteration", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         for i in 1 2 3 4 5; do
           if [ $i -eq 3 ]; then continue; fi
@@ -395,7 +395,7 @@ describe("control flow execution", () => {
 
     it("should break multiple levels", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         for i in 1 2; do
           for j in a b c; do
@@ -412,7 +412,7 @@ describe("control flow execution", () => {
 
     it("should continue multiple levels", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         for i in 1 2; do
           for j in a b; do
@@ -431,7 +431,7 @@ describe("control flow execution", () => {
   describe("case statements", () => {
     it("should match literal pattern", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         x=hello
         case $x in
@@ -446,7 +446,7 @@ describe("control flow execution", () => {
 
     it("should match glob pattern", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         x=hello
         case $x in
@@ -461,7 +461,7 @@ describe("control flow execution", () => {
 
     it("should match with multiple patterns", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         x=yes
         case $x in
@@ -476,7 +476,7 @@ describe("control flow execution", () => {
 
     it("should use default pattern", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         x=unknown
         case $x in
@@ -492,7 +492,7 @@ describe("control flow execution", () => {
 
     it("should handle fall-through with ;&", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         x=a
         case $x in
@@ -508,7 +508,7 @@ describe("control flow execution", () => {
 
     it("should handle continue-matching with ;;&", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         x=abc
         case $x in
@@ -524,7 +524,7 @@ describe("control flow execution", () => {
 
     it("should handle quoted patterns literally", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         x='*'
         case $x in
@@ -541,7 +541,7 @@ describe("control flow execution", () => {
   describe("nested control structures", () => {
     it("should handle if inside for", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         for i in 1 2 3; do
           if [ $i -eq 2 ]; then
@@ -556,7 +556,7 @@ describe("control flow execution", () => {
 
     it("should handle for inside if", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         x=1
         if [ $x -eq 1 ]; then
@@ -572,7 +572,7 @@ describe("control flow execution", () => {
 
     it("should handle case inside for", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         for x in foo bar baz; do
           case $x in
@@ -589,7 +589,7 @@ describe("control flow execution", () => {
 
     it("should handle while inside case", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         action=count
         case $action in

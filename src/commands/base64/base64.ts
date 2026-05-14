@@ -5,7 +5,8 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
 import { uint8ToBinaryString } from "../../utils/binary-string.js";
-import { decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs } from "../../utils/bytes.js";
+import { collectBytes, fromBytes } from "../../utils/stream.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const base64Help = {
@@ -32,31 +33,33 @@ async function readBinary(
 ): Promise<{ ok: true; data: Uint8Array } | { ok: false; error: ExecResult }> {
   // No files - read from stdin
   if (files.length === 0 || (files.length === 1 && files[0] === "-")) {
-    // ctx.stdin is already Uint8Array
     return {
       ok: true,
-      data: ctx.stdin,
+      data: await collectBytes(ctx.stdin),
     };
   }
 
   // Read and concatenate all files as binary
   const chunks: Uint8Array[] = [];
+  let stdinBytes: Uint8Array | null = null;
   for (const file of files) {
     if (file === "-") {
-      // ctx.stdin is already Uint8Array
-      chunks.push(ctx.stdin);
+      if (stdinBytes === null) stdinBytes = await collectBytes(ctx.stdin);
+      chunks.push(stdinBytes);
       continue;
     }
     try {
       const filePath = ctx.fs.resolvePath(ctx.cwd, file);
-      const data = await ctx.fs.readFileBuffer(filePath);
+      const data = await collectBytes(await ctx.fs.readFile(filePath));
       chunks.push(data);
     } catch {
       return {
         ok: false,
         error: {
-          stdout: EMPTY,
-          stderr: encode(`${cmdName}: ${file}: No such file or directory\n`),
+          stdout: emptyStream(),
+          stderr: fromString(
+            `${cmdName}: ${file}: No such file or directory\n`,
+          ),
           exitCode: 1,
         },
       };
@@ -106,12 +109,14 @@ export const base64Command: Command = {
           // Use Buffer's latin1 encoding which treats each byte as a character
           // Return decoded bytes directly as Uint8Array
           return {
-            stdout: new Uint8Array(
-              decoded.buffer,
-              decoded.byteOffset,
-              decoded.byteLength,
-            ) as Uint8Array,
-            stderr: EMPTY,
+            stdout: fromBytes(
+              new Uint8Array(
+                decoded.buffer,
+                decoded.byteOffset,
+                decoded.byteLength,
+              ) as Uint8Array,
+            ),
+            stderr: emptyStream(),
             exitCode: 0,
           };
         }
@@ -121,7 +126,11 @@ export const base64Command: Command = {
         const cleaned = input.replace(/\s/g, "");
         // Decode base64 to binary string (each char code = byte value)
         const decoded = atob(cleaned);
-        return { stdout: encode(decoded), stderr: EMPTY, exitCode: 0 };
+        return {
+          stdout: fromString(decoded),
+          stderr: emptyStream(),
+          exitCode: 0,
+        };
       }
 
       // Encoding: read as binary
@@ -145,17 +154,22 @@ export const base64Command: Command = {
         }
         encoded = lines.join("\n") + (encoded.length > 0 ? "\n" : "");
       }
-      return { stdout: encode(encoded), stderr: EMPTY, exitCode: 0 };
+      return {
+        stdout: fromString(encoded),
+        stderr: emptyStream(),
+        exitCode: 0,
+      };
     } catch {
       return {
-        stdout: EMPTY,
-        stderr: encode("base64: invalid input\n"),
+        stdout: emptyStream(),
+        stderr: fromString("base64: invalid input\n"),
         exitCode: 1,
       };
     }
   },
 };
 
+import { emptyStream, fromString } from "../../utils/stream.js";
 import type { CommandFuzzInfo } from "../fuzz-flags-types.js";
 
 export const flagsForFuzzing: CommandFuzzInfo = {

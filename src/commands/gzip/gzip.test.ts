@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
 import { toText } from "../../test-utils.js";
+import { collectBytes } from "../../utils/stream.js";
 
 describe("gzip", () => {
   describe("compression", () => {
@@ -9,12 +10,12 @@ describe("gzip", () => {
         files: { "/test.txt": "Hello, World!" },
       });
 
-      const result = toText(await bash.exec("gzip test.txt"));
+      const result = await toText(await bash.exec("gzip test.txt"));
       expect(result.exitCode).toBe(0);
       expect(result.stderr).toBe("");
 
       // Original should be removed
-      const lsResult = toText(await bash.exec("ls /"));
+      const lsResult = await toText(await bash.exec("ls /"));
       expect(lsResult.stdout).not.toContain("test.txt\n");
       expect(lsResult.stdout).toContain("test.txt.gz");
     });
@@ -24,11 +25,11 @@ describe("gzip", () => {
         files: { "/test.txt": "Hello, World!" },
       });
 
-      const result = toText(await bash.exec("gzip -k test.txt"));
+      const result = await toText(await bash.exec("gzip -k test.txt"));
       expect(result.exitCode).toBe(0);
 
       // Both files should exist
-      const lsResult = toText(await bash.exec("ls /"));
+      const lsResult = await toText(await bash.exec("ls /"));
       expect(lsResult.stdout).toContain("test.txt\n");
       expect(lsResult.stdout).toContain("test.txt.gz");
     });
@@ -41,11 +42,12 @@ describe("gzip", () => {
       const result = await bash.exec("gzip -c test.txt");
       expect(result.exitCode).toBe(0);
       // Output should be gzip magic bytes (0x1f 0x8b)
-      expect(result.stdout[0]).toBe(0x1f);
-      expect(result.stdout[1]).toBe(0x8b);
+      const stdout = await collectBytes(result.stdout);
+      expect(stdout[0]).toBe(0x1f);
+      expect(stdout[1]).toBe(0x8b);
 
       // Original should still exist
-      const lsResult = toText(await bash.exec("ls /"));
+      const lsResult = await toText(await bash.exec("ls /"));
       expect(lsResult.stdout).toContain("test.txt");
       expect(lsResult.stdout).not.toContain("test.txt.gz");
     });
@@ -58,7 +60,7 @@ describe("gzip", () => {
         },
       });
 
-      const result = toText(await bash.exec("gzip test.txt"));
+      const result = await toText(await bash.exec("gzip test.txt"));
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("already exists");
     });
@@ -71,7 +73,7 @@ describe("gzip", () => {
         },
       });
 
-      const result = toText(await bash.exec("gzip -f test.txt"));
+      const result = await toText(await bash.exec("gzip -f test.txt"));
       expect(result.exitCode).toBe(0);
     });
 
@@ -80,7 +82,7 @@ describe("gzip", () => {
         files: { "/test.txt.gz": "already compressed" },
       });
 
-      const result = toText(await bash.exec("gzip test.txt.gz"));
+      const result = await toText(await bash.exec("gzip test.txt.gz"));
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("already has .gz suffix");
     });
@@ -93,10 +95,10 @@ describe("gzip", () => {
         },
       });
 
-      const result = toText(await bash.exec("gzip a.txt b.txt"));
+      const result = await toText(await bash.exec("gzip a.txt b.txt"));
       expect(result.exitCode).toBe(0);
 
-      const lsResult = toText(await bash.exec("ls /"));
+      const lsResult = await toText(await bash.exec("ls /"));
       expect(lsResult.stdout).toContain("a.txt.gz");
       expect(lsResult.stdout).toContain("b.txt.gz");
     });
@@ -106,10 +108,10 @@ describe("gzip", () => {
         files: { "/test.txt": "Hello, World!" },
       });
 
-      const result = toText(await bash.exec("gzip -S .z test.txt"));
+      const result = await toText(await bash.exec("gzip -S .z test.txt"));
       expect(result.exitCode).toBe(0);
 
-      const lsResult = toText(await bash.exec("ls /"));
+      const lsResult = await toText(await bash.exec("ls /"));
       expect(lsResult.stdout).toContain("test.txt.z");
     });
 
@@ -118,7 +120,7 @@ describe("gzip", () => {
         files: { "/test.txt": "Hello, World!" },
       });
 
-      const result = toText(await bash.exec("gzip -v test.txt"));
+      const result = await toText(await bash.exec("gzip -v test.txt"));
       expect(result.exitCode).toBe(0);
       expect(result.stderr).toContain("test.txt:");
       expect(result.stderr).toContain("%");
@@ -135,11 +137,11 @@ describe("gzip", () => {
       await bash.exec("gzip test.txt");
 
       // Then decompress
-      const result = toText(await bash.exec("gzip -d test.txt.gz"));
+      const result = await toText(await bash.exec("gzip -d test.txt.gz"));
       expect(result.exitCode).toBe(0);
 
       // Check content
-      const catResult = toText(await bash.exec("cat test.txt"));
+      const catResult = await toText(await bash.exec("cat test.txt"));
       expect(catResult.stdout).toBe("Hello, World!");
     });
 
@@ -148,7 +150,7 @@ describe("gzip", () => {
         files: { "/test.txt": "not compressed" },
       });
 
-      const result = toText(await bash.exec("gzip -d test.txt"));
+      const result = await toText(await bash.exec("gzip -d test.txt"));
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("unknown suffix");
     });
@@ -158,7 +160,7 @@ describe("gzip", () => {
         files: { "/test.txt.gz": "not actually gzip" },
       });
 
-      const result = toText(await bash.exec("gzip -d test.txt.gz"));
+      const result = await toText(await bash.exec("gzip -d test.txt.gz"));
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("not in gzip format");
     });
@@ -170,7 +172,9 @@ describe("gzip", () => {
         const bash = new Bash({
           files: { "/test.txt": "Hello, World!" },
         });
-        const result = toText(await bash.exec(`gzip -${level} -k test.txt`));
+        const result = await toText(
+          await bash.exec(`gzip -${level} -k test.txt`),
+        );
         expect(result.exitCode).toBe(0);
       }
     });
@@ -179,13 +183,13 @@ describe("gzip", () => {
       const bash1 = new Bash({
         files: { "/test.txt": "Hello, World!" },
       });
-      const result1 = toText(await bash1.exec("gzip --fast -k test.txt"));
+      const result1 = await toText(await bash1.exec("gzip --fast -k test.txt"));
       expect(result1.exitCode).toBe(0);
 
       const bash2 = new Bash({
         files: { "/test.txt": "Hello, World!" },
       });
-      const result2 = toText(await bash2.exec("gzip --best -k test.txt"));
+      const result2 = await toText(await bash2.exec("gzip --best -k test.txt"));
       expect(result2.exitCode).toBe(0);
     });
   });
@@ -194,7 +198,9 @@ describe("gzip", () => {
     it("reads from stdin when no file specified", async () => {
       const bash = new Bash();
 
-      const result = toText(await bash.exec("echo 'Hello' | gzip | base64"));
+      const result = await toText(
+        await bash.exec("echo 'Hello' | gzip | base64"),
+      );
       expect(result.exitCode).toBe(0);
       // Should produce base64 of gzipped data
       expect(result.stdout.length).toBeGreaterThan(0);
@@ -203,7 +209,9 @@ describe("gzip", () => {
     it("reads from stdin with - argument", async () => {
       const bash = new Bash();
 
-      const result = toText(await bash.exec("echo 'Hello' | gzip - | base64"));
+      const result = await toText(
+        await bash.exec("echo 'Hello' | gzip - | base64"),
+      );
       expect(result.exitCode).toBe(0);
     });
   });
@@ -211,7 +219,7 @@ describe("gzip", () => {
   describe("--help", () => {
     it("shows help with --help", async () => {
       const bash = new Bash();
-      const result = toText(await bash.exec("gzip --help"));
+      const result = await toText(await bash.exec("gzip --help"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("gzip");
       expect(result.stdout).toContain("compress");
@@ -221,14 +229,14 @@ describe("gzip", () => {
   describe("error handling", () => {
     it("errors on non-existent file", async () => {
       const bash = new Bash();
-      const result = toText(await bash.exec("gzip nonexistent.txt"));
+      const result = await toText(await bash.exec("gzip nonexistent.txt"));
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("No such file or directory");
     });
 
     it("errors on unknown option", async () => {
       const bash = new Bash();
-      const result = toText(await bash.exec("gzip --unknown"));
+      const result = await toText(await bash.exec("gzip --unknown"));
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("unrecognized option");
     });
@@ -238,7 +246,7 @@ describe("gzip", () => {
         files: { "/dir/file.txt": "content" },
       });
 
-      const result = toText(await bash.exec("gzip dir"));
+      const result = await toText(await bash.exec("gzip dir"));
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("is a directory");
     });
@@ -251,7 +259,7 @@ describe("gzip", () => {
       });
 
       await bash.exec("gzip test.txt");
-      const result = toText(await bash.exec("gzip -l test.txt.gz"));
+      const result = await toText(await bash.exec("gzip -l test.txt.gz"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("compressed");
       expect(result.stdout).toContain("uncompressed");
@@ -266,7 +274,7 @@ describe("gzip", () => {
       });
 
       await bash.exec("gzip test.txt");
-      const result = toText(await bash.exec("gzip -t test.txt.gz"));
+      const result = await toText(await bash.exec("gzip -t test.txt.gz"));
       expect(result.exitCode).toBe(0);
     });
 
@@ -276,7 +284,7 @@ describe("gzip", () => {
       });
 
       await bash.exec("gzip test.txt");
-      const result = toText(await bash.exec("gzip -tv test.txt.gz"));
+      const result = await toText(await bash.exec("gzip -tv test.txt.gz"));
       expect(result.exitCode).toBe(0);
       expect(result.stderr).toContain("OK");
     });
@@ -286,7 +294,7 @@ describe("gzip", () => {
         files: { "/corrupt.gz": "not valid gzip data" },
       });
 
-      const result = toText(await bash.exec("gzip -t corrupt.gz"));
+      const result = await toText(await bash.exec("gzip -t corrupt.gz"));
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("not in gzip format");
     });
@@ -302,10 +310,10 @@ describe("gzip", () => {
         },
       });
 
-      const result = toText(await bash.exec("gzip -r dir"));
+      const result = await toText(await bash.exec("gzip -r dir"));
       expect(result.exitCode).toBe(0);
 
-      const findResult = toText(await bash.exec("find dir -name '*.gz'"));
+      const findResult = await toText(await bash.exec("find dir -name '*.gz'"));
       expect(findResult.stdout).toContain("a.txt.gz");
       expect(findResult.stdout).toContain("b.txt.gz");
       expect(findResult.stdout).toContain("c.txt.gz");
@@ -318,7 +326,7 @@ describe("gzip", () => {
         files: { "/test.txt.gz": "not valid" },
       });
 
-      const result = toText(await bash.exec("gzip -qd test.txt.gz"));
+      const result = await toText(await bash.exec("gzip -qd test.txt.gz"));
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toBe("");
     });
@@ -332,16 +340,16 @@ describe("gunzip", () => {
     });
 
     await bash.exec("gzip test.txt");
-    const result = toText(await bash.exec("gunzip test.txt.gz"));
+    const result = await toText(await bash.exec("gunzip test.txt.gz"));
     expect(result.exitCode).toBe(0);
 
-    const catResult = toText(await bash.exec("cat test.txt"));
+    const catResult = await toText(await bash.exec("cat test.txt"));
     expect(catResult.stdout).toBe("Hello, World!");
   });
 
   it("shows help", async () => {
     const bash = new Bash();
-    const result = toText(await bash.exec("gunzip --help"));
+    const result = await toText(await bash.exec("gunzip --help"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("gunzip");
     expect(result.stdout).toContain("decompress");
@@ -353,12 +361,12 @@ describe("gunzip", () => {
     });
 
     await bash.exec("gzip test.txt");
-    const result = toText(await bash.exec("gunzip -c test.txt.gz"));
+    const result = await toText(await bash.exec("gunzip -c test.txt.gz"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("Hello, World!");
 
     // Original .gz should still exist
-    const lsResult = toText(await bash.exec("ls /"));
+    const lsResult = await toText(await bash.exec("ls /"));
     expect(lsResult.stdout).toContain("test.txt.gz");
   });
 });
@@ -370,18 +378,18 @@ describe("zcat", () => {
     });
 
     await bash.exec("gzip test.txt");
-    const result = toText(await bash.exec("zcat test.txt.gz"));
+    const result = await toText(await bash.exec("zcat test.txt.gz"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("Hello, World!");
 
     // Original .gz should still exist
-    const lsResult = toText(await bash.exec("ls /"));
+    const lsResult = await toText(await bash.exec("ls /"));
     expect(lsResult.stdout).toContain("test.txt.gz");
   });
 
   it("shows help", async () => {
     const bash = new Bash();
-    const result = toText(await bash.exec("zcat --help"));
+    const result = await toText(await bash.exec("zcat --help"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("zcat");
     expect(result.stdout).toContain("stdout");
@@ -396,7 +404,7 @@ describe("zcat", () => {
     });
 
     await bash.exec("gzip a.txt b.txt");
-    const result = toText(await bash.exec("zcat a.txt.gz b.txt.gz"));
+    const result = await toText(await bash.exec("zcat a.txt.gz b.txt.gz"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("File A\nFile B\n");
   });

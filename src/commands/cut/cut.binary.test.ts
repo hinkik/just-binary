@@ -17,7 +17,7 @@ describe("cut with binary content", () => {
       },
     });
 
-    const result = toText(await env.exec("cut -d: -f2 /data.bin"));
+    const result = await toText(await env.exec("cut -d: -f2 /data.bin"));
     expect(result.stdout).toBe("b\n");
     expect(result.exitCode).toBe(0);
   });

@@ -23,7 +23,8 @@ import type {
 import { parseArithmeticExpression } from "../../parser/arithmetic-parser.js";
 import { Parser } from "../../parser/parser.js";
 import { createUserRegex } from "../../regex/index.js";
-import { decode, EMPTY, encode, envGet, envSet } from "../../utils/bytes.js";
+import { decode, envGet, envSet } from "../../utils/bytes.js";
+import { emptyStream, fromString } from "../../utils/stream.js";
 import { evaluateArithmetic } from "../arithmetic.js";
 import { ArithmeticError, BadSubstitutionError, ExitError } from "../errors.js";
 import { getIfsSeparator } from "../helpers/ifs.js";
@@ -171,7 +172,7 @@ export async function handleErrorIfUnset(
           opCtx.inDoubleQuotes,
         )
       : `${parameter}: parameter null or not set`;
-    throw new ExitError(1, EMPTY, encode(`bash: ${message}\n`));
+    throw new ExitError(1, emptyStream(), fromString(`bash: ${message}\n`));
   }
   return opCtx.effectiveValue;
 }
@@ -436,8 +437,8 @@ export async function handleSubstring(
     if (ctx.state.associativeArrays?.has(arrayName)) {
       throw new ExitError(
         1,
-        EMPTY,
-        encode(`bash: \${${arrayName}[@]: 0: 3}: bad substitution\n`),
+        emptyStream(),
+        fromString(`bash: \${${arrayName}[@]: 0: 3}: bad substitution\n`),
       );
     }
     const elements = getArrayElements(ctx, arrayName);

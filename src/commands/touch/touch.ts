@@ -1,6 +1,7 @@
 import { getErrorMessage } from "../../interpreter/helpers/errors.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs } from "../../utils/bytes.js";
+import { emptyStream, fromString } from "../../utils/stream.js";
 import { unknownOption } from "../help.js";
 
 /**
@@ -78,8 +79,8 @@ export const touchCommand: Command = {
         // -d DATE or --date=DATE
         if (i + 1 >= a.length) {
           return {
-            stdout: EMPTY,
-            stderr: encode("touch: option requires an argument -- 'd'\n"),
+            stdout: emptyStream(),
+            stderr: fromString("touch: option requires an argument -- 'd'\n"),
             exitCode: 1,
           };
         }
@@ -109,8 +110,10 @@ export const touchCommand: Command = {
             // -d requires next argument
             if (i + 1 >= a.length) {
               return {
-                stdout: EMPTY,
-                stderr: encode("touch: option requires an argument -- 'd'\n"),
+                stdout: emptyStream(),
+                stderr: fromString(
+                  "touch: option requires an argument -- 'd'\n",
+                ),
                 exitCode: 1,
               };
             }
@@ -134,8 +137,8 @@ export const touchCommand: Command = {
 
     if (files.length === 0) {
       return {
-        stdout: EMPTY,
-        stderr: encode("touch: missing file operand\n"),
+        stdout: emptyStream(),
+        stderr: fromString("touch: missing file operand\n"),
         exitCode: 1,
       };
     }
@@ -146,8 +149,8 @@ export const touchCommand: Command = {
       targetTime = parseDateString(dateStr);
       if (targetTime === null) {
         return {
-          stdout: EMPTY,
-          stderr: encode(`touch: invalid date format '${dateStr}'\n`),
+          stdout: emptyStream(),
+          stderr: fromString(`touch: invalid date format '${dateStr}'\n`),
           exitCode: 1,
         };
       }
@@ -178,7 +181,7 @@ export const touchCommand: Command = {
       }
     }
 
-    return { stdout: EMPTY, stderr: encode(stderr), exitCode };
+    return { stdout: emptyStream(), stderr: fromString(stderr), exitCode };
   },
 };
 

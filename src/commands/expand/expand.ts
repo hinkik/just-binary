@@ -8,7 +8,7 @@
  */
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
 const expandHelp = {
@@ -164,8 +164,8 @@ export const expand: Command = {
         if (!stops) {
           return {
             exitCode: 1,
-            stdout: EMPTY,
-            stderr: encode(`expand: invalid tab size: '${a[i + 1]}'\n`),
+            stdout: emptyStream(),
+            stderr: fromString(`expand: invalid tab size: '${a[i + 1]}'\n`),
           };
         }
         options.tabStops = stops;
@@ -175,8 +175,8 @@ export const expand: Command = {
         if (!stops) {
           return {
             exitCode: 1,
-            stdout: EMPTY,
-            stderr: encode(`expand: invalid tab size: '${arg.slice(2)}'\n`),
+            stdout: emptyStream(),
+            stderr: fromString(`expand: invalid tab size: '${arg.slice(2)}'\n`),
           };
         }
         options.tabStops = stops;
@@ -186,8 +186,8 @@ export const expand: Command = {
         if (!stops) {
           return {
             exitCode: 1,
-            stdout: EMPTY,
-            stderr: encode(`expand: invalid tab size: '${a[i + 1]}'\n`),
+            stdout: emptyStream(),
+            stderr: fromString(`expand: invalid tab size: '${a[i + 1]}'\n`),
           };
         }
         options.tabStops = stops;
@@ -197,8 +197,8 @@ export const expand: Command = {
         if (!stops) {
           return {
             exitCode: 1,
-            stdout: EMPTY,
-            stderr: encode(`expand: invalid tab size: '${arg.slice(7)}'\n`),
+            stdout: emptyStream(),
+            stderr: fromString(`expand: invalid tab size: '${arg.slice(7)}'\n`),
           };
         }
         options.tabStops = stops;
@@ -220,17 +220,19 @@ export const expand: Command = {
     let output = "";
 
     if (files.length === 0) {
-      const input = decode(ctx.stdin);
+      const input = await collectText(ctx.stdin);
       output = processContent(input, options);
     } else {
       for (const file of files) {
         const filePath = ctx.fs.resolvePath(ctx.cwd, file);
-        const content = await ctx.fs.readFile(filePath);
-        if (content === null) {
+        let content: string;
+        try {
+          content = await ctx.fs.readFileText(filePath);
+        } catch {
           return {
             exitCode: 1,
-            stdout: encode(output),
-            stderr: encode(`expand: ${file}: No such file or directory\n`),
+            stdout: fromString(output),
+            stderr: fromString(`expand: ${file}: No such file or directory\n`),
           };
         }
         output += processContent(content, options);
@@ -239,12 +241,13 @@ export const expand: Command = {
 
     return {
       exitCode: 0,
-      stdout: encode(output),
-      stderr: EMPTY,
+      stdout: fromString(output),
+      stderr: emptyStream(),
     };
   },
 };
 
+import { collectText, emptyStream, fromString } from "../../utils/stream.js";
 import type { CommandFuzzInfo } from "../fuzz-flags-types.js";
 
 export const flagsForFuzzing: CommandFuzzInfo = {

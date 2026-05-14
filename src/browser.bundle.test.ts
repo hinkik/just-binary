@@ -107,7 +107,9 @@ describe("browser bundle safety", () => {
   describe("sqlite3 in Node.js", () => {
     it("sqlite3 should be available by default in Node.js", async () => {
       const bash = new Bash();
-      const result = toText(await bash.exec("sqlite3 :memory: 'SELECT 1'"));
+      const result = await toText(
+        await bash.exec("sqlite3 :memory: 'SELECT 1'"),
+      );
 
       expect(result.stdout).toBe("1\n");
       expect(result.exitCode).toBe(0);
@@ -117,7 +119,7 @@ describe("browser bundle safety", () => {
   describe("tar in Node.js", () => {
     it("tar should be available by default in Node.js", async () => {
       const bash = new Bash();
-      const result = toText(await bash.exec("tar --help"));
+      const result = await toText(await bash.exec("tar --help"));
 
       expect(result.stdout).toContain("Usage:");
       expect(result.exitCode).toBe(0);
@@ -134,7 +136,7 @@ describe("browser bundle safety", () => {
         commands: availableCommands,
       });
 
-      const result = toText(await bash.exec("tar -tf archive.tar"));
+      const result = await toText(await bash.exec("tar -tf archive.tar"));
 
       expect(result.stderr).toContain("tar");
       expect(result.stderr).toContain("not available in browser");
@@ -151,7 +153,7 @@ describe("browser bundle safety", () => {
         commands: availableCommands,
       });
 
-      const result = toText(await bash.exec("yq '.' test.yaml"));
+      const result = await toText(await bash.exec("yq '.' test.yaml"));
 
       expect(result.stderr).toContain("yq");
       expect(result.stderr).toContain("not available in browser");
@@ -168,7 +170,7 @@ describe("browser bundle safety", () => {
         commands: availableCommands,
       });
 
-      const result = toText(await bash.exec("xan count data.csv"));
+      const result = await toText(await bash.exec("xan count data.csv"));
 
       expect(result.stderr).toContain("xan");
       expect(result.stderr).toContain("not available in browser");
@@ -185,7 +187,9 @@ describe("browser bundle safety", () => {
         commands: availableCommands,
       });
 
-      const result = toText(await bash.exec("sqlite3 :memory: 'SELECT 1'"));
+      const result = await toText(
+        await bash.exec("sqlite3 :memory: 'SELECT 1'"),
+      );
 
       expect(result.stderr).toContain("sqlite3");
       expect(result.stderr).toContain("not available in browser");
@@ -195,7 +199,7 @@ describe("browser bundle safety", () => {
 
     it("should show standard command not found for non-excluded commands", async () => {
       const bash = new Bash();
-      const result = toText(await bash.exec("nonexistentcmd arg1 arg2"));
+      const result = await toText(await bash.exec("nonexistentcmd arg1 arg2"));
 
       // Regular unknown command should just say "command not found"
       expect(result.stderr).toContain("command not found");

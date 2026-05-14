@@ -23,7 +23,7 @@ describe("Extended Bash Prototype Pollution Prevention", () => {
     for (const keyword of DANGEROUS_KEYWORDS.slice(0, 3)) {
       it(`should declare readonly ${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           readonly ${keyword}="immutable"
           echo $${keyword}
@@ -35,7 +35,7 @@ describe("Extended Bash Prototype Pollution Prevention", () => {
 
       it(`should prevent modification of readonly ${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           readonly ${keyword}="original"
           ${keyword}="modified" 2>&1 || true
@@ -48,7 +48,7 @@ describe("Extended Bash Prototype Pollution Prevention", () => {
 
       it(`should declare readonly ${keyword} with declare -r`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           declare -r ${keyword}="declared"
           echo $${keyword}
@@ -64,7 +64,7 @@ describe("Extended Bash Prototype Pollution Prevention", () => {
     for (const keyword of DANGEROUS_KEYWORDS.slice(0, 3)) {
       it(`should mapfile into ${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           mapfile -t ${keyword} <<'EOF'
 line1
@@ -83,7 +83,7 @@ EOF
 
       it(`should readarray into ${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           readarray -t ${keyword} <<'EOF'
 a
@@ -99,7 +99,7 @@ EOF
 
       it(`should mapfile with callback using ${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           mapfile -t -c 1 -C 'echo "line:"' ${keyword} <<'EOF'
 one
@@ -118,7 +118,7 @@ EOF
     for (const keyword of DANGEROUS_KEYWORDS.slice(0, 3)) {
       it(`should printf -v into ${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           printf -v ${keyword} "%s-%d" "test" 42
           echo $${keyword}
@@ -130,7 +130,7 @@ EOF
 
       it(`should printf -v formatted number into ${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           printf -v ${keyword} "%05d" 7
           echo $${keyword}
@@ -142,7 +142,7 @@ EOF
 
       it(`should printf -v hex into ${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           printf -v ${keyword} "%x" 255
           echo $${keyword}
@@ -158,7 +158,7 @@ EOF
     for (const keyword of DANGEROUS_KEYWORDS.slice(0, 3)) {
       it(`should use ${keyword} as for loop variable`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           for ${keyword} in a b c; do
             echo $${keyword}
@@ -171,7 +171,7 @@ EOF
 
       it(`should preserve ${keyword} value after for loop`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           for ${keyword} in 1 2 3; do :; done
           echo $${keyword}
@@ -183,7 +183,7 @@ EOF
 
       it(`should use ${keyword} in C-style for loop`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           for (( ${keyword}=0; ${keyword}<3; ${keyword}++ )); do
             echo $${keyword}
@@ -196,7 +196,7 @@ EOF
 
       it(`should use ${keyword} in brace expansion for loop`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           for ${keyword} in {1..3}; do
             echo $${keyword}
@@ -214,7 +214,7 @@ EOF
       it(`should use ${keyword} in select (with timeout)`, async () => {
         const bash = new Bash();
         // Select is interactive, use timeout/redirect to test
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           echo "1" | {
             select ${keyword} in a b c; do
@@ -234,7 +234,7 @@ EOF
     for (const keyword of DANGEROUS_KEYWORDS.slice(0, 3)) {
       it(`should use ${keyword} in while read`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           echo -e "line1\\nline2\\nline3" | while read ${keyword}; do
             echo "read: $${keyword}"
@@ -247,7 +247,7 @@ EOF
 
       it(`should use ${keyword} with read -r`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           echo 'a\\tb' | while read -r ${keyword}; do
             echo $${keyword}
@@ -260,7 +260,7 @@ EOF
 
       it(`should use multiple dangerous vars in read`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           echo "a b c" | {
             read constructor __proto__ prototype
@@ -278,7 +278,7 @@ EOF
     for (const keyword of DANGEROUS_KEYWORDS.slice(0, 2)) {
       it(`should use ${keyword} with getopts`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           parse_opts() {
             while getopts "a:b:" ${keyword}; do
@@ -302,7 +302,7 @@ EOF
     for (const keyword of DANGEROUS_KEYWORDS.slice(0, 3)) {
       it(`should append to array named ${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           ${keyword}=(a b)
           ${keyword}+=(c d)
@@ -315,7 +315,7 @@ EOF
 
       it(`should append single element to ${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           ${keyword}=()
           ${keyword}+=(one)
@@ -333,7 +333,7 @@ EOF
     for (const keyword of DANGEROUS_KEYWORDS.slice(0, 3)) {
       it(`should unset element from array named ${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           ${keyword}=(a b c d)
           unset '${keyword}[1]'
@@ -347,7 +347,7 @@ EOF
 
       it(`should unset from associative array named ${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           declare -A ${keyword}
           ${keyword}[x]=1
@@ -367,7 +367,7 @@ EOF
     for (const keyword of DANGEROUS_KEYWORDS.slice(0, 3)) {
       it(`should substring ${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           ${keyword}="hello world"
           echo "\${${keyword}:0:5}"
@@ -380,7 +380,7 @@ EOF
 
       it(`should get length of ${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           ${keyword}="twelve char"
           echo "\${#${keyword}}"
@@ -392,7 +392,7 @@ EOF
 
       it(`should pattern remove from ${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           ${keyword}="/path/to/file.txt"
           echo "\${${keyword}##*/}"
@@ -405,7 +405,7 @@ EOF
 
       it(`should case modify ${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           ${keyword}="Hello World"
           echo "\${${keyword}^^}"
@@ -422,7 +422,7 @@ EOF
     for (const keyword of DANGEROUS_KEYWORDS.slice(0, 3)) {
       it(`should use let with ${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           let "${keyword}=5+3"
           echo $${keyword}
@@ -434,7 +434,7 @@ EOF
 
       it(`should use multiple let expressions with ${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           let "${keyword}=10" "${keyword}*=2"
           echo $${keyword}
@@ -450,7 +450,7 @@ EOF
     for (const keyword of DANGEROUS_KEYWORDS.slice(0, 3)) {
       it(`should declare -i ${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           declare -i ${keyword}
           ${keyword}="5+3"
@@ -463,7 +463,7 @@ EOF
 
       it(`should declare -l ${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           declare -l ${keyword}
           ${keyword}="HELLO"
@@ -476,7 +476,7 @@ EOF
 
       it(`should declare -u ${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           declare -u ${keyword}
           ${keyword}="hello"
@@ -489,7 +489,7 @@ EOF
 
       it(`should declare -x ${keyword}`, async () => {
         const bash = new Bash();
-        const result = toText(
+        const result = await toText(
           await bash.exec(`
           declare -x ${keyword}="exported"
           printenv ${keyword}

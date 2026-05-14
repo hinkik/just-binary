@@ -11,7 +11,7 @@ describe("find -exec", () => {
           "/dir/b.txt": "content b",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -name "*.txt" -exec cat {} \\;'),
       );
       expect(result.exitCode).toBe(0);
@@ -26,7 +26,7 @@ describe("find -exec", () => {
           "/dir/file2.txt": "",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -name "*.txt" -exec echo Found: {} \\;'),
       );
       expect(result.exitCode).toBe(0);
@@ -40,7 +40,7 @@ describe("find -exec", () => {
       const env = new Bash({
         files: { "/dir/test.txt": "" },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -name "test.txt" -exec echo {} is {} \\;'),
       );
       expect(result.exitCode).toBe(0);
@@ -52,7 +52,7 @@ describe("find -exec", () => {
       const env = new Bash({
         files: { "/dir/file.txt": "" },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -name "file.txt" -exec cat /nonexistent \\;'),
       );
       expect(result.exitCode).not.toBe(0);
@@ -69,7 +69,7 @@ describe("find -exec", () => {
           "/dir/c.txt": "",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -name "*.txt" -exec echo {} +'),
       );
       expect(result.exitCode).toBe(0);
@@ -85,7 +85,9 @@ describe("find -exec", () => {
           "/dir/file2.txt": "content2",
         },
       });
-      const result = toText(await env.exec("find /dir -type f -exec ls {} +"));
+      const result = await toText(
+        await env.exec("find /dir -type f -exec ls {} +"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("/dir/file1.txt\n\n/dir/file2.txt\n");
       expect(result.stderr).toBe("");
@@ -97,7 +99,7 @@ describe("find -exec", () => {
       const env = new Bash({
         files: { "/dir/file.txt": "" },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -name "*.txt" -exec echo {} foo'),
       );
       expect(result.exitCode).toBe(1);
@@ -111,7 +113,7 @@ describe("find -exec", () => {
           "/dir/b.txt": "",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -name "*.txt" -exec echo found \\;'),
       );
       expect(result.exitCode).toBe(0);
@@ -123,7 +125,7 @@ describe("find -exec", () => {
       const env = new Bash({
         files: { "/dir/file.txt": "" },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -name "*.log" -exec echo {} \\;'),
       );
       expect(result.exitCode).toBe(0);
@@ -139,7 +141,7 @@ describe("find -exec", () => {
           "/dir/subdir/nested.txt": "",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec('find /dir -type f -name "*.txt" -exec cat {} \\;'),
       );
       expect(result.exitCode).toBe(0);
@@ -154,7 +156,7 @@ describe("find -exec", () => {
           "/dir/sub/file.txt": "nested",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec("find /dir -maxdepth 1 -type f -exec cat {} \\;"),
       );
       expect(result.exitCode).toBe(0);

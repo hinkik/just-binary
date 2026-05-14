@@ -17,7 +17,7 @@ describe("sort with binary content", () => {
       },
     });
 
-    const result = toText(await env.exec("sort /data.txt"));
+    const result = await toText(await env.exec("sort /data.txt"));
     expect(result.stdout).toBe("a\nb\nc\n");
     expect(result.exitCode).toBe(0);
   });

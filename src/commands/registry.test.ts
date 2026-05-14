@@ -34,7 +34,7 @@ describe("Command Registry", () => {
     expect(getLoadedCommandCount()).toBe(0);
 
     const env = new Bash();
-    const result = toText(await env.exec("echo hello world"));
+    const result = await toText(await env.exec("echo hello world"));
 
     expect(result.stdout).toBe("hello world\n");
     expect(result.exitCode).toBe(0);

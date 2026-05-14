@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
 import { toText } from "../../test-utils.js";
+import { collectBytes } from "../../utils/stream.js";
 
 describe("echo with binary data", () => {
   describe("hex escape sequences with -e", () => {
@@ -8,20 +9,21 @@ describe("echo with binary data", () => {
       const env = new Bash();
 
       const result = await env.exec("echo -ne '\\x80\\x90\\xa0\\xb0\\xff'");
+      const stdout = await collectBytes(result.stdout);
 
       expect(result.exitCode).toBe(0);
-      expect(result.stdout.length).toBe(5);
-      expect(result.stdout[0]).toBe(0x80);
-      expect(result.stdout[1]).toBe(0x90);
-      expect(result.stdout[2]).toBe(0xa0);
-      expect(result.stdout[3]).toBe(0xb0);
-      expect(result.stdout[4]).toBe(0xff);
+      expect(stdout.length).toBe(5);
+      expect(stdout[0]).toBe(0x80);
+      expect(stdout[1]).toBe(0x90);
+      expect(stdout[2]).toBe(0xa0);
+      expect(stdout[3]).toBe(0xb0);
+      expect(stdout[4]).toBe(0xff);
     });
 
     it("should output null bytes via hex escapes", async () => {
       const env = new Bash();
 
-      const result = toText(await env.exec("echo -ne 'A\\x00B\\x00C'"));
+      const result = await toText(await env.exec("echo -ne 'A\\x00B\\x00C'"));
 
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("A\0B\0C");
@@ -32,10 +34,11 @@ describe("echo with binary data", () => {
 
       await env.exec("echo -ne '\\x80\\xff\\x90' > /binary.bin");
       const result = await env.exec("cat /binary.bin");
+      const stdout = await collectBytes(result.stdout);
 
-      expect(result.stdout[0]).toBe(0x80);
-      expect(result.stdout[1]).toBe(0xff);
-      expect(result.stdout[2]).toBe(0x90);
+      expect(stdout[0]).toBe(0x80);
+      expect(stdout[1]).toBe(0xff);
+      expect(stdout[2]).toBe(0x90);
     });
   });
 
@@ -44,12 +47,13 @@ describe("echo with binary data", () => {
       const env = new Bash();
 
       const result = await env.exec("echo -ne '\\0200\\0220\\0240'");
+      const stdout = await collectBytes(result.stdout);
 
       expect(result.exitCode).toBe(0);
-      expect(result.stdout.length).toBe(3);
-      expect(result.stdout[0]).toBe(0o200); // 128
-      expect(result.stdout[1]).toBe(0o220); // 144
-      expect(result.stdout[2]).toBe(0o240); // 160
+      expect(stdout.length).toBe(3);
+      expect(stdout[0]).toBe(0o200); // 128
+      expect(stdout[1]).toBe(0o220); // 144
+      expect(stdout[2]).toBe(0o240); // 160
     });
 
     it("should redirect binary octal output to file", async () => {
@@ -57,9 +61,10 @@ describe("echo with binary data", () => {
 
       await env.exec("echo -ne '\\0200\\0377' > /binary.bin");
       const result = await env.exec("cat /binary.bin");
+      const stdout = await collectBytes(result.stdout);
 
-      expect(result.stdout[0]).toBe(0o200); // 128
-      expect(result.stdout[1]).toBe(0o377); // 255
+      expect(stdout[0]).toBe(0o200); // 128
+      expect(stdout[1]).toBe(0o377); // 255
     });
   });
 
@@ -70,12 +75,13 @@ describe("echo with binary data", () => {
       await env.exec("echo -ne '\\x80\\xff\\x00\\x90' > /input.bin");
       await env.exec("cat /input.bin > /output.bin");
       const result = await env.exec("cat /output.bin");
+      const stdout = await collectBytes(result.stdout);
 
-      expect(result.stdout.length).toBe(4);
-      expect(result.stdout[0]).toBe(0x80);
-      expect(result.stdout[1]).toBe(0xff);
-      expect(result.stdout[2]).toBe(0x00);
-      expect(result.stdout[3]).toBe(0x90);
+      expect(stdout.length).toBe(4);
+      expect(stdout[0]).toBe(0x80);
+      expect(stdout[1]).toBe(0xff);
+      expect(stdout[2]).toBe(0x00);
+      expect(stdout[3]).toBe(0x90);
     });
   });
 });

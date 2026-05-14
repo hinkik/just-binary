@@ -26,7 +26,7 @@ describe("strings with binary files", () => {
       },
     });
 
-    const result = toText(await env.exec("strings /binary.bin"));
+    const result = await toText(await env.exec("strings /binary.bin"));
     expect(result.stdout).toBe("hello\nworld\n");
     expect(result.exitCode).toBe(0);
   });
@@ -72,7 +72,7 @@ describe("strings with binary files", () => {
       },
     });
 
-    const result = toText(await env.exec("strings /binary.bin"));
+    const result = await toText(await env.exec("strings /binary.bin"));
     expect(result.stdout).toContain("test_func");
     expect(result.stdout).toContain("main");
     expect(result.exitCode).toBe(0);
@@ -98,7 +98,7 @@ describe("strings with binary files", () => {
       },
     });
 
-    const result = toText(await env.exec("strings /binary.bin"));
+    const result = await toText(await env.exec("strings /binary.bin"));
     expect(result.stdout).toBe("fghi\n");
     expect(result.exitCode).toBe(0);
   });
@@ -125,7 +125,7 @@ describe("strings with binary files", () => {
       },
     });
 
-    const result = toText(await env.exec("strings -n 6 /binary.bin"));
+    const result = await toText(await env.exec("strings -n 6 /binary.bin"));
     expect(result.stdout).toBe("fghijk\n");
     expect(result.exitCode).toBe(0);
   });
@@ -147,7 +147,7 @@ describe("strings with binary files", () => {
       },
     });
 
-    const result = toText(await env.exec("strings -t d /binary.bin"));
+    const result = await toText(await env.exec("strings -t d /binary.bin"));
     expect(result.stdout).toContain("4 test");
     expect(result.exitCode).toBe(0);
   });
@@ -167,7 +167,7 @@ describe("strings with binary files", () => {
       },
     });
 
-    const result = toText(await env.exec("strings -t x /binary.bin"));
+    const result = await toText(await env.exec("strings -t x /binary.bin"));
     expect(result.stdout).toContain("10 hext"); // 0x10 in hex
     expect(result.exitCode).toBe(0);
   });
@@ -187,7 +187,7 @@ describe("strings with binary files", () => {
       },
     });
 
-    const result = toText(await env.exec("strings -n 1 /binary.bin"));
+    const result = await toText(await env.exec("strings -n 1 /binary.bin"));
     expect(result.stdout).toContain(" ABC~");
     expect(result.exitCode).toBe(0);
   });
@@ -212,7 +212,7 @@ describe("strings with binary files", () => {
       },
     });
 
-    const result = toText(await env.exec("strings /binary.bin"));
+    const result = await toText(await env.exec("strings /binary.bin"));
     expect(result.stdout).toBe("test\n");
     expect(result.exitCode).toBe(0);
   });
@@ -231,7 +231,7 @@ describe("strings with binary files", () => {
       },
     });
 
-    const result = toText(await env.exec("strings /binary.bin"));
+    const result = await toText(await env.exec("strings /binary.bin"));
     expect(result.stdout).toBe("a\tb\tc\n");
     expect(result.exitCode).toBe(0);
   });
@@ -258,7 +258,7 @@ describe("strings with binary files", () => {
       },
     });
 
-    const result = toText(await env.exec("strings /binary.bin"));
+    const result = await toText(await env.exec("strings /binary.bin"));
     expect(result.exitCode).toBe(0);
     for (const str of strings) {
       expect(result.stdout).toContain(str);
@@ -272,7 +272,7 @@ describe("strings with binary files", () => {
       },
     });
 
-    const result = toText(await env.exec("strings /empty.bin"));
+    const result = await toText(await env.exec("strings /empty.bin"));
     expect(result.stdout).toBe("");
     expect(result.exitCode).toBe(0);
   });
@@ -284,7 +284,7 @@ describe("strings with binary files", () => {
       },
     });
 
-    const result = toText(await env.exec("strings /binary.bin"));
+    const result = await toText(await env.exec("strings /binary.bin"));
     expect(result.stdout).toBe("");
     expect(result.exitCode).toBe(0);
   });
@@ -305,7 +305,7 @@ describe("strings with binary files", () => {
       },
     });
 
-    const result = toText(await env.exec("strings /binary.bin"));
+    const result = await toText(await env.exec("strings /binary.bin"));
     expect(result.stdout).toBe("test\n");
     expect(result.exitCode).toBe(0);
   });

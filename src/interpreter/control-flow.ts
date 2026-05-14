@@ -22,7 +22,16 @@ import type {
   WordNode,
 } from "../ast/types.js";
 import type { ExecResult } from "../types.js";
-import { concat, EMPTY, encode, envGet, envSet } from "../utils/bytes.js";
+import { envGet, envSet } from "../utils/bytes.js";
+import {
+  type ByteStream,
+  collectBytes,
+  concatStreams,
+  emptyStream,
+  fromBytes,
+  fromChunks,
+  fromString,
+} from "../utils/stream.js";
 import { evaluateArithmetic } from "./arithmetic.js";
 import { matchPattern } from "./conditionals.js";
 import { BreakError, ContinueError, GlobError } from "./errors.js";
@@ -43,14 +52,14 @@ export async function executeIf(
   ctx: InterpreterContext,
   node: IfNode,
 ): Promise<ExecResult> {
-  let stdout: Uint8Array = EMPTY;
-  let stderr: Uint8Array = EMPTY;
+  let stdout: ByteStream = emptyStream();
+  let stderr: ByteStream = emptyStream();
 
   for (const clause of node.clauses) {
     // Condition evaluation should not trigger errexit
     const condResult = await executeCondition(ctx, clause.condition);
-    stdout = concat(stdout, condResult.stdout);
-    stderr = concat(stderr, condResult.stderr);
+    stdout = concatStreams(stdout, condResult.stdout);
+    stderr = concatStreams(stderr, condResult.stderr);
 
     if (condResult.exitCode === 0) {
       return executeStatements(ctx, clause.body, stdout, stderr);
@@ -76,8 +85,14 @@ export async function executeFor(
     return preOpenError;
   }
 
-  let stdout: Uint8Array = EMPTY;
-  let stderr: Uint8Array = EMPTY;
+  const stdoutChunks: Uint8Array[] = [];
+  const stderrChunks: Uint8Array[] = [];
+  const drainTo = async (chunks: Uint8Array[], s: ByteStream) => {
+    const b = await collectBytes(s);
+    if (b.length > 0) chunks.push(b);
+  };
+  const buildStdout = () => fromChunks(stdoutChunks);
+  const buildStderr = () => fromChunks(stderrChunks);
   let exitCode = 0;
   let iterations = 0;
 
@@ -100,7 +115,7 @@ export async function executeFor(
     } catch (e) {
       if (e instanceof GlobError) {
         // failglob: return error with exit code 1
-        return { stdout: EMPTY, stderr: e.stderr, exitCode: 1 };
+        return { stdout: emptyStream(), stderr: e.stderr, exitCode: 1 };
       }
       throw e;
     }
@@ -114,8 +129,8 @@ export async function executeFor(
         throwExecutionLimit(
           `for loop: too many iterations (${ctx.limits.maxLoopIterations}), increase executionLimits.maxLoopIterations`,
           "iterations",
-          stdout,
-          stderr,
+          buildStdout(),
+          buildStderr(),
         );
       }
 
@@ -124,26 +139,42 @@ export async function executeFor(
       try {
         for (const stmt of node.body) {
           const stmtResult = await ctx.executeStatement(stmt);
-          stdout = concat(stdout, stmtResult.stdout);
-          stderr = concat(stderr, stmtResult.stderr);
+          await drainTo(stdoutChunks, stmtResult.stdout);
+          await drainTo(stderrChunks, stmtResult.stderr);
           exitCode = stmtResult.exitCode;
         }
       } catch (error) {
+        // Use accumulated chunks as the input stream to handleLoopError,
+        // which merges them with any output carried by the error itself.
+        // After this, the chunks array is "logically empty" — any further
+        // accumulation continues from the merged stream(s).
         const loopResult = handleLoopError(
           error,
-          stdout,
-          stderr,
+          buildStdout(),
+          buildStderr(),
           ctx.state.loopDepth,
         );
-        stdout = loopResult.stdout;
-        stderr = loopResult.stderr;
-        if (loopResult.action === "break") break;
-        if (loopResult.action === "continue") continue;
+        stdoutChunks.length = 0;
+        stderrChunks.length = 0;
+        if (loopResult.action === "break") {
+          await drainTo(stdoutChunks, loopResult.stdout);
+          await drainTo(stderrChunks, loopResult.stderr);
+          break;
+        }
+        if (loopResult.action === "continue") {
+          await drainTo(stdoutChunks, loopResult.stdout);
+          await drainTo(stderrChunks, loopResult.stderr);
+          continue;
+        }
         if (loopResult.action === "error") {
-          // Apply output redirections before returning
-          const bodyResult = result(stdout, stderr, loopResult.exitCode ?? 1);
+          const bodyResult = result(
+            loopResult.stdout,
+            loopResult.stderr,
+            loopResult.exitCode ?? 1,
+          );
           return applyRedirections(ctx, bodyResult, node.redirections);
         }
+        // rethrow: error.stdout/stderr already merged by prependOutput
         throw loopResult.error;
       }
     }
@@ -151,11 +182,7 @@ export async function executeFor(
     ctx.state.loopDepth--;
   }
 
-  // Note: In bash, the loop variable persists after the loop with its last value
-  // Do NOT ctx.state.env.delete(node.variable) here
-
-  // Apply output redirections
-  const bodyResult = result(stdout, stderr, exitCode);
+  const bodyResult = result(buildStdout(), buildStderr(), exitCode);
   return applyRedirections(ctx, bodyResult, node.redirections);
 }
 
@@ -177,8 +204,14 @@ export async function executeCStyleFor(
     ctx.state.currentLine = loopLine;
   }
 
-  let stdout: Uint8Array = EMPTY;
-  let stderr: Uint8Array = EMPTY;
+  const stdoutChunks: Uint8Array[] = [];
+  const stderrChunks: Uint8Array[] = [];
+  const drainTo = async (chunks: Uint8Array[], s: ByteStream) => {
+    const b = await collectBytes(s);
+    if (b.length > 0) chunks.push(b);
+  };
+  const buildStdout = () => fromChunks(stdoutChunks);
+  const buildStderr = () => fromChunks(stderrChunks);
   let exitCode = 0;
   let iterations = 0;
 
@@ -194,8 +227,8 @@ export async function executeCStyleFor(
         throwExecutionLimit(
           `for loop: too many iterations (${ctx.limits.maxLoopIterations}), increase executionLimits.maxLoopIterations`,
           "iterations",
-          stdout,
-          stderr,
+          buildStdout(),
+          buildStderr(),
         );
       }
 
@@ -214,31 +247,38 @@ export async function executeCStyleFor(
       try {
         for (const stmt of node.body) {
           const stmtResult = await ctx.executeStatement(stmt);
-          stdout = concat(stdout, stmtResult.stdout);
-          stderr = concat(stderr, stmtResult.stderr);
+          await drainTo(stdoutChunks, stmtResult.stdout);
+          await drainTo(stderrChunks, stmtResult.stderr);
           exitCode = stmtResult.exitCode;
         }
       } catch (error) {
         const loopResult = handleLoopError(
           error,
-          stdout,
-          stderr,
+          emptyStream(),
+          emptyStream(),
           ctx.state.loopDepth,
         );
-        stdout = loopResult.stdout;
-        stderr = loopResult.stderr;
+        await drainTo(stdoutChunks, loopResult.stdout);
+        await drainTo(stderrChunks, loopResult.stderr);
         if (loopResult.action === "break") break;
         if (loopResult.action === "continue") {
-          // Still need to run the update expression on continue
           if (node.update) {
             await evaluateArithmetic(ctx, node.update.expression);
           }
           continue;
         }
         if (loopResult.action === "error") {
-          // Apply output redirections before returning
-          const bodyResult = result(stdout, stderr, loopResult.exitCode ?? 1);
+          const bodyResult = result(
+            buildStdout(),
+            buildStderr(),
+            loopResult.exitCode ?? 1,
+          );
           return applyRedirections(ctx, bodyResult, node.redirections);
+        }
+        if (loopResult.action === "rethrow" && loopResult.error) {
+          (loopResult.error as { stdout: ByteStream }).stdout = buildStdout();
+          (loopResult.error as { stderr: ByteStream }).stderr = buildStderr();
+          throw loopResult.error;
         }
         throw loopResult.error;
       }
@@ -251,23 +291,32 @@ export async function executeCStyleFor(
     ctx.state.loopDepth--;
   }
 
-  // Apply output redirections
-  const bodyResult = result(stdout, stderr, exitCode);
+  const bodyResult = result(buildStdout(), buildStderr(), exitCode);
   return applyRedirections(ctx, bodyResult, node.redirections);
 }
 
 export async function executeWhile(
   ctx: InterpreterContext,
   node: WhileNode,
-  stdin: Uint8Array = EMPTY,
+  stdin: ByteStream = emptyStream(),
 ): Promise<ExecResult> {
-  let stdout: Uint8Array = EMPTY;
-  let stderr: Uint8Array = EMPTY;
+  // Accumulate stdout/stderr as a chunks array to avoid building a deeply
+  // nested concatStreams chain (one layer per iteration would make even
+  // hitting the iteration limit pathologically slow).
+  const stdoutChunks: Uint8Array[] = [];
+  const stderrChunks: Uint8Array[] = [];
+  const drainTo = async (chunks: Uint8Array[], s: ByteStream) => {
+    const bytes = await collectBytes(s);
+    if (bytes.length > 0) chunks.push(bytes);
+  };
+  const buildStdout = () => fromChunks(stdoutChunks);
+  const buildStderr = () => fromChunks(stderrChunks);
   let exitCode = 0;
   let iterations = 0;
 
   // Process here-doc redirections to get stdin content
-  let effectiveStdin = stdin;
+  let effectiveStdin: ByteStream = stdin;
+  let hasRedirStdin = false;
   for (const redir of node.redirections) {
     if (
       (redir.operator === "<<" || redir.operator === "<<-") &&
@@ -281,16 +330,19 @@ export async function executeWhile(
           .map((line) => line.replace(/^\t+/, ""))
           .join("\n");
       }
-      effectiveStdin = encode(content);
+      effectiveStdin = fromString(content);
+      hasRedirStdin = true;
     } else if (redir.operator === "<<<" && redir.target.type === "Word") {
-      effectiveStdin = encode(
+      effectiveStdin = fromString(
         `${await expandWord(ctx, redir.target as WordNode)}\n`,
       );
+      hasRedirStdin = true;
     } else if (redir.operator === "<" && redir.target.type === "Word") {
       try {
         const target = await expandWord(ctx, redir.target as WordNode);
         const filePath = ctx.fs.resolvePath(ctx.state.cwd, target);
-        effectiveStdin = encode(await ctx.fs.readFile(filePath));
+        effectiveStdin = await ctx.fs.readFile(filePath);
+        hasRedirStdin = true;
       } catch {
         const target = await expandWord(ctx, redir.target as WordNode);
         return failure(`bash: ${target}: No such file or directory\n`);
@@ -298,10 +350,20 @@ export async function executeWhile(
     }
   }
 
-  // Save and set groupStdin for piped while loops
+  // Save and set groupStdin for piped while loops. `read` in the body
+  // and condition reads from groupStdin, which must reflect either the
+  // explicit redirection or the pipeline stdin we received.
   const savedGroupStdin = ctx.state.groupStdin;
-  if (effectiveStdin.length > 0) {
+  if (hasRedirStdin) {
     ctx.state.groupStdin = effectiveStdin;
+  } else {
+    // Materialize pipeline stdin once so the read builtin can carve lines
+    // off it across loop iterations without losing data (streams are
+    // single-use). Empty pipelines leave groupStdin untouched.
+    const stdinBytes = await collectBytes(stdin);
+    if (stdinBytes.length > 0) {
+      ctx.state.groupStdin = fromBytes(stdinBytes);
+    }
   }
 
   ctx.state.loopDepth++;
@@ -312,8 +374,8 @@ export async function executeWhile(
         throwExecutionLimit(
           `while loop: too many iterations (${ctx.limits.maxLoopIterations}), increase executionLimits.maxLoopIterations`,
           "iterations",
-          stdout,
-          stderr,
+          buildStdout(),
+          buildStderr(),
         );
       }
 
@@ -327,30 +389,30 @@ export async function executeWhile(
       try {
         for (const stmt of node.condition) {
           const stmtResult = await ctx.executeStatement(stmt);
-          stdout = concat(stdout, stmtResult.stdout);
-          stderr = concat(stderr, stmtResult.stderr);
+          await drainTo(stdoutChunks, stmtResult.stdout);
+          await drainTo(stderrChunks, stmtResult.stderr);
           conditionExitCode = stmtResult.exitCode;
         }
       } catch (error) {
         // break/continue in condition should affect THIS while loop
         if (error instanceof BreakError) {
-          stdout = concat(stdout, error.stdout);
-          stderr = concat(stderr, error.stderr);
+          await drainTo(stdoutChunks, error.stdout);
+          await drainTo(stderrChunks, error.stderr);
           if (error.levels > 1 && ctx.state.loopDepth > 1) {
             error.levels--;
-            error.stdout = stdout;
-            error.stderr = stderr;
+            error.stdout = buildStdout();
+            error.stderr = buildStderr();
             ctx.state.inCondition = savedInCondition;
             throw error;
           }
           shouldBreak = true;
         } else if (error instanceof ContinueError) {
-          stdout = concat(stdout, error.stdout);
-          stderr = concat(stderr, error.stderr);
+          await drainTo(stdoutChunks, error.stdout);
+          await drainTo(stderrChunks, error.stderr);
           if (error.levels > 1 && ctx.state.loopDepth > 1) {
             error.levels--;
-            error.stdout = stdout;
-            error.stderr = stderr;
+            error.stdout = buildStdout();
+            error.stderr = buildStderr();
             ctx.state.inCondition = savedInCondition;
             throw error;
           }
@@ -370,23 +432,35 @@ export async function executeWhile(
       try {
         for (const stmt of node.body) {
           const stmtResult = await ctx.executeStatement(stmt);
-          stdout = concat(stdout, stmtResult.stdout);
-          stderr = concat(stderr, stmtResult.stderr);
+          await drainTo(stdoutChunks, stmtResult.stdout);
+          await drainTo(stderrChunks, stmtResult.stderr);
           exitCode = stmtResult.exitCode;
         }
       } catch (error) {
         const loopResult = handleLoopError(
           error,
-          stdout,
-          stderr,
+          buildStdout(),
+          buildStderr(),
           ctx.state.loopDepth,
         );
-        stdout = loopResult.stdout;
-        stderr = loopResult.stderr;
-        if (loopResult.action === "break") break;
-        if (loopResult.action === "continue") continue;
+        stdoutChunks.length = 0;
+        stderrChunks.length = 0;
+        if (loopResult.action === "break") {
+          await drainTo(stdoutChunks, loopResult.stdout);
+          await drainTo(stderrChunks, loopResult.stderr);
+          break;
+        }
+        if (loopResult.action === "continue") {
+          await drainTo(stdoutChunks, loopResult.stdout);
+          await drainTo(stderrChunks, loopResult.stderr);
+          continue;
+        }
         if (loopResult.action === "error") {
-          return result(stdout, stderr, loopResult.exitCode ?? 1);
+          return result(
+            loopResult.stdout,
+            loopResult.stderr,
+            loopResult.exitCode ?? 1,
+          );
         }
         throw loopResult.error;
       }
@@ -396,15 +470,21 @@ export async function executeWhile(
     ctx.state.groupStdin = savedGroupStdin;
   }
 
-  return result(stdout, stderr, exitCode);
+  return result(buildStdout(), buildStderr(), exitCode);
 }
 
 export async function executeUntil(
   ctx: InterpreterContext,
   node: UntilNode,
 ): Promise<ExecResult> {
-  let stdout: Uint8Array = EMPTY;
-  let stderr: Uint8Array = EMPTY;
+  const stdoutChunks: Uint8Array[] = [];
+  const stderrChunks: Uint8Array[] = [];
+  const drainTo = async (chunks: Uint8Array[], s: ByteStream) => {
+    const b = await collectBytes(s);
+    if (b.length > 0) chunks.push(b);
+  };
+  const buildStdout = () => fromChunks(stdoutChunks);
+  const buildStderr = () => fromChunks(stderrChunks);
   let exitCode = 0;
   let iterations = 0;
 
@@ -416,38 +496,49 @@ export async function executeUntil(
         throwExecutionLimit(
           `until loop: too many iterations (${ctx.limits.maxLoopIterations}), increase executionLimits.maxLoopIterations`,
           "iterations",
-          stdout,
-          stderr,
+          buildStdout(),
+          buildStderr(),
         );
       }
 
-      // Condition evaluation should not trigger errexit
       const condResult = await executeCondition(ctx, node.condition);
-      stdout = concat(stdout, condResult.stdout);
-      stderr = concat(stderr, condResult.stderr);
+      await drainTo(stdoutChunks, condResult.stdout);
+      await drainTo(stderrChunks, condResult.stderr);
 
       if (condResult.exitCode === 0) break;
 
       try {
         for (const stmt of node.body) {
           const stmtResult = await ctx.executeStatement(stmt);
-          stdout = concat(stdout, stmtResult.stdout);
-          stderr = concat(stderr, stmtResult.stderr);
+          await drainTo(stdoutChunks, stmtResult.stdout);
+          await drainTo(stderrChunks, stmtResult.stderr);
           exitCode = stmtResult.exitCode;
         }
       } catch (error) {
         const loopResult = handleLoopError(
           error,
-          stdout,
-          stderr,
+          buildStdout(),
+          buildStderr(),
           ctx.state.loopDepth,
         );
-        stdout = loopResult.stdout;
-        stderr = loopResult.stderr;
-        if (loopResult.action === "break") break;
-        if (loopResult.action === "continue") continue;
+        stdoutChunks.length = 0;
+        stderrChunks.length = 0;
+        if (loopResult.action === "break") {
+          await drainTo(stdoutChunks, loopResult.stdout);
+          await drainTo(stderrChunks, loopResult.stderr);
+          break;
+        }
+        if (loopResult.action === "continue") {
+          await drainTo(stdoutChunks, loopResult.stdout);
+          await drainTo(stderrChunks, loopResult.stderr);
+          continue;
+        }
         if (loopResult.action === "error") {
-          return result(stdout, stderr, loopResult.exitCode ?? 1);
+          return result(
+            loopResult.stdout,
+            loopResult.stderr,
+            loopResult.exitCode ?? 1,
+          );
         }
         throw loopResult.error;
       }
@@ -456,7 +547,7 @@ export async function executeUntil(
     ctx.state.loopDepth--;
   }
 
-  return result(stdout, stderr, exitCode);
+  return result(buildStdout(), buildStderr(), exitCode);
 }
 
 export async function executeCase(
@@ -471,8 +562,8 @@ export async function executeCase(
     return preOpenError;
   }
 
-  let stdout: Uint8Array = EMPTY;
-  let stderr: Uint8Array = EMPTY;
+  let stdout: ByteStream = emptyStream();
+  let stderr: ByteStream = emptyStream();
   let exitCode = 0;
 
   const value = await expandWord(ctx, node.word);

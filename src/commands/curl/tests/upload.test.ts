@@ -110,7 +110,7 @@ describe("curl upload", () => {
           allowedMethods: ["PUT"],
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec(
           "curl -T /nonexistent.txt https://api.example.com/upload",
         ),

@@ -223,16 +223,18 @@ export const echoCommand: Command = {
       if (result.stop) {
         // \c encountered - suppress newline and stop
         return {
-          stdout: result.output,
-          stderr: EMPTY,
+          stdout: fromBytes(result.output),
+          stderr: emptyStream(),
           exitCode: 0,
         };
       }
       return {
-        stdout: noNewline
-          ? result.output
-          : concat(result.output, new Uint8Array([0x0a])),
-        stderr: EMPTY,
+        stdout: fromBytes(
+          noNewline
+            ? result.output
+            : concat(result.output, new Uint8Array([0x0a])),
+        ),
+        stderr: emptyStream(),
         exitCode: 0,
       };
     }
@@ -248,10 +250,11 @@ export const echoCommand: Command = {
     }
     if (!noNewline) stdout = concat(stdout, NL);
 
-    return { stdout, stderr: EMPTY, exitCode: 0 };
+    return { stdout: fromBytes(stdout), stderr: emptyStream(), exitCode: 0 };
   },
 };
 
+import { emptyStream, fromBytes } from "../../utils/stream.js";
 import type { CommandFuzzInfo } from "../fuzz-flags-types.js";
 
 export const flagsForFuzzing: CommandFuzzInfo = {

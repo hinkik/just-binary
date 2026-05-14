@@ -21,7 +21,7 @@ describe("Output Size Limits", () => {
   describe("AWK output limits", () => {
     it("should limit output from print in loop", async () => {
       const bash = createBash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(
           `echo "test" | awk 'BEGIN { for(i=0; i<100; i++) print "AAAAAAAAAA" }'`,
         ),
@@ -33,7 +33,7 @@ describe("Output Size Limits", () => {
 
     it("should limit string concatenation growth", async () => {
       const bash = createBash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(
           `echo "test" | awk 'BEGIN { s="x"; for(i=0; i<20; i++) s=s s; print s }'`,
         ),
@@ -45,7 +45,7 @@ describe("Output Size Limits", () => {
 
     it("should cap sprintf width to prevent memory bombs", async () => {
       const bash = createBash();
-      const result = toText(
+      const result = await toText(
         await bash.exec(`echo "test" | awk 'BEGIN { printf "%100000s", "x" }'`),
       );
 
@@ -59,7 +59,7 @@ describe("Output Size Limits", () => {
     it("should limit output from sed processing many lines", async () => {
       const bash = createBash();
       // Generate input directly via stdin using echo and pipe
-      const result = toText(
+      const result = await toText(
         await bash.exec(
           `echo '1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14\n15\n16\n17\n18\n19\n20' | sed 's/.*/AAAAAAAAAA/'`,
         ),
@@ -74,7 +74,7 @@ describe("Output Size Limits", () => {
     it("should limit jq output for large arrays", async () => {
       const bash = createBash();
       // Create a JSON array with many elements
-      const result = toText(
+      const result = await toText(
         await bash.exec(
           `echo '[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]' | jq '[.[] | . * 1000000]'`,
         ),
@@ -88,7 +88,7 @@ describe("Output Size Limits", () => {
   describe("Printf output limits", () => {
     it("should limit printf output with large width", async () => {
       const bash = createBash();
-      const result = toText(await bash.exec(`printf '%200s' "x"`));
+      const result = await toText(await bash.exec(`printf '%200s' "x"`));
 
       expect(result.exitCode).toBe(ExecutionLimitError.EXIT_CODE);
       expect(result.stderr).toContain("limit exceeded");

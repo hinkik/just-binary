@@ -15,7 +15,7 @@ describe("xan cat", () => {
         "/b.csv": "id,name\n3,charlie\n",
       },
     });
-    const result = toText(await bash.exec("xan cat /a.csv /b.csv"));
+    const result = await toText(await bash.exec("xan cat /a.csv /b.csv"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("id,name\n1,alice\n2,bob\n3,charlie\n");
   });
@@ -27,7 +27,7 @@ describe("xan cat", () => {
         "/b.csv": "id,email\n2,bob@x.com\n",
       },
     });
-    const result = toText(await bash.exec("xan cat /a.csv /b.csv"));
+    const result = await toText(await bash.exec("xan cat /a.csv /b.csv"));
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("headers do not match");
   });
@@ -39,14 +39,14 @@ describe("xan cat", () => {
         "/b.csv": "id,email\n2,bob@x.com\n",
       },
     });
-    const result = toText(await bash.exec("xan cat -p /a.csv /b.csv"));
+    const result = await toText(await bash.exec("xan cat -p /a.csv /b.csv"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("id,name,email\n1,alice,\n2,,bob@x.com\n");
   });
 
   it("errors with no files", async () => {
     const bash = new Bash({});
-    const result = toText(await bash.exec("xan cat"));
+    const result = await toText(await bash.exec("xan cat"));
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("no files");
   });
@@ -60,7 +60,7 @@ describe("xan join", () => {
         "/right.csv": "user_id,score\n1,100\n2,85\n4,90\n",
       },
     });
-    const result = toText(
+    const result = await toText(
       await bash.exec("xan join id /left.csv user_id /right.csv"),
     );
     expect(result.exitCode).toBe(0);
@@ -76,7 +76,7 @@ describe("xan join", () => {
         "/right.csv": "user_id,score\n1,100\n2,85\n",
       },
     });
-    const result = toText(
+    const result = await toText(
       await bash.exec("xan join --left id /left.csv user_id /right.csv"),
     );
     expect(result.exitCode).toBe(0);
@@ -92,7 +92,7 @@ describe("xan join", () => {
         "/right.csv": "user_id,score\n1,100\n2,85\n",
       },
     });
-    const result = toText(
+    const result = await toText(
       await bash.exec("xan join --right id /left.csv user_id /right.csv"),
     );
     expect(result.exitCode).toBe(0);
@@ -108,7 +108,7 @@ describe("xan join", () => {
         "/right.csv": "user_id,score\n2,85\n3,90\n",
       },
     });
-    const result = toText(
+    const result = await toText(
       await bash.exec("xan join --full id /left.csv user_id /right.csv"),
     );
     expect(result.exitCode).toBe(0);
@@ -124,7 +124,7 @@ describe("xan join", () => {
         "/right.csv": "user_id,score\n1,100\n",
       },
     });
-    const result = toText(
+    const result = await toText(
       await bash.exec(
         "xan join --left -D 'N/A' id /left.csv user_id /right.csv",
       ),
@@ -142,7 +142,7 @@ describe("xan join", () => {
         "/orders.csv": "user_id,item\n1,book\n1,pen\n1,paper\n",
       },
     });
-    const result = toText(
+    const result = await toText(
       await bash.exec("xan join id /users.csv user_id /orders.csv"),
     );
     expect(result.exitCode).toBe(0);
@@ -158,7 +158,7 @@ describe("xan join", () => {
         "/right.csv": "id,status,score\n1,verified,100\n2,pending,85\n",
       },
     });
-    const result = toText(
+    const result = await toText(
       await bash.exec("xan join id /left.csv id /right.csv"),
     );
     expect(result.exitCode).toBe(0);
@@ -176,7 +176,7 @@ describe("xan join", () => {
         "/b.csv": "user_id,score\n1,100\n",
       },
     });
-    const result = toText(
+    const result = await toText(
       await bash.exec("xan join nonexistent /a.csv user_id /b.csv"),
     );
     expect(result.exitCode).toBe(1);
@@ -194,7 +194,7 @@ describe("xan merge", () => {
         "/b.csv": "id,val\n2,b\n4,d\n",
       },
     });
-    const result = toText(await bash.exec("xan merge /a.csv /b.csv"));
+    const result = await toText(await bash.exec("xan merge /a.csv /b.csv"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("id,val\n1,a\n3,c\n2,b\n4,d\n");
   });
@@ -206,7 +206,9 @@ describe("xan merge", () => {
         "/b.csv": "id,val\n2,b\n4,d\n",
       },
     });
-    const result = toText(await bash.exec("xan merge -s id /a.csv /b.csv"));
+    const result = await toText(
+      await bash.exec("xan merge -s id /a.csv /b.csv"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("id,val\n1,a\n2,b\n3,c\n4,d\n");
   });
@@ -218,7 +220,7 @@ describe("xan merge", () => {
         "/b.csv": "id,email\n2,bob@x.com\n",
       },
     });
-    const result = toText(await bash.exec("xan merge /a.csv /b.csv"));
+    const result = await toText(await bash.exec("xan merge /a.csv /b.csv"));
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("same headers");
   });
@@ -227,7 +229,7 @@ describe("xan merge", () => {
     const bash = new Bash({
       files: { "/a.csv": "id,val\n1,a\n" },
     });
-    const result = toText(await bash.exec("xan merge /a.csv"));
+    const result = await toText(await bash.exec("xan merge /a.csv"));
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("usage");
   });

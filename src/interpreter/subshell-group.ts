@@ -15,7 +15,15 @@ import type {
 import { Parser } from "../parser/parser.js";
 import type { ParseException } from "../parser/types.js";
 import type { ExecResult } from "../types.js";
-import { concat, EMPTY, encode, envSet, isEmpty } from "../utils/bytes.js";
+import { envSet } from "../utils/bytes.js";
+import {
+  type ByteStream,
+  collectBytes,
+  concatStreams,
+  emptyStream,
+  fromBytes,
+  fromString,
+} from "../utils/stream.js";
 import {
   BreakError,
   ContinueError,
@@ -48,7 +56,7 @@ export type ExecuteStatementFn = (stmt: StatementNode) => Promise<ExecResult>;
 export async function executeSubshell(
   ctx: InterpreterContext,
   node: SubshellNode,
-  stdin: Uint8Array,
+  stdin: ByteStream,
   executeStatement: ExecuteStatementFn,
 ): Promise<ExecResult> {
   // Pre-open output redirects to truncate files BEFORE executing body
@@ -112,12 +120,15 @@ export async function executeSubshell(
 
   // Save any existing groupStdin and set new one from pipeline
   const savedGroupStdin = ctx.state.groupStdin;
-  if (!isEmpty(stdin)) {
-    ctx.state.groupStdin = stdin;
+  // Collect stdin to check whether it has content; if so, use it as groupStdin.
+  // Streams are single-use, so we recreate from bytes after collecting.
+  const stdinBytes = await collectBytes(stdin);
+  if (stdinBytes.length > 0) {
+    ctx.state.groupStdin = fromBytes(stdinBytes);
   }
 
-  let stdout: Uint8Array = EMPTY;
-  let stderr: Uint8Array = EMPTY;
+  let stdout: ByteStream = emptyStream();
+  let stderr: ByteStream = emptyStream();
   let exitCode = 0;
 
   const restore = (): void => {
@@ -139,8 +150,8 @@ export async function executeSubshell(
   try {
     for (const stmt of node.body) {
       const res = await executeStatement(stmt);
-      stdout = concat(stdout, res.stdout);
-      stderr = concat(stderr, res.stderr);
+      stdout = concatStreams(stdout, res.stdout);
+      stderr = concatStreams(stderr, res.stderr);
       exitCode = res.exitCode;
     }
   } catch (error) {
@@ -152,8 +163,8 @@ export async function executeSubshell(
     // SubshellExitError means break/continue was called when parent had loop context
     // This exits the subshell cleanly with exit code 0
     if (error instanceof SubshellExitError) {
-      stdout = concat(stdout, error.stdout);
-      stderr = concat(stderr, error.stderr);
+      stdout = concatStreams(stdout, error.stdout);
+      stderr = concatStreams(stderr, error.stderr);
       // Apply output redirections before returning
       const bodyResult = result(stdout, stderr, 0);
       return applyRedirections(ctx, bodyResult, node.redirections);
@@ -161,8 +172,8 @@ export async function executeSubshell(
     // BreakError/ContinueError should NOT propagate out of subshell
     // They only affect loops within the subshell
     if (error instanceof BreakError || error instanceof ContinueError) {
-      stdout = concat(stdout, error.stdout);
-      stderr = concat(stderr, error.stderr);
+      stdout = concatStreams(stdout, error.stdout);
+      stderr = concatStreams(stderr, error.stderr);
       // Apply output redirections before returning
       const bodyResult = result(stdout, stderr, 0);
       return applyRedirections(ctx, bodyResult, node.redirections);
@@ -170,8 +181,8 @@ export async function executeSubshell(
     // ExitError in subshell should NOT propagate - just return the exit code
     // (subshells are like separate processes)
     if (error instanceof ExitError) {
-      stdout = concat(stdout, error.stdout);
-      stderr = concat(stderr, error.stderr);
+      stdout = concatStreams(stdout, error.stdout);
+      stderr = concatStreams(stderr, error.stderr);
       // Apply output redirections before returning
       const bodyResult = result(stdout, stderr, error.exitCode);
       return applyRedirections(ctx, bodyResult, node.redirections);
@@ -179,8 +190,8 @@ export async function executeSubshell(
     // ReturnError in subshell (e.g., f() ( return 42; )) should also just exit
     // with the given code, since subshells are like separate processes
     if (error instanceof ReturnError) {
-      stdout = concat(stdout, error.stdout);
-      stderr = concat(stderr, error.stderr);
+      stdout = concatStreams(stdout, error.stdout);
+      stderr = concatStreams(stderr, error.stderr);
       // Apply output redirections before returning
       const bodyResult = result(stdout, stderr, error.exitCode);
       return applyRedirections(ctx, bodyResult, node.redirections);
@@ -188,8 +199,8 @@ export async function executeSubshell(
     if (error instanceof ErrexitError) {
       // Apply output redirections before propagating
       const bodyResult = result(
-        concat(stdout, error.stdout),
-        concat(stderr, error.stderr),
+        concatStreams(stdout, error.stdout),
+        concatStreams(stderr, error.stderr),
         error.exitCode,
       );
       return applyRedirections(ctx, bodyResult, node.redirections);
@@ -197,7 +208,7 @@ export async function executeSubshell(
     // Apply output redirections before returning
     const bodyResult = result(
       stdout,
-      concat(stderr, encode(`${getErrorMessage(error)}\n`)),
+      concatStreams(stderr, fromString(`${getErrorMessage(error)}\n`)),
       1,
     );
     return applyRedirections(ctx, bodyResult, node.redirections);
@@ -217,11 +228,11 @@ export async function executeSubshell(
 export async function executeGroup(
   ctx: InterpreterContext,
   node: GroupNode,
-  stdin: Uint8Array,
+  stdin: ByteStream,
   executeStatement: ExecuteStatementFn,
 ): Promise<ExecResult> {
-  let stdout: Uint8Array = EMPTY;
-  let stderr: Uint8Array = EMPTY;
+  let stdout: ByteStream = emptyStream();
+  let stderr: ByteStream = emptyStream();
   let exitCode = 0;
 
   // Process FD variable redirections ({varname}>file syntax)
@@ -234,7 +245,10 @@ export async function executeGroup(
   }
 
   // Process heredoc and input redirections to get stdin content
-  let effectiveStdin: Uint8Array = stdin;
+  // First materialize the incoming stdin so we can fall back to it.
+  const incomingStdinBytes = await collectBytes(stdin);
+  let effectiveStdin: ByteStream = fromBytes(incomingStdinBytes);
+  let redirSetStdin = false;
   for (const redir of node.redirections) {
     if (
       (redir.operator === "<<" || redir.operator === "<<-") &&
@@ -256,17 +270,20 @@ export async function executeGroup(
         }
         ctx.state.fileDescriptors.set(fd, content);
       } else {
-        effectiveStdin = encode(content);
+        effectiveStdin = fromString(content);
+        redirSetStdin = true;
       }
     } else if (redir.operator === "<<<" && redir.target.type === "Word") {
-      effectiveStdin = encode(
+      effectiveStdin = fromString(
         `${await expandWord(ctx, redir.target as WordNode)}\n`,
       );
+      redirSetStdin = true;
     } else if (redir.operator === "<" && redir.target.type === "Word") {
       try {
         const target = await expandWord(ctx, redir.target as WordNode);
         const filePath = ctx.fs.resolvePath(ctx.state.cwd, target);
-        effectiveStdin = encode(await ctx.fs.readFile(filePath));
+        effectiveStdin = await ctx.fs.readFile(filePath);
+        redirSetStdin = true;
       } catch {
         const target = await expandWord(ctx, redir.target as WordNode);
         return failure(`bash: ${target}: No such file or directory\n`);
@@ -276,15 +293,15 @@ export async function executeGroup(
 
   // Save any existing groupStdin and set new one from pipeline
   const savedGroupStdin = ctx.state.groupStdin;
-  if (!isEmpty(effectiveStdin)) {
+  if (redirSetStdin || incomingStdinBytes.length > 0) {
     ctx.state.groupStdin = effectiveStdin;
   }
 
   try {
     for (const stmt of node.body) {
       const res = await executeStatement(stmt);
-      stdout = concat(stdout, res.stdout);
-      stderr = concat(stderr, res.stderr);
+      stdout = concatStreams(stdout, res.stdout);
+      stderr = concatStreams(stderr, res.stderr);
       exitCode = res.exitCode;
     }
   } catch (error) {
@@ -304,7 +321,7 @@ export async function executeGroup(
     }
     return result(
       stdout,
-      concat(stderr, encode(`${getErrorMessage(error)}\n`)),
+      concatStreams(stderr, fromString(`${getErrorMessage(error)}\n`)),
       1,
     );
   }
@@ -331,13 +348,13 @@ export async function executeUserScript(
   ctx: InterpreterContext,
   scriptPath: string,
   args: string[],
-  stdin: Uint8Array,
+  stdin: ByteStream,
   executeScript: ExecuteScriptFn,
 ): Promise<ExecResult> {
   // Read the script content
   let content: string;
   try {
-    content = await ctx.fs.readFile(scriptPath);
+    content = await ctx.fs.readFileText(scriptPath);
   } catch {
     return failure(`bash: ${scriptPath}: No such file or directory\n`, 127);
   }
@@ -366,8 +383,10 @@ export async function executeUserScript(
   ctx.state.parentHasLoopContext = savedLoopDepth > 0;
   ctx.state.loopDepth = 0;
   ctx.state.bashPid = ctx.state.nextVirtualPid++;
-  if (!isEmpty(stdin)) {
-    ctx.state.groupStdin = stdin;
+  // Materialize stdin once; only set groupStdin if there's content.
+  const stdinBytes = await collectBytes(stdin);
+  if (stdinBytes.length > 0) {
+    ctx.state.groupStdin = fromBytes(stdinBytes);
   }
   ctx.state.currentSource = scriptPath;
 

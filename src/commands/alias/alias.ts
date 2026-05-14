@@ -1,11 +1,6 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import {
-  decodeArgs,
-  EMPTY,
-  encode,
-  envGet,
-  envSet,
-} from "../../utils/bytes.js";
+import { decodeArgs, envGet, envSet } from "../../utils/bytes.js";
+import { emptyStream, fromString } from "../../utils/stream.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const aliasHelp = {
@@ -37,7 +32,7 @@ export const aliasCommand: Command = {
           stdout += `alias ${name}='${envGet(ctx.env, key)}'\n`;
         }
       }
-      return { stdout: encode(stdout), stderr: EMPTY, exitCode: 0 };
+      return { stdout: fromString(stdout), stderr: emptyStream(), exitCode: 0 };
     }
 
     // Process alias definitions
@@ -50,14 +45,14 @@ export const aliasCommand: Command = {
         const key = ALIAS_PREFIX + arg;
         if (ctx.env.get(key)) {
           return {
-            stdout: encode(`alias ${arg}='${envGet(ctx.env, key)}'\n`),
-            stderr: EMPTY,
+            stdout: fromString(`alias ${arg}='${envGet(ctx.env, key)}'\n`),
+            stderr: emptyStream(),
             exitCode: 0,
           };
         } else {
           return {
-            stdout: EMPTY,
-            stderr: encode(`alias: ${arg}: not found\n`),
+            stdout: emptyStream(),
+            stderr: fromString(`alias: ${arg}: not found\n`),
             exitCode: 1,
           };
         }
@@ -76,7 +71,7 @@ export const aliasCommand: Command = {
       }
     }
 
-    return { stdout: EMPTY, stderr: EMPTY, exitCode: 0 };
+    return { stdout: emptyStream(), stderr: emptyStream(), exitCode: 0 };
   },
 };
 
@@ -99,8 +94,8 @@ export const unaliasCommand: Command = {
 
     if (a.length === 0) {
       return {
-        stdout: EMPTY,
-        stderr: encode("unalias: usage: unalias [-a] name [name ...]\n"),
+        stdout: emptyStream(),
+        stderr: fromString("unalias: usage: unalias [-a] name [name ...]\n"),
         exitCode: 1,
       };
     }
@@ -112,7 +107,7 @@ export const unaliasCommand: Command = {
           ctx.env.delete(key);
         }
       }
-      return { stdout: EMPTY, stderr: EMPTY, exitCode: 0 };
+      return { stdout: emptyStream(), stderr: emptyStream(), exitCode: 0 };
     }
 
     // Skip "--" option separator (POSIX standard)
@@ -131,8 +126,8 @@ export const unaliasCommand: Command = {
     }
 
     return {
-      stdout: EMPTY,
-      stderr: encode(stderr),
+      stdout: emptyStream(),
+      stderr: fromString(stderr),
       exitCode: anyError ? 1 : 0,
     };
   },

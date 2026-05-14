@@ -12,9 +12,10 @@
  */
 
 import type { ExecResult } from "../../types.js";
-import { EMPTY, encode, envGet, envSet } from "../../utils/bytes.js";
+import { envGet, envSet } from "../../utils/bytes.js";
+import { emptyStream, fromString } from "../../utils/stream.js";
 import { PosixFatalError } from "../errors.js";
-import { failure, OK } from "../helpers/result.js";
+import { failure, ok } from "../helpers/result.js";
 import type { InterpreterContext } from "../types.js";
 
 export function handleShift(
@@ -30,7 +31,7 @@ export function handleShift(
       const errorMsg = `bash: shift: ${args[0]}: numeric argument required\n`;
       // In POSIX mode, this error is fatal
       if (ctx.state.options.posix) {
-        throw new PosixFatalError(1, EMPTY, encode(errorMsg));
+        throw new PosixFatalError(1, emptyStream(), fromString(errorMsg));
       }
       return failure(errorMsg);
     }
@@ -45,14 +46,14 @@ export function handleShift(
     const errorMsg = "bash: shift: shift count out of range\n";
     // In POSIX mode, this error is fatal
     if (ctx.state.options.posix) {
-      throw new PosixFatalError(1, EMPTY, encode(errorMsg));
+      throw new PosixFatalError(1, emptyStream(), fromString(errorMsg));
     }
     return failure(errorMsg);
   }
 
   // If n is 0, do nothing
   if (n === 0) {
-    return OK;
+    return ok();
   }
 
   // Get current positional parameters
@@ -78,5 +79,5 @@ export function handleShift(
   envSet(ctx.state.env, "#", String(newParams.length));
   envSet(ctx.state.env, "@", newParams.join(" "));
 
-  return OK;
+  return ok();
 }

@@ -13,7 +13,7 @@ describe("Associative Arrays", () => {
   describe("declare -A", () => {
     it("should declare an associative array", async () => {
       const env = createEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         declare -A arr
         arr['foo']=bar
@@ -26,7 +26,7 @@ describe("Associative Arrays", () => {
 
     it("should initialize associative array with literal syntax", async () => {
       const env = createEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         declare -A A=(['foo']=bar ['spam']=42)
         echo "\${A['foo']} \${A['spam']}"
@@ -38,7 +38,7 @@ describe("Associative Arrays", () => {
 
     it("should not reset existing associative array on redeclare", async () => {
       const env = createEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         declare -A dict
         dict['foo']=hello
@@ -53,7 +53,7 @@ describe("Associative Arrays", () => {
   describe("string key assignment", () => {
     it("should assign with quoted string key", async () => {
       const env = createEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         declare -A arr
         arr['my key']=value
@@ -65,7 +65,7 @@ describe("Associative Arrays", () => {
 
     it("should assign with double-quoted string key", async () => {
       const env = createEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         declare -A arr
         arr["my key"]=value
@@ -79,7 +79,7 @@ describe("Associative Arrays", () => {
   describe("arithmetic context", () => {
     it("should read from associative array in arithmetic", async () => {
       const env = createEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         declare -A A
         A['x']=42
@@ -95,7 +95,7 @@ describe("Associative Arrays", () => {
 
     it("should assign to associative array in arithmetic with string key", async () => {
       const env = createEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         declare -A A
         (( A['foo'] = 123 ))
@@ -108,7 +108,7 @@ describe("Associative Arrays", () => {
     it("should use variable name as literal key for associative arrays", async () => {
       const env = createEnv();
       // In bash, for associative arrays, A[K] uses "K" as the key, not K's value
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         declare -A A
         K=5
@@ -122,7 +122,7 @@ describe("Associative Arrays", () => {
 
     it("should coerce string values to integers in arithmetic", async () => {
       const env = createEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         declare -A A
         A['x']=42
@@ -137,7 +137,7 @@ describe("Associative Arrays", () => {
 
     it("should support compound assignment operators", async () => {
       const env = createEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         declare -A A
         A['count']=10
@@ -150,7 +150,7 @@ describe("Associative Arrays", () => {
 
     it("should support increment/decrement on associative array elements", async () => {
       const env = createEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         declare -A A
         A['x']=10
@@ -165,7 +165,7 @@ describe("Associative Arrays", () => {
   describe("indexed arrays (existing behavior)", () => {
     it("should still work with numeric indices", async () => {
       const env = createEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         declare -a arr
         arr[0]=first
@@ -178,7 +178,7 @@ describe("Associative Arrays", () => {
 
     it("should evaluate arithmetic expressions in indices for indexed arrays", async () => {
       const env = createEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         declare -a arr
         arr[0]=zero
@@ -194,7 +194,7 @@ describe("Associative Arrays", () => {
     it("should use variable VALUE for indexed array subscripts in arithmetic", async () => {
       const env = createEnv();
       // For indexed arrays, A[K] evaluates K as arithmetic (gets its value)
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         declare -a arr
         arr[5]=value
@@ -210,7 +210,7 @@ describe("Associative Arrays", () => {
   describe("array element access", () => {
     it("should return all values with ${arr[@]}", async () => {
       const env = createEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         declare -A A
         A['a']=1
@@ -226,7 +226,7 @@ describe("Associative Arrays", () => {
 
     it("should return empty for unset key", async () => {
       const env = createEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         declare -A A
         A['foo']=bar
@@ -241,7 +241,7 @@ describe("Associative Arrays", () => {
     it.skip("key-value sequence initialization", async () => {
       // declare -A A=(1 2 3) should create ['1']=2 ['3']=''
       const env = createEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         declare -A A=(1 2 3)
         declare -p A
@@ -254,7 +254,7 @@ describe("Associative Arrays", () => {
 
     it("variable key lookup", async () => {
       const env = createEnv();
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         declare -A A
         A["aa"]=b
@@ -271,7 +271,7 @@ describe("Associative Arrays", () => {
     it("self-reference in assignment (bash behavior)", async () => {
       const env = createEnv();
       // Step 0: Check declare -p output
-      let result = toText(
+      let result = await toText(
         await env.exec(`
         declare -A foo
         foo=(["key"]="value1")
@@ -281,7 +281,7 @@ describe("Associative Arrays", () => {
       console.log("step0 stdout:", JSON.stringify(result.stdout));
 
       // Step 1: Single quoted assignment & lookup
-      result = toText(
+      result = await toText(
         await env.exec(`
         declare -A bar
         bar=(['key']='value1')
@@ -298,7 +298,7 @@ describe("Associative Arrays", () => {
       // [0]=1+2+3 sets a[0]="1+2+3" (literal string)
       // [a[0]]=10 - a[0] is "1+2+3", in arithmetic context 1+2+3=6, so a[6]=10
       // [a[6]]=hello - a[6] is now 10, so a[10]="hello"
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         a=([0]=1+2+3 [a[0]]=10 [a[6]]=hello)
         echo "keys: \${!a[@]}"

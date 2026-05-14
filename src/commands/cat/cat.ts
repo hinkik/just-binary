@@ -1,6 +1,6 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
-import { concat, decode, decodeArgs, encode } from "../../utils/bytes.js";
+import { concat, decode, decodeArgs } from "../../utils/bytes.js";
 import { readFiles } from "../../utils/file-reader.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
@@ -53,8 +53,8 @@ export const catCommand: Command = {
       }
 
       return {
-        stdout: encode(stdout),
-        stderr: encode(readResult.stderr),
+        stdout: fromString(stdout),
+        stderr: fromString(readResult.stderr),
         exitCode: readResult.exitCode,
       };
     }
@@ -66,8 +66,8 @@ export const catCommand: Command = {
     );
 
     return {
-      stdout,
-      stderr: encode(readResult.stderr),
+      stdout: fromBytes(stdout),
+      stderr: fromString(readResult.stderr),
       exitCode: readResult.exitCode,
     };
   },
@@ -93,6 +93,7 @@ function addLineNumbers(
   };
 }
 
+import { fromBytes, fromString } from "../../utils/stream.js";
 import type { CommandFuzzInfo } from "../fuzz-flags-types.js";
 
 export const flagsForFuzzing: CommandFuzzInfo = {

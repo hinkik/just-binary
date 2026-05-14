@@ -25,7 +25,7 @@ describe("rg feature: issue #20 - no-filename", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = toText(await bash.exec("rg --no-filename Sherlock"));
+    const result = await toText(await bash.exec("rg --no-filename Sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).not.toContain("sherlock:");
     expect(result.stdout).toContain("Sherlock");
@@ -40,7 +40,7 @@ describe("rg feature: issue #34 - only matching", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = toText(await bash.exec("rg -o Sherlock"));
+    const result = await toText(await bash.exec("rg -o Sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("sherlock:Sherlock\nsherlock:Sherlock\n");
   });
@@ -54,7 +54,7 @@ describe("rg feature: issue #70 - smart case", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = toText(await bash.exec("rg -S sherlock"));
+    const result = await toText(await bash.exec("rg -S sherlock"));
     expect(result.exitCode).toBe(0);
     // Smart case: lowercase pattern matches case-insensitively
     expect(result.stdout).toContain("Sherlock");
@@ -67,7 +67,7 @@ describe("rg feature: issue #70 - smart case", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = toText(await bash.exec("rg -S Sherlock"));
+    const result = await toText(await bash.exec("rg -S Sherlock"));
     expect(result.exitCode).toBe(0);
     // Should only match "Sherlock" not "sherlock"
     expect(result.stdout).toContain("Sherlock");
@@ -82,7 +82,7 @@ describe("rg feature: issue #89 - files with matches", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = toText(await bash.exec("rg -l Sherlock"));
+    const result = await toText(await bash.exec("rg -l Sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("sherlock\n");
   });
@@ -95,7 +95,9 @@ describe("rg feature: issue #89 - files with matches", () => {
         "/home/user/file.py": "foo\n",
       },
     });
-    const result = toText(await bash.exec("rg --files-without-match Sherlock"));
+    const result = await toText(
+      await bash.exec("rg --files-without-match Sherlock"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.py\n");
   });
@@ -107,7 +109,7 @@ describe("rg feature: issue #89 - files with matches", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = toText(await bash.exec("rg -c Sherlock"));
+    const result = await toText(await bash.exec("rg -c Sherlock"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("sherlock:2\n");
   });
@@ -119,7 +121,7 @@ describe("rg feature: issue #89 - files with matches", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = toText(await bash.exec("rg --files"));
+    const result = await toText(await bash.exec("rg --files"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("sherlock\n");
   });
@@ -131,7 +133,7 @@ describe("rg feature: issue #89 - files with matches", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = toText(await bash.exec("rg --files -0"));
+    const result = await toText(await bash.exec("rg --files -0"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("sherlock\x00");
   });
@@ -145,7 +147,7 @@ describe("rg feature: issue #89 - files with matches", () => {
         "/home/user/beta.txt": "b\n",
       },
     });
-    const result = toText(await bash.exec("rg --files"));
+    const result = await toText(await bash.exec("rg --files"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("alpha.txt\nbeta.txt\nzebra.txt\n");
   });
@@ -159,7 +161,7 @@ describe("rg feature: issue #89 - files with matches", () => {
         "/home/user/code.ts": "ts\n",
       },
     });
-    const result = toText(await bash.exec("rg --files -t js"));
+    const result = await toText(await bash.exec("rg --files -t js"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("code.js\n");
   });
@@ -173,7 +175,7 @@ describe("rg feature: issue #89 - files with matches", () => {
         "/home/user/other.txt": "txt\n",
       },
     });
-    const result = toText(await bash.exec("rg --files -g 'test.*'"));
+    const result = await toText(await bash.exec("rg --files -g 'test.*'"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("test.log\ntest.txt\n");
   });
@@ -187,7 +189,7 @@ describe("rg feature: issue #89 - files with matches", () => {
         "/home/user/sub/deeper/bottom.txt": "bottom\n",
       },
     });
-    const result = toText(await bash.exec("rg --files -d 2"));
+    const result = await toText(await bash.exec("rg --files -d 2"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("sub/deep.txt\ntop.txt\n");
   });
@@ -200,7 +202,7 @@ describe("rg feature: issue #89 - files with matches", () => {
       },
     });
     // Hidden files are excluded by default
-    const result = toText(await bash.exec("rg --files"));
+    const result = await toText(await bash.exec("rg --files"));
     expect(result.exitCode).toBe(1);
     expect(result.stdout).toBe("");
   });
@@ -213,7 +215,7 @@ describe("rg feature: issue #89 - files with matches", () => {
         "/home/user/visible": "visible\n",
       },
     });
-    const result = toText(await bash.exec("rg --files --hidden"));
+    const result = await toText(await bash.exec("rg --files --hidden"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(".hidden\nvisible\n");
   });
@@ -227,7 +229,7 @@ describe("rg feature: issue #89 - files with matches", () => {
         "/home/user/foo/abc": "content\n",
       },
     });
-    const result = toText(await bash.exec("rg --files foo"));
+    const result = await toText(await bash.exec("rg --files foo"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("foo/abc\n");
   });
@@ -242,7 +244,7 @@ describe("rg feature: issue #89 - files with matches", () => {
         "/home/user/file.txt": "text\n",
       },
     });
-    const result = toText(await bash.exec("rg --files --glob '*.py'"));
+    const result = await toText(await bash.exec("rg --files --glob '*.py'"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.py\n");
   });
@@ -257,7 +259,9 @@ describe("rg feature: issue #89 - files with matches", () => {
       },
     });
     // --quiet with --files suppresses output but indicates success
-    const result = toText(await bash.exec("rg --quiet --files --glob '*.py'"));
+    const result = await toText(
+      await bash.exec("rg --quiet --files --glob '*.py'"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("");
   });
@@ -270,7 +274,7 @@ describe("rg feature: issue #89 - files with matches", () => {
         "/home/user/sub/file.txt": "content\n",
       },
     });
-    const result = toText(await bash.exec("rg --files ./sub"));
+    const result = await toText(await bash.exec("rg --files ./sub"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("./sub/file.txt\n");
   });
@@ -285,7 +289,7 @@ describe("rg feature: issue #109 - max depth", () => {
         "/home/user/one/too/many": "far\n",
       },
     });
-    const result = toText(await bash.exec("rg --max-depth 2 far"));
+    const result = await toText(await bash.exec("rg --max-depth 2 far"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("one/pass:1:far\n");
   });
@@ -298,7 +302,7 @@ describe("rg feature: issue #109 - max depth", () => {
         "/home/user/one/too/many": "far\n",
       },
     });
-    const result = toText(await bash.exec("rg -d 2 far"));
+    const result = await toText(await bash.exec("rg -d 2 far"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("one/pass:1:far\n");
   });
@@ -311,7 +315,7 @@ describe("rg feature: issue #109 - max depth", () => {
         "/home/user/sub/nested.txt": "match\n",
       },
     });
-    const result = toText(await bash.exec("rg -d 1 match"));
+    const result = await toText(await bash.exec("rg -d 1 match"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("top.txt:1:match\n");
   });
@@ -323,7 +327,7 @@ describe("rg feature: issue #109 - max depth", () => {
         "/home/user/a/b/c/deep.txt": "found\n",
       },
     });
-    const result = toText(await bash.exec("rg -d 4 found"));
+    const result = await toText(await bash.exec("rg -d 4 found"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("a/b/c/deep.txt:1:found\n");
   });
@@ -337,7 +341,7 @@ describe("rg feature: issue #109 - max depth", () => {
         "/home/user/top.py": "test\n",
       },
     });
-    const result = toText(await bash.exec("rg -d 1 -t js test"));
+    const result = await toText(await bash.exec("rg -d 1 -t js test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("top.js:1:test\n");
   });
@@ -351,7 +355,7 @@ describe("rg feature: issue #124 - case-sensitive override", () => {
         "/home/user/foo": "tEsT\n",
       },
     });
-    const result = toText(await bash.exec("rg -S -s test"));
+    const result = await toText(await bash.exec("rg -S -s test"));
     expect(result.exitCode).toBe(1); // No match - case sensitive
   });
 
@@ -362,7 +366,7 @@ describe("rg feature: issue #124 - case-sensitive override", () => {
         "/home/user/foo": "tEsT\n",
       },
     });
-    const result = toText(await bash.exec("rg -i -s test"));
+    const result = await toText(await bash.exec("rg -i -s test"));
     expect(result.exitCode).toBe(1); // No match - case sensitive
   });
 });
@@ -375,7 +379,7 @@ describe("rg feature: issue #159 - max count", () => {
         "/home/user/foo": "test\ntest\n",
       },
     });
-    const result = toText(await bash.exec("rg -m1 test"));
+    const result = await toText(await bash.exec("rg -m1 test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("foo:1:test\n");
   });
@@ -387,7 +391,7 @@ describe("rg feature: issue #159 - max count", () => {
         "/home/user/foo": "test\ntest\n",
       },
     });
-    const result = toText(await bash.exec("rg -m0 test"));
+    const result = await toText(await bash.exec("rg -m0 test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("foo:1:test\nfoo:2:test\n");
   });
@@ -401,7 +405,7 @@ describe("rg feature: issue #948 - exit codes", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = toText(await bash.exec("rg ."));
+    const result = await toText(await bash.exec("rg ."));
     expect(result.exitCode).toBe(0);
   });
 
@@ -412,7 +416,7 @@ describe("rg feature: issue #948 - exit codes", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = toText(await bash.exec("rg NADA"));
+    const result = await toText(await bash.exec("rg NADA"));
     expect(result.exitCode).toBe(1);
   });
 
@@ -423,7 +427,7 @@ describe("rg feature: issue #948 - exit codes", () => {
         "/home/user/sherlock": SHERLOCK,
       },
     });
-    const result = toText(await bash.exec("rg '*'"));
+    const result = await toText(await bash.exec("rg '*'"));
     expect(result.exitCode).toBe(2);
   });
 });
@@ -436,7 +440,7 @@ describe("rg feature: issue #2288 - context partial override", () => {
         "/home/user/test": "1\n2\n3\n4\n5\n6\n7\n8\n9\n",
       },
     });
-    const result = toText(await bash.exec("rg -C1 -A2 5 test"));
+    const result = await toText(await bash.exec("rg -C1 -A2 5 test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("4\n5\n6\n7\n");
   });
@@ -448,7 +452,7 @@ describe("rg feature: issue #2288 - context partial override", () => {
         "/home/user/test": "1\n2\n3\n4\n5\n6\n7\n8\n9\n",
       },
     });
-    const result = toText(await bash.exec("rg -A2 -C1 5 test"));
+    const result = await toText(await bash.exec("rg -A2 -C1 5 test"));
     expect(result.exitCode).toBe(0);
     // -C1 sets both before and after to 1
     expect(result.stdout).toBe("4\n5\n6\n7\n");
@@ -463,7 +467,7 @@ describe("rg feature: context separator", () => {
         "/home/user/test": "foo\nctx\nbar\nctx\nfoo\nctx\n",
       },
     });
-    const result = toText(await bash.exec("rg -A1 foo test"));
+    const result = await toText(await bash.exec("rg -A1 foo test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("foo\nctx\n--\nfoo\nctx\n");
   });
@@ -477,7 +481,7 @@ describe("rg feature: multiple patterns", () => {
         "/home/user/file": "foo\nbar\nbaz\n",
       },
     });
-    const result = toText(await bash.exec("rg -e foo -e bar"));
+    const result = await toText(await bash.exec("rg -e foo -e bar"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file:1:foo\nfile:2:bar\n");
   });
@@ -493,7 +497,7 @@ describe("rg feature: gitignore handling", () => {
         "/home/user/ignored.txt": "test\n",
       },
     });
-    const result = toText(await bash.exec("rg test"));
+    const result = await toText(await bash.exec("rg test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("visible.txt:1:test\n");
   });
@@ -507,7 +511,9 @@ describe("rg feature: gitignore handling", () => {
         "/home/user/ignored.txt": "test\n",
       },
     });
-    const result = toText(await bash.exec("rg --no-ignore --sort path test"));
+    const result = await toText(
+      await bash.exec("rg --no-ignore --sort path test"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("ignored.txt:1:test\nvisible.txt:1:test\n");
   });
@@ -522,7 +528,7 @@ describe("rg feature: hidden files", () => {
         "/home/user/visible": "test\n",
       },
     });
-    const result = toText(await bash.exec("rg test"));
+    const result = await toText(await bash.exec("rg test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("visible:1:test\n");
   });
@@ -535,7 +541,9 @@ describe("rg feature: hidden files", () => {
         "/home/user/visible": "test\n",
       },
     });
-    const result = toText(await bash.exec("rg --hidden --sort path test"));
+    const result = await toText(
+      await bash.exec("rg --hidden --sort path test"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(".hidden:1:test\nvisible:1:test\n");
   });
@@ -551,7 +559,7 @@ describe("rg feature: type filtering", () => {
         "/home/user/code.rs": "test\n",
       },
     });
-    const result = toText(await bash.exec("rg -t js test"));
+    const result = await toText(await bash.exec("rg -t js test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("code.js:1:test\n");
   });
@@ -564,7 +572,7 @@ describe("rg feature: type filtering", () => {
         "/home/user/code.py": "test\n",
       },
     });
-    const result = toText(await bash.exec("rg -T js test"));
+    const result = await toText(await bash.exec("rg -T js test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("code.py:1:test\n");
   });
@@ -577,7 +585,7 @@ describe("rg feature: type filtering", () => {
         "/home/user/code.py": "test\n",
       },
     });
-    const result = toText(await bash.exec("rg -t markdown test"));
+    const result = await toText(await bash.exec("rg -t markdown test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("README.md:1:test\n");
   });
@@ -590,7 +598,7 @@ describe("rg feature: type filtering", () => {
         "/home/user/code.js": "content\n",
       },
     });
-    const result = toText(await bash.exec("rg -t markdown content"));
+    const result = await toText(await bash.exec("rg -t markdown content"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("doc.markdown:1:content\n");
   });
@@ -603,7 +611,7 @@ describe("rg feature: type filtering", () => {
         "/home/user/code.py": "info\n",
       },
     });
-    const result = toText(await bash.exec("rg -t markdown info"));
+    const result = await toText(await bash.exec("rg -t markdown info"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("notes.mdown:1:info\n");
   });
@@ -616,8 +624,8 @@ describe("rg feature: type filtering", () => {
         "/home/user/other.txt": "text\n",
       },
     });
-    const mdResult = toText(await bash.exec("rg -t md text"));
-    const markdownResult = toText(await bash.exec("rg -t markdown text"));
+    const mdResult = await toText(await bash.exec("rg -t md text"));
+    const markdownResult = await toText(await bash.exec("rg -t markdown text"));
     expect(mdResult.stdout).toBe(markdownResult.stdout);
   });
 
@@ -629,7 +637,7 @@ describe("rg feature: type filtering", () => {
         "/home/user/code.py": "test\n",
       },
     });
-    const result = toText(await bash.exec("rg -T markdown test"));
+    const result = await toText(await bash.exec("rg -T markdown test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("code.py:1:test\n");
   });
@@ -644,7 +652,7 @@ describe("rg feature: glob filtering", () => {
         "/home/user/file.log": "test\n",
       },
     });
-    const result = toText(await bash.exec("rg -g '*.txt' test"));
+    const result = await toText(await bash.exec("rg -g '*.txt' test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.txt:1:test\n");
   });
@@ -657,7 +665,7 @@ describe("rg feature: glob filtering", () => {
         "/home/user/file.log": "test\n",
       },
     });
-    const result = toText(await bash.exec("rg -g '!*.log' test"));
+    const result = await toText(await bash.exec("rg -g '!*.log' test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file.txt:1:test\n");
   });
@@ -671,7 +679,7 @@ describe("rg feature: word and line matching", () => {
         "/home/user/file": "foo foobar barfoo\n",
       },
     });
-    const result = toText(await bash.exec("rg -w foo"));
+    const result = await toText(await bash.exec("rg -w foo"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file:1:foo foobar barfoo\n");
   });
@@ -683,7 +691,7 @@ describe("rg feature: word and line matching", () => {
         "/home/user/file": "foobar\n",
       },
     });
-    const result = toText(await bash.exec("rg -w foo"));
+    const result = await toText(await bash.exec("rg -w foo"));
     expect(result.exitCode).toBe(1);
   });
 
@@ -694,7 +702,7 @@ describe("rg feature: word and line matching", () => {
         "/home/user/file": "foo\nfoo bar\n",
       },
     });
-    const result = toText(await bash.exec("rg -x foo"));
+    const result = await toText(await bash.exec("rg -x foo"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file:1:foo\n");
   });
@@ -708,7 +716,7 @@ describe("rg feature: inverted match", () => {
         "/home/user/file": "foo\nbar\nbaz\n",
       },
     });
-    const result = toText(await bash.exec("rg -v foo"));
+    const result = await toText(await bash.exec("rg -v foo"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file:2:bar\nfile:3:baz\n");
   });
@@ -722,7 +730,7 @@ describe("rg feature: fixed strings", () => {
         "/home/user/file": "foo.*bar\nfoobar\n",
       },
     });
-    const result = toText(await bash.exec("rg -F 'foo.*bar'"));
+    const result = await toText(await bash.exec("rg -F 'foo.*bar'"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file:1:foo.*bar\n");
   });
@@ -736,7 +744,7 @@ describe("rg feature: quiet mode", () => {
         "/home/user/file": "test\n",
       },
     });
-    const result = toText(await bash.exec("rg -q test"));
+    const result = await toText(await bash.exec("rg -q test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("");
   });
@@ -748,7 +756,7 @@ describe("rg feature: quiet mode", () => {
         "/home/user/file": "test\n",
       },
     });
-    const result = toText(await bash.exec("rg -q notfound"));
+    const result = await toText(await bash.exec("rg -q notfound"));
     expect(result.exitCode).toBe(1);
     expect(result.stdout).toBe("");
   });
@@ -762,7 +770,7 @@ describe("rg feature: line numbers", () => {
         "/home/user/file": "foo\ntest\nbar\n",
       },
     });
-    const result = toText(await bash.exec("rg -n test file"));
+    const result = await toText(await bash.exec("rg -n test file"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("2:test\n");
   });
@@ -774,7 +782,7 @@ describe("rg feature: line numbers", () => {
         "/home/user/file": "test\n",
       },
     });
-    const result = toText(await bash.exec("rg -N test file"));
+    const result = await toText(await bash.exec("rg -N test file"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("test\n");
   });
@@ -788,7 +796,7 @@ describe("rg feature: context lines", () => {
         "/home/user/file": "a\nmatch\nb\nc\n",
       },
     });
-    const result = toText(await bash.exec("rg -A2 match file"));
+    const result = await toText(await bash.exec("rg -A2 match file"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("match\nb\nc\n");
   });
@@ -800,7 +808,7 @@ describe("rg feature: context lines", () => {
         "/home/user/file": "a\nb\nmatch\nc\n",
       },
     });
-    const result = toText(await bash.exec("rg -B2 match file"));
+    const result = await toText(await bash.exec("rg -B2 match file"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("a\nb\nmatch\n");
   });
@@ -812,7 +820,7 @@ describe("rg feature: context lines", () => {
         "/home/user/file": "a\nb\nmatch\nc\nd\n",
       },
     });
-    const result = toText(await bash.exec("rg -C1 match file"));
+    const result = await toText(await bash.exec("rg -C1 match file"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("b\nmatch\nc\n");
   });
@@ -826,7 +834,7 @@ describe("rg feature: combined flags", () => {
         "/home/user/file": "FOO foobar\n",
       },
     });
-    const result = toText(await bash.exec("rg -iw foo"));
+    const result = await toText(await bash.exec("rg -iw foo"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file:1:FOO foobar\n");
   });
@@ -838,7 +846,7 @@ describe("rg feature: combined flags", () => {
         "/home/user/file": "foo\nFOO\nFoo\n",
       },
     });
-    const result = toText(await bash.exec("rg -ci foo"));
+    const result = await toText(await bash.exec("rg -ci foo"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("file:3\n");
   });
@@ -851,7 +859,7 @@ describe("rg feature: combined flags", () => {
         "/home/user/b.txt": "bar\n",
       },
     });
-    const result = toText(await bash.exec("rg -li foo"));
+    const result = await toText(await bash.exec("rg -li foo"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("a.txt\n");
   });
@@ -865,7 +873,7 @@ describe("rg feature: --stats", () => {
         "/home/user/file": "foo\nbar\nfoo\n",
       },
     });
-    const result = toText(await bash.exec("rg --stats foo"));
+    const result = await toText(await bash.exec("rg --stats foo"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("2 matches");
     expect(result.stdout).toContain("1 files contained matches");
@@ -881,7 +889,7 @@ describe("rg feature: --stats", () => {
         "/home/user/c.txt": "bar\n",
       },
     });
-    const result = toText(await bash.exec("rg --stats foo"));
+    const result = await toText(await bash.exec("rg --stats foo"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("3 matches");
     expect(result.stdout).toContain("2 files contained matches");
@@ -895,7 +903,7 @@ describe("rg feature: --stats", () => {
         "/home/user/file": "hello\n",
       },
     });
-    const result = toText(await bash.exec("rg --stats notfound"));
+    const result = await toText(await bash.exec("rg --stats notfound"));
     expect(result.exitCode).toBe(1);
     expect(result.stdout).toContain("0 matches");
     expect(result.stdout).toContain("0 files contained matches");
@@ -909,7 +917,7 @@ describe("rg feature: --stats", () => {
         "/home/user/file": "test\n",
       },
     });
-    const result = toText(await bash.exec("rg --stats test"));
+    const result = await toText(await bash.exec("rg --stats test"));
     expect(result.exitCode).toBe(0);
     // Results should appear before stats
     expect(result.stdout).toMatch(/file:1:test[\s\S]*1 matches/);
@@ -922,7 +930,7 @@ describe("rg feature: --stats", () => {
         "/home/user/file": "test content here\n",
       },
     });
-    const result = toText(await bash.exec("rg --stats test"));
+    const result = await toText(await bash.exec("rg --stats test"));
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("bytes searched");
   });
@@ -936,7 +944,7 @@ describe("rg feature: PCRE2 not supported", () => {
         "/home/user/file": "test\n",
       },
     });
-    const result = toText(await bash.exec("rg -P test"));
+    const result = await toText(await bash.exec("rg -P test"));
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toBe(
       "rg: PCRE2 is not supported. Use standard regex syntax instead.\n",
@@ -950,7 +958,7 @@ describe("rg feature: PCRE2 not supported", () => {
         "/home/user/file": "test\n",
       },
     });
-    const result = toText(await bash.exec("rg --pcre2 test"));
+    const result = await toText(await bash.exec("rg --pcre2 test"));
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toBe(
       "rg: PCRE2 is not supported. Use standard regex syntax instead.\n",
@@ -980,7 +988,9 @@ describe("rg feature: f7_stdin", () => {
       },
     });
     // Simulate stdin containing the pattern
-    const result = toText(await bash.exec("echo 'bar' | rg -f- test.txt"));
+    const result = await toText(
+      await bash.exec("echo 'bar' | rg -f- test.txt"),
+    );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("bar\n");
   });
@@ -997,7 +1007,9 @@ describe("rg feature: f45_ignore_file", () => {
         "/home/user/included.txt": "test content\n",
       },
     });
-    const result = toText(await bash.exec("rg --ignore-file my-ignore test"));
+    const result = await toText(
+      await bash.exec("rg --ignore-file my-ignore test"),
+    );
     expect(result.exitCode).toBe(0);
     // Should only find included.txt, not ignored.txt
     expect(result.stdout).toContain("included.txt");
@@ -1013,7 +1025,7 @@ describe("rg feature: f45_ignore_file", () => {
         "/home/user/test.log": "test\n",
       },
     });
-    const result = toText(
+    const result = await toText(
       await bash.exec("rg --ignore-file custom-ignore test"),
     );
     expect(result.exitCode).toBe(0);
@@ -1034,12 +1046,14 @@ describe("rg feature: f68_no_ignore_vcs", () => {
       },
     });
     // Without --no-ignore-vcs, ignored.txt should be excluded
-    const result1 = toText(await bash.exec("rg Sherlock"));
+    const result1 = await toText(await bash.exec("rg Sherlock"));
     expect(result1.exitCode).toBe(0);
     expect(result1.stdout).toBe("visible.txt:1:Sherlock\n");
 
     // With --no-ignore-vcs, .gitignore is skipped, so ignored.txt is searched
-    const result2 = toText(await bash.exec("rg --no-ignore-vcs Sherlock"));
+    const result2 = await toText(
+      await bash.exec("rg --no-ignore-vcs Sherlock"),
+    );
     expect(result2.exitCode).toBe(0);
     expect(result2.stdout).toContain("ignored.txt");
     expect(result2.stdout).toContain("visible.txt");

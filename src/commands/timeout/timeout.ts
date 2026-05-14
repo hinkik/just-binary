@@ -1,5 +1,5 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
 const timeoutHelp = {
@@ -102,8 +102,8 @@ export const timeoutCommand: Command = {
 
     if (remainingArgs.length === 0) {
       return {
-        stdout: EMPTY,
-        stderr: encode("timeout: missing operand\n"),
+        stdout: emptyStream(),
+        stderr: fromString("timeout: missing operand\n"),
         exitCode: 1,
       };
     }
@@ -114,8 +114,8 @@ export const timeoutCommand: Command = {
 
     if (durationMs === null) {
       return {
-        stdout: EMPTY,
-        stderr: encode(`timeout: invalid time interval '${durationStr}'\n`),
+        stdout: emptyStream(),
+        stderr: fromString(`timeout: invalid time interval '${durationStr}'\n`),
         exitCode: 1,
       };
     }
@@ -124,8 +124,8 @@ export const timeoutCommand: Command = {
     const commandArgs = remainingArgs.slice(1);
     if (commandArgs.length === 0) {
       return {
-        stdout: EMPTY,
-        stderr: encode("timeout: missing operand\n"),
+        stdout: emptyStream(),
+        stderr: fromString("timeout: missing operand\n"),
         exitCode: 1,
       };
     }
@@ -133,8 +133,8 @@ export const timeoutCommand: Command = {
     // Need exec function to run subcommand
     if (!ctx.exec) {
       return {
-        stdout: EMPTY,
-        stderr: encode("timeout: exec not available\n"),
+        stdout: emptyStream(),
+        stderr: fromString("timeout: exec not available\n"),
         exitCode: 1,
       };
     }
@@ -164,8 +164,8 @@ export const timeoutCommand: Command = {
     if (outcome.timedOut) {
       // Command timed out
       return {
-        stdout: EMPTY,
-        stderr: EMPTY,
+        stdout: emptyStream(),
+        stderr: emptyStream(),
         exitCode: preserveStatus ? 124 : 124,
       };
     }
@@ -174,6 +174,7 @@ export const timeoutCommand: Command = {
   },
 };
 
+import { emptyStream, fromString } from "../../utils/stream.js";
 import type { CommandFuzzInfo } from "../fuzz-flags-types.js";
 
 export const flagsForFuzzing: CommandFuzzInfo = {

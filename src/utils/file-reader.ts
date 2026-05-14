@@ -6,8 +6,9 @@
  */
 
 import type { CommandContext, ExecResult } from "../types.js";
-import { concat, EMPTY, encode } from "./bytes.js";
+import { concat, EMPTY } from "./bytes.js";
 import { DEFAULT_BATCH_SIZE } from "./constants.js";
+import { collectBytes, emptyStream, fromString } from "./stream.js";
 
 export interface ReadFilesOptions {
   /** Command name for error messages */
@@ -66,10 +67,17 @@ export async function readFiles(
   // No files - read from stdin
   if (files.length === 0) {
     return {
-      files: [{ filename: "", content: ctx.stdin }],
+      files: [{ filename: "", content: await collectBytes(ctx.stdin) }],
       stderr: "",
       exitCode: 0,
     };
+  }
+
+  // Cache stdin if any file is "-" (streams are single-use)
+  let stdinBytes: Uint8Array | null = null;
+  const needsStdin = allowStdinMarker && files.some((f) => f === "-");
+  if (needsStdin) {
+    stdinBytes = await collectBytes(ctx.stdin);
   }
 
   const result: FileContent[] = [];
@@ -84,13 +92,13 @@ export async function readFiles(
         if (allowStdinMarker && file === "-") {
           return {
             filename: "-",
-            content: ctx.stdin,
+            content: stdinBytes ?? EMPTY,
             error: null,
           };
         }
         try {
           const filePath = ctx.fs.resolvePath(ctx.cwd, file);
-          const content = await ctx.fs.readFileBuffer(filePath);
+          const content = await collectBytes(await ctx.fs.readFile(filePath));
           return { filename: file, content, error: null };
         } catch {
           return {
@@ -145,8 +153,8 @@ export async function readAndConcat(
     return {
       ok: false,
       error: {
-        stdout: EMPTY,
-        stderr: encode(result.stderr),
+        stdout: emptyStream(),
+        stderr: fromString(result.stderr),
         exitCode: result.exitCode,
       },
     };

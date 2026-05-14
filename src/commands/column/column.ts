@@ -8,7 +8,8 @@
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
-import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs } from "../../utils/bytes.js";
+import { collectText } from "../../utils/stream.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const columnHelp = {
@@ -173,23 +174,28 @@ export const column: Command = {
     // Read input
     let content: string;
     if (files.length === 0) {
-      content = decode(ctx.stdin);
+      content = await collectText(ctx.stdin);
     } else {
       const parts: string[] = [];
+      let stdinText: string | null = null;
       for (const file of files) {
         if (file === "-") {
-          parts.push(decode(ctx.stdin));
+          if (stdinText === null) stdinText = await collectText(ctx.stdin);
+          parts.push(stdinText);
         } else {
           const filePath = ctx.fs.resolvePath(ctx.cwd, file);
-          const fileContent = await ctx.fs.readFile(filePath);
-          if (fileContent === null) {
+          try {
+            const fileContent = await ctx.fs.readFileText(filePath);
+            parts.push(fileContent);
+          } catch {
             return {
               exitCode: 1,
-              stdout: EMPTY,
-              stderr: encode(`column: ${file}: No such file or directory\n`),
+              stdout: emptyStream(),
+              stderr: fromString(
+                `column: ${file}: No such file or directory\n`,
+              ),
             };
           }
-          parts.push(fileContent);
         }
       }
       content = parts.join("");
@@ -199,8 +205,8 @@ export const column: Command = {
     if (content === "" || content.trim() === "") {
       return {
         exitCode: 0,
-        stdout: EMPTY,
-        stderr: EMPTY,
+        stdout: emptyStream(),
+        stderr: emptyStream(),
       };
     }
 
@@ -240,12 +246,13 @@ export const column: Command = {
 
     return {
       exitCode: 0,
-      stdout: encode(output),
-      stderr: EMPTY,
+      stdout: fromString(output),
+      stderr: emptyStream(),
     };
   },
 };
 
+import { emptyStream, fromString } from "../../utils/stream.js";
 import type { CommandFuzzInfo } from "../fuzz-flags-types.js";
 
 export const flagsForFuzzing: CommandFuzzInfo = {

@@ -35,7 +35,7 @@ describe("find performance tracing", () => {
       trace: (event) => events.push(event),
     });
 
-    const result = toText(
+    const result = await toText(
       await env.exec('find /repos -path "*/pulls/*.json" -type f'),
     );
     expect(result.exitCode).toBe(0);
@@ -73,7 +73,7 @@ describe("find performance tracing", () => {
       trace: (event) => events.push(event),
     });
 
-    const result = toText(
+    const result = await toText(
       await env.exec('find /repos -maxdepth 4 -type d -name "issues"'),
     );
     expect(result.exitCode).toBe(0);
@@ -113,7 +113,7 @@ describe("find performance tracing", () => {
     });
 
     // Test the -path pattern query
-    const result = toText(
+    const result = await toText(
       await env.exec('find /repos -path "*/pulls/*.json" -type f'),
     );
     expect(result.exitCode).toBe(0);
@@ -189,7 +189,7 @@ describe("find performance tracing", () => {
       files,
       trace: (event) => events2.push(event),
     });
-    const result = toText(
+    const result = await toText(
       await env2.exec('find /repos -path "*/pulls/*.json" -type f'),
     );
     const summary2 = events2.find(
@@ -235,7 +235,7 @@ describe("find performance tracing", () => {
       trace: (event) => events.push(event),
     });
 
-    const result = toText(
+    const result = await toText(
       await env.exec('find /repos -path "*/pulls/*.json" -type f'),
     );
     expect(result.exitCode).toBe(0);
@@ -276,7 +276,7 @@ describe("find performance tracing", () => {
     // Test the -path pattern query against real files
     console.log("\n--- Real Filesystem Test: -path pattern ---");
     const start1 = Date.now();
-    const result1 = toText(
+    const result1 = await toText(
       await env.exec('find . -path "*/commands/*.ts" -type f | head -20'),
     );
     const elapsed1 = Date.now() - start1;
@@ -292,7 +292,7 @@ describe("find performance tracing", () => {
     events.length = 0;
     console.log("\n--- Real Filesystem Test: -maxdepth ---");
     const start2 = Date.now();
-    const result2 = toText(
+    const result2 = await toText(
       await env.exec('find . -maxdepth 3 -type d -name "commands"'),
     );
     const elapsed2 = Date.now() - start2;
@@ -322,7 +322,9 @@ describe("find performance tracing", () => {
 
     console.log("\n--- Fast-path vs Regular Evaluation Comparison ---");
 
-    const result1 = toText(await env1.exec('find /src -name "*.ts" -type f'));
+    const result1 = await toText(
+      await env1.exec('find /src -name "*.ts" -type f'),
+    );
     expect(result1.exitCode).toBe(0);
 
     const summary1 = events1.find(
@@ -337,7 +339,7 @@ describe("find performance tracing", () => {
       trace: (event) => events2.push(event),
     });
 
-    const result2 = toText(
+    const result2 = await toText(
       await env2.exec('find /src -name "*.ts" -type f -mtime -365'),
     );
     expect(result2.exitCode).toBe(0);
@@ -474,7 +476,7 @@ describe("find performance tracing", () => {
       trace: (event) => events1.push(event),
     });
 
-    const result1 = toText(
+    const result1 = await toText(
       await env1.exec('find /data -type f -printf "%f %p\\n"'),
     );
     expect(result1.exitCode).toBe(0);
@@ -491,7 +493,7 @@ describe("find performance tracing", () => {
       trace: (event) => events2.push(event),
     });
 
-    const result2 = toText(
+    const result2 = await toText(
       await env2.exec('find /data -type f -printf "%f %s\\n"'),
     );
     expect(result2.exitCode).toBe(0);
@@ -596,7 +598,7 @@ describe("find node visitation verification", () => {
       trace: (event) => events.push(event),
     });
 
-    const result = toText(
+    const result = await toText(
       await env.exec('find /data -path "*/pulls/*.json" -type f'),
     );
     expect(result.exitCode).toBe(0);
@@ -640,7 +642,9 @@ describe("find node visitation verification", () => {
     });
 
     // maxdepth 3 from /data: /data(0), org*(1), repo*(2), pulls|issues|src(3)
-    const result = toText(await env.exec("find /data -maxdepth 3 -type d"));
+    const result = await toText(
+      await env.exec("find /data -maxdepth 3 -type d"),
+    );
     expect(result.exitCode).toBe(0);
 
     // Expected directories at depth ≤3:
@@ -677,7 +681,9 @@ describe("find node visitation verification", () => {
       trace: (event) => events.push(event),
     });
 
-    const result = toText(await env.exec('find /data -name "*.json" -type f'));
+    const result = await toText(
+      await env.exec('find /data -name "*.json" -type f'),
+    );
     expect(result.exitCode).toBe(0);
 
     // Expected: all .json files
@@ -713,7 +719,7 @@ describe("find node visitation verification", () => {
       files,
       trace: (event) => events1.push(event),
     });
-    const result1 = toText(
+    const result1 = await toText(
       await env1.exec('find /data -type f -name "*.json"'),
     );
 
@@ -723,7 +729,7 @@ describe("find node visitation verification", () => {
       files,
       trace: (event) => events2.push(event),
     });
-    const result2 = toText(
+    const result2 = await toText(
       await env2.exec('find /data -path "*/pulls/*.json" -type f'),
     );
 
@@ -762,7 +768,9 @@ describe("find node visitation verification", () => {
       trace: (event) => events.push(event),
     });
 
-    const result = toText(await env.exec("find /data -maxdepth 2 -type d"));
+    const result = await toText(
+      await env.exec("find /data -maxdepth 2 -type d"),
+    );
     expect(result.exitCode).toBe(0);
 
     // depth 0: /data (1)
@@ -807,7 +815,7 @@ describe("find node visitation verification", () => {
       trace: (event) => events.push(event),
     });
 
-    const result = toText(
+    const result = await toText(
       await env.exec('find /data -path "*/pulls/*.json" -type f'),
     );
     expect(result.exitCode).toBe(0);
@@ -846,7 +854,7 @@ describe("find node visitation verification", () => {
       trace: (event) => events.push(event),
     });
 
-    const result = toText(
+    const result = await toText(
       await env.exec('find /data -path "*/pulls/*.json" -type f'),
     );
     expect(result.exitCode).toBe(0);
@@ -866,7 +874,7 @@ describe("find node visitation verification", () => {
     });
 
     // Find repo directories: depth 2 only
-    const result = toText(
+    const result = await toText(
       await env.exec("find /data -mindepth 2 -maxdepth 2 -type d"),
     );
     expect(result.exitCode).toBe(0);
@@ -986,7 +994,7 @@ describe("find common patterns", () => {
         trace: (event) => events.push(event),
       });
 
-      const result = toText(
+      const result = await toText(
         await env.exec(
           "find /data -name node_modules -prune -o -type f -print",
         ),
@@ -1025,7 +1033,7 @@ describe("find common patterns", () => {
       });
 
       // Find all .ts files, excluding node_modules
-      const result = toText(
+      const result = await toText(
         await env.exec(
           'find /project -path "*/node_modules" -prune -o -name "*.ts" -type f -print',
         ),
@@ -1062,7 +1070,7 @@ describe("find common patterns", () => {
       });
 
       // Find all files excluding .git
-      const result = toText(
+      const result = await toText(
         await env.exec('find /project -path "*/.git" -prune -o -type f -print'),
       );
       expect(result.exitCode).toBe(0);
@@ -1087,7 +1095,7 @@ describe("find common patterns", () => {
       });
 
       // Find .ts files excluding node_modules, .git, and dist
-      const result = toText(
+      const result = await toText(
         await env.exec(
           'find /project \\( -path "*/node_modules" -o -path "*/.git" -o -path "*/dist" \\) -prune -o -name "*.ts" -type f -print',
         ),
@@ -1124,7 +1132,7 @@ describe("find common patterns", () => {
       });
 
       // Find all image files
-      const result = toText(
+      const result = await toText(
         await env.exec(
           'find /project/public \\( -name "*.png" -o -name "*.jpg" -o -name "*.gif" \\) -type f',
         ),
@@ -1149,7 +1157,7 @@ describe("find common patterns", () => {
       });
 
       // Find all .ts and .js files in src and dist (excluding node_modules)
-      const result = toText(
+      const result = await toText(
         await env.exec(
           'find /project/src /project/dist \\( -name "*.ts" -o -name "*.js" \\) -type f',
         ),
@@ -1177,7 +1185,7 @@ describe("find common patterns", () => {
         trace: (event) => events.push(event),
       });
 
-      const result = toText(
+      const result = await toText(
         await env.exec(
           'find /project/src \\( -name "*.test.ts" -o -name "*.spec.ts" \\) -type f',
         ),
@@ -1205,7 +1213,7 @@ describe("find common patterns", () => {
         trace: (event) => events.push(event),
       });
 
-      const result = toText(
+      const result = await toText(
         await env.exec('find /project -path "*/__tests__/*" -type f'),
       );
       expect(result.exitCode).toBe(0);
@@ -1230,7 +1238,7 @@ describe("find common patterns", () => {
         trace: (event) => events.push(event),
       });
 
-      const result = toText(
+      const result = await toText(
         await env.exec('find /project -maxdepth 1 -name "*.json" -type f'),
       );
       expect(result.exitCode).toBe(0);
@@ -1256,7 +1264,7 @@ describe("find common patterns", () => {
         trace: (event) => events.push(event),
       });
 
-      const result = toText(
+      const result = await toText(
         await env.exec('find /project -maxdepth 1 -name ".*" -type f'),
       );
       expect(result.exitCode).toBe(0);
@@ -1277,7 +1285,7 @@ describe("find common patterns", () => {
       });
 
       // Find all .json config files in project root and immediate subdirs
-      const result = toText(
+      const result = await toText(
         await env.exec('find /project -maxdepth 2 -name "*.json" -type f'),
       );
       expect(result.exitCode).toBe(0);
@@ -1303,7 +1311,7 @@ describe("find common patterns", () => {
         trace: (event) => events.push(event),
       });
 
-      const result = toText(await env.exec("find /project/dist -type f"));
+      const result = await toText(await env.exec("find /project/dist -type f"));
       expect(result.exitCode).toBe(0);
 
       const lines = result.stdout.trim().split("\n").filter(Boolean);
@@ -1324,7 +1332,7 @@ describe("find common patterns", () => {
         trace: (event) => events.push(event),
       });
 
-      const result = toText(
+      const result = await toText(
         await env.exec('find /project -name "*.map" -type f'),
       );
       expect(result.exitCode).toBe(0);
@@ -1344,7 +1352,7 @@ describe("find common patterns", () => {
         trace: (event) => events.push(event),
       });
 
-      const result = toText(
+      const result = await toText(
         await env.exec('find /project -name "*.d.ts" -type f'),
       );
       expect(result.exitCode).toBe(0);
@@ -1372,14 +1380,18 @@ describe("find common patterns", () => {
       });
 
       // All files in in-memory fs have current mtime, so -mtime -1 finds all
-      const result = toText(await env.exec("find /data -mtime -1 -type f"));
+      const result = await toText(
+        await env.exec("find /data -mtime -1 -type f"),
+      );
       expect(result.exitCode).toBe(0);
 
       const lines = result.stdout.trim().split("\n").filter(Boolean);
       expect(lines).toHaveLength(3);
 
       // -mtime 0 should find files modified today (within last 24 hours)
-      const result2 = toText(await env.exec("find /data -mtime 0 -type f"));
+      const result2 = await toText(
+        await env.exec("find /data -mtime 0 -type f"),
+      );
       expect(result2.exitCode).toBe(0);
       const lines2 = result2.stdout.trim().split("\n").filter(Boolean);
       expect(lines2).toHaveLength(3); // All files created just now
@@ -1404,7 +1416,7 @@ describe("find common patterns", () => {
       });
 
       // file1.txt and file2.txt are newer than reference.txt
-      const result = toText(
+      const result = await toText(
         await env.exec("find /data -newer /data/reference.txt -type f"),
       );
       expect(result.exitCode).toBe(0);
@@ -1431,7 +1443,7 @@ describe("find common patterns", () => {
         trace: (event) => events.push(event),
       });
 
-      const result = toText(await env.exec("find /data -empty -type f"));
+      const result = await toText(await env.exec("find /data -empty -type f"));
       expect(result.exitCode).toBe(0);
 
       const lines = result.stdout.trim().split("\n").filter(Boolean);
@@ -1454,7 +1466,9 @@ describe("find common patterns", () => {
       });
 
       // Find files larger than 50 bytes
-      const result = toText(await env.exec("find /data -size +50c -type f"));
+      const result = await toText(
+        await env.exec("find /data -size +50c -type f"),
+      );
       expect(result.exitCode).toBe(0);
 
       const lines = result.stdout.trim().split("\n").filter(Boolean);
@@ -1462,7 +1476,9 @@ describe("find common patterns", () => {
       expect(lines.sort()).toEqual(["/data/large.txt", "/data/medium.txt"]);
 
       // Find files smaller than 50 bytes
-      const result2 = toText(await env.exec("find /data -size -50c -type f"));
+      const result2 = await toText(
+        await env.exec("find /data -size -50c -type f"),
+      );
       expect(result2.exitCode).toBe(0);
       const lines2 = result2.stdout.trim().split("\n").filter(Boolean);
       expect(lines2).toHaveLength(1); // small only
@@ -1483,7 +1499,7 @@ describe("find common patterns", () => {
       // Create an empty directory
       await env.exec("mkdir -p /data/emptydir");
 
-      const result = toText(await env.exec("find /data -empty -type d"));
+      const result = await toText(await env.exec("find /data -empty -type d"));
       expect(result.exitCode).toBe(0);
 
       const lines = result.stdout.trim().split("\n").filter(Boolean);
@@ -1504,7 +1520,7 @@ describe("find common patterns", () => {
       });
 
       // Typical gitignore-aware search
-      const result = toText(
+      const result = await toText(
         await env.exec(
           'find /project \\( -name "node_modules" -o -name ".git" -o -name "dist" \\) -prune -o \\( -name "*.ts" -o -name "*.js" \\) -type f -print',
         ),
@@ -1542,7 +1558,7 @@ describe("find common patterns", () => {
       });
 
       // Find .ts files that are not tests
-      const result = toText(
+      const result = await toText(
         await env.exec(
           'find /project/src -name "*.ts" -type f ! -name "*.test.ts" ! -name "*.spec.ts"',
         ),
@@ -1569,7 +1585,7 @@ describe("find common patterns", () => {
       });
 
       // Count .ts files (using wc -l)
-      const result = toText(
+      const result = await toText(
         await env.exec('find /project/src -name "*.ts" -type f | wc -l'),
       );
       expect(result.exitCode).toBe(0);

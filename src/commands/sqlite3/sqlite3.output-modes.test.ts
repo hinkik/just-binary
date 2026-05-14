@@ -6,7 +6,7 @@ describe("sqlite3 output modes", () => {
   describe("basic modes", () => {
     it("should output CSV with -csv", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           "sqlite3 -csv :memory: \"CREATE TABLE t(a,b); INSERT INTO t VALUES(1,'hello'),(2,'world'); SELECT * FROM t\"",
         ),
@@ -17,7 +17,7 @@ describe("sqlite3 output modes", () => {
 
     it("should escape CSV fields properly", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           "sqlite3 -csv :memory: \"CREATE TABLE t(a); INSERT INTO t VALUES('hello,world'),('has\nnewline'); SELECT * FROM t\"",
         ),
@@ -28,7 +28,7 @@ describe("sqlite3 output modes", () => {
 
     it("should output JSON with -json", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           "sqlite3 -json :memory: \"CREATE TABLE t(id INT, name TEXT); INSERT INTO t VALUES(1,'alice'),(2,'bob'); SELECT * FROM t\"",
         ),
@@ -41,7 +41,7 @@ describe("sqlite3 output modes", () => {
 
     it("should output line mode with -line", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           "sqlite3 -line :memory: \"CREATE TABLE t(a INT, b TEXT); INSERT INTO t VALUES(1,'x'); SELECT * FROM t\"",
         ),
@@ -52,7 +52,7 @@ describe("sqlite3 output modes", () => {
 
     it("should output column mode with -column", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           "sqlite3 -column -header :memory: \"CREATE TABLE t(id INT, name TEXT); INSERT INTO t VALUES(1,'alice'); SELECT * FROM t\"",
         ),
@@ -65,7 +65,7 @@ describe("sqlite3 output modes", () => {
 
     it("should output table mode with -table", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           'sqlite3 -table -header :memory: "CREATE TABLE t(a INT); INSERT INTO t VALUES(1); SELECT * FROM t"',
         ),
@@ -77,7 +77,7 @@ describe("sqlite3 output modes", () => {
 
     it("should output markdown with -markdown", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           "sqlite3 -markdown -header :memory: \"CREATE TABLE t(a INT, b TEXT); INSERT INTO t VALUES(1,'x'); SELECT * FROM t\"",
         ),
@@ -92,7 +92,7 @@ describe("sqlite3 output modes", () => {
   describe("tabs mode", () => {
     it("should output tab-separated values with -tabs", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           'sqlite3 -tabs :memory: "CREATE TABLE t(a,b); INSERT INTO t VALUES(1,2),(3,4); SELECT * FROM t"',
         ),
@@ -105,7 +105,7 @@ describe("sqlite3 output modes", () => {
   describe("box mode", () => {
     it("should output Unicode box drawing with -box", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           "sqlite3 -box :memory: \"CREATE TABLE t(id INT, name TEXT); INSERT INTO t VALUES(1,'alice'),(2,'bob'); SELECT * FROM t\"",
         ),
@@ -122,7 +122,7 @@ describe("sqlite3 output modes", () => {
   describe("quote mode", () => {
     it("should output SQL-style quoted values with -quote", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           "sqlite3 -quote :memory: \"CREATE TABLE t(a INT, b TEXT); INSERT INTO t VALUES(1,'hello'),(NULL,'world'); SELECT * FROM t\"",
         ),
@@ -135,7 +135,7 @@ describe("sqlite3 output modes", () => {
   describe("html mode", () => {
     it("should output HTML table rows with -html", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           "sqlite3 -html :memory: \"CREATE TABLE t(id INT, name TEXT); INSERT INTO t VALUES(1,'alice'); SELECT * FROM t\"",
         ),
@@ -149,7 +149,7 @@ describe("sqlite3 output modes", () => {
 
     it("should escape HTML entities", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           "sqlite3 -html :memory: \"CREATE TABLE t(x); INSERT INTO t VALUES('<script>'); SELECT * FROM t\"",
         ),
@@ -162,7 +162,7 @@ describe("sqlite3 output modes", () => {
   describe("ascii mode", () => {
     it("should output with ASCII control characters", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(
           'sqlite3 -ascii :memory: "CREATE TABLE t(a,b); INSERT INTO t VALUES(1,2),(3,4); SELECT * FROM t"',
         ),

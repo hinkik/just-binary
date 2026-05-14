@@ -73,7 +73,7 @@ async function writeParsedJson(
   const formatFlag = fixture.format === "yaml" ? "" : `-p ${fixture.format}`;
   const cmd = `yq ${formatFlag} '.' '${fixture.virtualPath}' -o json`.trim();
 
-  const result = toText(await bash.exec(cmd));
+  const result = await toText(await bash.exec(cmd));
 
   if (result.exitCode === 0 && result.stdout.trim()) {
     const parsedPath = fixture.path.replace(/\.[^.]+$/, ".parsed.json");
@@ -103,7 +103,7 @@ describe("yq fixtures", () => {
   describe("YAML fixtures", () => {
     it("should extract user names from users.yaml", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq '.users[].name' /fixtures/yaml/users.yaml"),
       );
       expect(result.exitCode).toBe(0);
@@ -112,7 +112,7 @@ describe("yq fixtures", () => {
 
     it("should filter active users from users.yaml", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec(
           "yq '[.users[] | select(.active)] | length' /fixtures/yaml/users.yaml",
         ),
@@ -123,7 +123,7 @@ describe("yq fixtures", () => {
 
     it("should get metadata version from users.yaml", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq '.metadata.version' /fixtures/yaml/users.yaml"),
       );
       expect(result.exitCode).toBe(0);
@@ -132,7 +132,7 @@ describe("yq fixtures", () => {
 
     it("should extract tags from simple.yaml", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq '.tags[]' /fixtures/yaml/simple.yaml"),
       );
       expect(result.exitCode).toBe(0);
@@ -143,7 +143,7 @@ describe("yq fixtures", () => {
   describe("JSON fixtures", () => {
     it("should extract user emails from users.json", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec(
           "yq -p json '.users[].email' /fixtures/json/users.json",
         ),
@@ -155,7 +155,7 @@ describe("yq fixtures", () => {
 
     it("should get department names from nested.json", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec(
           "yq -p json '.company.departments[].name' /fixtures/json/nested.json",
         ),
@@ -166,7 +166,7 @@ describe("yq fixtures", () => {
 
     it("should calculate total employees from nested.json", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec(
           "yq -p json '[.company.departments[].employees] | add' /fixtures/json/nested.json",
         ),
@@ -177,7 +177,7 @@ describe("yq fixtures", () => {
 
     it("should find departments with budget > 250000", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec(
           "yq -p json '[.company.departments[] | select(.budget > 250000) | .name]' /fixtures/json/nested.json -o json",
         ),
@@ -190,7 +190,7 @@ describe("yq fixtures", () => {
   describe("XML fixtures", () => {
     it("should extract book titles from books.xml", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec(
           "yq -p xml '.library.book[].title' /fixtures/xml/books.xml",
         ),
@@ -204,7 +204,7 @@ describe("yq fixtures", () => {
     it("should get book by ID attribute from books.xml", async () => {
       const bash = new Bash({ files });
       // XML attributes are strings; use -o json to verify
-      const result = toText(
+      const result = await toText(
         await bash.exec(
           "yq -p xml '.library.book[0][\"+@id\"]' /fixtures/xml/books.xml -o json",
         ),
@@ -215,7 +215,7 @@ describe("yq fixtures", () => {
 
     it("should filter fiction books from books.xml", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec(
           'yq -p xml \'[.library.book[] | select(.["+@genre"] == "fiction") | .title]\' /fixtures/xml/books.xml -o json',
         ),
@@ -229,7 +229,7 @@ describe("yq fixtures", () => {
 
     it("should extract user names from users.xml", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec(
           "yq -p xml '.root.users.user[].name' /fixtures/xml/users.xml",
         ),
@@ -242,7 +242,7 @@ describe("yq fixtures", () => {
   describe("INI fixtures", () => {
     it("should get database host from config.ini", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq -p ini '.database.host' /fixtures/ini/config.ini"),
       );
       expect(result.exitCode).toBe(0);
@@ -251,7 +251,7 @@ describe("yq fixtures", () => {
 
     it("should get server port from config.ini", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq -p ini '.server.port' /fixtures/ini/config.ini"),
       );
       expect(result.exitCode).toBe(0);
@@ -261,7 +261,7 @@ describe("yq fixtures", () => {
 
     it("should get all section keys from config.ini", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq -p ini 'keys' /fixtures/ini/config.ini"),
       );
       expect(result.exitCode).toBe(0);
@@ -272,7 +272,7 @@ describe("yq fixtures", () => {
 
     it("should get top-level name from app.ini", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq -p ini '.name' /fixtures/ini/app.ini"),
       );
       expect(result.exitCode).toBe(0);
@@ -281,7 +281,7 @@ describe("yq fixtures", () => {
 
     it("should get feature flags from app.ini", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq -p ini '.features' /fixtures/ini/app.ini -o json"),
       );
       expect(result.exitCode).toBe(0);
@@ -295,7 +295,7 @@ describe("yq fixtures", () => {
   describe("CSV fixtures", () => {
     it("should get first user name from users.csv", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq -p csv '.[0].name' /fixtures/csv/users.csv"),
       );
       expect(result.exitCode).toBe(0);
@@ -304,7 +304,7 @@ describe("yq fixtures", () => {
 
     it("should get all user ages from users.csv", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq -p csv '.[].age' /fixtures/csv/users.csv"),
       );
       expect(result.exitCode).toBe(0);
@@ -313,7 +313,7 @@ describe("yq fixtures", () => {
 
     it("should filter electronics products from products.csv", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec(
           "yq -p csv '[.[] | select(.category == \"electronics\") | .name]' /fixtures/csv/products.csv -o json",
         ),
@@ -324,7 +324,7 @@ describe("yq fixtures", () => {
 
     it("should calculate total price of in-stock items from products.csv", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec(
           "yq -p csv '[.[] | select(.in_stock == true) | .price] | add' /fixtures/csv/products.csv",
         ),
@@ -336,7 +336,7 @@ describe("yq fixtures", () => {
 
     it("should get product count from products.csv", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq -p csv 'length' /fixtures/csv/products.csv"),
       );
       expect(result.exitCode).toBe(0);
@@ -347,7 +347,7 @@ describe("yq fixtures", () => {
   describe("TOML fixtures", () => {
     it("should get package name from cargo.toml", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq '.package.name' /fixtures/toml/cargo.toml"),
       );
       expect(result.exitCode).toBe(0);
@@ -356,7 +356,7 @@ describe("yq fixtures", () => {
 
     it("should get package version from cargo.toml", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq '.package.version' /fixtures/toml/cargo.toml"),
       );
       expect(result.exitCode).toBe(0);
@@ -365,7 +365,7 @@ describe("yq fixtures", () => {
 
     it("should get dependency versions from cargo.toml", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec(
           "yq '.dependencies.serde.version' /fixtures/toml/cargo.toml -o json -r",
         ),
@@ -376,7 +376,7 @@ describe("yq fixtures", () => {
 
     it("should get project name from pyproject.toml", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq '.project.name' /fixtures/toml/pyproject.toml"),
       );
       expect(result.exitCode).toBe(0);
@@ -385,7 +385,7 @@ describe("yq fixtures", () => {
 
     it("should get author emails from pyproject.toml", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec(
           "yq '.project.authors[].email' /fixtures/toml/pyproject.toml",
         ),
@@ -397,7 +397,7 @@ describe("yq fixtures", () => {
 
     it("should get database settings from config.toml", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec(
           "yq '.database.max_connections' /fixtures/toml/config.toml",
         ),
@@ -408,7 +408,7 @@ describe("yq fixtures", () => {
 
     it("should get nested pool settings from config.toml", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec(
           "yq '.database.pool.max_size' /fixtures/toml/config.toml",
         ),
@@ -419,7 +419,7 @@ describe("yq fixtures", () => {
 
     it("should get feature flags from config.toml", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq '.features' /fixtures/toml/config.toml -o json"),
       );
       expect(result.exitCode).toBe(0);
@@ -430,7 +430,7 @@ describe("yq fixtures", () => {
 
     it("should handle array of tables from special.toml", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq '.products[].name' /fixtures/toml/special.toml"),
       );
       expect(result.exitCode).toBe(0);
@@ -439,7 +439,7 @@ describe("yq fixtures", () => {
 
     it("should handle inline tables from special.toml", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq '.inline.name' /fixtures/toml/special.toml"),
       );
       expect(result.exitCode).toBe(0);
@@ -448,7 +448,7 @@ describe("yq fixtures", () => {
 
     it("should handle unicode from special.toml", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq '.unicode' /fixtures/toml/special.toml"),
       );
       expect(result.exitCode).toBe(0);
@@ -457,7 +457,7 @@ describe("yq fixtures", () => {
 
     it("should convert TOML to JSON", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq '.server' /fixtures/toml/config.toml -o json"),
       );
       expect(result.exitCode).toBe(0);
@@ -470,7 +470,7 @@ describe("yq fixtures", () => {
   describe("format conversion", () => {
     it("should convert YAML to JSON", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq '.title' /fixtures/yaml/simple.yaml -o json -r"),
       );
       expect(result.exitCode).toBe(0);
@@ -479,7 +479,7 @@ describe("yq fixtures", () => {
 
     it("should convert JSON to YAML", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec(
           "yq -p json '.company.name' /fixtures/json/nested.json",
         ),
@@ -490,7 +490,7 @@ describe("yq fixtures", () => {
 
     it("should convert CSV to JSON", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq -p csv '.[0]' /fixtures/csv/users.csv -o json"),
       );
       expect(result.exitCode).toBe(0);
@@ -501,7 +501,7 @@ describe("yq fixtures", () => {
 
     it("should convert JSON to CSV", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq -p json '.users' /fixtures/json/users.json -o csv"),
       );
       expect(result.exitCode).toBe(0);
@@ -511,7 +511,7 @@ describe("yq fixtures", () => {
 
     it("should convert YAML to INI", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq '.' /fixtures/yaml/simple.yaml -o ini"),
       );
       expect(result.exitCode).toBe(0);
@@ -521,7 +521,7 @@ describe("yq fixtures", () => {
 
     it("should convert INI to JSON", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq -p ini '.' /fixtures/ini/config.ini -o json"),
       );
       expect(result.exitCode).toBe(0);
@@ -533,7 +533,7 @@ describe("yq fixtures", () => {
 
     it("should convert XML to JSON", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec(
           "yq -p xml '.library.book[0].title' /fixtures/xml/books.xml -o json -r",
         ),
@@ -544,7 +544,7 @@ describe("yq fixtures", () => {
 
     it("should convert YAML to TOML", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq '.' /fixtures/yaml/simple.yaml -o toml"),
       );
       expect(result.exitCode).toBe(0);
@@ -554,7 +554,7 @@ describe("yq fixtures", () => {
 
     it("should convert TOML to YAML", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq '.' /fixtures/toml/config.toml"),
       );
       expect(result.exitCode).toBe(0);
@@ -566,7 +566,7 @@ describe("yq fixtures", () => {
   describe("special YAML cases", () => {
     it("should handle empty string", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec(
           "yq '.empty_string' /fixtures/yaml/special.yaml -o json",
         ),
@@ -577,7 +577,7 @@ describe("yq fixtures", () => {
 
     it("should handle null value", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq '.null_value' /fixtures/yaml/special.yaml"),
       );
       expect(result.exitCode).toBe(0);
@@ -586,7 +586,7 @@ describe("yq fixtures", () => {
 
     it("should handle multiline string", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec(
           "yq '.multiline' /fixtures/yaml/special.yaml -o json -r",
         ),
@@ -597,7 +597,7 @@ describe("yq fixtures", () => {
 
     it("should handle nested arrays", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec(
           "yq '.nested_arrays[0][1]' /fixtures/yaml/special.yaml",
         ),
@@ -608,7 +608,7 @@ describe("yq fixtures", () => {
 
     it("should handle YAML anchors and references", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq '.reference.shared' /fixtures/yaml/special.yaml"),
       );
       expect(result.exitCode).toBe(0);
@@ -619,7 +619,7 @@ describe("yq fixtures", () => {
   describe("special JSON cases", () => {
     it("should handle deeply nested structures", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec(
           "yq -p json '.deeply.nested.structure.value' /fixtures/json/special.json",
         ),
@@ -630,7 +630,7 @@ describe("yq fixtures", () => {
 
     it("should handle keys with special characters", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec(
           "yq -p json '.objects[\"with-dash\"]' /fixtures/json/special.json",
         ),
@@ -641,7 +641,7 @@ describe("yq fixtures", () => {
 
     it("should handle mixed arrays", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec(
           "yq -p json '.arrays.mixed | length' /fixtures/json/special.json",
         ),
@@ -652,7 +652,7 @@ describe("yq fixtures", () => {
 
     it("should handle unicode", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq -p json '.unicode' /fixtures/json/special.json -r"),
       );
       expect(result.exitCode).toBe(0);
@@ -663,7 +663,7 @@ describe("yq fixtures", () => {
   describe("special XML cases", () => {
     it("should handle self-closing tags", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec(
           "yq -p xml '.root | has(\"self-closing\")' /fixtures/xml/special.xml",
         ),
@@ -675,7 +675,7 @@ describe("yq fixtures", () => {
     it("should handle multiple attributes", async () => {
       const bash = new Bash({ files });
       // XML attributes are strings; use -o json to verify
-      const result = toText(
+      const result = await toText(
         await bash.exec(
           'yq -p xml \'.root["multiple-attrs"]["+@id"]\' /fixtures/xml/special.xml -o json',
         ),
@@ -686,7 +686,7 @@ describe("yq fixtures", () => {
 
     it("should handle deeply nested XML", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec(
           "yq -p xml '.root.nested.level1.level2.level3' /fixtures/xml/special.xml",
         ),
@@ -697,7 +697,7 @@ describe("yq fixtures", () => {
 
     it("should handle repeated elements as array", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec(
           "yq -p xml '.root.repeated.item | length' /fixtures/xml/special.xml",
         ),
@@ -710,7 +710,7 @@ describe("yq fixtures", () => {
   describe("special INI cases", () => {
     it("should handle global keys before sections", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq -p ini '.global_key' /fixtures/ini/special.ini"),
       );
       expect(result.exitCode).toBe(0);
@@ -719,7 +719,7 @@ describe("yq fixtures", () => {
 
     it("should handle various boolean formats", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec(
           "yq -p ini '.booleans' /fixtures/ini/special.ini -o json",
         ),
@@ -733,7 +733,7 @@ describe("yq fixtures", () => {
 
     it("should handle paths with special characters", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq -p ini '.paths.url' /fixtures/ini/special.ini"),
       );
       expect(result.exitCode).toBe(0);
@@ -744,7 +744,7 @@ describe("yq fixtures", () => {
   describe("special CSV cases", () => {
     it("should handle quoted values with commas", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq -p csv '.[1].name' /fixtures/csv/special.csv"),
       );
       expect(result.exitCode).toBe(0);
@@ -753,7 +753,7 @@ describe("yq fixtures", () => {
 
     it("should handle escaped quotes", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq -p csv '.[2].name' /fixtures/csv/special.csv"),
       );
       expect(result.exitCode).toBe(0);
@@ -762,7 +762,7 @@ describe("yq fixtures", () => {
 
     it("should auto-detect semicolon delimiter", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq -p csv '.[0].name' /fixtures/csv/semicolon.csv"),
       );
       expect(result.exitCode).toBe(0);
@@ -771,7 +771,7 @@ describe("yq fixtures", () => {
 
     it("should auto-detect tab delimiter", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec("yq -p csv '.[0].name' /fixtures/csv/tabs.tsv"),
       );
       expect(result.exitCode).toBe(0);
@@ -780,7 +780,7 @@ describe("yq fixtures", () => {
 
     it("should handle unicode in CSV", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec(
           "yq -p csv '.[5].description' /fixtures/csv/special.csv",
         ),
@@ -793,7 +793,7 @@ describe("yq fixtures", () => {
   describe("complex queries", () => {
     it("should calculate average age from users.yaml", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec(
           "yq '[.users[].age] | add / length' /fixtures/yaml/users.yaml",
         ),
@@ -804,7 +804,7 @@ describe("yq fixtures", () => {
 
     it("should find highest budget department from nested.json", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec(
           "yq -p json '[.company.departments[] | {name, budget}] | max_by(.budget) | .name' /fixtures/json/nested.json",
         ),
@@ -815,7 +815,7 @@ describe("yq fixtures", () => {
 
     it("should group products by category from products.csv", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec(
           "yq -p csv 'group_by(.category) | map({category: .[0].category, count: length})' /fixtures/csv/products.csv -o json",
         ),
@@ -827,7 +827,7 @@ describe("yq fixtures", () => {
 
     it("should transform user data structure from users.yaml", async () => {
       const bash = new Bash({ files });
-      const result = toText(
+      const result = await toText(
         await bash.exec(
           "yq '.users | map({(.name): .email}) | add' /fixtures/yaml/users.yaml -o json",
         ),

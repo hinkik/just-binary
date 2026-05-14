@@ -17,7 +17,8 @@ import { fileURLToPath } from "node:url";
 import { Worker } from "node:worker_threads";
 import initSqlJs from "sql.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decode, decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs } from "../../utils/bytes.js";
+import { collectBytes, collectText } from "../../utils/stream.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 import {
   type FormatOptions,
@@ -141,8 +142,10 @@ function parseArgs(args: string[]):
     else if (arg === "-separator") {
       if (i + 1 >= args.length) {
         return {
-          stdout: EMPTY,
-          stderr: encode("sqlite3: Error: missing argument to -separator\n"),
+          stdout: emptyStream(),
+          stderr: fromString(
+            "sqlite3: Error: missing argument to -separator\n",
+          ),
           exitCode: 1,
         };
       }
@@ -150,8 +153,8 @@ function parseArgs(args: string[]):
     } else if (arg === "-newline") {
       if (i + 1 >= args.length) {
         return {
-          stdout: EMPTY,
-          stderr: encode("sqlite3: Error: missing argument to -newline\n"),
+          stdout: emptyStream(),
+          stderr: fromString("sqlite3: Error: missing argument to -newline\n"),
           exitCode: 1,
         };
       }
@@ -159,8 +162,10 @@ function parseArgs(args: string[]):
     } else if (arg === "-nullvalue") {
       if (i + 1 >= args.length) {
         return {
-          stdout: EMPTY,
-          stderr: encode("sqlite3: Error: missing argument to -nullvalue\n"),
+          stdout: emptyStream(),
+          stderr: fromString(
+            "sqlite3: Error: missing argument to -nullvalue\n",
+          ),
           exitCode: 1,
         };
       }
@@ -168,8 +173,8 @@ function parseArgs(args: string[]):
     } else if (arg === "-cmd") {
       if (i + 1 >= args.length) {
         return {
-          stdout: EMPTY,
-          stderr: encode("sqlite3: Error: missing argument to -cmd\n"),
+          stdout: emptyStream(),
+          stderr: fromString("sqlite3: Error: missing argument to -cmd\n"),
           exitCode: 1,
         };
       }
@@ -178,8 +183,8 @@ function parseArgs(args: string[]):
       // Real sqlite3 treats --xyz as -xyz and says "unknown option: -xyz"
       const optName = arg.startsWith("--") ? arg.slice(1) : arg;
       return {
-        stdout: EMPTY,
-        stderr: encode(
+        stdout: emptyStream(),
+        stderr: fromString(
           `sqlite3: Error: unknown option: ${optName}\nUse -help for a list of options.\n`,
         ),
         exitCode: 1,
@@ -311,29 +316,29 @@ export const sqlite3Command: Command = {
     if (showVersion) {
       const version = await getSqliteVersion();
       return {
-        stdout: encode(`${version}\n`),
-        stderr: EMPTY,
+        stdout: fromString(`${version}\n`),
+        stderr: emptyStream(),
         exitCode: 0,
       };
     }
 
     if (!database) {
       return {
-        stdout: EMPTY,
-        stderr: encode("sqlite3: missing database argument\n"),
+        stdout: emptyStream(),
+        stderr: fromString("sqlite3: missing database argument\n"),
         exitCode: 1,
       };
     }
 
     // Get SQL from argument or stdin, prepend -cmd if provided
-    let sql = sqlArg || decode(ctx.stdin).trim();
+    let sql = sqlArg || (await collectText(ctx.stdin)).trim();
     if (options.cmd) {
       sql = options.cmd + (sql ? `; ${sql}` : "");
     }
     if (!sql) {
       return {
-        stdout: EMPTY,
-        stderr: encode("sqlite3: no SQL provided\n"),
+        stdout: emptyStream(),
+        stderr: fromString("sqlite3: no SQL provided\n"),
         exitCode: 1,
       };
     }
@@ -347,13 +352,13 @@ export const sqlite3Command: Command = {
       if (!isMemory) {
         dbPath = ctx.fs.resolvePath(ctx.cwd, database);
         if (await ctx.fs.exists(dbPath)) {
-          dbBuffer = await ctx.fs.readFileBuffer(dbPath);
+          dbBuffer = await collectBytes(await ctx.fs.readFile(dbPath));
         }
       }
     } catch (e) {
       return {
-        stdout: EMPTY,
-        stderr: encode(
+        stdout: emptyStream(),
+        stderr: fromString(
           `sqlite3: unable to open database "${database}": ${(e as Error).message}\n`,
         ),
         exitCode: 1,
@@ -379,16 +384,16 @@ export const sqlite3Command: Command = {
       result = await executeInWorker(workerInput, timeoutMs);
     } catch (e) {
       return {
-        stdout: EMPTY,
-        stderr: encode(`sqlite3: worker error: ${(e as Error).message}\n`),
+        stdout: emptyStream(),
+        stderr: fromString(`sqlite3: worker error: ${(e as Error).message}\n`),
         exitCode: 1,
       };
     }
 
     if (!result.success) {
       return {
-        stdout: EMPTY,
-        stderr: encode(`sqlite3: ${result.error}\n`),
+        stdout: emptyStream(),
+        stderr: fromString(`sqlite3: ${result.error}\n`),
         exitCode: 1,
       };
     }
@@ -415,8 +420,8 @@ export const sqlite3Command: Command = {
       if (stmtResult.type === "error") {
         if (options.bail) {
           return {
-            stdout: encode(stdout),
-            stderr: encode(`Error: ${stmtResult.error}\n`),
+            stdout: fromString(stdout),
+            stderr: fromString(`Error: ${stmtResult.error}\n`),
             exitCode: 1,
           };
         }
@@ -445,8 +450,8 @@ export const sqlite3Command: Command = {
         await ctx.fs.writeFile(dbPath, result.dbBuffer);
       } catch (e) {
         return {
-          stdout: encode(stdout),
-          stderr: encode(
+          stdout: fromString(stdout),
+          stderr: fromString(
             `sqlite3: failed to write database: ${(e as Error).message}\n`,
           ),
           exitCode: 1,
@@ -455,13 +460,14 @@ export const sqlite3Command: Command = {
     }
 
     return {
-      stdout: encode(stdout),
-      stderr: EMPTY,
+      stdout: fromString(stdout),
+      stderr: emptyStream(),
       exitCode: hadError && options.bail ? 1 : 0,
     };
   },
 };
 
+import { emptyStream, fromString } from "../../utils/stream.js";
 import type { CommandFuzzInfo } from "../fuzz-flags-types.js";
 
 export const flagsForFuzzing: CommandFuzzInfo = {

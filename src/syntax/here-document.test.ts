@@ -5,7 +5,7 @@ import { toText } from "../test-utils.js";
 describe("Here Documents <<EOF", () => {
   it("should pass here document content as stdin to cat", async () => {
     const env = new Bash();
-    const result = toText(
+    const result = await toText(
       await env.exec(`cat <<EOF
 hello world
 EOF`),
@@ -16,7 +16,7 @@ EOF`),
 
   it("should handle multiple lines", async () => {
     const env = new Bash();
-    const result = toText(
+    const result = await toText(
       await env.exec(`cat <<END
 line 1
 line 2
@@ -29,7 +29,7 @@ END`),
 
   it("should expand variables in here document", async () => {
     const env = new Bash({ env: { NAME: "Alice" } });
-    const result = toText(
+    const result = await toText(
       await env.exec(`cat <<EOF
 Hello, $NAME!
 EOF`),
@@ -40,7 +40,7 @@ EOF`),
 
   it("should NOT expand variables when delimiter is quoted", async () => {
     const env = new Bash({ env: { NAME: "Alice" } });
-    const result = toText(
+    const result = await toText(
       await env.exec(`cat <<'EOF'
 Hello, $NAME!
 EOF`),
@@ -51,7 +51,7 @@ EOF`),
 
   it("should work with double-quoted delimiter", async () => {
     const env = new Bash({ env: { NAME: "Alice" } });
-    const result = toText(
+    const result = await toText(
       await env.exec(`cat <<"EOF"
 Hello, $NAME!
 EOF`),
@@ -62,7 +62,7 @@ EOF`),
 
   it("should work with wc command", async () => {
     const env = new Bash();
-    const result = toText(
+    const result = await toText(
       await env.exec(`wc -l <<EOF
 one
 two
@@ -75,7 +75,7 @@ EOF`),
 
   it("should work with grep", async () => {
     const env = new Bash();
-    const result = toText(
+    const result = await toText(
       await env.exec(`grep world <<EOF
 hello world
 goodbye world
@@ -88,7 +88,7 @@ EOF`),
 
   it("should handle empty here document", async () => {
     const env = new Bash();
-    const result = toText(
+    const result = await toText(
       await env.exec(`cat <<EOF
 EOF`),
     );
@@ -98,7 +98,7 @@ EOF`),
 
   it("should handle here document with empty line", async () => {
     const env = new Bash();
-    const result = toText(
+    const result = await toText(
       await env.exec(`cat <<EOF
 
 EOF`),
@@ -109,7 +109,7 @@ EOF`),
 
   it("should work in pipes", async () => {
     const env = new Bash();
-    const result = toText(
+    const result = await toText(
       await env.exec(`cat <<EOF | grep hello
 hello world
 goodbye world
@@ -121,7 +121,7 @@ EOF`),
 
   it("should handle different delimiters", async () => {
     const env = new Bash();
-    const result = toText(
+    const result = await toText(
       await env.exec(`cat <<MYDELIM
 content here
 MYDELIM`),
@@ -132,7 +132,7 @@ MYDELIM`),
 
   it("should expand command substitution in here document", async () => {
     const env = new Bash();
-    const result = toText(
+    const result = await toText(
       await env.exec(`cat <<EOF
 Today is $(echo wonderful)
 EOF`),
@@ -143,7 +143,7 @@ EOF`),
 
   it("should handle multiple commands with here document", async () => {
     const env = new Bash();
-    const result = toText(
+    const result = await toText(
       await env.exec(`cat <<EOF
 hello
 EOF
@@ -156,7 +156,7 @@ echo done`),
   describe("whitespace preservation", () => {
     it("should preserve leading spaces in here document content", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`cat <<EOF
     four spaces at start
   two spaces at start
@@ -171,7 +171,7 @@ EOF`),
 
     it("should preserve leading tabs in here document content (not <<-)", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`cat <<EOF
 \tleading tab
 no tab
@@ -183,7 +183,7 @@ EOF`),
 
     it("should preserve mixed whitespace in here document", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`cat <<EOF
   spaces
 \ttab
@@ -197,7 +197,7 @@ EOF`),
     it("should preserve whitespace even when script is indented", async () => {
       const env = new Bash();
       // This tests that the script normalization doesn't strip heredoc content
-      const result = toText(
+      const result = await toText(
         await env.exec(`
         cat <<EOF
     indented content
@@ -213,7 +213,7 @@ EOF
 
     it("should preserve ASCII art triangle with leading spaces", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`cat <<'EOF'
                     *
                    * *
@@ -248,7 +248,7 @@ EOF`),
     it("should not treat indented delimiter as end of heredoc", async () => {
       const env = new Bash();
       // A line with "  EOF" (spaces before EOF) should be content, not delimiter
-      const result = toText(
+      const result = await toText(
         await env.exec(`cat <<EOF
 line 1
   EOF
@@ -261,7 +261,7 @@ EOF`),
 
     it("should handle delimiter with hyphen", async () => {
       const env = new Bash();
-      const result = toText(
+      const result = await toText(
         await env.exec(`cat <<END-TEST
   content with spaces
 END-TEST`),

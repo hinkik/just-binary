@@ -210,7 +210,7 @@ export function handleComplete(
     ctx.state.completionSpecs.set(cmd, spec);
   }
 
-  return success(EMPTY);
+  return success();
 }
 
 /**

@@ -3,7 +3,7 @@
  */
 
 import type { CommandContext, ExecResult } from "../../types.js";
-import { EMPTY, encode } from "../../utils/bytes.js";
+import { emptyStream, fromString } from "../../utils/stream.js";
 import { type EvaluateOptions, evaluate } from "../query-engine/index.js";
 import { nullPrototypeCopy } from "../query-engine/safe-object.js";
 import {
@@ -43,8 +43,8 @@ export async function cmdMap(
 
   if (!mapExpr) {
     return {
-      stdout: EMPTY,
-      stderr: encode("xan map: no expression specified\n"),
+      stdout: emptyStream(),
+      stderr: fromString("xan map: no expression specified\n"),
       exitCode: 1,
     };
   }
@@ -109,8 +109,8 @@ export async function cmdMap(
   }
 
   return {
-    stdout: encode(formatCsv(newHeaders, newData)),
-    stderr: EMPTY,
+    stdout: fromString(formatCsv(newHeaders, newData)),
+    stderr: emptyStream(),
     exitCode: 0,
   };
 }
@@ -146,8 +146,8 @@ export async function cmdTransform(
 
   if (!targetCol || !transformExpr) {
     return {
-      stdout: EMPTY,
-      stderr: encode(
+      stdout: emptyStream(),
+      stderr: fromString(
         "xan transform: usage: xan transform COLUMN EXPR [FILE]\n",
       ),
       exitCode: 1,
@@ -165,8 +165,8 @@ export async function cmdTransform(
   for (const col of targetCols) {
     if (!headers.includes(col)) {
       return {
-        stdout: EMPTY,
-        stderr: encode(`xan transform: column '${col}' not found\n`),
+        stdout: emptyStream(),
+        stderr: fromString(`xan transform: column '${col}' not found\n`),
         exitCode: 1,
       };
     }
@@ -219,8 +219,8 @@ export async function cmdTransform(
   }
 
   return {
-    stdout: encode(formatCsv(newHeaders, newData)),
-    stderr: EMPTY,
+    stdout: fromString(formatCsv(newHeaders, newData)),
+    stderr: emptyStream(),
     exitCode: 0,
   };
 }

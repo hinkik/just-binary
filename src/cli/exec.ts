@@ -27,7 +27,7 @@ import { resolve } from "node:path";
 import { Bash } from "../Bash.js";
 import { OverlayFs } from "../fs/overlay-fs/index.js";
 import { parse } from "../parser/parser.js";
-import { decode } from "../utils/bytes.js";
+import { collectText } from "../utils/stream.js";
 
 const showAst = process.argv.includes("--print-ast");
 const runRealBash = process.argv.includes("--real-bash");
@@ -101,9 +101,13 @@ if (rootPath) {
   env = new Bash({ executionLimits });
 }
 const r = await env.exec(script);
+const [stdoutText, stderrText] = await Promise.all([
+  collectText(r.stdout),
+  collectText(r.stderr),
+]);
 console.log("exitCode:", r.exitCode);
-console.log("stderr:", JSON.stringify(decode(r.stderr)));
-console.log("stdout:", JSON.stringify(decode(r.stdout)));
+console.log("stderr:", JSON.stringify(stderrText));
+console.log("stdout:", JSON.stringify(stdoutText));
 
 // Run with real bash for comparison
 if (runRealBash) {

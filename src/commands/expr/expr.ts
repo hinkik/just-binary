@@ -1,6 +1,6 @@
 import { createUserRegex } from "../../regex/index.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs } from "../../utils/bytes.js";
 
 /**
  * expr - evaluate expressions
@@ -14,8 +14,8 @@ export const exprCommand: Command = {
     const a = decodeArgs(args);
     if (a.length === 0) {
       return {
-        stdout: EMPTY,
-        stderr: encode("expr: missing operand\n"),
+        stdout: emptyStream(),
+        stderr: fromString("expr: missing operand\n"),
         exitCode: 2,
       };
     }
@@ -25,14 +25,14 @@ export const exprCommand: Command = {
       // expr returns 1 if result is 0 or empty, 0 otherwise
       const exitCode = result === "0" || result === "" ? 1 : 0;
       return {
-        stdout: encode(`${result}\n`),
-        stderr: EMPTY,
+        stdout: fromString(`${result}\n`),
+        stderr: emptyStream(),
         exitCode,
       };
     } catch (error) {
       return {
-        stdout: EMPTY,
-        stderr: encode(`expr: ${(error as Error).message}\n`),
+        stdout: emptyStream(),
+        stderr: fromString(`expr: ${(error as Error).message}\n`),
         exitCode: 2,
       };
     }
@@ -249,6 +249,7 @@ function evaluateExpr(args: string[]): string {
   return parseOr();
 }
 
+import { emptyStream, fromString } from "../../utils/stream.js";
 import type { CommandFuzzInfo } from "../fuzz-flags-types.js";
 
 export const flagsForFuzzing: CommandFuzzInfo = {

@@ -6,7 +6,7 @@ describe("tar", () => {
   describe("help and errors", () => {
     it("should show help with --help", async () => {
       const env = new Bash();
-      const result = toText(await env.exec("tar --help"));
+      const result = await toText(await env.exec("tar --help"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("tar - manipulate tape archives");
       expect(result.stdout).toContain("-c, --create");
@@ -16,7 +16,7 @@ describe("tar", () => {
 
     it("should error without operation mode", async () => {
       const env = new Bash();
-      const result = toText(await env.exec("tar -f archive.tar"));
+      const result = await toText(await env.exec("tar -f archive.tar"));
       expect(result.exitCode).toBe(2);
       expect(result.stderr).toContain(
         "You must specify one of -c, -r, -u, -x, or -t",
@@ -25,21 +25,23 @@ describe("tar", () => {
 
     it("should error with multiple operation modes", async () => {
       const env = new Bash();
-      const result = toText(await env.exec("tar -c -x -f archive.tar"));
+      const result = await toText(await env.exec("tar -c -x -f archive.tar"));
       expect(result.exitCode).toBe(2);
       expect(result.stderr).toContain("You may not specify more than one");
     });
 
     it("should error on unknown option", async () => {
       const env = new Bash();
-      const result = toText(await env.exec("tar -c --unknown-option file.txt"));
+      const result = await toText(
+        await env.exec("tar -c --unknown-option file.txt"),
+      );
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("unrecognized option");
     });
 
     it("should error when -f is missing argument", async () => {
       const env = new Bash();
-      const result = toText(await env.exec("tar -c -f"));
+      const result = await toText(await env.exec("tar -c -f"));
       expect(result.exitCode).toBe(2);
       expect(result.stderr).toContain("option requires an argument");
     });
@@ -52,12 +54,14 @@ describe("tar", () => {
           "/test.txt": "Hello, World!",
         },
       });
-      const result = toText(await env.exec("tar -cf /archive.tar /test.txt"));
+      const result = await toText(
+        await env.exec("tar -cf /archive.tar /test.txt"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stderr).toBe("");
 
       // Verify archive was created
-      const stat = toText(await env.exec("stat /archive.tar"));
+      const stat = await toText(await env.exec("stat /archive.tar"));
       expect(stat.exitCode).toBe(0);
     });
 
@@ -67,7 +71,9 @@ describe("tar", () => {
           "/test.txt": "Hello, World!",
         },
       });
-      const result = toText(await env.exec("tar -cvf /archive.tar /test.txt"));
+      const result = await toText(
+        await env.exec("tar -cvf /archive.tar /test.txt"),
+      );
       expect(result.exitCode).toBe(0);
       // Verbose output goes to stderr (like real tar)
       expect(result.stderr).toContain("test.txt");
@@ -80,7 +86,7 @@ describe("tar", () => {
           "/file2.txt": "Content 2",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec("tar -cvf /archive.tar /file1.txt /file2.txt"),
       );
       expect(result.exitCode).toBe(0);
@@ -97,7 +103,9 @@ describe("tar", () => {
           "/mydir/subdir/nested.txt": "Nested content",
         },
       });
-      const result = toText(await env.exec("tar -cvf /archive.tar /mydir"));
+      const result = await toText(
+        await env.exec("tar -cvf /archive.tar /mydir"),
+      );
       expect(result.exitCode).toBe(0);
       // Verbose output goes to stderr
       expect(result.stderr).toContain("mydir");
@@ -112,7 +120,7 @@ describe("tar", () => {
           "/source/file.txt": "Content",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec("tar -cvf /archive.tar -C /source file.txt"),
       );
       expect(result.exitCode).toBe(0);
@@ -122,7 +130,7 @@ describe("tar", () => {
 
     it("should error when creating empty archive", async () => {
       const env = new Bash();
-      const result = toText(await env.exec("tar -cf /archive.tar"));
+      const result = await toText(await env.exec("tar -cf /archive.tar"));
       expect(result.exitCode).toBe(2);
       expect(result.stderr).toContain(
         "Cowardly refusing to create an empty archive",
@@ -135,7 +143,9 @@ describe("tar", () => {
           "/test.txt": "Hello",
         },
       });
-      const result = toText(await env.exec("tar -cvf /archive.tar /test.txt"));
+      const result = await toText(
+        await env.exec("tar -cvf /archive.tar /test.txt"),
+      );
       expect(result.exitCode).toBe(0);
       // Verbose output goes to stderr
       expect(result.stderr).toContain("test.txt");
@@ -148,7 +158,7 @@ describe("tar", () => {
           "/mydir/skip.log": "Skip this",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec("tar -cvf /archive.tar --exclude=*.log /mydir"),
       );
       expect(result.exitCode).toBe(0);
@@ -166,7 +176,7 @@ describe("tar", () => {
         },
       });
       await env.exec("tar -cf /archive.tar /test.txt");
-      const result = toText(await env.exec("tar -tf /archive.tar"));
+      const result = await toText(await env.exec("tar -tf /archive.tar"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("test.txt");
     });
@@ -178,7 +188,7 @@ describe("tar", () => {
         },
       });
       await env.exec("tar -cf /archive.tar /test.txt");
-      const result = toText(await env.exec("tar -tvf /archive.tar"));
+      const result = await toText(await env.exec("tar -tvf /archive.tar"));
       expect(result.exitCode).toBe(0);
       // Verbose output includes permissions, size, date
       expect(result.stdout).toMatch(/-r.+test\.txt/);
@@ -192,7 +202,7 @@ describe("tar", () => {
         },
       });
       await env.exec("tar -cf /archive.tar /mydir");
-      const result = toText(await env.exec("tar -tf /archive.tar"));
+      const result = await toText(await env.exec("tar -tf /archive.tar"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("mydir");
       expect(result.stdout).toContain("file1.txt");
@@ -201,7 +211,7 @@ describe("tar", () => {
 
     it("should error when archive does not exist", async () => {
       const env = new Bash();
-      const result = toText(await env.exec("tar -tf /nonexistent.tar"));
+      const result = await toText(await env.exec("tar -tf /nonexistent.tar"));
       expect(result.exitCode).toBe(2);
       expect(result.stderr).toContain("Cannot open");
     });
@@ -214,7 +224,9 @@ describe("tar", () => {
         },
       });
       await env.exec("tar -cf /archive.tar /file1.txt /file2.txt");
-      const result = toText(await env.exec("tar -tf /archive.tar /file1.txt"));
+      const result = await toText(
+        await env.exec("tar -tf /archive.tar /file1.txt"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("file1.txt");
       expect(result.stdout).not.toContain("file2.txt");
@@ -230,11 +242,11 @@ describe("tar", () => {
       });
       await env.exec("tar -cf /archive.tar /test.txt");
       await env.exec("rm /test.txt");
-      const result = toText(await env.exec("tar -xf /archive.tar"));
+      const result = await toText(await env.exec("tar -xf /archive.tar"));
       expect(result.exitCode).toBe(0);
 
       // Verify file was extracted
-      const cat = toText(await env.exec("cat /test.txt"));
+      const cat = await toText(await env.exec("cat /test.txt"));
       expect(cat.stdout).toBe("Hello, World!");
     });
 
@@ -246,7 +258,7 @@ describe("tar", () => {
       });
       await env.exec("tar -cf /archive.tar /test.txt");
       await env.exec("rm /test.txt");
-      const result = toText(await env.exec("tar -xvf /archive.tar"));
+      const result = await toText(await env.exec("tar -xvf /archive.tar"));
       expect(result.exitCode).toBe(0);
       // Verbose output goes to stderr
       expect(result.stderr).toContain("test.txt");
@@ -260,10 +272,12 @@ describe("tar", () => {
       });
       await env.exec("tar -cf /archive.tar -C /source test.txt");
       await env.exec("mkdir /dest");
-      const result = toText(await env.exec("tar -xf /archive.tar -C /dest"));
+      const result = await toText(
+        await env.exec("tar -xf /archive.tar -C /dest"),
+      );
       expect(result.exitCode).toBe(0);
 
-      const cat = toText(await env.exec("cat /dest/test.txt"));
+      const cat = await toText(await env.exec("cat /dest/test.txt"));
       expect(cat.stdout).toBe("Hello");
     });
 
@@ -276,13 +290,13 @@ describe("tar", () => {
       });
       await env.exec("tar -cf /archive.tar /mydir");
       await env.exec("rm -rf /mydir");
-      const result = toText(await env.exec("tar -xvf /archive.tar"));
+      const result = await toText(await env.exec("tar -xvf /archive.tar"));
       expect(result.exitCode).toBe(0);
 
-      const cat1 = toText(await env.exec("cat /mydir/file1.txt"));
+      const cat1 = await toText(await env.exec("cat /mydir/file1.txt"));
       expect(cat1.stdout).toBe("Content 1");
 
-      const cat2 = toText(await env.exec("cat /mydir/subdir/file2.txt"));
+      const cat2 = await toText(await env.exec("cat /mydir/subdir/file2.txt"));
       expect(cat2.stdout).toBe("Content 2");
     });
 
@@ -295,13 +309,15 @@ describe("tar", () => {
       });
       await env.exec("tar -cf /archive.tar /file1.txt /file2.txt");
       await env.exec("rm /file1.txt /file2.txt");
-      const result = toText(await env.exec("tar -xf /archive.tar /file1.txt"));
+      const result = await toText(
+        await env.exec("tar -xf /archive.tar /file1.txt"),
+      );
       expect(result.exitCode).toBe(0);
 
-      const cat1 = toText(await env.exec("cat /file1.txt"));
+      const cat1 = await toText(await env.exec("cat /file1.txt"));
       expect(cat1.stdout).toBe("Content 1");
 
-      const cat2 = toText(await env.exec("cat /file2.txt"));
+      const cat2 = await toText(await env.exec("cat /file2.txt"));
       expect(cat2.exitCode).not.toBe(0); // file2 should not be extracted
     });
 
@@ -313,18 +329,18 @@ describe("tar", () => {
       });
       await env.exec("tar -cf /archive.tar /deep/nested/path/file.txt");
       await env.exec("mkdir /dest");
-      const result = toText(
+      const result = await toText(
         await env.exec("tar -xf /archive.tar -C /dest --strip=3"),
       );
       expect(result.exitCode).toBe(0);
 
-      const cat = toText(await env.exec("cat /dest/file.txt"));
+      const cat = await toText(await env.exec("cat /dest/file.txt"));
       expect(cat.stdout).toBe("Content");
     });
 
     it("should error when archive does not exist", async () => {
       const env = new Bash();
-      const result = toText(await env.exec("tar -xf /nonexistent.tar"));
+      const result = await toText(await env.exec("tar -xf /nonexistent.tar"));
       expect(result.exitCode).toBe(2);
       expect(result.stderr).toContain("Cannot open");
     });
@@ -338,14 +354,14 @@ describe("tar", () => {
             "Hello, World! This is some content to compress with bzip2.",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec("tar -cjvf /archive.tar.bz2 /test.txt"),
       );
       expect(result.exitCode).toBe(0);
       expect(result.stderr).toContain("test.txt");
 
       // Verify archive was created
-      const stat = toText(await env.exec("stat /archive.tar.bz2"));
+      const stat = await toText(await env.exec("stat /archive.tar.bz2"));
       expect(stat.exitCode).toBe(0);
     });
 
@@ -357,10 +373,10 @@ describe("tar", () => {
       });
       await env.exec("tar -cjvf /archive.tar.bz2 /test.txt");
       await env.exec("rm /test.txt");
-      const result = toText(await env.exec("tar -xjvf /archive.tar.bz2"));
+      const result = await toText(await env.exec("tar -xjvf /archive.tar.bz2"));
       expect(result.exitCode).toBe(0);
 
-      const cat = toText(await env.exec("cat /test.txt"));
+      const cat = await toText(await env.exec("cat /test.txt"));
       expect(cat.stdout).toBe("Hello, bzip2 compressed World!");
     });
 
@@ -373,10 +389,10 @@ describe("tar", () => {
       await env.exec("tar -cjf /archive.tar.bz2 /test.txt");
       await env.exec("rm /test.txt");
       // Extract without -j flag - should auto-detect
-      const result = toText(await env.exec("tar -xf /archive.tar.bz2"));
+      const result = await toText(await env.exec("tar -xf /archive.tar.bz2"));
       expect(result.exitCode).toBe(0);
 
-      const cat = toText(await env.exec("cat /test.txt"));
+      const cat = await toText(await env.exec("cat /test.txt"));
       expect(cat.stdout).toBe("Auto-detect bzip2!");
     });
 
@@ -387,7 +403,7 @@ describe("tar", () => {
         },
       });
       await env.exec("tar -cjf /archive.tar.bz2 /test.txt");
-      const result = toText(await env.exec("tar -tjf /archive.tar.bz2"));
+      const result = await toText(await env.exec("tar -tjf /archive.tar.bz2"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("test.txt");
     });
@@ -401,14 +417,14 @@ describe("tar", () => {
             "Hello, World! This is some content to compress with xz.",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec("tar -cJvf /archive.tar.xz /test.txt"),
       );
       expect(result.exitCode).toBe(0);
       expect(result.stderr).toContain("test.txt");
 
       // Verify archive was created
-      const stat = toText(await env.exec("stat /archive.tar.xz"));
+      const stat = await toText(await env.exec("stat /archive.tar.xz"));
       expect(stat.exitCode).toBe(0);
     });
 
@@ -420,10 +436,10 @@ describe("tar", () => {
       });
       await env.exec("tar -cJvf /archive.tar.xz /test.txt");
       await env.exec("rm /test.txt");
-      const result = toText(await env.exec("tar -xJvf /archive.tar.xz"));
+      const result = await toText(await env.exec("tar -xJvf /archive.tar.xz"));
       expect(result.exitCode).toBe(0);
 
-      const cat = toText(await env.exec("cat /test.txt"));
+      const cat = await toText(await env.exec("cat /test.txt"));
       expect(cat.stdout).toBe("Hello, xz compressed World!");
     });
 
@@ -436,10 +452,10 @@ describe("tar", () => {
       await env.exec("tar -cJf /archive.tar.xz /test.txt");
       await env.exec("rm /test.txt");
       // Extract without -J flag - should auto-detect
-      const result = toText(await env.exec("tar -xf /archive.tar.xz"));
+      const result = await toText(await env.exec("tar -xf /archive.tar.xz"));
       expect(result.exitCode).toBe(0);
 
-      const cat = toText(await env.exec("cat /test.txt"));
+      const cat = await toText(await env.exec("cat /test.txt"));
       expect(cat.stdout).toBe("Auto-detect xz!");
     });
 
@@ -450,7 +466,7 @@ describe("tar", () => {
         },
       });
       await env.exec("tar -cJf /archive.tar.xz /test.txt");
-      const result = toText(await env.exec("tar -tJf /archive.tar.xz"));
+      const result = await toText(await env.exec("tar -tJf /archive.tar.xz"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("test.txt");
     });
@@ -463,7 +479,7 @@ describe("tar", () => {
           "/test.txt": "Hello, World! This is some content to compress.",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec("tar -czvf /archive.tar.gz /test.txt"),
       );
       expect(result.exitCode).toBe(0);
@@ -471,7 +487,7 @@ describe("tar", () => {
       expect(result.stderr).toContain("test.txt");
 
       // Verify archive was created
-      const stat = toText(await env.exec("stat /archive.tar.gz"));
+      const stat = await toText(await env.exec("stat /archive.tar.gz"));
       expect(stat.exitCode).toBe(0);
     });
 
@@ -483,10 +499,10 @@ describe("tar", () => {
       });
       await env.exec("tar -czvf /archive.tar.gz /test.txt");
       await env.exec("rm /test.txt");
-      const result = toText(await env.exec("tar -xzvf /archive.tar.gz"));
+      const result = await toText(await env.exec("tar -xzvf /archive.tar.gz"));
       expect(result.exitCode).toBe(0);
 
-      const cat = toText(await env.exec("cat /test.txt"));
+      const cat = await toText(await env.exec("cat /test.txt"));
       expect(cat.stdout).toBe("Hello, compressed World!");
     });
 
@@ -499,10 +515,10 @@ describe("tar", () => {
       await env.exec("tar -czf /archive.tar.gz /test.txt");
       await env.exec("rm /test.txt");
       // Extract without -z flag - should auto-detect
-      const result = toText(await env.exec("tar -xf /archive.tar.gz"));
+      const result = await toText(await env.exec("tar -xf /archive.tar.gz"));
       expect(result.exitCode).toBe(0);
 
-      const cat = toText(await env.exec("cat /test.txt"));
+      const cat = await toText(await env.exec("cat /test.txt"));
       expect(cat.stdout).toBe("Auto-detect gzip!");
     });
 
@@ -513,7 +529,7 @@ describe("tar", () => {
         },
       });
       await env.exec("tar -czf /archive.tar.gz /test.txt");
-      const result = toText(await env.exec("tar -tzf /archive.tar.gz"));
+      const result = await toText(await env.exec("tar -tzf /archive.tar.gz"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("test.txt");
     });
@@ -529,7 +545,7 @@ describe("tar", () => {
       await env.exec("ln -s /target.txt /link.txt");
       await env.exec("tar -cvf /archive.tar /link.txt");
 
-      const list = toText(await env.exec("tar -tvf /archive.tar"));
+      const list = await toText(await env.exec("tar -tvf /archive.tar"));
       expect(list.exitCode).toBe(0);
       expect(list.stdout).toContain("link.txt");
     });
@@ -539,13 +555,15 @@ describe("tar", () => {
     it("should handle empty directory", async () => {
       const env = new Bash();
       await env.exec("mkdir /emptydir");
-      const result = toText(await env.exec("tar -cvf /archive.tar /emptydir"));
+      const result = await toText(
+        await env.exec("tar -cvf /archive.tar /emptydir"),
+      );
       expect(result.exitCode).toBe(0);
       // Verbose output goes to stderr
       expect(result.stderr).toContain("emptydir");
 
       // Verify it can be listed
-      const list = toText(await env.exec("tar -tf /archive.tar"));
+      const list = await toText(await env.exec("tar -tf /archive.tar"));
       expect(list.stdout).toContain("emptydir");
     });
 
@@ -555,7 +573,7 @@ describe("tar", () => {
           "/file with spaces.txt": "Content",
         },
       });
-      const result = toText(
+      const result = await toText(
         await env.exec("tar -cvf /archive.tar '/file with spaces.txt'"),
       );
       expect(result.exitCode).toBe(0);
@@ -574,7 +592,7 @@ describe("tar", () => {
       await env.exec("tar -xf /archive.tar");
 
       // Verify binary content is preserved
-      const stat = toText(await env.exec("wc -c < /binary.bin"));
+      const stat = await toText(await env.exec("wc -c < /binary.bin"));
       expect(stat.stdout.trim()).toBe("5");
     });
 
@@ -586,10 +604,12 @@ describe("tar", () => {
       }
       const env = new Bash({ files });
 
-      const result = toText(await env.exec("tar -cf /archive.tar /bigdir"));
+      const result = await toText(
+        await env.exec("tar -cf /archive.tar /bigdir"),
+      );
       expect(result.exitCode).toBe(0);
 
-      const list = toText(await env.exec("tar -tf /archive.tar | wc -l"));
+      const list = await toText(await env.exec("tar -tf /archive.tar | wc -l"));
       // 50 files + 1 directory = 51 entries
       expect(parseInt(list.stdout.trim(), 10)).toBeGreaterThanOrEqual(50);
     });
@@ -601,10 +621,10 @@ describe("tar", () => {
           [`/dir/${longName}`]: "Long filename content",
         },
       });
-      const result = toText(await env.exec("tar -cvf /archive.tar /dir"));
+      const result = await toText(await env.exec("tar -cvf /archive.tar /dir"));
       expect(result.exitCode).toBe(0);
 
-      const list = toText(await env.exec("tar -tf /archive.tar"));
+      const list = await toText(await env.exec("tar -tf /archive.tar"));
       expect(list.stdout).toContain(longName);
     });
   });
@@ -621,7 +641,7 @@ describe("tar", () => {
       });
 
       // Create compressed archive
-      const create = toText(
+      const create = await toText(
         await env.exec("tar -czvf /backup.tar.gz /project"),
       );
       expect(create.exitCode).toBe(0);
@@ -630,14 +650,14 @@ describe("tar", () => {
       await env.exec("rm -rf /project");
 
       // Extract
-      const extract = toText(await env.exec("tar -xzvf /backup.tar.gz"));
+      const extract = await toText(await env.exec("tar -xzvf /backup.tar.gz"));
       expect(extract.exitCode).toBe(0);
 
       // Verify contents
-      const main = toText(await env.exec("cat /project/src/main.js"));
+      const main = await toText(await env.exec("cat /project/src/main.js"));
       expect(main.stdout).toBe("console.log('hello');");
 
-      const pkg = toText(await env.exec("cat /project/package.json"));
+      const pkg = await toText(await env.exec("cat /project/package.json"));
       expect(pkg.stdout).toBe('{"name": "test"}');
     });
   });
@@ -651,7 +671,7 @@ describe("tar", () => {
       });
       await env.exec("tar -cf /archive.tar /test.txt");
 
-      const result = toText(await env.exec("tar -xOf /archive.tar"));
+      const result = await toText(await env.exec("tar -xOf /archive.tar"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("Hello, World!");
     });
@@ -665,7 +685,9 @@ describe("tar", () => {
       });
       await env.exec("tar -cf /archive.tar /file1.txt /file2.txt");
 
-      const result = toText(await env.exec("tar -xOf /archive.tar /file2.txt"));
+      const result = await toText(
+        await env.exec("tar -xOf /archive.tar /file2.txt"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("Content 2");
     });
@@ -682,7 +704,7 @@ describe("tar", () => {
       await env.exec("tar -xOf /archive.tar");
 
       // Verify files were not created
-      const stat = toText(
+      const stat = await toText(
         await env.exec("ls /source 2>&1 || echo 'not found'"),
       );
       expect(stat.stdout).toContain("not found");
@@ -697,7 +719,7 @@ describe("tar", () => {
       });
       await env.exec("tar -cf /archive.tar /a.txt /b.txt");
 
-      const result = toText(await env.exec("tar -xOf /archive.tar"));
+      const result = await toText(await env.exec("tar -xOf /archive.tar"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("AAA");
       expect(result.stdout).toContain("BBB");
@@ -717,10 +739,10 @@ describe("tar", () => {
       await env.exec("echo 'Modified content' > /test.txt");
 
       // Extract with -k should not overwrite
-      const result = toText(await env.exec("tar -xkf /archive.tar"));
+      const result = await toText(await env.exec("tar -xkf /archive.tar"));
       expect(result.exitCode).toBe(0);
 
-      const content = toText(await env.exec("cat /test.txt"));
+      const content = await toText(await env.exec("cat /test.txt"));
       expect(content.stdout.trim()).toBe("Modified content");
     });
 
@@ -741,11 +763,11 @@ describe("tar", () => {
       await env.exec("tar -xkf /archive.tar");
 
       // existing.txt should still be modified
-      const existing = toText(await env.exec("cat /existing.txt"));
+      const existing = await toText(await env.exec("cat /existing.txt"));
       expect(existing.stdout.trim()).toBe("Modified existing");
 
       // new.txt should be extracted
-      const newFile = toText(await env.exec("cat /new.txt"));
+      const newFile = await toText(await env.exec("cat /new.txt"));
       expect(newFile.stdout).toBe("New content");
     });
 
@@ -757,7 +779,7 @@ describe("tar", () => {
       });
       await env.exec("tar -cf /archive.tar /test.txt");
 
-      const result = toText(await env.exec("tar -xkvf /archive.tar"));
+      const result = await toText(await env.exec("tar -xkvf /archive.tar"));
       expect(result.exitCode).toBe(0);
       expect(result.stderr).toContain("not overwritten");
     });
@@ -776,11 +798,13 @@ describe("tar", () => {
       await env.exec("tar -cf /archive.tar /file1.txt");
 
       // Append file2
-      const result = toText(await env.exec("tar -rf /archive.tar /file2.txt"));
+      const result = await toText(
+        await env.exec("tar -rf /archive.tar /file2.txt"),
+      );
       expect(result.exitCode).toBe(0);
 
       // List and verify both files are present
-      const list = toText(await env.exec("tar -tf /archive.tar"));
+      const list = await toText(await env.exec("tar -tf /archive.tar"));
       expect(list.stdout).toContain("file1.txt");
       expect(list.stdout).toContain("file2.txt");
     });
@@ -794,7 +818,9 @@ describe("tar", () => {
       });
 
       await env.exec("tar -cf /archive.tar /file1.txt");
-      const result = toText(await env.exec("tar -rvf /archive.tar /file2.txt"));
+      const result = await toText(
+        await env.exec("tar -rvf /archive.tar /file2.txt"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stderr).toContain("file2.txt");
     });
@@ -806,7 +832,7 @@ describe("tar", () => {
         },
       });
 
-      const result = toText(
+      const result = await toText(
         await env.exec("tar -rf /nonexistent.tar /file.txt"),
       );
       expect(result.exitCode).toBe(2);
@@ -820,7 +846,7 @@ describe("tar", () => {
         },
       });
 
-      const result = toText(await env.exec("tar -r /file.txt"));
+      const result = await toText(await env.exec("tar -r /file.txt"));
       expect(result.exitCode).toBe(2);
       expect(result.stderr).toContain("Cannot append");
     });
@@ -832,7 +858,7 @@ describe("tar", () => {
         },
       });
 
-      const result = toText(
+      const result = await toText(
         await env.exec("tar -rzf /archive.tar.gz /file.txt"),
       );
       expect(result.exitCode).toBe(2);
@@ -855,13 +881,15 @@ describe("tar", () => {
       await env.exec('echo "Updated content" > /file.txt');
 
       // Update archive
-      const result = toText(await env.exec("tar -uf /archive.tar /file.txt"));
+      const result = await toText(
+        await env.exec("tar -uf /archive.tar /file.txt"),
+      );
       expect(result.exitCode).toBe(0);
 
       // Extract and verify updated content
       await env.exec("rm /file.txt");
       await env.exec("tar -xf /archive.tar");
-      const content = toText(await env.exec("cat /file.txt"));
+      const content = await toText(await env.exec("cat /file.txt"));
       expect(content.stdout.trim()).toBe("Updated content");
     });
 
@@ -876,7 +904,9 @@ describe("tar", () => {
       await env.exec("tar -cf /archive.tar /file.txt");
 
       // Try to update without modifying (should do nothing)
-      const result = toText(await env.exec("tar -uvf /archive.tar /file.txt"));
+      const result = await toText(
+        await env.exec("tar -uvf /archive.tar /file.txt"),
+      );
       expect(result.exitCode).toBe(0);
       // With verbose and no update, nothing should be output
     });
@@ -888,7 +918,7 @@ describe("tar", () => {
         },
       });
 
-      const result = toText(
+      const result = await toText(
         await env.exec("tar -uf /nonexistent.tar /file.txt"),
       );
       expect(result.exitCode).toBe(2);
@@ -902,7 +932,7 @@ describe("tar", () => {
         },
       });
 
-      const result = toText(
+      const result = await toText(
         await env.exec("tar -uzf /archive.tar.gz /file.txt"),
       );
       expect(result.exitCode).toBe(2);
@@ -926,10 +956,10 @@ describe("tar", () => {
       // Extract only .txt files using wildcard
       await env.exec("tar -xf /archive.tar --wildcards '*.txt'");
 
-      const txt1 = toText(await env.exec("cat /dir/file1.txt"));
+      const txt1 = await toText(await env.exec("cat /dir/file1.txt"));
       expect(txt1.exitCode).toBe(0);
 
-      const log = toText(
+      const log = await toText(
         await env.exec("cat /dir/other.log 2>&1 || echo 'not found'"),
       );
       expect(log.stdout).toContain("not found");
@@ -946,7 +976,7 @@ describe("tar", () => {
 
       await env.exec("tar -cf /archive.tar /dir");
 
-      const result = toText(
+      const result = await toText(
         await env.exec("tar -tf /archive.tar --wildcards '*.log'"),
       );
       expect(result.exitCode).toBe(0);
@@ -966,7 +996,7 @@ describe("tar", () => {
 
       await env.exec("tar -cf /archive.tar /dir");
 
-      const result = toText(
+      const result = await toText(
         await env.exec("tar -tf /archive.tar --wildcards 'file?.txt'"),
       );
       expect(result.exitCode).toBe(0);
@@ -991,12 +1021,12 @@ describe("tar", () => {
       // Extract only file1.txt
       await env.exec("tar -xf /archive.tar /dir/file1.txt");
 
-      const file1 = toText(await env.exec("cat /dir/file1.txt"));
+      const file1 = await toText(await env.exec("cat /dir/file1.txt"));
       expect(file1.exitCode).toBe(0);
       expect(file1.stdout).toBe("Content 1");
 
       // file2.txt should not exist
-      const file2 = toText(
+      const file2 = await toText(
         await env.exec("cat /dir/file2.txt 2>&1 || echo 'not found'"),
       );
       expect(file2.stdout).toContain("not found");
@@ -1016,11 +1046,11 @@ describe("tar", () => {
       // Extract only /project/src
       await env.exec("tar -xf /archive.tar /project/src");
 
-      const main = toText(await env.exec("cat /project/src/main.js"));
+      const main = await toText(await env.exec("cat /project/src/main.js"));
       expect(main.stdout).toBe("main");
 
       // docs should not exist
-      const docs = toText(
+      const docs = await toText(
         await env.exec("ls /project/docs 2>&1 || echo 'not found'"),
       );
       expect(docs.stdout).toContain("not found");
@@ -1035,13 +1065,13 @@ describe("tar", () => {
         },
       });
 
-      const result = toText(
+      const result = await toText(
         await env.exec("tar -caf /archive.tar.gz /test.txt"),
       );
       expect(result.exitCode).toBe(0);
 
       // Verify it's gzip compressed
-      const list = toText(await env.exec("tar -tzf /archive.tar.gz"));
+      const list = await toText(await env.exec("tar -tzf /archive.tar.gz"));
       expect(list.exitCode).toBe(0);
       expect(list.stdout).toContain("test.txt");
     });
@@ -1053,13 +1083,13 @@ describe("tar", () => {
         },
       });
 
-      const result = toText(
+      const result = await toText(
         await env.exec("tar -caf /archive.tar.bz2 /test.txt"),
       );
       expect(result.exitCode).toBe(0);
 
       // Verify it's bzip2 compressed
-      const list = toText(await env.exec("tar -tjf /archive.tar.bz2"));
+      const list = await toText(await env.exec("tar -tjf /archive.tar.bz2"));
       expect(list.exitCode).toBe(0);
       expect(list.stdout).toContain("test.txt");
     });
@@ -1071,13 +1101,13 @@ describe("tar", () => {
         },
       });
 
-      const result = toText(
+      const result = await toText(
         await env.exec("tar -caf /archive.tar.xz /test.txt"),
       );
       expect(result.exitCode).toBe(0);
 
       // Verify it's xz compressed
-      const list = toText(await env.exec("tar -tJf /archive.tar.xz"));
+      const list = await toText(await env.exec("tar -tJf /archive.tar.xz"));
       expect(list.exitCode).toBe(0);
       expect(list.stdout).toContain("test.txt");
     });
@@ -1089,13 +1119,15 @@ describe("tar", () => {
         },
       });
 
-      const result = toText(
+      const result = await toText(
         await env.exec("tar -caf /archive.tar.zst /test.txt"),
       );
       expect(result.exitCode).toBe(0);
 
       // Verify it's zstd compressed
-      const list = toText(await env.exec("tar --zstd -tf /archive.tar.zst"));
+      const list = await toText(
+        await env.exec("tar --zstd -tf /archive.tar.zst"),
+      );
       expect(list.exitCode).toBe(0);
       expect(list.stdout).toContain("test.txt");
     });
@@ -1107,11 +1139,13 @@ describe("tar", () => {
         },
       });
 
-      const result = toText(await env.exec("tar -caf /archive.tar /test.txt"));
+      const result = await toText(
+        await env.exec("tar -caf /archive.tar /test.txt"),
+      );
       expect(result.exitCode).toBe(0);
 
       // Verify it's uncompressed
-      const list = toText(await env.exec("tar -tf /archive.tar"));
+      const list = await toText(await env.exec("tar -tf /archive.tar"));
       expect(list.exitCode).toBe(0);
       expect(list.stdout).toContain("test.txt");
     });
@@ -1128,12 +1162,12 @@ describe("tar", () => {
         },
       });
 
-      const result = toText(
+      const result = await toText(
         await env.exec("tar -cf /archive.tar -T /files.list"),
       );
       expect(result.exitCode).toBe(0);
 
-      const list = toText(await env.exec("tar -tf /archive.tar"));
+      const list = await toText(await env.exec("tar -tf /archive.tar"));
       expect(list.stdout).toContain("file1.txt");
       expect(list.stdout).toContain("file2.txt");
       expect(list.stdout).not.toContain("file3.txt");
@@ -1149,12 +1183,12 @@ describe("tar", () => {
         },
       });
 
-      const result = toText(
+      const result = await toText(
         await env.exec("tar -cf /archive.tar -T /files.list"),
       );
       expect(result.exitCode).toBe(0);
 
-      const list = toText(await env.exec("tar -tf /archive.tar"));
+      const list = await toText(await env.exec("tar -tf /archive.tar"));
       expect(list.stdout).toContain("file1.txt");
       expect(list.stdout).toContain("file2.txt");
     });
@@ -1169,12 +1203,12 @@ describe("tar", () => {
         },
       });
 
-      const result = toText(
+      const result = await toText(
         await env.exec("tar -cf /archive.tar -T /files.list /file3.txt"),
       );
       expect(result.exitCode).toBe(0);
 
-      const list = toText(await env.exec("tar -tf /archive.tar"));
+      const list = await toText(await env.exec("tar -tf /archive.tar"));
       expect(list.stdout).toContain("file1.txt");
       expect(list.stdout).toContain("file3.txt");
       expect(list.stdout).not.toContain("file2.txt");
@@ -1183,7 +1217,7 @@ describe("tar", () => {
     it("should error on non-existent files-from file", async () => {
       const env = new Bash();
 
-      const result = toText(
+      const result = await toText(
         await env.exec("tar -cf /archive.tar -T /nonexistent.list"),
       );
       expect(result.exitCode).toBe(2);
@@ -1202,12 +1236,12 @@ describe("tar", () => {
         },
       });
 
-      const result = toText(
+      const result = await toText(
         await env.exec("tar -cf /archive.tar -X /excludes.list /dir"),
       );
       expect(result.exitCode).toBe(0);
 
-      const list = toText(await env.exec("tar -tf /archive.tar"));
+      const list = await toText(await env.exec("tar -tf /archive.tar"));
       expect(list.stdout).toContain("file1.txt");
       expect(list.stdout).toContain("file3.txt");
       expect(list.stdout).not.toContain("file2.log");
@@ -1223,14 +1257,14 @@ describe("tar", () => {
         },
       });
 
-      const result = toText(
+      const result = await toText(
         await env.exec(
           "tar -cf /archive.tar -X /excludes.list --exclude='*.bak' /dir",
         ),
       );
       expect(result.exitCode).toBe(0);
 
-      const list = toText(await env.exec("tar -tf /archive.tar"));
+      const list = await toText(await env.exec("tar -tf /archive.tar"));
       expect(list.stdout).toContain("file1.txt");
       expect(list.stdout).not.toContain("file2.log");
       expect(list.stdout).not.toContain("file3.bak");
@@ -1243,7 +1277,7 @@ describe("tar", () => {
         },
       });
 
-      const result = toText(
+      const result = await toText(
         await env.exec("tar -cf /archive.tar -X /nonexistent.list /test.txt"),
       );
       expect(result.exitCode).toBe(2);
@@ -1259,13 +1293,13 @@ describe("tar", () => {
         },
       });
 
-      const result = toText(
+      const result = await toText(
         await env.exec("tar --zstd -cf /archive.tar.zst /test.txt"),
       );
       expect(result.exitCode).toBe(0);
 
       // Verify the archive exists
-      const ls = toText(await env.exec("ls -la /archive.tar.zst"));
+      const ls = await toText(await env.exec("ls -la /archive.tar.zst"));
       expect(ls.exitCode).toBe(0);
     });
 
@@ -1279,10 +1313,12 @@ describe("tar", () => {
       await env.exec("tar --zstd -cf /archive.tar.zst /test.txt");
       await env.exec("rm /test.txt");
 
-      const result = toText(await env.exec("tar --zstd -xf /archive.tar.zst"));
+      const result = await toText(
+        await env.exec("tar --zstd -xf /archive.tar.zst"),
+      );
       expect(result.exitCode).toBe(0);
 
-      const cat = toText(await env.exec("cat /test.txt"));
+      const cat = await toText(await env.exec("cat /test.txt"));
       expect(cat.stdout).toBe("Hello World");
     });
 
@@ -1297,10 +1333,10 @@ describe("tar", () => {
       await env.exec("rm /test.txt");
 
       // Extract without --zstd flag (auto-detect)
-      const result = toText(await env.exec("tar -xf /archive.tar.zst"));
+      const result = await toText(await env.exec("tar -xf /archive.tar.zst"));
       expect(result.exitCode).toBe(0);
 
-      const cat = toText(await env.exec("cat /test.txt"));
+      const cat = await toText(await env.exec("cat /test.txt"));
       expect(cat.stdout).toBe("Hello World");
     });
 
@@ -1314,7 +1350,9 @@ describe("tar", () => {
 
       await env.exec("tar --zstd -cf /archive.tar.zst /file1.txt /file2.txt");
 
-      const result = toText(await env.exec("tar --zstd -tf /archive.tar.zst"));
+      const result = await toText(
+        await env.exec("tar --zstd -tf /archive.tar.zst"),
+      );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("file1.txt");
       expect(result.stdout).toContain("file2.txt");
@@ -1335,7 +1373,7 @@ describe("tar", () => {
 
       // Read archive and pipe to tar -t (tests stdin binary handling)
       // The tar archive itself contains binary header data with bytes > 127
-      const result = toText(await env.exec("cat /test.tar | tar -t"));
+      const result = await toText(await env.exec("cat /test.tar | tar -t"));
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("file1.txt");
       expect(result.stdout).toContain("file2.txt");
@@ -1354,11 +1392,13 @@ describe("tar", () => {
       // Extract from stdin (tests binary stdin handling)
       // The tar archive format includes binary header bytes that would be
       // corrupted by UTF-8 re-encoding if stdin is not handled correctly
-      const result = toText(await env.exec("cat /test.tar | tar -x -C /dest"));
+      const result = await toText(
+        await env.exec("cat /test.tar | tar -x -C /dest"),
+      );
       expect(result.exitCode).toBe(0);
 
       // Verify the extracted file exists and has correct content
-      const catResult = toText(await env.exec("cat /dest/file.txt"));
+      const catResult = await toText(await env.exec("cat /dest/file.txt"));
       expect(catResult.exitCode).toBe(0);
       expect(catResult.stdout).toBe("test content 12345");
     });
@@ -1371,26 +1411,26 @@ describe("tar", () => {
       });
 
       // Create compressed archive (gzip includes binary header bytes)
-      const createResult = toText(
+      const createResult = await toText(
         await env.exec("tar -czf /test.tar.gz -C /src data.txt"),
       );
       expect(createResult.exitCode).toBe(0);
 
       // Verify the archive exists and can be listed
-      const listResult = toText(await env.exec("tar -tzf /test.tar.gz"));
+      const listResult = await toText(await env.exec("tar -tzf /test.tar.gz"));
       expect(listResult.exitCode).toBe(0);
       expect(listResult.stdout).toContain("data.txt");
 
       // Extract from stdin - this would fail if binary stdin handling
       // corrupts the gzip magic bytes (0x1f 0x8b)
-      const result = toText(
+      const result = await toText(
         await env.exec("cat /test.tar.gz | tar -xz -C /dest"),
       );
       expect(result.stderr).toBe("");
       expect(result.exitCode).toBe(0);
 
       // Verify extraction worked
-      const catResult = toText(await env.exec("cat /dest/data.txt"));
+      const catResult = await toText(await env.exec("cat /dest/data.txt"));
       expect(catResult.exitCode).toBe(0);
       expect(catResult.stdout).toBe("Hello World");
     });

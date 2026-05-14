@@ -81,3 +81,19 @@ export type {
   IFileSystem,
 } from "./types.js";
 export { decode, EMPTY, encode } from "./utils/bytes.js";
+export type { ByteStream } from "./utils/stream.js";
+export {
+  CHUNK_SIZE,
+  collectBytes,
+  collectText,
+  concatStreams,
+  drain,
+  emptyStream,
+  fromBytes,
+  fromChunks,
+  fromString,
+  mapChunks,
+  streamChunks,
+  streamLines,
+  teeStream,
+} from "./utils/stream.js";

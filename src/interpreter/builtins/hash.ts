@@ -16,8 +16,9 @@
  */
 
 import type { ExecResult } from "../../types.js";
-import { encode, envGet } from "../../utils/bytes.js";
-import { failure, OK, successText } from "../helpers/result.js";
+import { envGet } from "../../utils/bytes.js";
+import { fromString } from "../../utils/stream.js";
+import { failure, ok, successText } from "../helpers/result.js";
 import type { InterpreterContext } from "../types.js";
 
 export async function handleHash(
@@ -96,7 +97,7 @@ export async function handleHash(
     // bash allows extra args with -r (just ignores them)
     // This is marked as a "BUG" in the spec tests, but we match bash behavior
     ctx.state.hashTable.clear();
-    return OK;
+    return ok();
   }
 
   // Handle -d (delete from table)
@@ -117,7 +118,7 @@ export async function handleHash(
     if (hasError) {
       return failure(stderr, 1);
     }
-    return OK;
+    return ok();
   }
 
   // Handle -t (show path for names)
@@ -143,7 +144,11 @@ export async function handleHash(
       }
     }
     if (hasError) {
-      return { exitCode: 1, stdout: encode(stdout), stderr: encode(stderr) };
+      return {
+        exitCode: 1,
+        stdout: fromString(stdout),
+        stderr: fromString(stderr),
+      };
     }
     return successText(stdout);
   }
@@ -159,7 +164,7 @@ export async function handleHash(
     // Associate the pathname with the first name
     const name = names[0];
     ctx.state.hashTable.set(name, pathname);
-    return OK;
+    return ok();
   }
 
   // No args - display hash table
@@ -220,5 +225,5 @@ export async function handleHash(
   if (hasError) {
     return failure(stderr, 1);
   }
-  return OK;
+  return ok();
 }

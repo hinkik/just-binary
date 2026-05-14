@@ -1,6 +1,7 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
-import { decodeArgs, EMPTY, encode } from "../../utils/bytes.js";
+import { decodeArgs } from "../../utils/bytes.js";
+import { emptyStream, fromString } from "../../utils/stream.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const statHelp = {
@@ -34,8 +35,8 @@ export const statCommand: Command = {
 
     if (files.length === 0) {
       return {
-        stdout: EMPTY,
-        stderr: encode("stat: missing operand\n"),
+        stdout: emptyStream(),
+        stderr: fromString("stat: missing operand\n"),
         exitCode: 1,
       };
     }
@@ -85,8 +86,8 @@ export const statCommand: Command = {
     }
 
     return {
-      stdout: encode(stdout),
-      stderr: encode(stderr),
+      stdout: fromString(stdout),
+      stderr: fromString(stderr),
       exitCode: hasError ? 1 : 0,
     };
   },

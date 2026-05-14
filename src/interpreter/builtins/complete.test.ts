@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { toText } from "../../test-utils.js";
 import { EMPTY } from "../../utils/bytes.js";
+import { emptyStream } from "../../utils/stream.js";
 import type { InterpreterContext, InterpreterState } from "../types.js";
 import { handleComplete } from "./complete.js";
 
@@ -58,79 +59,93 @@ function createMockCtx(): InterpreterContext {
     fs: {} as unknown as InterpreterContext["fs"],
     commands: {} as unknown as InterpreterContext["commands"],
     limits: {} as unknown as InterpreterContext["limits"],
-    execFn: async () => ({ stdout: EMPTY, stderr: EMPTY, exitCode: 0 }),
-    executeScript: async () => ({ stdout: EMPTY, stderr: EMPTY, exitCode: 0 }),
-    executeStatement: async () => ({
-      stdout: EMPTY,
-      stderr: EMPTY,
+    execFn: async () => ({
+      stdout: emptyStream(),
+      stderr: emptyStream(),
       exitCode: 0,
     }),
-    executeCommand: async () => ({ stdout: EMPTY, stderr: EMPTY, exitCode: 0 }),
+    executeScript: async () => ({
+      stdout: emptyStream(),
+      stderr: emptyStream(),
+      exitCode: 0,
+    }),
+    executeStatement: async () => ({
+      stdout: emptyStream(),
+      stderr: emptyStream(),
+      exitCode: 0,
+    }),
+    executeCommand: async () => ({
+      stdout: emptyStream(),
+      stderr: emptyStream(),
+      exitCode: 0,
+    }),
   };
 }
 
 describe("complete builtin", () => {
-  test("complete with no args and no specs", () => {
+  test("complete with no args and no specs", async () => {
     const ctx = createMockCtx();
-    const result = toText(handleComplete(ctx, []));
+    const result = await toText(handleComplete(ctx, []));
     expect(result.stdout).toBe("");
     expect(result.exitCode).toBe(0);
   });
 
-  test("complete -W sets wordlist completion", () => {
+  test("complete -W sets wordlist completion", async () => {
     const ctx = createMockCtx();
-    const result = toText(handleComplete(ctx, ["-W", "foo bar", "mycommand"]));
+    const result = await toText(
+      handleComplete(ctx, ["-W", "foo bar", "mycommand"]),
+    );
     expect(result.exitCode).toBe(0);
     expect(ctx.state.completionSpecs?.get("mycommand")).toEqual({
       wordlist: "foo bar",
     });
   });
 
-  test("complete -p prints completions", () => {
+  test("complete -p prints completions", async () => {
     const ctx = createMockCtx();
     handleComplete(ctx, ["-W", "foo bar", "mycommand"]);
-    const result = toText(handleComplete(ctx, ["-p"]));
+    const result = await toText(handleComplete(ctx, ["-p"]));
     expect(result.stdout).toBe("complete -W 'foo bar' mycommand\n");
     expect(result.exitCode).toBe(0);
   });
 
-  test("complete with no args prints completions", () => {
+  test("complete with no args prints completions", async () => {
     const ctx = createMockCtx();
     handleComplete(ctx, ["-W", "foo bar", "mycommand"]);
-    const result = toText(handleComplete(ctx, []));
+    const result = await toText(handleComplete(ctx, []));
     expect(result.stdout).toBe("complete -W 'foo bar' mycommand\n");
     expect(result.exitCode).toBe(0);
   });
 
-  test("complete -F sets function completion", () => {
+  test("complete -F sets function completion", async () => {
     const ctx = createMockCtx();
-    const result = toText(handleComplete(ctx, ["-F", "myfunc", "other"]));
+    const result = await toText(handleComplete(ctx, ["-F", "myfunc", "other"]));
     expect(result.exitCode).toBe(0);
     expect(ctx.state.completionSpecs?.get("other")).toEqual({
       function: "myfunc",
     });
   });
 
-  test("complete prints both specs", () => {
+  test("complete prints both specs", async () => {
     const ctx = createMockCtx();
     handleComplete(ctx, ["-W", "foo bar", "mycommand"]);
     handleComplete(ctx, ["-F", "myfunc", "other"]);
-    const result = toText(handleComplete(ctx, []));
+    const result = await toText(handleComplete(ctx, []));
     expect(result.stdout).toContain("complete -W 'foo bar' mycommand\n");
     expect(result.stdout).toContain("complete -F myfunc other\n");
     expect(result.exitCode).toBe(0);
   });
 
-  test("complete -F without command is error", () => {
+  test("complete -F without command is error", async () => {
     const ctx = createMockCtx();
-    const result = toText(handleComplete(ctx, ["-F", "f"]));
+    const result = await toText(handleComplete(ctx, ["-F", "f"]));
     expect(result.exitCode).toBe(2);
     expect(result.stderr).toContain("-F");
   });
 
-  test("complete -o default -o nospace -F works", () => {
+  test("complete -o default -o nospace -F works", async () => {
     const ctx = createMockCtx();
-    const result = toText(
+    const result = await toText(
       handleComplete(ctx, [
         "-o",
         "default",
@@ -148,19 +163,19 @@ describe("complete builtin", () => {
     });
   });
 
-  test("complete -r removes spec", () => {
+  test("complete -r removes spec", async () => {
     const ctx = createMockCtx();
     handleComplete(ctx, ["-W", "foo bar", "mycommand"]);
     handleComplete(ctx, ["-F", "myfunc", "other"]);
     handleComplete(ctx, ["-r", "mycommand"]);
-    const result = toText(handleComplete(ctx, []));
+    const result = await toText(handleComplete(ctx, []));
     expect(result.stdout).toBe("complete -F myfunc other\n");
     expect(ctx.state.completionSpecs?.has("mycommand")).toBe(false);
   });
 
-  test("complete -D sets default completion", () => {
+  test("complete -D sets default completion", async () => {
     const ctx = createMockCtx();
-    const result = toText(handleComplete(ctx, ["-F", "invalidZZ", "-D"]));
+    const result = await toText(handleComplete(ctx, ["-F", "invalidZZ", "-D"]));
     expect(result.exitCode).toBe(0);
     expect(ctx.state.completionSpecs?.get("__default__")).toEqual({
       function: "invalidZZ",
@@ -168,9 +183,9 @@ describe("complete builtin", () => {
     });
   });
 
-  test("complete foo with no options is allowed (bash BUG behavior)", () => {
+  test("complete foo with no options is allowed (bash BUG behavior)", async () => {
     const ctx = createMockCtx();
-    const result = toText(handleComplete(ctx, ["foo"]));
+    const result = await toText(handleComplete(ctx, ["foo"]));
     expect(result.exitCode).toBe(0);
   });
 });
