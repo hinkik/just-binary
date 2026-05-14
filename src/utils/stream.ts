@@ -133,32 +133,53 @@ export async function collectText(stream: ByteStream): Promise<string> {
   return out;
 }
 
-/** Concatenate two streams: emit all chunks of `a`, then all of `b`. */
+/** Concatenate two streams: emit all chunks of `a`, then all of `b`.
+ *
+ * Lazy: input streams are not opened (i.e. no reader is acquired) until
+ * downstream pulls. This matters because the construction site is allowed
+ * to keep the inputs unlocked and even hand `a` to another consumer — only
+ * one of them will end up reading it, but neither call should fail at
+ * construction time.
+ */
 export function concatStreams(a: ByteStream, b: ByteStream): ByteStream {
+  let stage: "a" | "b" | "done" = "a";
+  let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
   return new ReadableStream<Uint8Array>({
-    async start(controller) {
-      const drain = async (s: ByteStream) => {
-        const r = s.getReader();
-        try {
-          while (true) {
-            const { done, value } = await r.read();
-            if (done) break;
-            if (value && value.length > 0) controller.enqueue(value);
-          }
-        } finally {
-          r.releaseLock();
+    async pull(controller) {
+      while (true) {
+        if (stage === "done") {
+          controller.close();
+          return;
         }
-      };
-      try {
-        await drain(a);
-        await drain(b);
-        controller.close();
-      } catch (err) {
-        controller.error(err);
+        if (reader === null) {
+          reader = (stage === "a" ? a : b).getReader();
+        }
+        const { done, value } = await reader.read();
+        if (done) {
+          reader.releaseLock();
+          reader = null;
+          stage = stage === "a" ? "b" : "done";
+          continue;
+        }
+        if (value && value.length > 0) {
+          controller.enqueue(value);
+          return;
+        }
+      }
+    },
+    async cancel() {
+      if (reader) {
+        try {
+          await reader.cancel();
+        } catch {
+          // ignore
+        }
+        reader = null;
       }
     },
   });
 }
+
 
 /** Tee a stream into two independent streams (e.g. for |&). */
 export function teeStream(s: ByteStream): [ByteStream, ByteStream] {

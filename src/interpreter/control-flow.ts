@@ -254,14 +254,20 @@ export async function executeCStyleFor(
       } catch (error) {
         const loopResult = handleLoopError(
           error,
-          emptyStream(),
-          emptyStream(),
+          buildStdout(),
+          buildStderr(),
           ctx.state.loopDepth,
         );
-        await drainTo(stdoutChunks, loopResult.stdout);
-        await drainTo(stderrChunks, loopResult.stderr);
-        if (loopResult.action === "break") break;
+        stdoutChunks.length = 0;
+        stderrChunks.length = 0;
+        if (loopResult.action === "break") {
+          await drainTo(stdoutChunks, loopResult.stdout);
+          await drainTo(stderrChunks, loopResult.stderr);
+          break;
+        }
         if (loopResult.action === "continue") {
+          await drainTo(stdoutChunks, loopResult.stdout);
+          await drainTo(stderrChunks, loopResult.stderr);
           if (node.update) {
             await evaluateArithmetic(ctx, node.update.expression);
           }
@@ -269,16 +275,11 @@ export async function executeCStyleFor(
         }
         if (loopResult.action === "error") {
           const bodyResult = result(
-            buildStdout(),
-            buildStderr(),
+            loopResult.stdout,
+            loopResult.stderr,
             loopResult.exitCode ?? 1,
           );
           return applyRedirections(ctx, bodyResult, node.redirections);
-        }
-        if (loopResult.action === "rethrow" && loopResult.error) {
-          (loopResult.error as { stdout: ByteStream }).stdout = buildStdout();
-          (loopResult.error as { stderr: ByteStream }).stderr = buildStderr();
-          throw loopResult.error;
         }
         throw loopResult.error;
       }
