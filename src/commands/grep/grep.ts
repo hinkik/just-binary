@@ -269,13 +269,16 @@ export const grepCommand: Command = {
           };
         }
         return {
-          stdout:
-            chunks.length === 0 ? emptyStream() : fromChunks(chunks),
+          stdout: chunks.length === 0 ? emptyStream() : fromChunks(chunks),
           stderr: emptyStream(),
           exitCode,
         };
       }
-      const result = searchContent(await collectText(ctx.stdin), regex, searchOpts);
+      const result = searchContent(
+        await collectText(ctx.stdin),
+        regex,
+        searchOpts,
+      );
       if (quietMode) {
         return {
           stdout: emptyStream(),

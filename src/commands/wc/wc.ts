@@ -160,7 +160,11 @@ async function countStatsFromStream(
           words++;
           inWord = false;
         }
-      } else if (c === 0x20 /* space */ || c === 0x09 /* tab */ || c === 0x0d /* CR */) {
+      } else if (
+        c === 0x20 /* space */ ||
+        c === 0x09 /* tab */ ||
+        c === 0x0d /* CR */
+      ) {
         if (inWord) {
           words++;
           inWord = false;

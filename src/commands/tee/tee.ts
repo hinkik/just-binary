@@ -94,7 +94,10 @@ export const teeCommand: Command = {
     }
 
     return {
-      stdout: outChunks.length > 0 ? (fromChunks(outChunks) as ByteStream) : fromString(""),
+      stdout:
+        outChunks.length > 0
+          ? (fromChunks(outChunks) as ByteStream)
+          : fromString(""),
       stderr: fromString(stderr),
       exitCode,
     };

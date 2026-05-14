@@ -1,7 +1,6 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { parseArgs } from "../../utils/args.js";
 import { decodeArgs } from "../../utils/bytes.js";
-import { streamChunks } from "../../utils/stream.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
 const trHelp = {
@@ -172,8 +171,7 @@ export const trCommand: Command = {
       } else {
         translationMap = new Map<string, string>();
         for (let i = 0; i < set1Raw.length; i++) {
-          const targetChar =
-            i < set2.length ? set2[i] : set2[set2.length - 1];
+          const targetChar = i < set2.length ? set2[i] : set2[set2.length - 1];
           translationMap.set(set1Raw[i], targetChar);
         }
       }
@@ -247,7 +245,9 @@ export const trCommand: Command = {
               controller.close();
               return;
             }
-            const r = await (reader as ReadableStreamDefaultReader<Uint8Array>).read();
+            const r = await (
+              reader as ReadableStreamDefaultReader<Uint8Array>
+            ).read();
             if (r.done) {
               upstreamDone = true;
               (reader as ReadableStreamDefaultReader<Uint8Array>).releaseLock();

@@ -98,143 +98,137 @@ describe.skipIf(!runBigFile)(
   "big-file e2e",
   { timeout: TEST_TIMEOUT_MS },
   () => {
-  it("wc -c counts bytes without buffering", async () => {
-    const r = await toText(await env.exec(`wc -c < /big.bin`));
-    if (r.exitCode !== 0) console.error("wc stderr:", r.stderr);
-    expect(r.exitCode).toBe(0);
-    const n = Number(r.stdout.trim());
-    expect(n).toBe(FILE_SIZE_BYTES + "END-MARKER\n".length);
-  });
+    it("wc -c counts bytes without buffering", async () => {
+      const r = await toText(await env.exec(`wc -c < /big.bin`));
+      if (r.exitCode !== 0) console.error("wc stderr:", r.stderr);
+      expect(r.exitCode).toBe(0);
+      const n = Number(r.stdout.trim());
+      expect(n).toBe(FILE_SIZE_BYTES + "END-MARKER\n".length);
+    });
 
-  it("head -c streams without reading the whole file", async () => {
-    const r = await toText(await env.exec(`head -c 10 < /big.bin`));
-    expect(r.exitCode).toBe(0);
-    expect(r.stdout).toBe("AAAAAAAAAA");
-  });
+    it("head -c streams without reading the whole file", async () => {
+      const r = await toText(await env.exec(`head -c 10 < /big.bin`));
+      expect(r.exitCode).toBe(0);
+      expect(r.stdout).toBe("AAAAAAAAAA");
+    });
 
-  it("tail -c streams the trailing bytes", async () => {
-    const r = await toText(await env.exec(`tail -c 11 < /big.bin`));
-    expect(r.exitCode).toBe(0);
-    expect(r.stdout).toBe("END-MARKER\n");
-  });
+    it("tail -c streams the trailing bytes", async () => {
+      const r = await toText(await env.exec(`tail -c 11 < /big.bin`));
+      expect(r.exitCode).toBe(0);
+      expect(r.stdout).toBe("END-MARKER\n");
+    });
 
-  it("cat copies a 600 MB file via stream redirection", async () => {
-    const r = await toText(
-      await env.exec(`cat /big.bin > /copy.bin && wc -c < /copy.bin`),
-    );
-    expect(r.exitCode).toBe(0);
-    const n = Number(r.stdout.trim());
-    expect(n).toBe(FILE_SIZE_BYTES + "END-MARKER\n".length);
-  });
-
-  it("pipe through cat | head still stops early", async () => {
-    const r = await toText(
-      await env.exec(`cat /big.bin | head -c 5`),
-    );
-    expect(r.exitCode).toBe(0);
-    expect(r.stdout).toBe("AAAAA");
-  });
-
-  it("tee writes a copy and forwards bytes", async () => {
-    const r = await toText(
-      await env.exec(`cat /big.bin | tee /tee.bin | head -c 5`),
-    );
-    expect(r.exitCode).toBe(0);
-    expect(r.stdout).toBe("AAAAA");
-    const teeStat = await realFs.stat("/tee.bin");
-    // tee should have written at least a few MB (it stops once the
-    // downstream reader's pipe closes, but typically not after only 5 bytes).
-    expect(teeStat.size).toBeGreaterThan(1024);
-  });
-
-  it("filesystem stat reports the real size", async () => {
-    const r = await toText(await env.exec(`stat -c '%s' /big.bin`));
-    if (r.exitCode === 0) {
-      expect(Number(r.stdout.trim())).toBe(
-        FILE_SIZE_BYTES + "END-MARKER\n".length,
+    it("cat copies a 600 MB file via stream redirection", async () => {
+      const r = await toText(
+        await env.exec(`cat /big.bin > /copy.bin && wc -c < /copy.bin`),
       );
-    } else {
-      // some platforms ship a different `stat`; the wc fallback below
-      // already exercises the same path.
-    }
-  });
+      expect(r.exitCode).toBe(0);
+      const n = Number(r.stdout.trim());
+      expect(n).toBe(FILE_SIZE_BYTES + "END-MARKER\n".length);
+    });
 
-  it("direct fs.readFile stream survives without OOM", async () => {
-    // Read the whole stream and assert size via byte counting (never
-    // building a single string).
-    const stream = await realFs.readFile("/big.bin");
-    let total = 0;
-    const reader = stream.getReader();
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        if (value) total += value.length;
+    it("pipe through cat | head still stops early", async () => {
+      const r = await toText(await env.exec(`cat /big.bin | head -c 5`));
+      expect(r.exitCode).toBe(0);
+      expect(r.stdout).toBe("AAAAA");
+    });
+
+    it("tee writes a copy and forwards bytes", async () => {
+      const r = await toText(
+        await env.exec(`cat /big.bin | tee /tee.bin | head -c 5`),
+      );
+      expect(r.exitCode).toBe(0);
+      expect(r.stdout).toBe("AAAAA");
+      const teeStat = await realFs.stat("/tee.bin");
+      // tee should have written at least a few MB (it stops once the
+      // downstream reader's pipe closes, but typically not after only 5 bytes).
+      expect(teeStat.size).toBeGreaterThan(1024);
+    });
+
+    it("filesystem stat reports the real size", async () => {
+      const r = await toText(await env.exec(`stat -c '%s' /big.bin`));
+      if (r.exitCode === 0) {
+        expect(Number(r.stdout.trim())).toBe(
+          FILE_SIZE_BYTES + "END-MARKER\n".length,
+        );
+      } else {
+        // some platforms ship a different `stat`; the wc fallback below
+        // already exercises the same path.
       }
-    } finally {
-      reader.releaseLock();
-    }
-    expect(total).toBe(FILE_SIZE_BYTES + "END-MARKER\n".length);
-  });
+    });
 
-  it("grep streams over a big file", async () => {
-    // Pattern only matches the marker at the very end.
-    const r = await toText(await env.exec(`grep END /big.bin`));
-    expect(r.exitCode).toBe(0);
-    expect(r.stdout).toBe("END-MARKER\n");
-  });
+    it("direct fs.readFile stream survives without OOM", async () => {
+      // Read the whole stream and assert size via byte counting (never
+      // building a single string).
+      const stream = await realFs.readFile("/big.bin");
+      let total = 0;
+      const reader = stream.getReader();
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (value) total += value.length;
+        }
+      } finally {
+        reader.releaseLock();
+      }
+      expect(total).toBe(FILE_SIZE_BYTES + "END-MARKER\n".length);
+    });
 
-  it("tr translates a big stream through pipes", async () => {
-    const r = await toText(
-      await env.exec(`tr A b < /big.bin | head -c 5`),
-    );
-    expect(r.exitCode).toBe(0);
-    expect(r.stdout).toBe("bbbbb");
-  });
+    it("grep streams over a big file", async () => {
+      // Pattern only matches the marker at the very end.
+      const r = await toText(await env.exec(`grep END /big.bin`));
+      expect(r.exitCode).toBe(0);
+      expect(r.stdout).toBe("END-MARKER\n");
+    });
 
-  it("uniq deduplicates streamed lines", async () => {
-    // The big file is many lines of "AAA…A\n", so uniq should produce one
-    // line plus the marker.
-    const r = await toText(await env.exec(`uniq /big.bin`));
-    expect(r.exitCode).toBe(0);
-    const lines = r.stdout.split("\n").filter(Boolean);
-    expect(lines.length).toBe(2);
-    expect(lines[1]).toBe("END-MARKER");
-  });
+    it("tr translates a big stream through pipes", async () => {
+      const r = await toText(await env.exec(`tr A b < /big.bin | head -c 5`));
+      expect(r.exitCode).toBe(0);
+      expect(r.stdout).toBe("bbbbb");
+    });
 
-  it("cut -c streams character ranges from a big file", async () => {
-    const r = await toText(
-      await env.exec(`cut -c1-3 /big.bin | head -c 4`),
-    );
-    expect(r.exitCode).toBe(0);
-    expect(r.stdout).toBe("AAA\n");
-  });
+    it("uniq deduplicates streamed lines", async () => {
+      // The big file is many lines of "AAA…A\n", so uniq should produce one
+      // line plus the marker.
+      const r = await toText(await env.exec(`uniq /big.bin`));
+      expect(r.exitCode).toBe(0);
+      const lines = r.stdout.split("\n").filter(Boolean);
+      expect(lines.length).toBe(2);
+      expect(lines[1]).toBe("END-MARKER");
+    });
 
-  it("cat | head closes early — lazy cat doesn't read the rest", async () => {
-    // The lazy cat win: this should complete in well under a second even
-    // for a multi-GB file, because head -c 5 closes the pipe almost
-    // immediately and cat's source stream's cancel() fires.
-    const start = performance.now();
-    const r = await toText(await env.exec(`cat /big.bin | head -c 5`));
-    const elapsed = performance.now() - start;
-    expect(r.exitCode).toBe(0);
-    expect(r.stdout).toBe("AAAAA");
-    // 1 second is generous; on a 3 GB file we typically see < 50 ms.
-    expect(elapsed).toBeLessThan(1000);
-  });
+    it("cut -c streams character ranges from a big file", async () => {
+      const r = await toText(await env.exec(`cut -c1-3 /big.bin | head -c 4`));
+      expect(r.exitCode).toBe(0);
+      expect(r.stdout).toBe("AAA\n");
+    });
 
-  it("collectBytes on a big stream produces a single Uint8Array up to V8 limit", async () => {
-    // V8 ArrayBuffer cap is ~8 PB on 64-bit, so 600 MB is fine. The point
-    // here is to assert we don't have any hidden assumption forcing a
-    // string conversion along the way.
-    const stream = await realFs.readFile("/big.bin");
-    const bytes = await collectBytes(stream);
-    expect(bytes.length).toBe(FILE_SIZE_BYTES + "END-MARKER\n".length);
-    // First byte is 'A', byte before the marker is also data
-    expect(bytes[0]).toBe(0x41);
-    // Last 11 bytes are the marker
-    const tail = new TextDecoder().decode(bytes.subarray(bytes.length - 11));
-    expect(tail).toBe("END-MARKER\n");
-  });
+    it("cat | head closes early — lazy cat doesn't read the rest", async () => {
+      // The lazy cat win: this should complete in well under a second even
+      // for a multi-GB file, because head -c 5 closes the pipe almost
+      // immediately and cat's source stream's cancel() fires.
+      const start = performance.now();
+      const r = await toText(await env.exec(`cat /big.bin | head -c 5`));
+      const elapsed = performance.now() - start;
+      expect(r.exitCode).toBe(0);
+      expect(r.stdout).toBe("AAAAA");
+      // 1 second is generous; on a 3 GB file we typically see < 50 ms.
+      expect(elapsed).toBeLessThan(1000);
+    });
+
+    it("collectBytes on a big stream produces a single Uint8Array up to V8 limit", async () => {
+      // V8 ArrayBuffer cap is ~8 PB on 64-bit, so 600 MB is fine. The point
+      // here is to assert we don't have any hidden assumption forcing a
+      // string conversion along the way.
+      const stream = await realFs.readFile("/big.bin");
+      const bytes = await collectBytes(stream);
+      expect(bytes.length).toBe(FILE_SIZE_BYTES + "END-MARKER\n".length);
+      // First byte is 'A', byte before the marker is also data
+      expect(bytes[0]).toBe(0x41);
+      // Last 11 bytes are the marker
+      const tail = new TextDecoder().decode(bytes.subarray(bytes.length - 11));
+      expect(tail).toBe("END-MARKER\n");
+    });
   },
 );

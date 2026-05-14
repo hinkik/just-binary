@@ -46,7 +46,7 @@ export const uniqCommand: Command = {
 
     // Resolve input stream — file or stdin.
     let input: ByteStream;
-    let openError = "";
+    const openError = "";
     if (files.length === 0) {
       input = ctx.stdin;
     } else {
@@ -74,9 +74,7 @@ export const uniqCommand: Command = {
     const formatOut = (line: string, c: number): string => {
       if (duplicatesOnly && c <= 1) return "";
       if (uniqueOnly && c !== 1) return "";
-      return count
-        ? `${String(c).padStart(4)} ${line}\n`
-        : `${line}\n`;
+      return count ? `${String(c).padStart(4)} ${line}\n` : `${line}\n`;
     };
 
     const keyOf = (s: string) => (ignoreCase ? s.toLowerCase() : s);

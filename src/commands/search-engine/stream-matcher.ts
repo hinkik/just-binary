@@ -81,7 +81,11 @@ export function searchStream(
       const prefix = filename ? `${filename}:` : "";
       const contextPrefix = filename ? `${filename}-` : "";
 
-      const formatLine = (line: string, n: number, isMatch: boolean): string => {
+      const formatLine = (
+        line: string,
+        n: number,
+        isMatch: boolean,
+      ): string => {
         const sep = isMatch ? ":" : "-";
         const fileTag = filename ? (isMatch ? prefix : contextPrefix) : "";
         const lineTag = showLineNumbers ? `${n}${sep}` : "";
@@ -96,7 +100,8 @@ export function searchStream(
       };
 
       const emit = (s: string) => {
-        if (s.length > 0) controller.enqueue(new TextEncoder().encode(s) as Uint8Array);
+        if (s.length > 0)
+          controller.enqueue(new TextEncoder().encode(s) as Uint8Array);
       };
 
       try {
@@ -127,11 +132,7 @@ export function searchStream(
             if (countMatches) {
               // Count individual matches on this line
               regex.lastIndex = 0;
-              for (
-                let m = regex.exec(line);
-                m !== null;
-                m = regex.exec(line)
-              ) {
+              for (let m = regex.exec(line); m !== null; m = regex.exec(line)) {
                 totalMatchCount++;
                 if (m[0].length === 0) regex.lastIndex++;
               }
@@ -141,8 +142,7 @@ export function searchStream(
             // Emit a separator only if there was a gap between this match's
             // (or its before-context's) first line and the previously emitted
             // line. With overlapping context windows there is no gap.
-            const firstLineToEmit =
-              before.length > 0 ? before[0].n : lineNum;
+            const firstLineToEmit = before.length > 0 ? before[0].n : lineNum;
             if (
               (beforeContext > 0 || afterContext > 0) &&
               lastEmittedLine > 0 &&
@@ -160,18 +160,13 @@ export function searchStream(
             if (onlyMatching) {
               // Emit each match separately
               regex.lastIndex = 0;
-              for (
-                let m = regex.exec(line);
-                m !== null;
-                m = regex.exec(line)
-              ) {
+              for (let m = regex.exec(line); m !== null; m = regex.exec(line)) {
                 const matchText =
                   kResetGroup !== undefined && m[kResetGroup] !== undefined
                     ? m[kResetGroup]
                     : m[0];
-                const out = replace !== null
-                  ? applyReplacement(replace, m)
-                  : matchText;
+                const out =
+                  replace !== null ? applyReplacement(replace, m) : matchText;
                 emit(formatLine(out, lineNum, true));
                 totalMatchCount++;
                 if (m[0].length === 0) regex.lastIndex++;
@@ -205,7 +200,11 @@ export function searchStream(
             emit(formatLine(line, lineNum, false));
             lastEmittedLine = lineNum;
             afterRemaining--;
-            if (afterRemaining === 0 && maxCount > 0 && totalMatchCount >= maxCount) {
+            if (
+              afterRemaining === 0 &&
+              maxCount > 0 &&
+              totalMatchCount >= maxCount
+            ) {
               break;
             }
           } else if (passthru) {

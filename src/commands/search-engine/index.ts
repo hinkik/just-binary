@@ -13,14 +13,14 @@ export {
   searchContent,
 } from "./matcher.js";
 export {
-  canStream,
-  searchStream,
-  type StreamSearchResult,
-} from "./stream-matcher.js";
-export {
   buildRegex,
   convertReplacement,
   type RegexMode,
   type RegexOptions,
   type RegexResult,
 } from "./regex.js";
+export {
+  canStream,
+  type StreamSearchResult,
+  searchStream,
+} from "./stream-matcher.js";

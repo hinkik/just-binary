@@ -111,7 +111,8 @@ export const catCommand: Command = {
               return;
             }
           }
-          const reader = currentReader as ReadableStreamDefaultReader<Uint8Array>;
+          const reader =
+            currentReader as ReadableStreamDefaultReader<Uint8Array>;
           const { done, value } = await reader.read();
           if (done) {
             reader.releaseLock();

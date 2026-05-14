@@ -180,7 +180,6 @@ export function concatStreams(a: ByteStream, b: ByteStream): ByteStream {
   });
 }
 
-
 /** Tee a stream into two independent streams (e.g. for |&). */
 export function teeStream(s: ByteStream): [ByteStream, ByteStream] {
   return s.tee();
