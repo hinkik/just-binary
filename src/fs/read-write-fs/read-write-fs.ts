@@ -25,6 +25,7 @@ import type {
   RmOptions,
   WriteFileOptions,
 } from "../interface.js";
+import { validateRange } from "../range.js";
 
 export interface ReadWriteFsOptions {
   /**
@@ -121,6 +122,44 @@ export class ReadWriteFs implements IFileSystem {
     // Node Readable → Web ReadableStream<Uint8Array>
     const nodeStream = fs.createReadStream(realPath);
     return Readable.toWeb(nodeStream) as ByteStream;
+  }
+
+  async readRange(
+    path: string,
+    offset: number,
+    length: number,
+  ): Promise<Uint8Array> {
+    validateRange(offset, length);
+    const realPath = this.toRealPath(path);
+
+    let stat: fs.Stats;
+    try {
+      stat = await fs.promises.lstat(realPath);
+    } catch (e) {
+      const err = e as NodeJS.ErrnoException;
+      if (err.code === "ENOENT") {
+        throw new Error(`ENOENT: no such file or directory, open '${path}'`);
+      }
+      throw e;
+    }
+    if (stat.isDirectory()) {
+      throw new Error(
+        `EISDIR: illegal operation on a directory, read '${path}'`,
+      );
+    }
+
+    if (length === 0 || offset >= stat.size) {
+      return new Uint8Array(0);
+    }
+    const clamped = Math.min(length, stat.size - offset);
+    const buf = new Uint8Array(clamped);
+    const handle = await fs.promises.open(realPath, "r");
+    try {
+      const { bytesRead } = await handle.read(buf, 0, clamped, offset);
+      return bytesRead === clamped ? buf : buf.subarray(0, bytesRead);
+    } finally {
+      await handle.close();
+    }
   }
 
   async readFileText(

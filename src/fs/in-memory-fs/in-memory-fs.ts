@@ -23,6 +23,7 @@ import type {
   SymlinkEntry,
   WriteFileOptions,
 } from "../interface.js";
+import { sliceChunks, validateRange } from "../range.js";
 
 // Re-export for convenience
 export type {
@@ -168,6 +169,28 @@ export class InMemoryFs implements IFileSystem {
     }
 
     return fromChunks(entry.chunks);
+  }
+
+  async readRange(
+    path: string,
+    offset: number,
+    length: number,
+  ): Promise<Uint8Array> {
+    validateRange(offset, length);
+    validatePath(path, "open");
+    const resolvedPath = this.resolvePathWithSymlinks(path);
+    const entry = this.data.get(resolvedPath);
+
+    if (!entry) {
+      throw new Error(`ENOENT: no such file or directory, open '${path}'`);
+    }
+    if (entry.type !== "file") {
+      throw new Error(
+        `EISDIR: illegal operation on a directory, read '${path}'`,
+      );
+    }
+
+    return sliceChunks(entry.chunks, entry.size, offset, length);
   }
 
   async readFileText(

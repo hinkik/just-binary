@@ -26,6 +26,7 @@ import type {
   RmOptions,
   WriteFileOptions,
 } from "../interface.js";
+import { sliceChunks, validateRange } from "../range.js";
 
 interface MemoryFileEntry {
   type: "file";
@@ -346,6 +347,101 @@ export class OverlayFs implements IFileSystem {
   async readFile(path: string): Promise<ByteStream> {
     const chunks = await this.readFileChunks(path);
     return fromChunks(chunks);
+  }
+
+  async readRange(
+    path: string,
+    offset: number,
+    length: number,
+  ): Promise<Uint8Array> {
+    validateRange(offset, length);
+    const resolved = await this.resolveForRead(path);
+    if (resolved.kind === "memory") {
+      return sliceChunks(resolved.chunks, resolved.size, offset, length);
+    }
+    if (length === 0 || offset >= resolved.size) {
+      return new Uint8Array(0);
+    }
+    const clamped = Math.min(length, resolved.size - offset);
+    const buf = new Uint8Array(clamped);
+    const handle = await fs.promises.open(resolved.realPath, "r");
+    try {
+      const { bytesRead } = await handle.read(buf, 0, clamped, offset);
+      return bytesRead === clamped ? buf : buf.subarray(0, bytesRead);
+    } finally {
+      await handle.close();
+    }
+  }
+
+  /**
+   * Resolve a path through symlinks for read purposes, returning either the
+   * in-memory chunked representation or the underlying real-fs path so the
+   * caller can choose between random-access and full reads.
+   */
+  private async resolveForRead(
+    path: string,
+    seen: Set<string> = new Set(),
+  ): Promise<
+    | { kind: "memory"; chunks: Uint8Array[]; size: number }
+    | { kind: "real"; realPath: string; size: number }
+  > {
+    validatePath(path, "open");
+    const normalized = this.normalizePath(path);
+
+    if (seen.has(normalized)) {
+      throw new Error(
+        `ELOOP: too many levels of symbolic links, open '${path}'`,
+      );
+    }
+    seen.add(normalized);
+
+    if (this.deleted.has(normalized)) {
+      throw new Error(`ENOENT: no such file or directory, open '${path}'`);
+    }
+
+    const memEntry = this.memory.get(normalized);
+    if (memEntry) {
+      if (memEntry.type === "symlink") {
+        const target = this.resolveSymlink(normalized, memEntry.target);
+        return this.resolveForRead(target, seen);
+      }
+      if (memEntry.type !== "file") {
+        throw new Error(
+          `EISDIR: illegal operation on a directory, read '${path}'`,
+        );
+      }
+      return { kind: "memory", chunks: memEntry.chunks, size: memEntry.size };
+    }
+
+    const realPath = this.toRealPath(normalized);
+    if (!realPath) {
+      throw new Error(`ENOENT: no such file or directory, open '${path}'`);
+    }
+
+    try {
+      const stat = await fs.promises.lstat(realPath);
+      if (stat.isSymbolicLink()) {
+        const target = await fs.promises.readlink(realPath);
+        const resolvedTarget = this.resolveSymlink(normalized, target);
+        return this.resolveForRead(resolvedTarget, seen);
+      }
+      if (stat.isDirectory()) {
+        throw new Error(
+          `EISDIR: illegal operation on a directory, read '${path}'`,
+        );
+      }
+      if (this.maxFileReadSize > 0 && stat.size > this.maxFileReadSize) {
+        throw new Error(
+          `EFBIG: file too large, read '${path}' (${stat.size} bytes, max ${this.maxFileReadSize})`,
+        );
+      }
+      return { kind: "real", realPath, size: stat.size };
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code === "ENOENT") {
+        throw new Error(`ENOENT: no such file or directory, open '${path}'`);
+      }
+      throw e;
+    }
   }
 
   async readFileText(
