@@ -66,6 +66,7 @@ export type CommandName =
   | "true"
   | "false"
   | "clear"
+  | "yes"
   | "bash"
   | "sh"
   | "jq"
@@ -344,6 +345,10 @@ const commandLoaders: LazyCommandDef<CommandName>[] = [
   {
     name: "clear",
     load: async () => (await import("./clear/clear.js")).clearCommand,
+  },
+  {
+    name: "yes",
+    load: async () => (await import("./yes/yes.js")).yesCommand,
   },
 
   // Shell

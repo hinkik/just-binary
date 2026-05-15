@@ -12,6 +12,11 @@ import { decodeArgs } from "../../utils/bytes.js";
  * Options:
  *   -s STRING  use STRING to separate numbers (default: newline)
  *   -w         equalize width by padding with leading zeros
+ *
+ * Implementation: pull-based stream. We emit ~16 KiB of output per pull
+ * so memory stays O(1) regardless of the sequence length, and a downstream
+ * consumer that closes early (e.g. `seq 1 1000000000 | head -c 5`) will
+ * cancel us after a single chunk.
  */
 export const seqCommand: Command = {
   name: "seq",
@@ -45,7 +50,6 @@ export const seqCommand: Command = {
       }
 
       if (arg.startsWith("-") && arg !== "-") {
-        // Check for combined flags or -sSTRING
         if (arg.startsWith("-s") && arg.length > 2) {
           separator = arg.slice(2);
           i++;
@@ -66,7 +70,6 @@ export const seqCommand: Command = {
       i++;
     }
 
-    // Collect remaining args as numbers
     while (i < a.length) {
       nums.push(a[i]);
       i++;
@@ -95,7 +98,6 @@ export const seqCommand: Command = {
       last = parseFloat(nums[2]);
     }
 
-    // Validate numbers
     if (Number.isNaN(first) || Number.isNaN(increment) || Number.isNaN(last)) {
       const invalid = nums.find((n) => Number.isNaN(parseFloat(n)));
       return {
@@ -115,61 +117,94 @@ export const seqCommand: Command = {
       };
     }
 
-    // Generate sequence
-    const results: string[] = [];
-
-    // Determine precision for floating point
-    const getPrecision = (n: number): number => {
-      const str = String(n);
-      const dotIndex = str.indexOf(".");
-      return dotIndex === -1 ? 0 : str.length - dotIndex - 1;
-    };
-
     const precision = Math.max(
       getPrecision(first),
       getPrecision(increment),
       getPrecision(last),
     );
 
-    // Limit iterations to prevent infinite loops
-    const maxIterations = 100000;
-    let iterations = 0;
-
-    if (increment > 0) {
-      for (let n = first; n <= last + 1e-10; n += increment) {
-        if (iterations++ > maxIterations) break;
-        results.push(
-          precision > 0 ? n.toFixed(precision) : String(Math.round(n)),
-        );
-      }
-    } else {
-      for (let n = first; n >= last - 1e-10; n += increment) {
-        if (iterations++ > maxIterations) break;
-        results.push(
-          precision > 0 ? n.toFixed(precision) : String(Math.round(n)),
-        );
-      }
+    // Pre-compute padding width for -w. Real seq computes width from the
+    // formatted first and last values (whichever is wider, ignoring sign).
+    let padWidth = 0;
+    if (equalizeWidth) {
+      const fmtFirst = formatValue(first, precision).replace(/^-/, "");
+      const fmtLast = formatValue(last, precision).replace(/^-/, "");
+      padWidth = Math.max(fmtFirst.length, fmtLast.length);
     }
 
-    // Equalize width if requested
-    if (equalizeWidth && results.length > 0) {
-      const maxLen = Math.max(...results.map((r) => r.replace("-", "").length));
-      for (let j = 0; j < results.length; j++) {
-        const isNegative = results[j].startsWith("-");
-        const num = isNegative ? results[j].slice(1) : results[j];
-        const padded = num.padStart(maxLen, "0");
-        results[j] = isNegative ? `-${padded}` : padded;
-      }
-    }
-
-    const output = results.join(separator);
-    return {
-      stdout: fromString(output ? `${output}\n` : ""),
-      stderr: emptyStream(),
-      exitCode: 0,
+    const formatValueOut = (n: number): string => {
+      const raw = formatValue(n, precision);
+      if (!equalizeWidth) return raw;
+      const isNeg = raw.startsWith("-");
+      const body = isNeg ? raw.slice(1) : raw;
+      const padded = body.padStart(padWidth, "0");
+      return isNeg ? `-${padded}` : padded;
     };
+
+    // Decide whether the sequence is ascending or descending. If
+    // (last - first) and increment have opposite signs, output is empty.
+    const ascending = increment > 0;
+    if (ascending && first > last) {
+      return { stdout: emptyStream(), stderr: emptyStream(), exitCode: 0 };
+    }
+    if (!ascending && first < last) {
+      return { stdout: emptyStream(), stderr: emptyStream(), exitCode: 0 };
+    }
+
+    // Pull-based emitter. Each pull produces up to ~16 KiB of output.
+    const CHUNK_BUDGET = 16 * 1024;
+    let current = first;
+    let isFirstValue = true;
+    let done = false;
+    const encoder = new TextEncoder();
+
+    const stream: import("../../utils/stream.js").ByteStream =
+      new ReadableStream<Uint8Array>({
+        pull(controller) {
+          if (done) {
+            controller.close();
+            return;
+          }
+          let buffer = "";
+          while (buffer.length < CHUNK_BUDGET) {
+            const finished = ascending
+              ? current > last + 1e-10
+              : current < last - 1e-10;
+            if (finished) {
+              done = true;
+              if (!isFirstValue) buffer += "\n"; // final newline
+              break;
+            }
+            const formatted = formatValueOut(current);
+            if (isFirstValue) {
+              buffer += formatted;
+              isFirstValue = false;
+            } else {
+              buffer += separator + formatted;
+            }
+            current += increment;
+          }
+          if (buffer.length > 0) {
+            controller.enqueue(encoder.encode(buffer) as Uint8Array);
+          } else if (done) {
+            controller.close();
+          }
+        },
+      });
+
+    return { stdout: stream, stderr: emptyStream(), exitCode: 0 };
   },
 };
+
+function getPrecision(n: number): number {
+  const str = String(n);
+  const dotIndex = str.indexOf(".");
+  return dotIndex === -1 ? 0 : str.length - dotIndex - 1;
+}
+
+function formatValue(n: number, precision: number): string {
+  return precision > 0 ? n.toFixed(precision) : String(Math.round(n));
+}
 
 import { emptyStream, fromString } from "../../utils/stream.js";
 import type { CommandFuzzInfo } from "../fuzz-flags-types.js";
