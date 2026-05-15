@@ -272,6 +272,15 @@ export class MountableFs implements IFileSystem {
     return fs.readFile(relativePath);
   }
 
+  async readRange(
+    path: string,
+    offset: number,
+    length: number,
+  ): Promise<Uint8Array> {
+    const { fs, relativePath } = this.routePath(path);
+    return fs.readRange(relativePath, offset, length);
+  }
+
   async readFileText(
     path: string,
     options?: ReadFileOptions | BufferEncoding,

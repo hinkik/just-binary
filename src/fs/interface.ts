@@ -98,6 +98,18 @@ export interface IFileSystem {
   readFile(path: string): Promise<ByteStream>;
 
   /**
+   * Read a byte range from a file. Returns at most `length` bytes starting at
+   * `offset`; if the range extends past EOF, returns the truncated tail (may
+   * be empty). Designed for random-access workloads (ZIP central directory,
+   * PDF xref, file footers) that would otherwise have to drain the whole
+   * stream into memory.
+   *
+   * @throws if path does not exist or is a directory, or if offset/length
+   *   are negative or non-finite
+   */
+  readRange(path: string, offset: number, length: number): Promise<Uint8Array>;
+
+  /**
    * Read a file fully as decoded text (default encoding: utf8).
    * Convenience for small/text files.
    * @throws if path does not exist or is a directory
