@@ -1,6 +1,6 @@
 {
   "name": "just-binary",
-  "version": "3.2.2",
+  "version": "3.2.3",
   "description": "A simulated bash environment with virtual filesystem",
   "repository": {
     "type": "git",
