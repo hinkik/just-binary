@@ -76,6 +76,61 @@ describe("date", () => {
       expect(result.exitCode).toBe(0);
     });
 
+    it("should format full weekday with %A", async () => {
+      const env = new Bash();
+      const result = await toText(
+        await env.exec("date -u -d '2026-05-22T12:00:00Z' +%A"),
+      );
+      expect(result.stdout).toBe("Friday\n");
+      expect(result.exitCode).toBe(0);
+    });
+
+    it("should format full month name with %B", async () => {
+      const env = new Bash();
+      const result = await toText(
+        await env.exec("date -u -d '2026-05-22T12:00:00Z' +%B"),
+      );
+      expect(result.stdout).toBe("May\n");
+      expect(result.exitCode).toBe(0);
+    });
+
+    it("should format %D as MM/DD/YY", async () => {
+      const env = new Bash();
+      const result = await toText(
+        await env.exec("date -u -d '2026-05-22T12:00:00Z' +%D"),
+      );
+      expect(result.stdout).toBe("05/22/26\n");
+      expect(result.exitCode).toBe(0);
+    });
+
+    it("should format day-of-year with %j", async () => {
+      const env = new Bash();
+      // 2024 is a leap year; Mar 1 -> day 061.
+      const result = await toText(
+        await env.exec("date -u -d '2024-03-01T00:00:00Z' +%j"),
+      );
+      expect(result.stdout).toBe("061\n");
+      expect(result.exitCode).toBe(0);
+    });
+
+    it("should format space-padded hour with %k", async () => {
+      const env = new Bash();
+      const result = await toText(
+        await env.exec("date -u -d '2026-05-22T05:00:00Z' +%k"),
+      );
+      expect(result.stdout).toBe(" 5\n");
+      expect(result.exitCode).toBe(0);
+    });
+
+    it("should format century with %C", async () => {
+      const env = new Bash();
+      const result = await toText(
+        await env.exec("date -u -d '2026-05-22T12:00:00Z' +%C"),
+      );
+      expect(result.stdout).toBe("20\n");
+      expect(result.exitCode).toBe(0);
+    });
+
     it("should format weekday name with %a", async () => {
       const env = new Bash();
       const result = await toText(await env.exec("date +%a"));
@@ -393,6 +448,17 @@ describe("date", () => {
       // Input parsed as Tokyo wall-clock (+0900) = 2024-06-15T03:00:00Z
       // Output in LA (PDT, -0700) = 2024-06-14 20:00:00.
       expect(result.stdout).toBe("2024-06-14 20:00:00 -0700\n");
+      expect(result.exitCode).toBe(0);
+    });
+
+    it("should abbreviate %Z from long zone name when Intl returns offset form", async () => {
+      const env = new Bash();
+      const result = await toText(
+        await env.exec(
+          "date --timezone=Europe/Stockholm -d '2026-05-22T16:31:00+02:00' +%Z",
+        ),
+      );
+      expect(result.stdout).toBe("CEST\n");
       expect(result.exitCode).toBe(0);
     });
 

@@ -23,6 +23,15 @@ const dateHelp = {
 };
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const DAYS_FULL = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+];
 const MONTHS = [
   "Jan",
   "Feb",
@@ -36,6 +45,20 @@ const MONTHS = [
   "Oct",
   "Nov",
   "Dec",
+];
+const MONTHS_FULL = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
 ];
 
 function pad(n: number, w = 2): string {
@@ -106,16 +129,43 @@ function formatOffset(minutes: number): string {
   return `${sign}${pad(Math.floor(abs / 60))}${pad(abs % 60)}`;
 }
 
-/** Short timezone name (e.g. "EST", "UTC") for `d` in `timeZone`. */
-function getZonedShortName(d: Date, timeZone: string | undefined): string {
+function getTimeZoneNamePart(
+  d: Date,
+  timeZone: string | undefined,
+  kind: "short" | "long",
+): string {
   const dtf = new Intl.DateTimeFormat("en-US", {
     timeZone,
-    timeZoneName: "short",
+    timeZoneName: kind,
   });
   for (const p of dtf.formatToParts(d)) {
     if (p.type === "timeZoneName") return p.value;
   }
-  return timeZone ?? "";
+  return "";
+}
+
+/**
+ * Short timezone name (e.g. "CEST", "PST", "UTC") for `d` in `timeZone`.
+ *
+ * Node's Intl returns offset-style names ("GMT+2") for many zones in `short`
+ * mode, which doesn't match GNU `date`. Fall back to abbreviating the long
+ * form (e.g. "Central European Summer Time" -> "CEST").
+ */
+function getZonedShortName(d: Date, timeZone: string | undefined): string {
+  const short = getTimeZoneNamePart(d, timeZone, "short");
+  // Real abbreviations don't start with "GMT" or "UTC" followed by an offset.
+  if (short && !/^(GMT|UTC)[+-]/.test(short)) return short;
+  const long = getTimeZoneNamePart(d, timeZone, "long");
+  if (!long) return short || timeZone || "";
+  if (/^Coordinated Universal Time$/i.test(long)) return "UTC";
+  const initials = long.match(/\b[A-Z]/g);
+  return initials ? initials.join("") : short;
+}
+
+function dayOfYear(Y: number, m: number, D: number): number {
+  const start = Date.UTC(Y, 0, 1);
+  const cur = Date.UTC(Y, m, D);
+  return Math.round((cur - start) / 86400000) + 1;
 }
 
 function formatDate(
@@ -138,12 +188,24 @@ function formatDate(
         case "a":
           r += DAYS[g.w];
           break;
+        case "A":
+          r += DAYS_FULL[g.w];
+          break;
         case "b":
         case "h":
           r += MONTHS[g.m];
           break;
+        case "B":
+          r += MONTHS_FULL[g.m];
+          break;
+        case "C":
+          r += pad(Math.floor(g.Y / 100));
+          break;
         case "d":
           r += pad(g.D);
+          break;
+        case "D":
+          r += `${pad(g.m + 1)}/${pad(g.D)}/${pad(g.Y % 100)}`;
           break;
         case "e":
           r += String(g.D).padStart(2, " ");
@@ -156,6 +218,15 @@ function formatDate(
           break;
         case "I":
           r += pad(g.H % 12 || 12);
+          break;
+        case "j":
+          r += pad(dayOfYear(g.Y, g.m, g.D), 3);
+          break;
+        case "k":
+          r += String(g.H).padStart(2, " ");
+          break;
+        case "l":
+          r += String(g.H % 12 || 12).padStart(2, " ");
           break;
         case "m":
           r += pad(g.m + 1);
