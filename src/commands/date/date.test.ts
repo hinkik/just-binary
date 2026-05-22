@@ -347,6 +347,66 @@ describe("date", () => {
       expect(result.stderr).toContain("invalid time zone");
       expect(result.exitCode).toBe(1);
     });
+
+    it("should interpret bare timestamp in the target zone (--timezone)", async () => {
+      const env = new Bash();
+      const result = await toText(
+        await env.exec(
+          "date --timezone=America/New_York -d '2024-06-15 12:00:00' '+%F %T %z'",
+        ),
+      );
+      // June in NY is EDT (-0400). Bare wall-clock is preserved.
+      expect(result.stdout).toBe("2024-06-15 12:00:00 -0400\n");
+      expect(result.exitCode).toBe(0);
+    });
+
+    it("should interpret bare timestamp in $TZ", async () => {
+      const env = new Bash();
+      const result = await toText(
+        await env.exec(
+          "TZ=Asia/Tokyo date -d '2024-06-15 12:00:00' '+%F %T %z'",
+        ),
+      );
+      expect(result.stdout).toBe("2024-06-15 12:00:00 +0900\n");
+      expect(result.exitCode).toBe(0);
+    });
+
+    it("should still honor explicit Z suffix as UTC instant", async () => {
+      const env = new Bash();
+      const result = await toText(
+        await env.exec(
+          "date --timezone=America/New_York -d '2024-06-15T12:00:00Z' '+%F %T %z'",
+        ),
+      );
+      // Z pins to UTC; NY in June is -0400 -> 08:00:00 local.
+      expect(result.stdout).toBe("2024-06-15 08:00:00 -0400\n");
+      expect(result.exitCode).toBe(0);
+    });
+
+    it('should honor embedded TZ="..." inside -d', async () => {
+      const env = new Bash();
+      const result = await toText(
+        await env.exec(
+          "date --timezone=America/Los_Angeles -d 'TZ=\"Asia/Tokyo\" 2024-06-15 12:00:00' '+%F %T %z'",
+        ),
+      );
+      // Input parsed as Tokyo wall-clock (+0900) = 2024-06-15T03:00:00Z
+      // Output in LA (PDT, -0700) = 2024-06-14 20:00:00.
+      expect(result.stdout).toBe("2024-06-14 20:00:00 -0700\n");
+      expect(result.exitCode).toBe(0);
+    });
+
+    it("should handle DST spring-forward wall-clock correctly", async () => {
+      const env = new Bash();
+      const result = await toText(
+        await env.exec(
+          "date --timezone=America/New_York -d '2024-03-10 03:00:00' '+%F %T %z'",
+        ),
+      );
+      // 03:00 on the morning of spring-forward; NY is EDT (-0400) by then.
+      expect(result.stdout).toBe("2024-03-10 03:00:00 -0400\n");
+      expect(result.exitCode).toBe(0);
+    });
   });
 
   describe("default output", () => {

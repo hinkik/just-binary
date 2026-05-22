@@ -216,15 +216,83 @@ function formatDate(
   return r;
 }
 
-function parseDate(s: string): Date | null {
-  const d = new Date(s);
-  if (!Number.isNaN(d.getTime())) return d;
-  if (/^\d+$/.test(s)) return new Date(Number.parseInt(s, 10) * 1000);
-  const l = s.toLowerCase();
+/**
+ * Detect whether `s` contains an explicit UTC offset that pins it to a real
+ * instant (e.g. trailing `Z`, `+HH:MM`, `-HHMM`, or a named like ` UTC`).
+ */
+function hasExplicitOffset(s: string): boolean {
+  return /(Z|[+-]\d{2}:?\d{2}|\s(UTC|GMT))$/i.test(s.trim());
+}
+
+/**
+ * Parse a wall-clock timestamp (no offset) as if its fields were observed in
+ * `zone`. Returns the corresponding UTC instant, accounting for the zone's
+ * offset at that moment (including DST transitions).
+ */
+function parseWallClockInZone(s: string, zone: string): Date | null {
+  // Force JS to parse the wall-clock fields as UTC so they're host-independent.
+  let isoish: string;
+  if (/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2})?$/.test(s)) {
+    isoish = `${s.replace(" ", "T")}Z`;
+  } else if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    isoish = `${s}T00:00:00Z`;
+  } else {
+    // Fall back: append " UTC" — works for many parseable forms.
+    isoish = `${s} UTC`;
+  }
+  const utcWall = new Date(isoish);
+  if (Number.isNaN(utcWall.getTime())) return null;
+
+  // utcWall.getTime() is the wall-clock interpreted as if UTC.
+  // True instant = wall_as_utc - offset_in_zone_at_that_instant.
+  const off1 = getZonedOffsetMinutes(utcWall, zone);
+  let instant = utcWall.getTime() - off1 * 60000;
+  // DST refinement: if the offset at the candidate differs, re-shift once.
+  const off2 = getZonedOffsetMinutes(new Date(instant), zone);
+  if (off2 !== off1) instant = utcWall.getTime() - off2 * 60000;
+  return new Date(instant);
+}
+
+/**
+ * Parse a date string. `inputZone` is the IANA zone used to interpret
+ * timestamps that lack an explicit offset (matches GNU `date`, which uses
+ * `$TZ` for that purpose). The string may begin with an embedded
+ * `TZ="ZONE"` clause that overrides `inputZone` for parsing only.
+ */
+function parseDate(s: string, inputZone: string | undefined): Date | null {
+  // Strip leading `TZ="zone"` / `TZ='zone'` / `TZ=zone` — GNU `date` honors this
+  // inside `-d` to set the input zone independently from the output zone.
+  let zone = inputZone;
+  const m = s.match(/^\s*TZ=(?:"([^"]+)"|'([^']+)'|(\S+))\s+(.+)$/);
+  if (m) {
+    zone = m[1] ?? m[2] ?? m[3];
+    s = m[4];
+  }
+
+  const l = s.toLowerCase().trim();
   if (l === "now" || l === "today") return new Date();
   if (l === "yesterday") return new Date(Date.now() - 86400000);
   if (l === "tomorrow") return new Date(Date.now() + 86400000);
-  return null;
+
+  if (/^@?\d+$/.test(s)) {
+    const n = Number.parseInt(s.replace(/^@/, ""), 10);
+    return new Date(n * 1000);
+  }
+
+  // Explicit offset (Z, ±HH:MM, " UTC", etc.) pins the instant — use as-is.
+  if (hasExplicitOffset(s)) {
+    const d = new Date(s);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+
+  // Bare wall-clock: interpret in `zone` if we have one, else host local
+  // (matches GNU's "use $TZ for parsing" semantics).
+  if (zone !== undefined) {
+    const d = parseWallClockInZone(s, zone);
+    if (d) return d;
+  }
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d;
 }
 
 export const dateCommand: Command = {
@@ -285,7 +353,7 @@ export const dateCommand: Command = {
       }
     }
 
-    const date = dateStr !== null ? parseDate(dateStr) : new Date();
+    const date = dateStr !== null ? parseDate(dateStr, timeZone) : new Date();
     if (!date)
       return {
         stdout: emptyStream(),
