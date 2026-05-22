@@ -259,6 +259,96 @@ describe("date", () => {
     });
   });
 
+  describe("timezone", () => {
+    it("should honor --timezone for %Y-%m-%d %H:%M:%S", async () => {
+      const env = new Bash();
+      const result = await toText(
+        await env.exec(
+          "date -d '2024-06-15T12:00:00Z' --timezone=America/New_York '+%F %T'",
+        ),
+      );
+      // 2024-06-15 12:00:00 UTC -> 2024-06-15 08:00:00 EDT (UTC-4)
+      expect(result.stdout).toBe("2024-06-15 08:00:00\n");
+      expect(result.exitCode).toBe(0);
+    });
+
+    it("should honor --timezone for %z offset", async () => {
+      const env = new Bash();
+      const result = await toText(
+        await env.exec(
+          "date -d '2024-01-15T12:00:00Z' --timezone=America/New_York +%z",
+        ),
+      );
+      // January in NY is EST = UTC-5
+      expect(result.stdout).toBe("-0500\n");
+      expect(result.exitCode).toBe(0);
+    });
+
+    it("should honor --timezone for %z with positive offset", async () => {
+      const env = new Bash();
+      const result = await toText(
+        await env.exec(
+          "date -d '2024-06-15T12:00:00Z' --timezone=Asia/Kolkata +%z",
+        ),
+      );
+      // IST = UTC+05:30
+      expect(result.stdout).toBe("+0530\n");
+      expect(result.exitCode).toBe(0);
+    });
+
+    it("should honor --timezone=UTC", async () => {
+      const env = new Bash();
+      const result = await toText(
+        await env.exec(
+          "date -d '2024-06-15T12:34:56Z' --timezone=UTC '+%F %T %z'",
+        ),
+      );
+      expect(result.stdout).toBe("2024-06-15 12:34:56 +0000\n");
+      expect(result.exitCode).toBe(0);
+    });
+
+    it("should read TZ from the environment", async () => {
+      const env = new Bash();
+      const result = await toText(
+        await env.exec(
+          "TZ=America/Los_Angeles date -d '2024-06-15T12:00:00Z' +%T",
+        ),
+      );
+      // 2024-06-15 12:00:00 UTC -> 05:00:00 PDT
+      expect(result.stdout).toBe("05:00:00\n");
+      expect(result.exitCode).toBe(0);
+    });
+
+    it("should let -u override TZ", async () => {
+      const env = new Bash();
+      const result = await toText(
+        await env.exec(
+          "TZ=America/Los_Angeles date -u -d '2024-06-15T12:00:00Z' '+%T %z'",
+        ),
+      );
+      expect(result.stdout).toBe("12:00:00 +0000\n");
+      expect(result.exitCode).toBe(0);
+    });
+
+    it("should let --timezone override TZ", async () => {
+      const env = new Bash();
+      const result = await toText(
+        await env.exec(
+          "TZ=America/Los_Angeles date -d '2024-06-15T12:00:00Z' --timezone=UTC +%T",
+        ),
+      );
+      expect(result.stdout).toBe("12:00:00\n");
+      expect(result.exitCode).toBe(0);
+    });
+
+    it("should error on invalid timezone", async () => {
+      const env = new Bash();
+      const result = await toText(await env.exec("date --timezone=Not/AZone"));
+      expect(result.stderr).toContain("invalid time zone");
+      expect(result.exitCode).toBe(1);
+    });
+  });
+
   describe("default output", () => {
     it("should output default format without arguments", async () => {
       const env = new Bash();

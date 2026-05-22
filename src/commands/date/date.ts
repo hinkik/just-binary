@@ -3,7 +3,7 @@
  */
 
 import type { Command, CommandContext, ExecResult } from "../../types.js";
-import { decodeArgs } from "../../utils/bytes.js";
+import { decodeArgs, envGet } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
 const dateHelp = {
@@ -11,11 +11,14 @@ const dateHelp = {
   summary: "display the current time in the given FORMAT",
   usage: "date [OPTION]... [+FORMAT]",
   options: [
-    "-d, --date=STRING   display time described by STRING",
-    "-u, --utc           print Coordinated Universal Time (UTC)",
-    "-I, --iso-8601      output date/time in ISO 8601 format",
-    "-R, --rfc-email     output RFC 5322 date format",
-    "    --help          display this help and exit",
+    "-d, --date=STRING        display time described by STRING",
+    "-u, --utc                print Coordinated Universal Time (UTC)",
+    "    --timezone=TZ        use the named IANA time zone (e.g. America/New_York)",
+    "-I, --iso-8601           output date/time in ISO 8601 format",
+    "-R, --rfc-email          output RFC 5322 date format",
+    "    --help               display this help and exit",
+    "",
+    "If --timezone is not given, the TZ environment variable is used.",
   ],
 };
 
@@ -39,32 +42,89 @@ function pad(n: number, w = 2): string {
   return String(n).padStart(w, "0");
 }
 
-function tzOffset(d: Date): string {
-  const off = -d.getTimezoneOffset();
-  const sign = off >= 0 ? "+" : "-";
-  return `${sign}${pad(Math.floor(Math.abs(off) / 60))}${pad(Math.abs(off) % 60)}`;
+const WEEKDAY_INDEX: Record<string, number> = {
+  Sun: 0,
+  Mon: 1,
+  Tue: 2,
+  Wed: 3,
+  Thu: 4,
+  Fri: 5,
+  Sat: 6,
+};
+
+interface DateFields {
+  Y: number;
+  m: number;
+  D: number;
+  H: number;
+  M: number;
+  S: number;
+  w: number;
 }
 
-function formatDate(d: Date, fmt: string, utc: boolean): string {
-  const g = utc
-    ? {
-        Y: d.getUTCFullYear(),
-        m: d.getUTCMonth(),
-        D: d.getUTCDate(),
-        H: d.getUTCHours(),
-        M: d.getUTCMinutes(),
-        S: d.getUTCSeconds(),
-        w: d.getUTCDay(),
-      }
-    : {
-        Y: d.getFullYear(),
-        m: d.getMonth(),
-        D: d.getDate(),
-        H: d.getHours(),
-        M: d.getMinutes(),
-        S: d.getSeconds(),
-        w: d.getDay(),
-      };
+/**
+ * Extract calendar fields for `d` as observed in IANA zone `timeZone`.
+ * `timeZone` undefined means use the host's local zone.
+ */
+function getZonedFields(d: Date, timeZone: string | undefined): DateFields {
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour12: false,
+    weekday: "short",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+  const parts: Record<string, string> = {};
+  for (const p of dtf.formatToParts(d)) parts[p.type] = p.value;
+  let H = Number.parseInt(parts.hour, 10);
+  if (H === 24) H = 0; // some ICU builds emit "24" for midnight
+  return {
+    Y: Number.parseInt(parts.year, 10),
+    m: Number.parseInt(parts.month, 10) - 1,
+    D: Number.parseInt(parts.day, 10),
+    H,
+    M: Number.parseInt(parts.minute, 10),
+    S: Number.parseInt(parts.second, 10),
+    w: WEEKDAY_INDEX[parts.weekday] ?? 0,
+  };
+}
+
+/** Offset from UTC, in minutes, for `d` in `timeZone` (undefined = host local). */
+function getZonedOffsetMinutes(d: Date, timeZone: string | undefined): number {
+  const g = getZonedFields(d, timeZone);
+  const asUTC = Date.UTC(g.Y, g.m, g.D, g.H, g.M, g.S);
+  return Math.round((asUTC - d.getTime()) / 60000);
+}
+
+function formatOffset(minutes: number): string {
+  const sign = minutes >= 0 ? "+" : "-";
+  const abs = Math.abs(minutes);
+  return `${sign}${pad(Math.floor(abs / 60))}${pad(abs % 60)}`;
+}
+
+/** Short timezone name (e.g. "EST", "UTC") for `d` in `timeZone`. */
+function getZonedShortName(d: Date, timeZone: string | undefined): string {
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    timeZoneName: "short",
+  });
+  for (const p of dtf.formatToParts(d)) {
+    if (p.type === "timeZoneName") return p.value;
+  }
+  return timeZone ?? "";
+}
+
+function formatDate(
+  d: Date,
+  fmt: string,
+  timeZone: string | undefined,
+): string {
+  const g = getZonedFields(d, timeZone);
+  const offsetMin = getZonedOffsetMinutes(d, timeZone);
 
   let r = "",
     i = 0;
@@ -140,10 +200,10 @@ function formatDate(d: Date, fmt: string, utc: boolean): string {
           r += g.Y;
           break;
         case "z":
-          r += utc ? "+0000" : tzOffset(d);
+          r += formatOffset(offsetMin);
           break;
         case "Z":
-          r += utc ? "UTC" : Intl.DateTimeFormat().resolvedOptions().timeZone;
+          r += getZonedShortName(d, timeZone);
           break;
         default:
           r += `%${s}`;
@@ -169,7 +229,7 @@ function parseDate(s: string): Date | null {
 
 export const dateCommand: Command = {
   name: "date",
-  async execute(args: Uint8Array[], _ctx: CommandContext): Promise<ExecResult> {
+  async execute(args: Uint8Array[], ctx: CommandContext): Promise<ExecResult> {
     const a = decodeArgs(args);
     if (hasHelpFlag(a)) return showHelp(dateHelp);
 
@@ -177,13 +237,16 @@ export const dateCommand: Command = {
       dateStr: string | null = null,
       fmt: string | null = null,
       iso = false,
-      rfc = false;
+      rfc = false,
+      tzFlag: string | null = null;
 
     for (let i = 0; i < a.length; i++) {
       const arg = a[i];
       if (arg === "-u" || arg === "--utc") utc = true;
       else if (arg === "-d" || arg === "--date") dateStr = a[++i] ?? "";
       else if (arg.startsWith("--date=")) dateStr = arg.slice(7);
+      else if (arg === "--timezone") tzFlag = a[++i] ?? "";
+      else if (arg.startsWith("--timezone=")) tzFlag = arg.slice(11);
       else if (arg === "-I" || arg === "--iso-8601") iso = true;
       else if (arg === "-R" || arg === "--rfc-email") rfc = true;
       else if (arg.startsWith("+")) fmt = arg.slice(1);
@@ -198,6 +261,30 @@ export const dateCommand: Command = {
       }
     }
 
+    // Resolve timezone: --utc wins, then --timezone, then $TZ, then host local.
+    let timeZone: string | undefined;
+    if (utc) {
+      timeZone = "UTC";
+    } else if (tzFlag !== null && tzFlag !== "") {
+      timeZone = tzFlag;
+    } else {
+      const tzEnv = envGet(ctx.env, "TZ");
+      if (tzEnv) timeZone = tzEnv;
+    }
+
+    // Validate the zone — Intl throws RangeError on unknown IANA names.
+    if (timeZone !== undefined) {
+      try {
+        new Intl.DateTimeFormat("en-US", { timeZone });
+      } catch {
+        return {
+          stdout: emptyStream(),
+          stderr: fromString(`date: invalid time zone '${timeZone}'\n`),
+          exitCode: 1,
+        };
+      }
+    }
+
     const date = dateStr !== null ? parseDate(dateStr) : new Date();
     if (!date)
       return {
@@ -207,10 +294,10 @@ export const dateCommand: Command = {
       };
 
     let out: string;
-    if (fmt) out = formatDate(date, fmt, utc);
-    else if (iso) out = formatDate(date, "%Y-%m-%dT%H:%M:%S%z", utc);
-    else if (rfc) out = formatDate(date, "%a, %d %b %Y %H:%M:%S %z", utc);
-    else out = formatDate(date, "%a %b %e %H:%M:%S %Z %Y", utc);
+    if (fmt) out = formatDate(date, fmt, timeZone);
+    else if (iso) out = formatDate(date, "%Y-%m-%dT%H:%M:%S%z", timeZone);
+    else if (rfc) out = formatDate(date, "%a, %d %b %Y %H:%M:%S %z", timeZone);
+    else out = formatDate(date, "%a %b %e %H:%M:%S %Z %Y", timeZone);
 
     return {
       stdout: fromString(`${out}\n`),
@@ -230,5 +317,6 @@ export const flagsForFuzzing: CommandFuzzInfo = {
     { flag: "-u", type: "boolean" },
     { flag: "-I", type: "boolean" },
     { flag: "-R", type: "boolean" },
+    { flag: "--timezone", type: "value", valueHint: "string" },
   ],
 };
