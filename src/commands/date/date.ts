@@ -168,12 +168,27 @@ function getTimeZoneNamePart(
   return "";
 }
 
+/**
+ * Long-name -> canonical abbreviation overrides for zones where Intl's English
+ * name doesn't map to the GNU/tzdata abbreviation via initials-of-caps.
+ */
+const ZONE_NAME_OVERRIDES: Record<string, string> = {
+  "Moscow Standard Time": "MSK",
+};
+
 function getZonedShortName(d: Date, timeZone: string | undefined): string {
   const short = getTimeZoneNamePart(d, timeZone, "short");
   if (short && !/^(GMT|UTC)[+-]/.test(short)) return short;
-  const long = getTimeZoneNamePart(d, timeZone, "long");
+  let long = getTimeZoneNamePart(d, timeZone, "long");
   if (!long) return short || timeZone || "";
   if (/^Coordinated Universal Time$/i.test(long)) return "UTC";
+  if (ZONE_NAME_OVERRIDES[long]) return ZONE_NAME_OVERRIDES[long];
+  // GNU/tzdata drops "Standard" from European winter abbreviations:
+  // "Central European Standard Time" -> CET (not CEST, which is summer).
+  // Daylight/summer variants keep their qualifier.
+  if (/European/.test(long)) {
+    long = long.replace(/\bStandard\s+/i, "");
+  }
   const initials = long.match(/\b[A-Z]/g);
   return initials ? initials.join("") : short;
 }

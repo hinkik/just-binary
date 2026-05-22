@@ -462,6 +462,34 @@ describe("date", () => {
       expect(result.exitCode).toBe(0);
     });
 
+    it("should map European winter %Z to CET/EET (not CEST/EEST)", async () => {
+      // Regression: Intl returns "Central European Standard Time" for Stockholm
+      // in winter; initials would give CEST (the summer abbreviation). GNU/tzdata
+      // drops "Standard" from European zones.
+      const env = new Bash();
+      const winter = await toText(
+        await env.exec(
+          "date --timezone=Europe/Stockholm -d '2026-10-25T02:30:00Z' '+%F %T %Z %z'",
+        ),
+      );
+      expect(winter.stdout).toBe("2026-10-25 03:30:00 CET +0100\n");
+      expect(winter.exitCode).toBe(0);
+
+      const helsinki = await toText(
+        await env.exec(
+          "date --timezone=Europe/Helsinki -d '2026-01-15T12:00:00Z' +%Z",
+        ),
+      );
+      expect(helsinki.stdout).toBe("EET\n");
+
+      const moscow = await toText(
+        await env.exec(
+          "date --timezone=Europe/Moscow -d '2026-01-15T12:00:00Z' +%Z",
+        ),
+      );
+      expect(moscow.stdout).toBe("MSK\n");
+    });
+
     it("should handle DST spring-forward wall-clock correctly", async () => {
       const env = new Bash();
       const result = await toText(
