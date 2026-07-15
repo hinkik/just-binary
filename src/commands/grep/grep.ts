@@ -8,6 +8,7 @@ import {
   canStream,
   searchContent,
   searchStream,
+  streamHasMatch,
 } from "../search-engine/index.js";
 
 /** File entry with optional type info from glob expansion */
@@ -200,6 +201,12 @@ export const grepCommand: Command = {
         stderr: fromString("grep: missing pattern\n"),
         exitCode: 2,
       };
+    }
+
+    // -l/-L/-q only need to know whether the input matches at all;
+    // stop scanning at the first match instead of reading entire files.
+    if ((filesWithMatches || filesWithoutMatch || quietMode) && !countOnly) {
+      maxCount = 1;
     }
 
     // Build regex using shared search-engine
@@ -397,6 +404,22 @@ export const grepCommand: Command = {
               return null;
             }
 
+            // -l/-L/-q with a plain (non-inverted) pattern only need to know
+            // whether the file matches; scan the stream directly and stop at
+            // the first hit instead of building formatted output.
+            if (
+              (filesWithMatches || filesWithoutMatch || quietMode) &&
+              !countOnly &&
+              !invertMatch
+            ) {
+              const fileStream = await ctx.fs.readFile(filePath);
+              const matched = await streamHasMatch(fileStream, regex);
+              return {
+                file,
+                result: { output: "", matched, matchCount: matched ? 1 : 0 },
+              };
+            }
+
             const opts = {
               invertMatch,
               showLineNumbers,
@@ -424,9 +447,8 @@ export const grepCommand: Command = {
               }
               const matched = await s.matched;
               const matchCount = await s.matchCount;
-              const output = chunks
-                .map((c) => new TextDecoder().decode(c))
-                .join("");
+              const decoder = new TextDecoder();
+              const output = chunks.map((c) => decoder.decode(c)).join("");
               return {
                 file,
                 result: { output, matched, matchCount },

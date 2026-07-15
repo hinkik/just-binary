@@ -66,6 +66,61 @@ function translatePattern(pattern: string): string {
   return RE2JS.translateRegExp(pattern);
 }
 
+// Escape sequences that stand for a single literal character.
+const LITERAL_ESCAPES = new Map<string, string>([
+  ["n", "\n"],
+  ["t", "\t"],
+  ["r", "\r"],
+  ["f", "\f"],
+  ["v", "\v"],
+]);
+
+const LITERAL_ESCAPABLE_PUNCT = "\\^$.|?*+()[]{}-/";
+
+/**
+ * If the pattern is a plain literal, or an alternation of plain literals
+ * (e.g. "foo|bar baz"), return the decoded literal branches; otherwise null.
+ *
+ * RE2JS matching is orders of magnitude slower than substring search, and
+ * literal patterns are the common case for grep-style line matching, so
+ * test() short-circuits through String.prototype.includes when possible.
+ */
+function extractLiteralAlternation(
+  pattern: string,
+  ignoreCase: boolean,
+): string[] | null {
+  // Unicode case folding differs from toLowerCase for some characters;
+  // only take the fast path for ASCII patterns when ignoring case.
+  if (ignoreCase && !/^[\x00-\x7f]*$/.test(pattern)) return null;
+
+  const literals: string[] = [];
+  let current = "";
+  for (let i = 0; i < pattern.length; i++) {
+    const c = pattern[i];
+    if (c === "\\") {
+      i++;
+      if (i >= pattern.length) return null;
+      const next = pattern[i];
+      if (LITERAL_ESCAPABLE_PUNCT.includes(next)) {
+        current += next;
+      } else {
+        const decoded = LITERAL_ESCAPES.get(next);
+        if (decoded === undefined) return null; // \b, \d, \w, \x41, ...
+        current += decoded;
+      }
+    } else if (c === "|") {
+      literals.push(current);
+      current = "";
+    } else if ("^$.?*+()[]{}".includes(c)) {
+      return null;
+    } else {
+      current += c;
+    }
+  }
+  literals.push(current);
+  return literals;
+}
+
 /**
  * A wrapper around RE2JS that provides a RegExp-compatible interface.
  * Uses RE2 for linear-time matching, providing ReDoS protection.
@@ -77,6 +132,8 @@ export class UserRegex implements RegexLike {
   private readonly _global: boolean;
   private readonly _ignoreCase: boolean;
   private readonly _multiline: boolean;
+  /** Literal branches for the test() fast path, lowercased if ignoreCase */
+  private readonly _literals: string[] | null;
   private _lastIndex = 0;
   // Cache native RegExp for compatibility - created lazily
   private _nativeRegex: RegExp | null = null;
@@ -87,6 +144,11 @@ export class UserRegex implements RegexLike {
     this._global = flags.includes("g");
     this._ignoreCase = flags.includes("i");
     this._multiline = flags.includes("m");
+    const literals = extractLiteralAlternation(pattern, this._ignoreCase);
+    this._literals =
+      literals !== null && this._ignoreCase
+        ? literals.map((l) => l.toLowerCase())
+        : literals;
 
     try {
       const translatedPattern = translatePattern(pattern);
@@ -124,12 +186,28 @@ export class UserRegex implements RegexLike {
   }
 
   /**
+   * The literal branches of a literal-only pattern (lowercased when
+   * case-insensitive), or null if the pattern needs the regex engine.
+   * Lets callers do whole-buffer substring scans instead of per-line test().
+   */
+  get literalAlternation(): readonly string[] | null {
+    return this._literals;
+  }
+
+  /**
    * Test if the pattern matches the input string.
    */
   test(input: string): boolean {
     // Reset lastIndex for global regexes to ensure consistent behavior
     if (this._global) {
       this._lastIndex = 0;
+    }
+    if (this._literals !== null) {
+      const haystack = this._ignoreCase ? input.toLowerCase() : input;
+      for (const literal of this._literals) {
+        if (haystack.includes(literal)) return true;
+      }
+      return false;
     }
     const matcher = this._re2.matcher(input);
     return matcher.find();

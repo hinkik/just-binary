@@ -16,9 +16,12 @@ import type { UserRegex } from "../../regex/index.js";
 import {
   type ByteStream,
   fromString,
+  streamChunks,
   streamLines,
 } from "../../utils/stream.js";
 import type { SearchOptions } from "./matcher.js";
+
+const ENCODER = new TextEncoder();
 
 export interface StreamSearchResult {
   /** Stream of formatted output (matched lines, contexts, count) */
@@ -36,6 +39,55 @@ export interface StreamSearchResult {
  */
 export function canStream(options: SearchOptions): boolean {
   return !options.multiline && !options.vimgrep && !options.showByteOffset;
+}
+
+/**
+ * Determine whether any line of the input matches the regex, reading as
+ * little of the stream as possible. Used by grep -l/-L/-q, which only need
+ * a boolean per file — no formatted output, counts, or contexts.
+ *
+ * For literal-only patterns the scan is chunk-based: each chunk is decoded
+ * once and searched with String.includes instead of running a per-line
+ * regex test. A literal cannot span a line boundary, so a substring hit in
+ * the raw content is exactly a line match — except literals that themselves
+ * contain "\n", which can never match a single line and therefore fall back
+ * to the per-line path.
+ */
+export async function streamHasMatch(
+  input: ByteStream,
+  regex: UserRegex,
+): Promise<boolean> {
+  const literals = regex.literalAlternation;
+  if (literals !== null && !literals.every((l) => l.includes("\n"))) {
+    const scannable = literals.filter((l) => !l.includes("\n"));
+    const decoder = new TextDecoder();
+    // Keep a tail overlap so a literal split across two chunks still hits.
+    const overlap = Math.max(...scannable.map((l) => l.length), 1) - 1;
+    let carry = "";
+    let sawContent = false;
+    for await (const chunk of streamChunks(input)) {
+      const text = carry + decoder.decode(chunk, { stream: true });
+      if (text.length > 0) sawContent = true;
+      const haystack = regex.ignoreCase ? text.toLowerCase() : text;
+      for (const literal of scannable) {
+        if (haystack.includes(literal)) return true;
+      }
+      carry = overlap > 0 ? text.slice(-overlap) : "";
+    }
+    const tail = carry + decoder.decode();
+    if (tail.length > 0) sawContent = true;
+    // An empty file has no lines, so even the empty pattern can't match.
+    if (!sawContent) return false;
+    const haystack = regex.ignoreCase ? tail.toLowerCase() : tail;
+    return scannable.some((l) => haystack.includes(l));
+  }
+
+  const decoder = new TextDecoder();
+  for await (const lineBytes of streamLines(input)) {
+    regex.lastIndex = 0;
+    if (regex.test(decoder.decode(lineBytes))) return true;
+  }
+  return false;
 }
 
 export function searchStream(
@@ -100,8 +152,7 @@ export function searchStream(
       };
 
       const emit = (s: string) => {
-        if (s.length > 0)
-          controller.enqueue(new TextEncoder().encode(s) as Uint8Array);
+        if (s.length > 0) controller.enqueue(ENCODER.encode(s) as Uint8Array);
       };
 
       try {

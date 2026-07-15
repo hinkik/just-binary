@@ -193,13 +193,27 @@ export async function* streamChunks(
   s: ByteStream,
 ): AsyncIterableIterator<Uint8Array> {
   const reader = s.getReader();
+  let exhausted = false;
   try {
     while (true) {
       const { done, value } = await reader.read();
-      if (done) return;
+      if (done) {
+        exhausted = true;
+        return;
+      }
       if (value && value.length > 0) yield value;
     }
   } finally {
+    if (!exhausted) {
+      // The consumer stopped early (break/return/throw). Cancel the stream
+      // so lazy sources (real files, OPFS handles) stop producing and
+      // release their underlying resources, instead of dangling until GC.
+      try {
+        await reader.cancel();
+      } catch {
+        // Cancellation failures are not actionable for the consumer.
+      }
+    }
     reader.releaseLock();
   }
 }
