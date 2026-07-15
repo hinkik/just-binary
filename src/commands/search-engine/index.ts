@@ -23,4 +23,5 @@ export {
   canStream,
   type StreamSearchResult,
   searchStream,
+  streamHasMatch,
 } from "./stream-matcher.js";

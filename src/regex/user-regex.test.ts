@@ -49,6 +49,37 @@ describe("UserRegex", () => {
       expect(regex.test("aaa")).toBe(true);
       // lastIndex should be reset before test
     });
+
+    it("matches literal alternations", () => {
+      const regex = new UserRegex("Fokus Bygg|Kendal Ny|ringlista", "gi");
+      expect(regex.test("call the RINGLISTA today")).toBe(true);
+      expect(regex.test("about fokus bygg ab")).toBe(true);
+      expect(regex.test("unrelated line")).toBe(false);
+    });
+
+    it("matches literals containing escaped metacharacters", () => {
+      const regex = new UserRegex("foo\\.bar|a\\|b");
+      expect(regex.test("xfoo.barx")).toBe(true);
+      expect(regex.test("fooxbar")).toBe(false);
+      expect(regex.test("a|b")).toBe(true);
+    });
+
+    it("matches literals with escaped whitespace characters", () => {
+      const regex = new UserRegex("foo\\tbar");
+      expect(regex.test("foo\tbar")).toBe(true);
+      expect(regex.test("foo bar")).toBe(false);
+    });
+
+    it("handles empty alternation branch like the regex engine", () => {
+      const regex = new UserRegex("foo|");
+      expect(regex.test("anything")).toBe(true);
+    });
+
+    it("matches non-ASCII literals case-insensitively via the regex engine", () => {
+      const regex = new UserRegex("räksmörgås", "i");
+      expect(regex.test("en RÄKSMÖRGÅS tack")).toBe(true);
+      expect(regex.test("en smörgås tack")).toBe(false);
+    });
   });
 
   describe("exec()", () => {
