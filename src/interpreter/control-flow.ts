@@ -180,11 +180,21 @@ export async function executeFor(
         }
 
         envSet(ctx.state.env, node.variable, value);
-        await writeToChannel(
-          ctx,
-          2,
-          await traceSimpleCommand(ctx, "for", [node.variable, "in", ...words]),
-        );
+        // Real bash re-prints `+ for i in ...` on every iteration, but the
+        // argument list must only be MATERIALIZED when tracing is on: spreading
+        // `words` per iteration is O(words) work, so an untraced loop over N
+        // items would cost O(N^2) for output nobody reads.
+        if (ctx.state.options.xtrace) {
+          await writeToChannel(
+            ctx,
+            2,
+            await traceSimpleCommand(ctx, "for", [
+              node.variable,
+              "in",
+              ...words,
+            ]),
+          );
+        }
 
         try {
           for (const stmt of node.body) {
