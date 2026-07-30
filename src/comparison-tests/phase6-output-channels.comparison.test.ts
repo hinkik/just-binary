@@ -56,7 +56,7 @@ describe("phase 6 output channels - Real Bash Comparison", () => {
     await compareOutputs(
       env,
       testDir,
-      "{ exec 3>&-; echo y >&3 2>err; status=$?; printf 'status:%s err:' \"$status\"; if [ -e err ]; then cat err; else printf missing; fi; printf '\\n'; } 2>diag; sed 's#^/bin/bash:#bash:#' diag >&2",
+      "{ exec 3>&-; echo y >&3 2>err; status=$?; printf 'status:%s err:' \"$status\"; if [ -e err ]; then cat err; else printf missing; fi; printf '\\n'; } 2>diag; sed -E 's#^/bin/bash: (line [0-9]+: )?#bash: #' diag >&2",
       { compareStderr: true },
     );
   });
@@ -76,7 +76,7 @@ describe("phase 6 output channels - Real Bash Comparison", () => {
     await compareOutputs(
       env,
       testDir,
-      "{ x=$(exec 3>&1); echo y >&3 2>err; status=$?; printf 'status:%s err:' \"$status\"; if [ -e err ]; then cat err; else printf missing; fi; printf '\\n'; } 2>diag; sed 's#^/bin/bash:#bash:#' diag >&2",
+      "{ x=$(exec 3>&1); echo y >&3 2>err; status=$?; printf 'status:%s err:' \"$status\"; if [ -e err ]; then cat err; else printf missing; fi; printf '\\n'; } 2>diag; sed -E 's#^/bin/bash: (line [0-9]+: )?#bash: #' diag >&2",
       { compareStderr: true },
     );
   });

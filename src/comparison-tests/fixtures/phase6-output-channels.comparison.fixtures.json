@@ -20,13 +20,6 @@
     "stderr": "",
     "exitCode": 0
   },
-  "39b798f330823065": {
-    "command": "{ exec 3>&-; echo y >&3 2>err; status=$?; printf 'status:%s err:' \"$status\"; if [ -e err ]; then cat err; else printf missing; fi; printf '\\n'; } 2>diag; sed 's#^/bin/bash:#bash:#' diag >&2",
-    "files": {},
-    "stdout": "status:1 err:missing\n",
-    "stderr": "bash: 3: Bad file descriptor\n",
-    "exitCode": 0
-  },
   "3dc4bfc7880352e1": {
     "command": "exec 3>&1; exec >out; echo a; echo b; cat out >&3",
     "files": {},
@@ -41,8 +34,15 @@
     "stderr": "",
     "exitCode": 0
   },
-  "cd2abdfdf0d8679f": {
-    "command": "{ x=$(exec 3>&1); echo y >&3 2>err; status=$?; printf 'status:%s err:' \"$status\"; if [ -e err ]; then cat err; else printf missing; fi; printf '\\n'; } 2>diag; sed 's#^/bin/bash:#bash:#' diag >&2",
+  "7f2d3c5b02e931f4": {
+    "command": "{ x=$(exec 3>&1); echo y >&3 2>err; status=$?; printf 'status:%s err:' \"$status\"; if [ -e err ]; then cat err; else printf missing; fi; printf '\\n'; } 2>diag; sed -E 's#^/bin/bash: (line [0-9]+: )?#bash: #' diag >&2",
+    "files": {},
+    "stdout": "status:1 err:missing\n",
+    "stderr": "bash: 3: Bad file descriptor\n",
+    "exitCode": 0
+  },
+  "ddbd458db606ea96": {
+    "command": "{ exec 3>&-; echo y >&3 2>err; status=$?; printf 'status:%s err:' \"$status\"; if [ -e err ]; then cat err; else printf missing; fi; printf '\\n'; } 2>diag; sed -E 's#^/bin/bash: (line [0-9]+: )?#bash: #' diag >&2",
     "files": {},
     "stdout": "status:1 err:missing\n",
     "stderr": "bash: 3: Bad file descriptor\n",

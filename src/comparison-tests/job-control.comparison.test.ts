@@ -63,7 +63,7 @@ describe("job control - Real Bash Comparison", () => {
     await compareOutputs(
       env,
       testDir,
-      "kill 99999999 2>err; status=$?; sed 's#^/bin/bash: line [0-9][0-9]*: #bash: #' err >&2; exit \"$status\"",
+      "kill 99999999 2>err; status=$?; sed -E 's#^/bin/bash: (line [0-9]+: )?#bash: #' err >&2; exit \"$status\"",
       { compareStderr: true },
     );
   });

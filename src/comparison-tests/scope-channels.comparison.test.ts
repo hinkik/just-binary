@@ -88,12 +88,21 @@ describe("scope channels - Real Bash Comparison", () => {
     );
   });
 
+  // The next two assert ORDERING — the invalid redirect is rejected before the
+  // scope body runs — not the wording of bash's diagnostic. stderr is
+  // discarded because bash 5.x prefixes "line N: " where bash 3.2 does not,
+  // and CI re-records fixtures against its own bash. just-binary's exact
+  // message text stays pinned by unit tests (scope-channels-fd-redirections,
+  // scope-channels-descriptor-metadata, persistent-exec-redirections).
   it("rejects a nonnumeric <& target before running the scope", async () => {
     const env = await setupFiles(testDir, {});
     await compareScopeOutputs(
       env,
       testDir,
-      'output=$({ echo never; } 2>&1 1<&word); status=$?; printf \'%s\\nstatus=%s\\n\' "${output#/bin/}" "$status"',
+      // 2>/dev/null must precede the failing redirect: bash applies
+      // redirections left to right, so a later discard would not yet be
+      // installed when 1<&word fails.
+      'output=$({ echo never; } 2>/dev/null 1<&word); status=$?; printf \'out=[%s]\\nstatus=%s\\n\' "$output" "$status"',
     );
   });
 
@@ -102,7 +111,7 @@ describe("scope channels - Real Bash Comparison", () => {
     await compareScopeOutputs(
       env,
       testDir,
-      'output=$({ mkdir made 1<&word; [[ -d made ]] && echo exists >&3; } 3>out 2>&1); status=$?; printf \'%s\\nstatus=%s\\n\' "${output#/bin/}" "$status"; [[ -d made ]] && echo made; cat out',
+      'output=$({ mkdir made 1<&word; [[ -d made ]] && echo exists >&3; } 3>out 2>/dev/null); status=$?; printf \'out=[%s]\\nstatus=%s\\n\' "$output" "$status"; [[ -d made ]] && echo made || echo no-made; [[ -e out ]] && echo has-out || echo no-out; cat out 2>/dev/null',
     );
   });
 

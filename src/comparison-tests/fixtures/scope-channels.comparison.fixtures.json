@@ -13,6 +13,13 @@
     "stderr": "",
     "exitCode": 0
   },
+  "36ecc4593d995694": {
+    "command": "output=$({ mkdir made 1<&word; [[ -d made ]] && echo exists >&3; } 3>out 2>/dev/null); status=$?; printf 'out=[%s]\\nstatus=%s\\n' \"$output\" \"$status\"; [[ -d made ]] && echo made || echo no-made; [[ -e out ]] && echo has-out || echo no-out; cat out 2>/dev/null",
+    "files": {},
+    "stdout": "out=[]\nstatus=1\nno-made\nhas-out\n",
+    "stderr": "",
+    "exitCode": 0
+  },
   "3c5def36cc56730d": {
     "command": "(exit 5); echo sub:$?; f() { return 3; }; f; echo fn:$?; (set -e; { false; echo never; }); echo errexit:$?",
     "files": {},
@@ -62,20 +69,6 @@
     "stderr": "",
     "exitCode": 0
   },
-  "71f8ebc660874239": {
-    "command": "output=$({ echo never; } 2>&1 1<&word); status=$?; printf '%s\\nstatus=%s\\n' \"${output#/bin/}\" \"$status\"",
-    "files": {},
-    "stdout": "bash: word: ambiguous redirect\nstatus=1\n",
-    "stderr": "",
-    "exitCode": 0
-  },
-  "7d92f004596590ef": {
-    "command": "output=$({ mkdir made 1<&word; [[ -d made ]] && echo exists >&3; } 3>out 2>&1); status=$?; printf '%s\\nstatus=%s\\n' \"${output#/bin/}\" \"$status\"; [[ -d made ]] && echo made; cat out",
-    "files": {},
-    "stdout": "bash: word: ambiguous redirect\nstatus=1\n",
-    "stderr": "",
-    "exitCode": 0
-  },
   "86e0cebcbff68526": {
     "command": "eval 'echo eval-out; echo eval-error >&2' > eval-file 2>&1; source sourced > source-file 2>&1; cat eval-file source-file",
     "files": {
@@ -90,6 +83,13 @@
     "files": {},
     "stdout": "i=3\n",
     "stderr": "function\n",
+    "exitCode": 0
+  },
+  "b0f98a83dae19bc6": {
+    "command": "output=$({ echo never; } 2>/dev/null 1<&word); status=$?; printf 'out=[%s]\\nstatus=%s\\n' \"$output\" \"$status\"",
+    "files": {},
+    "stdout": "out=[]\nstatus=1\n",
+    "stderr": "",
     "exitCode": 0
   },
   "d1d218e128b95d86": {

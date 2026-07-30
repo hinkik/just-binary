@@ -13,13 +13,6 @@
     "stderr": "",
     "exitCode": 0
   },
-  "4dbbb7f7d8c6047b": {
-    "command": "kill 99999999 2>err; status=$?; sed 's#^/bin/bash: line [0-9][0-9]*: #bash: #' err >&2; exit \"$status\"",
-    "files": {},
-    "stdout": "",
-    "stderr": "bash: kill: (99999999) - No such process\n",
-    "exitCode": 1
-  },
   "53f1502b908bc9cd": {
     "command": "true & wait",
     "files": {},
@@ -47,5 +40,12 @@
     "stdout": "143\n",
     "stderr": "",
     "exitCode": 0
+  },
+  "f1321181e21b6baf": {
+    "command": "kill 99999999 2>err; status=$?; sed -E 's#^/bin/bash: (line [0-9]+: )?#bash: #' err >&2; exit \"$status\"",
+    "files": {},
+    "stdout": "",
+    "stderr": "bash: kill: (99999999) - No such process\n",
+    "exitCode": 1
   }
 }
