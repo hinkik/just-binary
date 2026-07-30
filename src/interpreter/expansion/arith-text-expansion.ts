@@ -179,10 +179,8 @@ export async function expandSubscriptForAssocArray(
         const cmdStr = inner.slice(i + 2, j - 1);
         if (ctx.execFn) {
           const stdoutCollector = createCollector();
-          const stderrCollector = createCollector();
           const captureChannels = cloneOutputChannels(ctx.outputChannels);
           overrideChannelSink(captureChannels, 1, stdoutCollector);
-          overrideChannelSink(captureChannels, 2, stderrCollector);
           const cmdResult = await withChannels(ctx, captureChannels, () =>
             ctx.execFn(cmdStr),
           );
@@ -194,12 +192,6 @@ export async function expandSubscriptForAssocArray(
             /\n+$/,
             "",
           );
-          // Forward stderr to expansion stderr
-          const stderrText = await collectText(stderrCollector.stream());
-          if (stderrText.length > 0) {
-            ctx.state.expansionStderr =
-              (ctx.state.expansionStderr || "") + stderrText;
-          }
         }
         i = j;
       } else if (inner[i + 1] === "{") {
@@ -240,10 +232,8 @@ export async function expandSubscriptForAssocArray(
       const cmdStr = inner.slice(i + 1, j);
       if (ctx.execFn) {
         const stdoutCollector = createCollector();
-        const stderrCollector = createCollector();
         const captureChannels = cloneOutputChannels(ctx.outputChannels);
         overrideChannelSink(captureChannels, 1, stdoutCollector);
-        overrideChannelSink(captureChannels, 2, stderrCollector);
         const cmdResult = await withChannels(ctx, captureChannels, () =>
           ctx.execFn(cmdStr),
         );
@@ -254,11 +244,6 @@ export async function expandSubscriptForAssocArray(
           /\n+$/,
           "",
         );
-        const stderrText = await collectText(stderrCollector.stream());
-        if (stderrText.length > 0) {
-          ctx.state.expansionStderr =
-            (ctx.state.expansionStderr || "") + stderrText;
-        }
       }
       i = j + 1;
     } else {

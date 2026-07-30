@@ -2,6 +2,7 @@ import type { RedirectionNode, WordNode } from "../ast/types.js";
 import type { ExecResult } from "../types.js";
 import { envGet, envSet } from "../utils/bytes.js";
 import { failure } from "./helpers/result.js";
+import { parseRwFdContent } from "./helpers/word-matching.js";
 import {
   CLOSED_CHANNEL_DESCRIPTOR,
   deletePersistentChannel,
@@ -34,6 +35,8 @@ interface InstalledFileSink {
 interface CompileOptions {
   persistent?: boolean;
   inputRedirectionsProcessed?: boolean;
+  /** Bash fails to restore the moved source fd after running a builtin. */
+  persistMovedSource?: boolean;
 }
 
 const nullSink: OutputSink = {
@@ -105,6 +108,11 @@ function resolveDescriptorSink(
     sink = queuedFileSink(ctx, descriptor.slice(9));
   } else if (descriptor?.startsWith("__file_append__:")) {
     sink = queuedFileSink(ctx, descriptor.slice(16));
+  } else if (descriptor?.startsWith("__rw__:")) {
+    const parsed = parseRwFdContent(descriptor);
+    if (parsed) {
+      sink = queuedFileSink(ctx, parsed.path);
+    }
   } else if (descriptor?.startsWith("__dupout__:")) {
     const sourceFd = Number.parseInt(descriptor.slice(11), 10);
     if (!Number.isNaN(sourceFd)) {
@@ -530,12 +538,18 @@ export async function compileOutputRedirections(
           channels.bindings.set(sourceFd, {
             descriptor: CLOSED_CHANNEL_DESCRIPTOR,
           });
+          if (options.persistMovedSource && channels.parent) {
+            reachedOwningTable = deletePersistentChannel(
+              channels.parent,
+              sourceFd,
+            );
+          }
         }
         deleteDescriptor(
           ctx,
           redir,
           sourceFd,
-          persistent,
+          persistent || options.persistMovedSource === true,
           descriptor,
           reachedOwningTable,
         );
@@ -598,7 +612,10 @@ export async function compileOutputRedirections(
 /**
  * Mutate the live channel table for a persistent `exec` output redirect.
  *
- * Phase 3 exposes this mechanism without wiring it into legacy aggregation.
+ * Each changed fd reaches through temporary tables until an enclosing scope
+ * explicitly overrides that fd. That lets `exec` persist through unredirected
+ * groups/functions while respecting subshell clones and redirection restore
+ * boundaries.
  */
 export async function applyPersistentOutputRedirections(
   ctx: InterpreterContext,
@@ -615,9 +632,11 @@ export async function applyPersistentOutputRedirections(
     return compiled;
   }
 
-  liveChannels.bindings.clear();
-  for (const [fd, binding] of compiled.channels.bindings) {
-    liveChannels.bindings.set(fd, { ...binding });
+  for (const fd of compiled.channels.overrides ?? []) {
+    const binding = compiled.channels.bindings.get(fd);
+    if (binding?.descriptor !== undefined) {
+      setPersistentChannel(liveChannels, fd, binding.sink, binding.descriptor);
+    }
   }
   return { ...compiled, channels: liveChannels };
 }

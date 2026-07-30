@@ -30,7 +30,7 @@ async function executeObserved(script: string) {
 }
 
 describe("sequencing captures and tracing", () => {
-  it("captures loop stdout and defers loop stderr through expansionStderr", async () => {
+  it("captures loop stdout while routing loop stderr live", async () => {
     const result = await executeObserved(
       'out=$(for i in 1 2; do echo $i; echo e$i >&2; done); echo "got:$out"',
     );
@@ -78,9 +78,9 @@ describe("sequencing captures and tracing", () => {
 
     expect(result).toEqual({
       observedStdout: "1\n2\n",
-      observedStderr: "+ echo 1\n+ echo 2\n",
+      observedStderr: "+ for i in 1 2\n+ echo 1\n+ for i in 1 2\n+ echo 2\n",
       stdout: "1\n2\n",
-      stderr: "+ echo 1\n+ echo 2\n",
+      stderr: "+ for i in 1 2\n+ echo 1\n+ for i in 1 2\n+ echo 2\n",
       exitCode: 0,
     });
   });

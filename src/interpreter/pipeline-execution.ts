@@ -11,15 +11,21 @@ import {
   type ByteStream,
   concatStreams,
   emptyStream,
-  fromString,
 } from "../utils/stream.js";
-import { BadSubstitutionError, ErrexitError, ExitError } from "./errors.js";
+import {
+  AbortExecutionError,
+  BadSubstitutionError,
+  ErrexitError,
+  ExitError,
+} from "./errors.js";
 import { ok } from "./helpers/result.js";
 import {
   cloneOutputChannels,
   createCollector,
   overrideChannelSink,
+  pumpResult,
   withChannels,
+  writeToChannel,
 } from "./output-channels.js";
 import type { InterpreterContext } from "./types.js";
 
@@ -206,16 +212,48 @@ export async function executePipeline(
         };
       } else {
         // Regular | only pipes stdout
-        stdin = result.stdout;
+        const unpumpedStdout = result.stdout;
+        await pumpResult(ctx, result, true, [2]);
+        stdin = unpumpedStdout;
         lastResult = {
           stdout: emptyStream(),
-          stderr: result.stderr,
+          stderr: emptyStream(),
           exitCode: result.exitCode,
         };
       }
     } else {
       lastResult = result;
     }
+  }
+
+  // If pipefail is enabled, use the rightmost failing exit code
+  if (ctx.state.options.pipefail && pipefailExitCode !== 0) {
+    lastResult = {
+      ...lastResult,
+      exitCode: pipefailExitCode,
+    };
+  }
+
+  if (node.negated) {
+    lastResult = {
+      ...lastResult,
+      exitCode: lastResult.exitCode === 0 ? 1 : 0,
+    };
+  }
+
+  // This is the pipeline's outermost output boundary. Intermediate stdout
+  // remains lazy until draining the last stage pulls it through the chain.
+  // Stages themselves are still invoked sequentially.
+  const childHandledAbort =
+    ctx.signal?.aborted === true &&
+    lastResult.exitCode === new AbortExecutionError(ctx.signal.reason).exitCode;
+  const unpumpedExitCode = lastResult.exitCode;
+  lastResult = await pumpResult(ctx, lastResult, !childHandledAbort);
+  if (
+    lastResult.exitCode !== unpumpedExitCode &&
+    pipestatusExitCodes.length > 0
+  ) {
+    pipestatusExitCodes[pipestatusExitCodes.length - 1] = lastResult.exitCode;
   }
 
   // Set PIPESTATUS array with exit codes from all pipeline commands
@@ -245,21 +283,6 @@ export async function executePipeline(
     );
   }
 
-  // If pipefail is enabled, use the rightmost failing exit code
-  if (ctx.state.options.pipefail && pipefailExitCode !== 0) {
-    lastResult = {
-      ...lastResult,
-      exitCode: pipefailExitCode,
-    };
-  }
-
-  if (node.negated) {
-    lastResult = {
-      ...lastResult,
-      exitCode: lastResult.exitCode === 0 ? 1 : 0,
-    };
-  }
-
   // Output timing info for timed pipelines
   if (node.timed) {
     const endTime = performance.now();
@@ -277,10 +300,7 @@ export async function executePipeline(
       timingOutput = `\nreal\t${realStr}\nuser\t0m0.000s\nsys\t0m0.000s\n`;
     }
 
-    lastResult = {
-      ...lastResult,
-      stderr: concatStreams(lastResult.stderr, fromString(timingOutput)),
-    };
+    await writeToChannel(ctx, 2, timingOutput);
   }
 
   // Handle $_ for multi-command pipelines:

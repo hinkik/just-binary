@@ -36,6 +36,7 @@ import {
   overrideChannelSink,
   pumpResult,
   withChannels,
+  writeToChannel,
 } from "./output-channels.js";
 import type { InterpreterContext } from "./types.js";
 
@@ -466,20 +467,12 @@ export async function evaluateArithmetic(
       // Execute the command and parse the result as a number
       if (ctx.execFn) {
         const stdoutCollector = createCollector();
-        const stderrCollector = createCollector();
         const captureChannels = cloneOutputChannels(ctx.outputChannels);
         overrideChannelSink(captureChannels, 1, stdoutCollector);
-        overrideChannelSink(captureChannels, 2, stderrCollector);
         const result = await withChannels(ctx, captureChannels, () =>
           ctx.execFn(expr.command),
         );
         await withChannels(ctx, captureChannels, () => pumpResult(ctx, result));
-        // Command substitution stderr should go to the shell's stderr at expansion time
-        const stderrText = await collectText(stderrCollector.stream());
-        if (stderrText.length > 0) {
-          ctx.state.expansionStderr =
-            (ctx.state.expansionStderr || "") + stderrText;
-        }
         const output = (await collectText(stdoutCollector.stream()))
           .replace(/\n+$/, "")
           .trim();
@@ -558,9 +551,11 @@ export async function evaluateArithmetic(
           const elements = getArrayElements(ctx, expr.array);
           const lineNum = ctx.state.currentLine;
           if (elements.length === 0) {
-            ctx.state.expansionStderr =
-              (ctx.state.expansionStderr || "") +
-              `bash: line ${lineNum}: ${expr.array}: bad array subscript\n`;
+            await writeToChannel(
+              ctx,
+              2,
+              `bash: line ${lineNum}: ${expr.array}: bad array subscript\n`,
+            );
             return 0;
           }
           const maxIndex = Math.max(
@@ -568,9 +563,11 @@ export async function evaluateArithmetic(
           );
           const actualIdx = maxIndex + 1 + index;
           if (actualIdx < 0) {
-            ctx.state.expansionStderr =
-              (ctx.state.expansionStderr || "") +
-              `bash: line ${lineNum}: ${expr.array}: bad array subscript\n`;
+            await writeToChannel(
+              ctx,
+              2,
+              `bash: line ${lineNum}: ${expr.array}: bad array subscript\n`,
+            );
             return 0;
           }
           index = actualIdx;
@@ -1000,10 +997,8 @@ async function evalConcatPartToStringAsync(
     case "ArithCommandSubst": {
       if (ctx.execFn) {
         const stdoutCollector = createCollector();
-        const stderrCollector = createCollector();
         const captureChannels = cloneOutputChannels(ctx.outputChannels);
         overrideChannelSink(captureChannels, 1, stdoutCollector);
-        overrideChannelSink(captureChannels, 2, stderrCollector);
         const result = await withChannels(ctx, captureChannels, () =>
           ctx.execFn(expr.command),
         );

@@ -22,6 +22,7 @@ import {
 } from "../helpers/array.js";
 import { getIfsSeparator } from "../helpers/ifs.js";
 import { isNameref, resolveNameref } from "../helpers/nameref.js";
+import { writeToChannel } from "../output-channels.js";
 import type { InterpreterContext } from "../types.js";
 
 /** Decode a Uint8Array env value to string, returning fallback if undefined */
@@ -357,9 +358,11 @@ export async function getVariable(
       const lineNum = ctx.state.currentLine;
       if (elements.length === 0) {
         // Empty array with negative index - output error to stderr and return empty
-        ctx.state.expansionStderr =
-          (ctx.state.expansionStderr || "") +
-          `bash: line ${lineNum}: ${arrayName}: bad array subscript\n`;
+        await writeToChannel(
+          ctx,
+          2,
+          `bash: line ${lineNum}: ${arrayName}: bad array subscript\n`,
+        );
         return "";
       }
       // Find the maximum index
@@ -370,9 +373,11 @@ export async function getVariable(
       const actualIdx = maxIndex + 1 + index;
       if (actualIdx < 0) {
         // Out of bounds negative index - output error to stderr and return empty
-        ctx.state.expansionStderr =
-          (ctx.state.expansionStderr || "") +
-          `bash: line ${lineNum}: ${arrayName}: bad array subscript\n`;
+        await writeToChannel(
+          ctx,
+          2,
+          `bash: line ${lineNum}: ${arrayName}: bad array subscript\n`,
+        );
         return "";
       }
       // Look up by actual index, not position

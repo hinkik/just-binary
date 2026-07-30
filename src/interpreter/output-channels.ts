@@ -1,4 +1,5 @@
 import type { ExecResult } from "../types.js";
+import { encode } from "../utils/bytes.js";
 import {
   type ByteStream,
   emptyStream,
@@ -60,12 +61,6 @@ export function hasChannelBinding(
   return false;
 }
 
-export function hasNonStandardChannelBinding(
-  channels: OutputChannels,
-): boolean {
-  return Array.from(channels.bindings.keys()).some((fd) => fd >= 3);
-}
-
 export function isChannelClosed(channels: OutputChannels, fd: number): boolean {
   return channels.bindings.get(fd)?.descriptor === CLOSED_CHANNEL_DESCRIPTOR;
 }
@@ -73,12 +68,16 @@ export function isChannelClosed(channels: OutputChannels, fd: number): boolean {
 export function setPersistentChannel(
   channels: OutputChannels,
   fd: number,
-  sink: OutputSink,
+  sink: OutputSink | undefined,
   descriptor: string,
 ): void {
   let current: OutputChannels | undefined = channels;
   while (current) {
+    const stopAfterCurrent = current.overrides?.has(fd) === true;
     current.bindings.set(fd, { sink, descriptor });
+    if (stopAfterCurrent) {
+      return;
+    }
     current = current.parent;
   }
 }
@@ -102,6 +101,47 @@ export function deletePersistentChannel(
 const discardSink: OutputSink = {
   write() {},
 };
+
+const closedSink: OutputSink = {
+  write() {
+    const error = new Error(
+      "bash: echo: write error: Bad file descriptor\n",
+    ) as Error & { code: string };
+    error.code = "EBADF";
+    return Promise.reject(error);
+  },
+};
+
+function channelSink(
+  channels: OutputChannels,
+  fd: number,
+  failClosed = true,
+): OutputSink {
+  let current: OutputChannels | undefined = channels;
+  while (current) {
+    const binding = current.bindings.get(fd);
+    if (binding) {
+      return binding.descriptor === CLOSED_CHANNEL_DESCRIPTOR
+        ? failClosed
+          ? closedSink
+          : discardSink
+        : (binding.sink ?? discardSink);
+    }
+    current = current.parent;
+  }
+  return discardSink;
+}
+
+export async function writeToChannel(
+  ctx: InterpreterContext,
+  fd: number,
+  chunk: Uint8Array | string,
+): Promise<void> {
+  const bytes = typeof chunk === "string" ? encode(chunk) : chunk;
+  if (bytes.length > 0) {
+    await channelSink(ctx.outputChannels, fd, false).write(bytes);
+  }
+}
 
 export function createCollector(forward?: OutputSink): OutputCollector {
   const chunks: Uint8Array[] = [];
@@ -183,21 +223,30 @@ export async function pumpResult(
   ctx: InterpreterContext,
   result: ExecResult,
   checkSignal = true,
+  outputFds: readonly (1 | 2)[] = [1, 2],
 ): Promise<ExecResult> {
-  const settled = await Promise.allSettled([
-    pumpStream(
-      ctx,
-      result.stdout,
-      ctx.outputChannels.bindings.get(1)?.sink ?? discardSink,
-      checkSignal,
-    ),
-    pumpStream(
-      ctx,
-      result.stderr,
-      ctx.outputChannels.bindings.get(2)?.sink ?? discardSink,
-      checkSignal,
-    ),
-  ]);
+  const pumps: Promise<void>[] = [];
+  if (outputFds.includes(1)) {
+    pumps.push(
+      pumpStream(
+        ctx,
+        result.stdout,
+        channelSink(ctx.outputChannels, 1),
+        checkSignal,
+      ),
+    );
+  }
+  if (outputFds.includes(2)) {
+    pumps.push(
+      pumpStream(
+        ctx,
+        result.stderr,
+        channelSink(ctx.outputChannels, 2),
+        checkSignal,
+      ),
+    );
+  }
+  const settled = await Promise.allSettled(pumps);
   const rejected = settled.find(
     (outcome): outcome is PromiseRejectedResult =>
       outcome.status === "rejected",
@@ -208,8 +257,8 @@ export async function pumpResult(
 
   return {
     ...result,
-    stdout: emptyStream(),
-    stderr: emptyStream(),
+    stdout: outputFds.includes(1) ? emptyStream() : result.stdout,
+    stderr: outputFds.includes(2) ? emptyStream() : result.stderr,
   };
 }
 
@@ -238,6 +287,7 @@ function carriesOutput(error: unknown): error is OutputCarryingError {
 export async function pumpErrorStreams(
   ctx: InterpreterContext,
   error: unknown,
+  outputFds: readonly (1 | 2)[] = [1, 2],
 ): Promise<boolean> {
   if (!carriesOutput(error)) {
     return false;
@@ -245,22 +295,24 @@ export async function pumpErrorStreams(
 
   const stdout = error.stdout;
   const stderr = error.stderr;
-  const settled = await Promise.allSettled([
-    pumpStream(
-      ctx,
-      stdout,
-      ctx.outputChannels.bindings.get(1)?.sink ?? discardSink,
-      false,
-    ),
-    pumpStream(
-      ctx,
-      stderr,
-      ctx.outputChannels.bindings.get(2)?.sink ?? discardSink,
-      false,
-    ),
-  ]);
-  error.stdout = emptyStream();
-  error.stderr = emptyStream();
+  const pumps: Promise<void>[] = [];
+  if (outputFds.includes(1)) {
+    pumps.push(
+      pumpStream(ctx, stdout, channelSink(ctx.outputChannels, 1), false),
+    );
+  }
+  if (outputFds.includes(2)) {
+    pumps.push(
+      pumpStream(ctx, stderr, channelSink(ctx.outputChannels, 2), false),
+    );
+  }
+  const settled = await Promise.allSettled(pumps);
+  if (outputFds.includes(1)) {
+    error.stdout = emptyStream();
+  }
+  if (outputFds.includes(2)) {
+    error.stderr = emptyStream();
+  }
 
   const rejected = settled.find(
     (outcome): outcome is PromiseRejectedResult =>
@@ -269,14 +321,20 @@ export async function pumpErrorStreams(
   if (rejected) {
     throw rejected.reason;
   }
-  return true;
+  return outputFds.length > 0;
 }
 
 function isNoSpaceError(error: unknown): error is Error & { code: "ENOSPC" } {
   return error instanceof Error && "code" in error && error.code === "ENOSPC";
 }
 
-async function reportNoSpaceFailure(
+function isBadFileDescriptorError(
+  error: unknown,
+): error is Error & { code: "EBADF" } {
+  return error instanceof Error && "code" in error && error.code === "EBADF";
+}
+
+async function reportWriteFailure(
   ctx: InterpreterContext,
   error: Error,
 ): Promise<ExecResult> {
@@ -290,7 +348,10 @@ async function reportNoSpaceFailure(
       exitCode: 1,
     });
   } catch (reportError) {
-    if (!isNoSpaceError(reportError)) {
+    if (
+      !isNoSpaceError(reportError) &&
+      !isBadFileDescriptorError(reportError)
+    ) {
       throw reportError;
     }
   }
@@ -304,19 +365,23 @@ async function reportNoSpaceFailure(
 export async function pumpErrorStreamsWithWriteFailure(
   ctx: InterpreterContext,
   error: unknown,
+  outputFds?: readonly (1 | 2)[],
 ): Promise<{
   writeFailure: ExecResult | null;
   carriedOutput: boolean;
 }> {
   try {
-    return {
-      writeFailure: null,
-      carriedOutput: await pumpErrorStreams(ctx, error),
-    };
+    const carriedOutput = await pumpErrorStreams(ctx, error, outputFds);
+    return isNoSpaceError(error) || isBadFileDescriptorError(error)
+      ? {
+          writeFailure: await reportWriteFailure(ctx, error),
+          carriedOutput,
+        }
+      : { writeFailure: null, carriedOutput };
   } catch (pumpError) {
-    if (isNoSpaceError(pumpError)) {
+    if (isNoSpaceError(pumpError) || isBadFileDescriptorError(pumpError)) {
       return {
-        writeFailure: await reportNoSpaceFailure(ctx, pumpError),
+        writeFailure: await reportWriteFailure(ctx, pumpError),
         carriedOutput: true,
       };
     }
@@ -327,23 +392,24 @@ export async function pumpErrorStreamsWithWriteFailure(
 export async function executeAndPumpResult(
   ctx: InterpreterContext,
   execute: () => Promise<ExecResult>,
+  outputFds?: readonly (1 | 2)[],
 ): Promise<ExecResult> {
   try {
-    return await pumpResult(ctx, await execute());
+    return await pumpResult(ctx, await execute(), true, outputFds);
   } catch (error) {
     const { carriedOutput, writeFailure } =
       await pumpErrorStreamsWithWriteFailure(ctx, error);
     if (writeFailure) {
       return writeFailure;
     }
-    if (isNoSpaceError(error)) {
+    if (isNoSpaceError(error) || isBadFileDescriptorError(error)) {
       return carriedOutput
         ? {
             stdout: emptyStream(),
             stderr: emptyStream(),
             exitCode: 1,
           }
-        : reportNoSpaceFailure(ctx, error);
+        : reportWriteFailure(ctx, error);
     }
     throw error;
   }

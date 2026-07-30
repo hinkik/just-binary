@@ -170,7 +170,7 @@ describe("scope live output channels", () => {
     });
   });
 
-  it("keeps ordinary leaf output buffered until its statement completes", async () => {
+  it("publishes an ordinary leaf before the next AND-list command", async () => {
     const blocked = deferred();
     const blockedStarted = deferred();
     let observed = "";
@@ -206,7 +206,7 @@ describe("scope live output channels", () => {
     await blockedStarted.promise;
     expect({ execResolved, observed }).toEqual({
       execResolved: false,
-      observed: "",
+      observed: "legacy\n",
     });
 
     blocked.resolve();

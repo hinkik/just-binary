@@ -8,7 +8,7 @@
 import type { ScriptNode } from "../../ast/types.js";
 import { Parser } from "../../parser/parser.js";
 import { envGet, envSet } from "../../utils/bytes.js";
-import { collectText, emptyStream } from "../../utils/stream.js";
+import { collectText } from "../../utils/stream.js";
 import { ExecutionLimitError, ExitError } from "../errors.js";
 import {
   cloneOutputChannels,
@@ -129,13 +129,16 @@ async function executeCommandSubstitutionFromString(
   ctx.state.bashPid = ctx.state.nextVirtualPid++;
   const savedEnv = new Map(ctx.state.env);
   const savedCwd = ctx.state.cwd;
+  const savedFileDescriptors = ctx.state.fileDescriptors;
+  const savedNextFd = ctx.state.nextFd;
+  ctx.state.fileDescriptors = savedFileDescriptors
+    ? new Map(savedFileDescriptors)
+    : undefined;
   const savedSuppressVerbose = ctx.state.suppressVerbose;
   ctx.state.suppressVerbose = true;
   const stdoutCollector = createCollector();
-  const stderrCollector = createCollector();
   const captureChannels = cloneOutputChannels(ctx.outputChannels);
   overrideChannelSink(captureChannels, 1, stdoutCollector);
-  overrideChannelSink(captureChannels, 2, stderrCollector);
 
   try {
     const result = await withChannels(ctx, captureChannels, () =>
@@ -145,29 +148,25 @@ async function executeCommandSubstitutionFromString(
     const exitCode = result.exitCode;
     ctx.state.env = savedEnv;
     ctx.state.cwd = savedCwd;
+    ctx.state.fileDescriptors = savedFileDescriptors;
+    ctx.state.nextFd = savedNextFd;
     ctx.state.suppressVerbose = savedSuppressVerbose;
     ctx.state.lastExitCode = exitCode;
     envSet(ctx.state.env, "?", String(exitCode));
     await withChannels(ctx, captureChannels, () => pumpResult(ctx, result));
-    const stderrText = await collectText(stderrCollector.stream());
-    if (stderrText.length > 0) {
-      ctx.state.expansionStderr =
-        (ctx.state.expansionStderr || "") + stderrText;
-    }
     ctx.state.bashPid = savedBashPid;
     return (await collectText(stdoutCollector.stream())).replace(/\n+$/, "");
   } catch (error) {
     ctx.state.env = savedEnv;
     ctx.state.cwd = savedCwd;
+    ctx.state.fileDescriptors = savedFileDescriptors;
+    ctx.state.nextFd = savedNextFd;
     ctx.state.bashPid = savedBashPid;
     ctx.state.suppressVerbose = savedSuppressVerbose;
     if (error instanceof ExecutionLimitError) {
-      await pumpResult(ctx, {
-        stdout: emptyStream(),
-        stderr: stderrCollector.stream(),
-        exitCode: ExecutionLimitError.EXIT_CODE,
-      });
-      await pumpErrorStreams(ctx, error);
+      await withChannels(ctx, captureChannels, () =>
+        pumpErrorStreams(ctx, error),
+      );
       throw error;
     }
     if (error instanceof ExitError) {

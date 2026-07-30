@@ -50,13 +50,14 @@ import { getErrorMessage } from "./helpers/errors.js";
 import { handleLoopError } from "./helpers/loop.js";
 import { failure, throwExecutionLimit } from "./helpers/result.js";
 import { executeStatements } from "./helpers/statements.js";
+import { traceSimpleCommand } from "./helpers/xtrace.js";
 import {
   pumpErrorStreams,
   pumpResult,
   withChannels,
+  writeToChannel,
 } from "./output-channels.js";
 import { compileOutputRedirections } from "./redirect-channels.js";
-import { applyRedirections } from "./redirections.js";
 import type { InterpreterContext } from "./types.js";
 
 function errorLine(error: unknown): string {
@@ -83,16 +84,11 @@ async function executeWithCompoundRedirections(
   return withChannels(ctx, compiled.channels, async () => {
     try {
       const exitCode = await execute(compiled.legacyRedirections);
-      const legacyResult = await applyRedirections(
-        ctx,
-        {
-          stdout: emptyStream(),
-          stderr: emptyStream(),
-          exitCode,
-        },
-        compiled.legacyRedirections,
-      );
-      return await pumpResult(ctx, legacyResult);
+      return {
+        stdout: emptyStream(),
+        stderr: emptyStream(),
+        exitCode,
+      };
     } catch (error) {
       const carriedOutput = await pumpErrorStreams(ctx, error);
       if (
@@ -184,6 +180,11 @@ export async function executeFor(
         }
 
         envSet(ctx.state.env, node.variable, value);
+        await writeToChannel(
+          ctx,
+          2,
+          await traceSimpleCommand(ctx, "for", [node.variable, "in", ...words]),
+        );
 
         try {
           for (const stmt of node.body) {

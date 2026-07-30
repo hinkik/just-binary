@@ -310,19 +310,14 @@ export interface IOState {
 // ============================================================================
 // Expansion State
 // ============================================================================
-// Captures errors during parameter expansion that need to be reported
-// after the expansion completes (arithmetic errors, etc.)
+// Tracks status changes caused by parameter expansion.
 
 /**
- * Captures errors that occur during parameter expansion.
- * Some expansion errors need to be reported after expansion completes,
- * with their exit codes and stderr preserved.
+ * Tracks exit status changes caused by parameter expansion.
  */
 export interface ExpansionState {
   /** Exit code from expansion errors (arithmetic, etc.) - overrides command exit code */
   expansionExitCode?: number;
-  /** Stderr from expansion errors */
-  expansionStderr?: string;
 }
 
 // ============================================================================

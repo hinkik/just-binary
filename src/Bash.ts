@@ -610,6 +610,9 @@ export class Bash {
       functions: new Map(this.state.functions),
       localScopes: [...this.state.localScopes],
       options: { ...this.state.options },
+      fileDescriptors: this.state.fileDescriptors
+        ? new Map(this.state.fileDescriptors)
+        : undefined,
       // Share hashTable reference - it should persist across exec calls
       hashTable: this.state.hashTable,
       // Pass stdin through to commands (for bash -c with piped input)
@@ -730,17 +733,21 @@ export class Bash {
       // SecurityViolationError is thrown when defense-in-depth detects a blocked operation
       if (error instanceof SecurityViolationError) {
         return this.logResult({
-          stdout: emptyStream(),
-          stderr: fromString(`bash: security violation: ${error.message}\n`),
+          stdout: stdoutCollector.stream(),
+          stderr: concatStreams(
+            stderrCollector.stream(),
+            fromString(`bash: security violation: ${error.message}\n`),
+          ),
           exitCode: 1,
           env: mapToRecordWithExtras(this.state.env, options?.env),
         });
       }
       if ((error as ParseException).name === "ParseException") {
         return this.logResult({
-          stdout: emptyStream(),
-          stderr: fromString(
-            `bash: syntax error: ${(error as Error).message}\n`,
+          stdout: stdoutCollector.stream(),
+          stderr: concatStreams(
+            stderrCollector.stream(),
+            fromString(`bash: syntax error: ${(error as Error).message}\n`),
           ),
           exitCode: 2,
           env: mapToRecordWithExtras(this.state.env, options?.env),
@@ -749,8 +756,11 @@ export class Bash {
       // LexerError is thrown for lexer-level issues like unterminated quotes
       if (error instanceof LexerError) {
         return this.logResult({
-          stdout: emptyStream(),
-          stderr: fromString(`bash: ${error.message}\n`),
+          stdout: stdoutCollector.stream(),
+          stderr: concatStreams(
+            stderrCollector.stream(),
+            fromString(`bash: ${error.message}\n`),
+          ),
           exitCode: 2,
           env: mapToRecordWithExtras(this.state.env, options?.env),
         });
@@ -758,8 +768,11 @@ export class Bash {
       // RangeError occurs when JavaScript call stack is exceeded (deep recursion)
       if (error instanceof RangeError) {
         return this.logResult({
-          stdout: emptyStream(),
-          stderr: fromString(`bash: ${error.message}\n`),
+          stdout: stdoutCollector.stream(),
+          stderr: concatStreams(
+            stderrCollector.stream(),
+            fromString(`bash: ${error.message}\n`),
+          ),
           exitCode: 1,
           env: mapToRecordWithExtras(this.state.env, options?.env),
         });

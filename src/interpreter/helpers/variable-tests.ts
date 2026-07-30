@@ -2,6 +2,7 @@ import { parseArithmeticExpression } from "../../parser/arithmetic-parser.js";
 import { Parser } from "../../parser/parser.js";
 import { envGet } from "../../utils/bytes.js";
 import { evaluateArithmetic } from "../arithmetic.js";
+import { writeToChannel } from "../output-channels.js";
 import type { InterpreterContext } from "../types.js";
 import { getArrayIndices, getAssocArrayKeys } from "./array.js";
 
@@ -66,18 +67,22 @@ export async function evaluateVariableTest(
       const lineNum = ctx.state.currentLine;
       if (indices.length === 0) {
         // Empty array with negative index - emit warning and return false
-        ctx.state.expansionStderr =
-          (ctx.state.expansionStderr || "") +
-          `bash: line ${lineNum}: ${arrayName}: bad array subscript\n`;
+        await writeToChannel(
+          ctx,
+          2,
+          `bash: line ${lineNum}: ${arrayName}: bad array subscript\n`,
+        );
         return false;
       }
       const maxIndex = Math.max(...indices);
       index = maxIndex + 1 + index;
       if (index < 0) {
         // Out of bounds negative index - emit warning and return false
-        ctx.state.expansionStderr =
-          (ctx.state.expansionStderr || "") +
-          `bash: line ${lineNum}: ${arrayName}: bad array subscript\n`;
+        await writeToChannel(
+          ctx,
+          2,
+          `bash: line ${lineNum}: ${arrayName}: bad array subscript\n`,
+        );
         return false;
       }
     }

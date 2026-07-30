@@ -1,0 +1,65 @@
+{
+  "06d4db8168301edb": {
+    "command": "exec 2>&1; echo e >&2",
+    "files": {},
+    "stdout": "e\n",
+    "stderr": "",
+    "exitCode": 0
+  },
+  "2c8cb4dc88f91c13": {
+    "command": "(exec >sub; echo child); echo parent; cat sub",
+    "files": {},
+    "stdout": "parent\nchild\n",
+    "stderr": "",
+    "exitCode": 0
+  },
+  "2e96b68e170be2fd": {
+    "command": "exec 3>&1; { exec >group; echo inner; }; echo outer; cat group >&3",
+    "files": {},
+    "stdout": "inner\nouter\n",
+    "stderr": "",
+    "exitCode": 0
+  },
+  "39b798f330823065": {
+    "command": "{ exec 3>&-; echo y >&3 2>err; status=$?; printf 'status:%s err:' \"$status\"; if [ -e err ]; then cat err; else printf missing; fi; printf '\\n'; } 2>diag; sed 's#^/bin/bash:#bash:#' diag >&2",
+    "files": {},
+    "stdout": "status:1 err:missing\n",
+    "stderr": "bash: 3: Bad file descriptor\n",
+    "exitCode": 0
+  },
+  "3dc4bfc7880352e1": {
+    "command": "exec 3>&1; exec >out; echo a; echo b; cat out >&3",
+    "files": {},
+    "stdout": "a\nb\n",
+    "stderr": "",
+    "exitCode": 0
+  },
+  "6800c831199b98f2": {
+    "command": "printf 'a\\n' >f | sed 's/^/pipe:/'; printf 'file:<'; cat f; printf '>\\n'",
+    "files": {},
+    "stdout": "file:<a\n>\n",
+    "stderr": "",
+    "exitCode": 0
+  },
+  "cd2abdfdf0d8679f": {
+    "command": "{ x=$(exec 3>&1); echo y >&3 2>err; status=$?; printf 'status:%s err:' \"$status\"; if [ -e err ]; then cat err; else printf missing; fi; printf '\\n'; } 2>diag; sed 's#^/bin/bash:#bash:#' diag >&2",
+    "files": {},
+    "stdout": "status:1 err:missing\n",
+    "stderr": "bash: 3: Bad file descriptor\n",
+    "exitCode": 0
+  },
+  "e9a5c098c838dd63": {
+    "command": "set -x; echo hi 2>trace; set +x; printf 'trace:<'; cat trace; printf '>\\n'",
+    "files": {},
+    "stdout": "hi\ntrace:<>\n",
+    "stderr": "+ echo hi\n+ set +x\n",
+    "exitCode": 0
+  },
+  "f51e89effb77ece1": {
+    "command": "exec 3>&1; echo x >&3",
+    "files": {},
+    "stdout": "x\n",
+    "stderr": "",
+    "exitCode": 0
+  }
+}

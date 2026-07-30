@@ -28,7 +28,7 @@ import {
   envSet,
   trimTrailingNewlines,
 } from "../utils/bytes.js";
-import { collectBytes, collectText, emptyStream } from "../utils/stream.js";
+import { collectBytes } from "../utils/stream.js";
 import { evaluateArithmetic } from "./arithmetic.js";
 import {
   BadSubstitutionError,
@@ -832,13 +832,16 @@ async function executeCommandSubstitutionBytes(
   ctx.state.bashPid = ctx.state.nextVirtualPid++;
   const savedEnv = new Map(ctx.state.env);
   const savedCwd = ctx.state.cwd;
+  const savedFileDescriptors = ctx.state.fileDescriptors;
+  const savedNextFd = ctx.state.nextFd;
+  ctx.state.fileDescriptors = savedFileDescriptors
+    ? new Map(savedFileDescriptors)
+    : undefined;
   const savedSuppressVerbose = ctx.state.suppressVerbose;
   ctx.state.suppressVerbose = true;
   const stdoutCollector = createCollector();
-  const stderrCollector = createCollector();
   const captureChannels = cloneOutputChannels(ctx.outputChannels);
   overrideChannelSink(captureChannels, 1, stdoutCollector);
-  overrideChannelSink(captureChannels, 2, stderrCollector);
   try {
     const result = await withChannels(ctx, captureChannels, () =>
       ctx.executeScript(part.body),
@@ -846,15 +849,12 @@ async function executeCommandSubstitutionBytes(
     const exitCode = result.exitCode;
     ctx.state.env = savedEnv;
     ctx.state.cwd = savedCwd;
+    ctx.state.fileDescriptors = savedFileDescriptors;
+    ctx.state.nextFd = savedNextFd;
     ctx.state.suppressVerbose = savedSuppressVerbose;
     ctx.state.lastExitCode = exitCode;
     envSet(ctx.state.env, "?", String(exitCode));
     await withChannels(ctx, captureChannels, () => pumpResult(ctx, result));
-    const stderrText = await collectText(stderrCollector.stream());
-    if (stderrText.length > 0) {
-      ctx.state.expansionStderr =
-        (ctx.state.expansionStderr || "") + stderrText;
-    }
     ctx.state.bashPid = savedBashPid;
     ctx.substitutionDepth = savedDepth;
     const output = trimTrailingNewlines(
@@ -870,20 +870,17 @@ async function executeCommandSubstitutionBytes(
   } catch (error) {
     ctx.state.env = savedEnv;
     ctx.state.cwd = savedCwd;
+    ctx.state.fileDescriptors = savedFileDescriptors;
+    ctx.state.nextFd = savedNextFd;
     ctx.state.bashPid = savedBashPid;
     ctx.substitutionDepth = savedDepth;
     ctx.state.suppressVerbose = savedSuppressVerbose;
     if (error instanceof ExecutionLimitError) {
-      // Converted nested scripts have already delivered their fatal stderr to
-      // the substitution collector and blanked the carried error streams.
-      // Forward only that captured stderr to the enclosing table; captured
-      // stdout must remain isolated on fatal expansion paths.
-      await pumpResult(ctx, {
-        stdout: emptyStream(),
-        stderr: stderrCollector.stream(),
-        exitCode: ExecutionLimitError.EXIT_CODE,
-      });
-      await pumpErrorStreams(ctx, error);
+      // Preserve the stdout capture boundary while forwarding any legacy
+      // carried stderr through the inherited active fd 2.
+      await withChannels(ctx, captureChannels, () =>
+        pumpErrorStreams(ctx, error),
+      );
       throw error;
     }
     if (error instanceof ExitError) {
@@ -892,11 +889,6 @@ async function executeCommandSubstitutionBytes(
       await withChannels(ctx, captureChannels, () =>
         pumpErrorStreams(ctx, error),
       );
-      const errStderrText = await collectText(stderrCollector.stream());
-      if (errStderrText.length > 0) {
-        ctx.state.expansionStderr =
-          (ctx.state.expansionStderr || "") + errStderrText;
-      }
       const exitOutput = trimTrailingNewlines(
         await collectBytes(stdoutCollector.stream()),
       );

@@ -9,6 +9,7 @@
 import { Parser } from "../../parser/parser.js";
 import { decode } from "../../utils/bytes.js";
 import { expandWord } from "../expansion.js";
+import { writeToChannel } from "../output-channels.js";
 import type { InterpreterContext } from "../types.js";
 
 /**
@@ -23,10 +24,11 @@ const DEFAULT_PS4 = "+ ";
  */
 async function getXtracePrefix(ctx: InterpreterContext): Promise<string> {
   const ps4Raw = ctx.state.env.get("PS4");
+  const substitutionDepth = ctx.substitutionDepth ?? 0;
 
   // If PS4 is not set, return default
   if (ps4Raw === undefined) {
-    return DEFAULT_PS4;
+    return `${"+".repeat(substitutionDepth + 1)} `;
   }
 
   const ps4 = decode(ps4Raw);
@@ -45,12 +47,17 @@ async function getXtracePrefix(ctx: InterpreterContext): Promise<string> {
     // Expand the word (handles $VAR, ${VAR}, $?, $LINENO, etc.)
     const expanded = await expandWord(ctx, wordNode);
 
-    return expanded;
+    return substitutionDepth > 0 && expanded.length > 0
+      ? `${expanded[0].repeat(substitutionDepth)}${expanded}`
+      : expanded;
   } catch {
     // If expansion fails, print error to stderr (like bash does) and return literal PS4
     // Bash continues execution but reports the error
-    ctx.state.expansionStderr = `${ctx.state.expansionStderr || ""}bash: ${ps4}: bad substitution\n`;
-    return ps4 || DEFAULT_PS4;
+    await writeToChannel(ctx, 2, `bash: ${ps4}: bad substitution\n`);
+    const fallback = ps4 || DEFAULT_PS4;
+    return substitutionDepth > 0 && fallback.length > 0
+      ? `${fallback[0].repeat(substitutionDepth)}${fallback}`
+      : fallback;
   }
 }
 

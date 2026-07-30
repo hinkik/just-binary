@@ -48,10 +48,7 @@ import {
   type CompiledOutputRedirections,
   compileOutputRedirections,
 } from "./redirect-channels.js";
-import {
-  applyRedirections,
-  processFdVariableRedirections,
-} from "./redirections.js";
+import { processFdVariableRedirections } from "./redirections.js";
 import type { InterpreterContext } from "./types.js";
 
 /**
@@ -74,6 +71,11 @@ export async function executeSubshell(
   const subshellChannels = cloneOutputChannels(ctx.outputChannels);
   const savedEnv = new Map(ctx.state.env);
   const savedCwd = ctx.state.cwd;
+  const savedFileDescriptors = ctx.state.fileDescriptors;
+  const savedNextFd = ctx.state.nextFd;
+  ctx.state.fileDescriptors = savedFileDescriptors
+    ? new Map(savedFileDescriptors)
+    : undefined;
   // Save options so subshell changes (like set -e) don't affect parent
   const savedOptions = { ...ctx.state.options };
 
@@ -129,6 +131,8 @@ export async function executeSubshell(
   const restore = (): void => {
     ctx.state.env = savedEnv;
     ctx.state.cwd = savedCwd;
+    ctx.state.fileDescriptors = savedFileDescriptors;
+    ctx.state.nextFd = savedNextFd;
     ctx.state.options = savedOptions;
     ctx.state.functions = savedFunctions;
     ctx.state.localScopes = savedLocalScopes;
@@ -166,14 +170,8 @@ export async function executeSubshell(
     }
 
     return await withChannels(ctx, compiled.channels, async () => {
-      const finish = async (exitCode: number): Promise<ExecResult> => {
-        const legacyResult = await applyRedirections(
-          ctx,
-          result(emptyStream(), emptyStream(), exitCode),
-          compiled.legacyRedirections,
-        );
-        return executeAndPumpResult(ctx, () => Promise.resolve(legacyResult));
-      };
+      const finish = (exitCode: number): ExecResult =>
+        result(emptyStream(), emptyStream(), exitCode);
 
       try {
         // Streams are single-use, so materialize pipeline input once and
@@ -351,14 +349,7 @@ export async function executeGroup(
         exitCode = pumpedResult.exitCode;
       }
 
-      const legacyResult = await applyRedirections(
-        ctx,
-        result(emptyStream(), emptyStream(), exitCode),
-        compiled.legacyRedirections,
-      );
-      return await executeAndPumpResult(ctx, () =>
-        Promise.resolve(legacyResult),
-      );
+      return result(emptyStream(), emptyStream(), exitCode);
     } catch (error) {
       const { carriedOutput, writeFailure } =
         await pumpErrorStreamsWithWriteFailure(ctx, error);
