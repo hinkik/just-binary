@@ -39,6 +39,7 @@ import {
   Interpreter,
   type InterpreterOptions,
   type InterpreterState,
+  type JobExecutionTracker,
 } from "./interpreter/index.js";
 import {
   createCollector,
@@ -210,6 +211,16 @@ export interface BashOptions {
 
 export interface ExecOptions {
   /**
+   * Process namespace override for hosts that isolate individual executions.
+   * @internal
+   */
+  processes?: ProcessTable;
+  /**
+   * Job lifecycle tracker shared by nested executions.
+   * @internal
+   */
+  jobTracker?: JobExecutionTracker;
+  /**
    * Environment variables to set for this execution only.
    * These are merged with the current environment and restored after execution.
    */
@@ -261,7 +272,6 @@ export interface ExecOptions {
 export class Bash {
   readonly fs: IFileSystem;
   readonly processes: ProcessTable;
-  private readonly ownsProcessTable: boolean;
   private commands: CommandRegistry = new Map();
   private useDefaultLayout: boolean = false;
   private limits: Required<ExecutionLimits>;
@@ -278,7 +288,6 @@ export class Bash {
   constructor(options: BashOptions = {}) {
     const fs = options.fs ?? new InMemoryFs(options.files);
     this.fs = fs;
-    this.ownsProcessTable = options.processes === undefined;
     this.processes = options.processes ?? new ProcessTable();
 
     this.useDefaultLayout = !options.cwd && !options.files;
@@ -561,8 +570,11 @@ export class Bash {
     };
     const stdoutCollector = createCollector(trackSink(options?.stdoutSink));
     const stderrCollector = createCollector(trackSink(options?.stderrSink));
-    const initialJobCount = this.processes.list().length;
-    const initialLimitVersion = this.processes.executionLimitVersion;
+    const processes = options?.processes ?? this.processes;
+    const jobTracker = options?.jobTracker ?? {
+      started: false,
+      limitExceeded: false,
+    };
 
     // Log command execution
     this.logger?.info("exec", { command: commandLine });
@@ -661,12 +673,15 @@ export class Bash {
             ]),
           },
           limits: this.limits,
-          processes: this.processes,
+          jobTracker,
+          processes,
           // Nested executions (bash -c, xargs, timeout, ...) inherit this
           // execution's signal; a nested call may add its own on top.
           exec: (script, execOptions) =>
             this.exec(script, {
               ...execOptions,
+              jobTracker,
+              processes,
               signal: combineAbortSignals(options?.signal, execOptions?.signal),
             }),
           fetch: this.secureFetch,
@@ -678,16 +693,13 @@ export class Bash {
 
         const interpreter = new Interpreter(interpreterOptions, execState);
         let result = await interpreter.executeRootScript(ast);
-        if (
-          this.ownsProcessTable &&
-          this.processes.list().length > initialJobCount
-        ) {
+        if (jobTracker.started) {
           // Let immediately-runnable job graphs reach their first real async
           // boundary. This preserves non-blocking `&` for sleeps and I/O while
           // ensuring a microtask-only fork bomb surfaces its safety limit
           // before its throwaway owning shell returns success.
           await new Promise((resolve) => scheduleMacrotask(resolve, 0));
-          if (this.processes.executionLimitVersion !== initialLimitVersion) {
+          if (jobTracker.limitExceeded) {
             result = {
               ...result,
               exitCode: ExecutionLimitError.EXIT_CODE,

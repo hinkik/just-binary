@@ -101,7 +101,7 @@ describe("Bash background-job lifecycle", () => {
     expectResult(result, {
       stdout: "",
       stderr: "bash: maximum concurrent jobs (1) exceeded\n",
-      exitCode: 1,
+      exitCode: 126,
     });
     expect(
       processes.list().map(({ command, state }) => ({ command, state })),

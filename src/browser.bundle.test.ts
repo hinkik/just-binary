@@ -222,6 +222,8 @@ describe("browser bundle safety", () => {
       const required = [
         // Core
         "Bash",
+        "AbortExecutionError",
+        "checkAborted",
         "defineCommand",
         // Filesystem (browser-safe subset)
         "InMemoryFs",

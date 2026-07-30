@@ -68,6 +68,6 @@ describe("Bash background-job output", () => {
       exitCode: 0,
     });
     expect(await processes.wait(1000)).toBe(0);
-    expect(processes.get(1000)?.exitCode).toBe(0);
+    expect(processes.get(1000)).toBeUndefined();
   });
 });

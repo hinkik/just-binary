@@ -41,20 +41,12 @@ export function handleJobs(
     }
   }
 
-  for (const job of ctx.processes.list()) {
-    if (selectedPids && !selectedPids.has(job.pid)) {
-      continue;
-    }
-    const jobNumber = ctx.processes.getJobNumber(job.pid);
-    if (jobNumber === undefined) {
-      continue;
-    }
-    const marker = ctx.processes.getJobMarker(job.pid);
+  for (const job of ctx.processes.listJobs(selectedPids)) {
     const state =
       job.state === "running"
         ? "Running                 "
         : "Done                    ";
-    stdout += `[${jobNumber}]${marker}  ${state}${job.command}\n`;
+    stdout += `[${job.jobNumber}]${job.marker}  ${state}${job.command}\n`;
   }
 
   return {

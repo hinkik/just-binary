@@ -1,6 +1,6 @@
 import type { Bash, ExecOptions } from "../Bash.js";
 import type { OutputSink } from "../interpreter/output-channels.js";
-import { ProcessTable } from "../process/process-table.js";
+import { type JobSignal, ProcessTable } from "../process/process-table.js";
 import { collectText } from "../utils/stream.js";
 
 export interface OutputMessage {
@@ -30,6 +30,7 @@ export class Command {
   private env?: Record<string, string>;
   private explicitCwd: boolean;
   private processes: ProcessTable;
+  private shellProcesses: ProcessTable;
   private logMessages: OutputMessage[] = [];
   private logReaders = new Set<() => void>();
   private logsComplete = false;
@@ -44,12 +45,14 @@ export class Command {
     env?: Record<string, string>,
     explicitCwd = false,
     processes: ProcessTable = new ProcessTable(),
+    shellProcesses: ProcessTable = bashEnv.processes,
   ) {
     this.cmdId = crypto.randomUUID();
     this.cwd = cwd;
     this.startedAt = new Date();
     this.bashEnv = bashEnv;
     this.processes = processes;
+    this.shellProcesses = shellProcesses;
     this.cmdLine = cmdLine;
     this.env = env;
     this.explicitCwd = explicitCwd;
@@ -83,6 +86,9 @@ export class Command {
         }
       }
     });
+    // Command.wait() waits on the public result object, so independently reap
+    // the internal host-process record once its runner settles.
+    void processes.wait(this.pid);
   }
 
   private appendLog(
@@ -123,6 +129,7 @@ export class Command {
     const options: ExecOptions = {
       cwd: this.explicitCwd ? this.cwd : undefined,
       env: this.env,
+      processes: this.shellProcesses,
       signal,
       stdoutSink,
       stderrSink,
@@ -171,8 +178,8 @@ export class Command {
     return result.stderrText;
   }
 
-  async kill(): Promise<void> {
-    this.processes.kill(this.pid, "SIGTERM");
+  async kill(signal: JobSignal = "SIGTERM"): Promise<void> {
+    this.processes.kill(this.pid, signal);
   }
 }
 

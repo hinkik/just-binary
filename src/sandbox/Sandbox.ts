@@ -39,16 +39,19 @@ export interface WriteFilesInput {
 export class Sandbox {
   private bashEnv: Bash;
   private commandProcesses: ProcessTable;
-  private shellProcesses: ProcessTable;
+  private baseShellProcesses: ProcessTable;
+  private commandShellProcesses = new Set<ProcessTable>();
+  private stopped = false;
+  private stopPromise?: Promise<void>;
 
   private constructor(
     bashEnv: Bash,
     commandProcesses: ProcessTable,
-    shellProcesses: ProcessTable,
+    baseShellProcesses: ProcessTable,
   ) {
     this.bashEnv = bashEnv;
     this.commandProcesses = commandProcesses;
-    this.shellProcesses = shellProcesses;
+    this.baseShellProcesses = baseShellProcesses;
   }
 
   static async create(opts?: SandboxOptions): Promise<Sandbox> {
@@ -64,36 +67,64 @@ export class Sandbox {
     // Host commands and shell background jobs need distinct process namespaces:
     // otherwise `wait` inside a command would wait for its own enclosing job.
     const commandProcesses = new ProcessTable();
-    const shellProcesses = new ProcessTable();
+    const baseShellProcesses = new ProcessTable();
     const bashEnv = new Bash({
       env: opts?.env,
       cwd: opts?.cwd,
       // Bash-specific extensions
       fs,
-      processes: shellProcesses,
+      processes: baseShellProcesses,
       maxCallDepth: opts?.maxCallDepth,
       maxCommandCount: opts?.maxCommandCount,
       maxLoopIterations: opts?.maxLoopIterations,
       network: opts?.network,
     });
-    return new Sandbox(bashEnv, commandProcesses, shellProcesses);
+    return new Sandbox(bashEnv, commandProcesses, baseShellProcesses);
   }
 
   async runCommand(
     cmd: string,
     opts?: { cwd?: string; env?: Record<string, string> },
   ): Promise<Command> {
+    if (this.stopped) {
+      throw new Error("Cannot run commands after Sandbox.stop()");
+    }
+
     // Use per-exec options for cwd and env (they don't persist after the command)
     const cwd = opts?.cwd ?? this.bashEnv.getCwd();
     const explicitCwd = opts?.cwd !== undefined;
-    return new Command(
+    let commandSettled = false;
+    const retireShellProcesses = (): void => {
+      if (!commandSettled || shellProcesses.runningCount !== 0) {
+        return;
+      }
+      this.commandShellProcesses.delete(shellProcesses);
+      void shellProcesses.dispose();
+    };
+    const shellProcesses: ProcessTable = new ProcessTable({
+      onJobExit: retireShellProcesses,
+    });
+    this.commandShellProcesses.add(shellProcesses);
+    const command = new Command(
       this.bashEnv,
       cmd,
       cwd,
       opts?.env,
       explicitCwd,
       this.commandProcesses,
+      shellProcesses,
     );
+    void command.wait().then(
+      () => {
+        commandSettled = true;
+        retireShellProcesses();
+      },
+      () => {
+        commandSettled = true;
+        retireShellProcesses();
+      },
+    );
+    return command;
   }
 
   async writeFiles(files: WriteFilesInput): Promise<void> {
@@ -133,8 +164,19 @@ export class Sandbox {
   }
 
   async stop(): Promise<void> {
-    this.commandProcesses.dispose();
-    this.shellProcesses.dispose();
+    if (!this.stopPromise) {
+      this.stopped = true;
+      const tables = new Set([
+        this.commandProcesses,
+        this.baseShellProcesses,
+        ...this.commandShellProcesses,
+      ]);
+      this.commandShellProcesses.clear();
+      this.stopPromise = Promise.all(
+        [...tables].map((table) => table.dispose()),
+      ).then(() => undefined);
+    }
+    await this.stopPromise;
   }
 
   async extendTimeout(_ms: number): Promise<void> {

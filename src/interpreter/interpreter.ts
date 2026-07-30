@@ -135,7 +135,11 @@ import {
   executeSubshell as executeSubshellHelper,
   executeUserScript as executeUserScriptHelper,
 } from "./subshell-group.js";
-import type { InterpreterContext, InterpreterState } from "./types.js";
+import type {
+  InterpreterContext,
+  InterpreterState,
+  JobExecutionTracker,
+} from "./types.js";
 
 export type { InterpreterContext, InterpreterState } from "./types.js";
 
@@ -209,6 +213,7 @@ export interface InterpreterOptions {
   processes: ProcessTable;
   outputChannels: OutputChannels;
   limits: Required<ExecutionLimits>;
+  jobTracker: JobExecutionTracker;
   exec: (
     script: string,
     options?: {
@@ -242,6 +247,7 @@ export class Interpreter {
       outputChannels: options.outputChannels,
       reportedDiagnostics: new WeakSet(),
       limits: options.limits,
+      jobTracker: options.jobTracker,
       execFn: options.exec,
       executeScript: this.executeScript.bind(this),
       executeStatement: this.executeStatement.bind(this),
@@ -450,13 +456,13 @@ export class Interpreter {
       if (
         this.ctx.processes.runningCount >= this.ctx.limits.maxConcurrentJobs
       ) {
-        this.ctx.processes.reportExecutionLimit();
+        this.ctx.jobTracker.limitExceeded = true;
         await writeToChannel(
           this.ctx,
           2,
           `bash: maximum concurrent jobs (${this.ctx.limits.maxConcurrentJobs}) exceeded\n`,
         );
-        return failure("", 1);
+        return failure("", ExecutionLimitError.EXIT_CODE);
       }
 
       const parentState = this.ctx.state;
@@ -580,28 +586,27 @@ export class Interpreter {
       };
       const processes = this.ctx.processes;
       const inheritedChannels = this.ctx.outputChannels;
-      let pid = 0;
-      const jobChannels = cloneOutputChannels(
-        inheritedChannels,
-        (fd, inheritedSink) => {
+      const createJobChannels = (jobPid: number): OutputChannels =>
+        cloneOutputChannels(inheritedChannels, (fd, inheritedSink) => {
           if (!processes.observesOutput) {
             return inheritedSink;
           }
           return createCollector(
             {
               write(chunk) {
-                processes.observeOutput(pid, fd, chunk);
+                processes.observeOutput(jobPid, fd, chunk);
                 return inheritedSink.write(chunk);
               },
             },
             false,
           );
-        },
-      );
+        });
       const command = node.sourceText?.trim() || "<background job>";
+      let pid: number;
 
       try {
         pid = processes.start(command, async (jobPid, jobSignal) => {
+          const jobChannels = createJobChannels(jobPid);
           jobState.bashPid = jobPid;
           jobState.nextVirtualPid = Math.max(
             jobState.nextVirtualPid,
@@ -615,6 +620,7 @@ export class Interpreter {
               processes,
               outputChannels: jobChannels,
               limits: this.ctx.limits,
+              jobTracker: this.ctx.jobTracker,
               exec: (script, options) =>
                 this.ctx.execFn(script, {
                   ...options,
@@ -645,12 +651,13 @@ export class Interpreter {
               return error.exitCode;
             }
             if (error instanceof ExecutionLimitError) {
-              processes.reportExecutionLimit();
+              this.ctx.jobTracker.limitExceeded = true;
               return ExecutionLimitError.EXIT_CODE;
             }
             throw error;
           }
         });
+        this.ctx.jobTracker.started = true;
       } catch (error) {
         await writeToChannel(
           this.ctx,

@@ -398,6 +398,8 @@ export interface InterpreterContext {
   reportedDiagnostics?: WeakSet<Error>;
   /** Execution limits configuration */
   limits: Required<ExecutionLimits>;
+  /** Lifecycle events attributable to this root exec and its descendants. */
+  jobTracker: JobExecutionTracker;
   execFn: (
     script: string,
     options?: {
@@ -422,4 +424,9 @@ export interface InterpreterContext {
   substitutionDepth?: number;
   /** Optional feature coverage writer for fuzzing instrumentation */
   coverage?: FeatureCoverageWriter;
+}
+
+export interface JobExecutionTracker {
+  started: boolean;
+  limitExceeded: boolean;
 }

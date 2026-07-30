@@ -55,7 +55,7 @@ export async function handleWait(
     if (
       pid === undefined ||
       !Number.isSafeInteger(pid) ||
-      !ctx.processes.get(pid)
+      !ctx.processes.canWait(pid)
     ) {
       stderr += target.startsWith("%")
         ? `bash: wait: ${target}: no such job\n`

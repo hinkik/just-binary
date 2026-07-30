@@ -74,4 +74,41 @@ describe("job control - Real Bash Comparison", () => {
       compareStderr: true,
     });
   });
+
+  it("keeps jobs empty after wait-all reaps a completed job", async () => {
+    const env = await setupFiles(testDir, {});
+    await compareOutputs(env, testDir, "sleep 0.05 & wait; jobs; jobs", {
+      compareStderr: true,
+    });
+  });
+
+  it("recycles the job number after wait-all drains the table", async () => {
+    const env = await setupFiles(testDir, {});
+    await compareOutputs(env, testDir, "sleep 0.01 & wait; sleep 0.01 & jobs", {
+      compareStderr: true,
+    });
+  });
+
+  it("retains a finished job's status for targeted wait", async () => {
+    const env = await setupFiles(testDir, {});
+    await compareOutputs(
+      env,
+      testDir,
+      'false & pid=$!; sleep 0.01; wait "$pid"; printf "status:%s\\n" "$?"',
+      { compareStderr: true },
+    );
+  });
+
+  it("forgets a completed PID after wait-all", async () => {
+    const env = await setupFiles(testDir, {});
+    await compareOutputs(
+      env,
+      testDir,
+      'false & pid=$!; wait; wait "$pid" 2>err; status=$?; ' +
+        "sed -E 's#^/bin/bash: (line [0-9]+: )?#bash: #; " +
+        "s#pid [0-9]+#pid PID#' err >&2; " +
+        'printf "status:%s\\n" "$status"',
+      { compareStderr: true },
+    );
+  });
 });

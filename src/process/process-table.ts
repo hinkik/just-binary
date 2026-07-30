@@ -6,6 +6,8 @@
  * instances and keep jobs alive while the shell objects come and go.
  */
 
+import { abortExitCode } from "../interpreter/errors.js";
+
 export type JobSignal = "SIGTERM" | "SIGINT" | "SIGKILL";
 
 export interface JobInfo {
@@ -16,42 +18,43 @@ export interface JobInfo {
   exitCode?: number;
 }
 
+export interface ListedJob extends JobInfo {
+  jobNumber: number;
+  marker: "+" | "-" | " ";
+}
+
 export interface ProcessTableOptions {
   /** Observer called for every chunk a job writes, so a host can log per-job. */
   onJobOutput?: (pid: number, fd: number, chunk: Uint8Array) => void;
   /** Called when a job settles (SIGCHLD). */
   onJobExit?: (pid: number, exitCode: number) => void;
+  /** Maximum time disposal waits for aborted runners to settle. */
+  disposeTimeoutMs?: number;
 }
 
 interface JobRecord {
   info: JobInfo;
   jobNumber: number;
-  controller: AbortController;
-  promise: Promise<number>;
+  controller?: AbortController;
+  promise?: Promise<number>;
 }
 
 export type JobRunner = (pid: number, signal: AbortSignal) => Promise<number>;
 
 const FIRST_VIRTUAL_PID = 1000;
-
-function signalExitCode(reason: unknown): number {
-  switch (reason) {
-    case "SIGINT":
-      return 130;
-    case "SIGKILL":
-      return 137;
-    default:
-      return 143;
-  }
-}
+const MAX_REAPED_WAIT_STATUSES = 64;
+const scheduleDisposalTimeout = globalThis.setTimeout.bind(globalThis);
+const cancelDisposalTimeout = globalThis.clearTimeout.bind(globalThis);
 
 export class ProcessTable {
   private readonly jobs = new Map<number, JobRecord>();
+  private readonly reapedWaitStatuses = new Map<number, number>();
   private readonly options: ProcessTableOptions;
   private nextPid = FIRST_VIRTUAL_PID;
-  private nextJobNumber = 1;
-  private limitVersion = 0;
+  private highestJobNumber = 0;
+  private runningJobs = 0;
   private disposed = false;
+  private disposePromise?: Promise<void>;
 
   constructor(options: ProcessTableOptions = {}) {
     this.options = options;
@@ -70,6 +73,7 @@ export class ProcessTable {
 
     const pid = this.nextPid++;
     const controller = new AbortController();
+    const jobNumber = this.highestJobNumber + 1;
     const record: JobRecord = {
       info: {
         pid,
@@ -77,27 +81,38 @@ export class ProcessTable {
         startedAt: Date.now(),
         state: "running",
       },
-      jobNumber: this.nextJobNumber++,
+      jobNumber,
       controller,
       promise: Promise.resolve(0),
     };
     this.jobs.set(pid, record);
+    this.highestJobNumber = jobNumber;
+    this.runningJobs++;
 
     record.promise = Promise.resolve()
       .then(() => runner(pid, controller.signal))
       .catch(() =>
-        controller.signal.aborted
-          ? signalExitCode(controller.signal.reason)
-          : 1,
+        controller.signal.aborted ? abortExitCode(controller.signal.reason) : 1,
       )
       .then((exitCode) => {
+        if (this.jobs.get(pid) === record) {
+          this.runningJobs--;
+        }
         record.info = {
           ...record.info,
           state: "done",
           exitCode,
         };
+        // A completed-but-unreported job only needs its compact metadata.
+        // Drop execution machinery while `jobs`/`wait` still have a row to reap.
+        record.controller = undefined;
+        record.promise = undefined;
         try {
-          this.options.onJobExit?.(pid, exitCode);
+          void Promise.resolve(this.options.onJobExit?.(pid, exitCode)).catch(
+            () => {
+              // Process settlement must not depend on an async host observer.
+            },
+          );
         } catch {
           // Process settlement must not depend on a host observer.
         }
@@ -113,6 +128,45 @@ export class ProcessTable {
       .map((record) => ({ ...record.info }));
   }
 
+  /**
+   * Snapshot jobs for the `jobs` builtin and reap every completed job included
+   * in the snapshot. Markers are computed once for the complete table.
+   */
+  listJobs(selectedPids?: ReadonlySet<number>): ListedJob[] {
+    const records = [...this.jobs.values()].sort(
+      (a, b) => a.jobNumber - b.jobNumber,
+    );
+    const currentPid = records.at(-1)?.info.pid;
+    const previousPid = records.at(-2)?.info.pid;
+    const completedPids: number[] = [];
+    const listed: ListedJob[] = [];
+
+    for (const record of records) {
+      if (selectedPids && !selectedPids.has(record.info.pid)) {
+        continue;
+      }
+      listed.push({
+        ...record.info,
+        jobNumber: record.jobNumber,
+        marker:
+          record.info.pid === currentPid
+            ? "+"
+            : record.info.pid === previousPid
+              ? "-"
+              : " ",
+      });
+      if (record.info.state === "done") {
+        completedPids.push(record.info.pid);
+        this.rememberWaitStatus(record.info.pid, record.info.exitCode ?? 1);
+      }
+    }
+
+    // TODO(job-termination-notice): the follow-up job-control work should emit
+    // Bash's signal termination notice when a killed job is reaped here.
+    this.deleteJobs(completedPids);
+    return listed;
+  }
+
   get(pid: number): JobInfo | undefined {
     const info = this.jobs.get(pid)?.info;
     return info ? { ...info } : undefined;
@@ -123,49 +177,87 @@ export class ProcessTable {
     if (!record || record.info.state === "done") {
       return false;
     }
-    record.controller.abort(reason);
+    record.controller?.abort(reason);
     return true;
   }
 
   async wait(pid?: number): Promise<number> {
     if (pid !== undefined) {
-      return (await this.jobs.get(pid)?.promise) ?? 127;
+      const record = this.jobs.get(pid);
+      if (!record) {
+        return this.reapedWaitStatuses.get(pid) ?? 127;
+      }
+      const exitCode =
+        record.info.state === "done"
+          ? (record.info.exitCode ?? 1)
+          : await (record.promise ?? Promise.resolve(1));
+      if (this.jobs.get(pid) === record) {
+        this.rememberWaitStatus(pid, exitCode);
+        this.deleteJobs([pid]);
+      }
+      return exitCode;
     }
 
-    const jobs = [...this.jobs.values()];
-    if (jobs.length === 0) {
-      return 0;
+    const records = [...this.jobs.values()];
+    const statusesToForget = new Set([
+      ...this.reapedWaitStatuses.keys(),
+      ...records.map((record) => record.info.pid),
+    ]);
+    if (records.length > 0) {
+      await Promise.all(
+        records.map(
+          (record) =>
+            record.promise ?? Promise.resolve(record.info.exitCode ?? 1),
+        ),
+      );
+      this.deleteJobs(records.map((record) => record.info.pid));
     }
-    await Promise.all(jobs.map((record) => record.promise));
+    for (const completedPid of statusesToForget) {
+      this.reapedWaitStatuses.delete(completedPid);
+    }
     return 0;
   }
 
-  abortAll(reason = "SIGTERM"): void {
+  abortAll(reason: JobSignal = "SIGTERM"): void {
     for (const record of this.jobs.values()) {
       if (record.info.state === "running") {
-        record.controller.abort(reason);
+        record.controller?.abort(reason);
       }
     }
   }
 
-  dispose(): void {
-    if (this.disposed) {
-      return;
+  dispose(): Promise<void> {
+    if (this.disposePromise) {
+      return this.disposePromise;
     }
     this.disposed = true;
+    const records = [...this.jobs.values()];
+    let finishDisposal: () => void = () => undefined;
+    this.disposePromise = new Promise<void>((resolve) => {
+      finishDisposal = resolve;
+    });
     this.abortAll("SIGKILL");
     this.jobs.clear();
+    this.reapedWaitStatuses.clear();
+    this.highestJobNumber = 0;
+    this.runningJobs = 0;
+
+    const timeout = scheduleDisposalTimeout(
+      finishDisposal,
+      this.options.disposeTimeoutMs ?? 1_000,
+    );
+    void Promise.allSettled(
+      records.flatMap((record) => (record.promise ? [record.promise] : [])),
+    ).then(() => {
+      cancelDisposalTimeout(timeout);
+      finishDisposal();
+    });
+    return this.disposePromise;
   }
 
   /** Number of jobs that currently count toward the concurrency limit. */
   get runningCount(): number {
-    let count = 0;
-    for (const record of this.jobs.values()) {
-      if (record.info.state === "running") {
-        count++;
-      }
-    }
-    return count;
+    return this.runningJobs;
   }
 
   /** Bash job number assigned to a PID, or undefined for an unknown PID. */
@@ -173,20 +265,9 @@ export class ProcessTable {
     return this.jobs.get(pid)?.jobNumber;
   }
 
-  /** Marker used by `jobs`: current job (+), previous job (-), or neither. */
-  getJobMarker(pid: number): "+" | "-" | " " {
-    const records = [...this.jobs.values()].sort(
-      (a, b) => a.jobNumber - b.jobNumber,
-    );
-    const current = records.at(-1);
-    const previous = records.at(-2);
-    if (current?.info.pid === pid) {
-      return "+";
-    }
-    if (previous?.info.pid === pid) {
-      return "-";
-    }
-    return " ";
+  /** Whether a PID is an active child or has a retained wait status. */
+  canWait(pid: number): boolean {
+    return this.jobs.has(pid) || this.reapedWaitStatuses.has(pid);
   }
 
   /** Resolve the numeric and current/previous job specs accepted by Bash. */
@@ -216,21 +297,43 @@ export class ProcessTable {
   /** Report one output chunk. The table deliberately never retains it. */
   observeOutput(pid: number, fd: number, chunk: Uint8Array): void {
     try {
-      this.options.onJobOutput?.(pid, fd, chunk);
+      void Promise.resolve(this.options.onJobOutput?.(pid, fd, chunk)).catch(
+        () => {
+          // Job execution and inherited delivery do not depend on an async observer.
+        },
+      );
     } catch {
       // Job execution and inherited delivery do not depend on an observer.
     }
   }
 
-  /**
-   * Monotonic safety event counter used by an owning shell to surface a
-   * runaway background job before returning. Shared hosts can ignore it.
-   */
-  get executionLimitVersion(): number {
-    return this.limitVersion;
+  private rememberWaitStatus(pid: number, exitCode: number): void {
+    this.reapedWaitStatuses.delete(pid);
+    this.reapedWaitStatuses.set(pid, exitCode);
+    if (this.reapedWaitStatuses.size > MAX_REAPED_WAIT_STATUSES) {
+      const oldestPid = this.reapedWaitStatuses.keys().next().value;
+      if (oldestPid !== undefined) {
+        this.reapedWaitStatuses.delete(oldestPid);
+      }
+    }
   }
 
-  reportExecutionLimit(): void {
-    this.limitVersion++;
+  private deleteJobs(pids: Iterable<number>): void {
+    let removedHighest = false;
+    for (const pid of pids) {
+      const record = this.jobs.get(pid);
+      if (!record) {
+        continue;
+      }
+      this.jobs.delete(pid);
+      removedHighest ||= record.jobNumber === this.highestJobNumber;
+    }
+    if (!removedHighest) {
+      return;
+    }
+    this.highestJobNumber = 0;
+    for (const record of this.jobs.values()) {
+      this.highestJobNumber = Math.max(this.highestJobNumber, record.jobNumber);
+    }
   }
 }

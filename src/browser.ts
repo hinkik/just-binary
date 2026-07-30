@@ -50,6 +50,10 @@ export {
   type MountableFsOptions,
   type MountConfig,
 } from "./fs/mountable-fs/index.js";
+export {
+  AbortExecutionError,
+  checkAborted,
+} from "./interpreter/errors.js";
 export type { OutputSink } from "./interpreter/output-channels.js";
 export type { NetworkConfig } from "./network/index.js";
 export {
@@ -61,6 +65,7 @@ export type {
   JobInfo,
   JobRunner,
   JobSignal,
+  ListedJob,
   ProcessTableOptions,
 } from "./process/process-table.js";
 export { ProcessTable } from "./process/process-table.js";

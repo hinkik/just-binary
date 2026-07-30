@@ -160,7 +160,7 @@ export class ExecutionLimitError extends ControlFlowError {
  * Map an AbortSignal reason to the exit code a killed process would have.
  * Matches real shell conventions: 128 + signal number.
  */
-function abortExitCode(reason: unknown): number {
+export function abortExitCode(reason: unknown): number {
   if (reason instanceof DOMException && reason.name === "TimeoutError") {
     // AbortSignal.timeout() — same as GNU timeout's deadline kill
     return 124;

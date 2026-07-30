@@ -34,10 +34,31 @@
     "stderr": "",
     "exitCode": 0
   },
+  "985fca01d874d4d1": {
+    "command": "sleep 0.01 & wait; sleep 0.01 & jobs",
+    "files": {},
+    "stdout": "[1]+  Running                 sleep 0.01 &\n",
+    "stderr": "",
+    "exitCode": 0
+  },
   "a43b233df3f043d1": {
     "command": "sleep 5 & kill $!; wait $! 2>/dev/null; echo $?",
     "files": {},
     "stdout": "143\n",
+    "stderr": "",
+    "exitCode": 0
+  },
+  "ae1fdb58a80e7f78": {
+    "command": "false & pid=$!; sleep 0.01; wait \"$pid\"; printf \"status:%s\\n\" \"$?\"",
+    "files": {},
+    "stdout": "status:1\n",
+    "stderr": "",
+    "exitCode": 0
+  },
+  "c8e024e0fd6d3e23": {
+    "command": "sleep 0.05 & wait; jobs; jobs",
+    "files": {},
+    "stdout": "",
     "stderr": "",
     "exitCode": 0
   },
@@ -47,5 +68,12 @@
     "stdout": "",
     "stderr": "bash: kill: (99999999) - No such process\n",
     "exitCode": 1
+  },
+  "fd40eef852b20b9e": {
+    "command": "false & pid=$!; wait; wait \"$pid\" 2>err; status=$?; sed -E 's#^/bin/bash: (line [0-9]+: )?#bash: #; s#pid [0-9]+#pid PID#' err >&2; printf \"status:%s\\n\" \"$status\"",
+    "files": {},
+    "stdout": "status:127\n",
+    "stderr": "bash: wait: pid PID is not a child of this shell\n",
+    "exitCode": 0
   }
 }

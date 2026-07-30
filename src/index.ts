@@ -62,6 +62,7 @@ export type {
   JobInfo,
   JobRunner,
   JobSignal,
+  ListedJob,
   ProcessTableOptions,
 } from "./process/process-table.js";
 export { ProcessTable } from "./process/process-table.js";

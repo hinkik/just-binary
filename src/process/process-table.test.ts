@@ -52,13 +52,9 @@ describe("ProcessTable", () => {
     finishFirst(3);
     expect(await table.wait(first)).toBe(3);
     expect(await table.wait(second)).toBe(7);
-    expect(table.get(first)).toEqual({
-      pid: 1000,
-      command: "first",
-      startedAt: table.get(first)?.startedAt,
-      state: "done",
-      exitCode: 3,
-    });
+    expect(table.get(first)).toBeUndefined();
+    expect(await table.wait(first)).toBe(3);
+    expect(await table.wait(second)).toBe(7);
   });
 
   it("maps kill signals to shell exit statuses", async () => {
@@ -78,7 +74,8 @@ describe("ProcessTable", () => {
       expect(table.kill(pid + 999, signal)).toBe(false);
       expect(await table.wait(pid)).toBe(expected);
       expect(table.kill(pid, signal)).toBe(false);
-      expect(table.get(pid)?.exitCode).toBe(expected);
+      expect(table.get(pid)).toBeUndefined();
+      expect(await table.wait(pid)).toBe(expected);
     }
   });
 
@@ -91,8 +88,8 @@ describe("ProcessTable", () => {
     const second = table.start("two", async () => 9);
 
     expect(await table.wait()).toBe(0);
-    expect(await table.wait(first)).toBe(4);
-    expect(await table.wait(second)).toBe(9);
+    expect(await table.wait(first)).toBe(127);
+    expect(await table.wait(second)).toBe(127);
     expect(exits).toEqual([
       [1000, 4],
       [1001, 9],

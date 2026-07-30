@@ -220,7 +220,7 @@ describe("OutputCollector retention lifecycle", () => {
       retainedStdoutBytes: rootStdoutCollector.retainedByteLength,
     }).toEqual({
       jobExitCode: 0,
-      jobState: "done",
+      jobState: undefined,
       emittedChunks: 64,
       observedChunks: 64,
       observedBytes: 64 * 1024,
