@@ -1,0 +1,32 @@
+{
+  "09d543b04ca7b10c": {
+    "command": "i=0; while [ $i -lt 3 ]; do echo n$i; i=$((i+1)); done > out.txt; cat out.txt",
+    "files": {},
+    "stdout": "n0\nn1\nn2\n",
+    "stderr": "",
+    "exitCode": 0
+  },
+  "19ac0db2a31b53cc": {
+    "command": "if true; then echo yes; fi > out.txt; cat out.txt",
+    "files": {},
+    "stdout": "yes\n",
+    "stderr": "",
+    "exitCode": 0
+  },
+  "4e94f083928e44d6": {
+    "command": "while read -r line; do echo \"got:$line\"; done < input.txt > out.txt; cat out.txt",
+    "files": {
+      "input.txt": "alpha\nbeta\n"
+    },
+    "stdout": "got:alpha\ngot:beta\n",
+    "stderr": "",
+    "exitCode": 0
+  },
+  "de5d35b5e4ddf519": {
+    "command": "until [ -f stop ]; do echo tick; touch stop; done > out.txt; cat out.txt",
+    "files": {},
+    "stdout": "tick\n",
+    "stderr": "",
+    "exitCode": 0
+  }
+}

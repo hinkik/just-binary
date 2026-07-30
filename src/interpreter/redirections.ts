@@ -32,7 +32,7 @@ import type { InterpreterContext } from "./types.js";
  * Check if a redirect target is valid for output (not a directory, respects noclobber).
  * Returns an error message string if invalid, null if valid.
  */
-async function checkOutputRedirectTarget(
+export async function checkOutputRedirectTarget(
   ctx: InterpreterContext,
   filePath: string,
   target: string,
@@ -55,6 +55,41 @@ async function checkOutputRedirectTarget(
     // File doesn't exist, that's ok - we'll create it
   }
   return null;
+}
+
+/**
+ * Expand one redirect target using the same rules as the legacy redirect path.
+ */
+export async function expandRedirectionTarget(
+  ctx: InterpreterContext,
+  redir: RedirectionNode,
+): Promise<{ target: string } | { error: string }> {
+  if (redir.target.type === "HereDoc") {
+    throw new Error("Here-document targets are not words");
+  }
+
+  if (redir.operator === ">&" || redir.operator === "<&") {
+    if (hasQuotedMultiValueAt(ctx, redir.target)) {
+      return { error: "bash: $@: ambiguous redirect\n" };
+    }
+    return { target: await expandWord(ctx, redir.target) };
+  }
+
+  return expandRedirectTarget(ctx, redir.target);
+}
+
+/**
+ * Return the legacy diagnostic for a redirect target containing a null byte.
+ */
+export function getInvalidRedirectTargetError(target: string): string | null {
+  if (!target.includes("\0")) {
+    return null;
+  }
+  return `bash: ${target.replace(/\0/g, "")}: No such file or directory\n`;
+}
+
+export function getBadFileDescriptorError(fd: number): string {
+  return `bash: ${fd}: Bad file descriptor\n`;
 }
 
 /**
@@ -112,23 +147,11 @@ export async function preExpandRedirectTargets(
       continue;
     }
 
-    const isFdRedirect = redir.operator === ">&" || redir.operator === "<&";
-    if (isFdRedirect) {
-      // Check for "$@" with multiple positional params - this is an ambiguous redirect
-      if (hasQuotedMultiValueAt(ctx, redir.target as WordNode)) {
-        return { targets, error: "bash: $@: ambiguous redirect\n" };
-      }
-      targets.set(i, await expandWord(ctx, redir.target as WordNode));
-    } else {
-      const expandResult = await expandRedirectTarget(
-        ctx,
-        redir.target as WordNode,
-      );
-      if ("error" in expandResult) {
-        return { targets, error: expandResult.error };
-      }
-      targets.set(i, expandResult.target);
+    const expandResult = await expandRedirectionTarget(ctx, redir);
+    if ("error" in expandResult) {
+      return { targets, error: expandResult.error };
     }
+    targets.set(i, expandResult.target);
   }
 
   return { targets };
@@ -138,7 +161,7 @@ export async function preExpandRedirectTargets(
  * Allocate the next available file descriptor (starting at 10).
  * Returns the allocated FD number.
  */
-function allocateFd(ctx: InterpreterContext): number {
+export function allocateFd(ctx: InterpreterContext): number {
   if (ctx.state.nextFd === undefined) {
     ctx.state.nextFd = 10;
   }
@@ -406,35 +429,15 @@ export async function applyRedirections(
     if (preExpanded !== undefined) {
       target = preExpanded;
     } else {
-      // For FD-to-FD redirects (>&), use plain expansion without glob handling
-      // For file redirects, use glob expansion with failglob/ambiguous redirect handling
-      const isFdRedirect = redir.operator === ">&" || redir.operator === "<&";
-      if (isFdRedirect) {
-        // Check for "$@" with multiple positional params - this is an ambiguous redirect
-        if (hasQuotedMultiValueAt(ctx, redir.target as WordNode)) {
-          stderr = concatStreams(
-            stderr,
-            fromString("bash: $@: ambiguous redirect\n"),
-          );
-          exitCode = 1;
-          stdout = emptyStream();
-          continue;
-        }
-        target = await expandWord(ctx, redir.target as WordNode);
-      } else {
-        const expandResult = await expandRedirectTarget(
-          ctx,
-          redir.target as WordNode,
-        );
-        if ("error" in expandResult) {
-          stderr = concatStreams(stderr, fromString(expandResult.error));
-          exitCode = 1;
-          // When redirect fails, discard the output that would have been redirected
-          stdout = emptyStream();
-          continue;
-        }
-        target = expandResult.target;
+      const expandResult = await expandRedirectionTarget(ctx, redir);
+      if ("error" in expandResult) {
+        stderr = concatStreams(stderr, fromString(expandResult.error));
+        exitCode = 1;
+        // When redirect fails, discard the output that would have been redirected
+        stdout = emptyStream();
+        continue;
       }
+      target = expandResult.target;
     }
 
     // Skip FD variable redirections in applyRedirections - they're already handled
@@ -444,13 +447,9 @@ export async function applyRedirections(
     }
 
     // Reject paths containing null bytes - these cause filesystem errors
-    if (target.includes("\0")) {
-      stderr = concatStreams(
-        stderr,
-        fromString(
-          `bash: ${target.replace(/\0/g, "")}: No such file or directory\n`,
-        ),
-      );
+    const invalidTargetError = getInvalidRedirectTargetError(target);
+    if (invalidTargetError) {
+      stderr = concatStreams(stderr, fromString(invalidTargetError));
       exitCode = 1;
       stdout = emptyStream();
       continue;
@@ -668,7 +667,7 @@ export async function applyRedirections(
               // Source FD is a user FD (3+) that's not in fileDescriptors - bad file descriptor
               stderr = concatStreams(
                 stderr,
-                fromString(`bash: ${sourceFd}: Bad file descriptor\n`),
+                fromString(getBadFileDescriptorError(sourceFd)),
               );
               exitCode = 1;
             }
@@ -754,7 +753,7 @@ export async function applyRedirections(
               // FD is duplicated for input - writing to it is an error
               stderr = concatStreams(
                 stderr,
-                fromString(`bash: ${targetFd}: Bad file descriptor\n`),
+                fromString(getBadFileDescriptorError(targetFd)),
               );
               exitCode = 1;
               stdout = emptyStream();
@@ -764,7 +763,7 @@ export async function applyRedirections(
               // if the FD is not in fileDescriptors, it means it was closed or never opened
               stderr = concatStreams(
                 stderr,
-                fromString(`bash: ${targetFd}: Bad file descriptor\n`),
+                fromString(getBadFileDescriptorError(targetFd)),
               );
               exitCode = 1;
               stdout = emptyStream();

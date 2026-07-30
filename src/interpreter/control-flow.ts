@@ -57,6 +57,11 @@ export async function executeIf(
   ctx: InterpreterContext,
   node: IfNode,
 ): Promise<ExecResult> {
+  const preOpenError = await preOpenOutputRedirects(ctx, node.redirections);
+  if (preOpenError) {
+    return preOpenError;
+  }
+
   let stdout: ByteStream = emptyStream();
   let stderr: ByteStream = emptyStream();
 
@@ -67,15 +72,31 @@ export async function executeIf(
     stderr = concatStreams(stderr, condResult.stderr);
 
     if (condResult.exitCode === 0) {
-      return executeStatements(ctx, clause.body, stdout, stderr);
+      const bodyResult = await executeStatements(
+        ctx,
+        clause.body,
+        stdout,
+        stderr,
+      );
+      return applyRedirections(ctx, bodyResult, node.redirections);
     }
   }
 
   if (node.elseBody) {
-    return executeStatements(ctx, node.elseBody, stdout, stderr);
+    const bodyResult = await executeStatements(
+      ctx,
+      node.elseBody,
+      stdout,
+      stderr,
+    );
+    return applyRedirections(ctx, bodyResult, node.redirections);
   }
 
-  return { stdout, stderr, exitCode: 0 };
+  return applyRedirections(
+    ctx,
+    { stdout, stderr, exitCode: 0 },
+    node.redirections,
+  );
 }
 
 export async function executeFor(
@@ -320,6 +341,11 @@ export async function executeWhile(
   node: WhileNode,
   stdin: ByteStream = emptyStream(),
 ): Promise<ExecResult> {
+  const preOpenError = await preOpenOutputRedirects(ctx, node.redirections);
+  if (preOpenError) {
+    return preOpenError;
+  }
+
   // Accumulate stdout/stderr as a chunks array to avoid building a deeply
   // nested concatStreams chain (one layer per iteration would make even
   // hitting the iteration limit pathologically slow).
@@ -483,11 +509,12 @@ export async function executeWhile(
           continue;
         }
         if (loopResult.action === "error") {
-          return result(
+          const bodyResult = result(
             loopResult.stdout,
             loopResult.stderr,
             loopResult.exitCode ?? 1,
           );
+          return applyRedirections(ctx, bodyResult, node.redirections);
         }
         throw loopResult.error;
       }
@@ -497,13 +524,19 @@ export async function executeWhile(
     ctx.state.groupStdin = savedGroupStdin;
   }
 
-  return result(buildStdout(), buildStderr(), exitCode);
+  const bodyResult = result(buildStdout(), buildStderr(), exitCode);
+  return applyRedirections(ctx, bodyResult, node.redirections);
 }
 
 export async function executeUntil(
   ctx: InterpreterContext,
   node: UntilNode,
 ): Promise<ExecResult> {
+  const preOpenError = await preOpenOutputRedirects(ctx, node.redirections);
+  if (preOpenError) {
+    return preOpenError;
+  }
+
   const stdoutChunks: Uint8Array[] = [];
   const stderrChunks: Uint8Array[] = [];
   const drainTo = async (chunks: Uint8Array[], s: ByteStream) => {
@@ -568,11 +601,12 @@ export async function executeUntil(
           continue;
         }
         if (loopResult.action === "error") {
-          return result(
+          const bodyResult = result(
             loopResult.stdout,
             loopResult.stderr,
             loopResult.exitCode ?? 1,
           );
+          return applyRedirections(ctx, bodyResult, node.redirections);
         }
         throw loopResult.error;
       }
@@ -581,7 +615,8 @@ export async function executeUntil(
     ctx.state.loopDepth--;
   }
 
-  return result(buildStdout(), buildStderr(), exitCode);
+  const bodyResult = result(buildStdout(), buildStderr(), exitCode);
+  return applyRedirections(ctx, bodyResult, node.redirections);
 }
 
 export async function executeCase(
