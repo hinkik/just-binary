@@ -30,6 +30,11 @@ import { matchPattern } from "../conditionals.js";
 import { expandWord, getArrayElements } from "../expansion.js";
 import { callFunction } from "../functions.js";
 import { failure, result, successText } from "../helpers/result.js";
+import {
+  createCollector,
+  pumpStream,
+  withChannels,
+} from "../output-channels.js";
 import type { InterpreterContext } from "../types.js";
 
 // List of shell keywords (matches bash)
@@ -474,11 +479,11 @@ export async function handleCompgen(
 
       try {
         // Call the function - errors during execution return exit code 1
-        const funcResult = await callFunction(
+        const stdoutCollector = createCollector();
+        const funcResult = await withChannels(
           ctx,
-          func,
-          funcArgs,
-          emptyStream(),
+          new Map([[1, stdoutCollector]]),
+          () => callFunction(ctx, func, funcArgs, emptyStream()),
         );
 
         // Check if there was an error (e.g., division by zero)
@@ -490,7 +495,8 @@ export async function handleCompgen(
         }
 
         // Capture function stdout (e.g., debug output from the function)
-        functionStdout = decode(await collectBytes(funcResult.stdout));
+        await pumpStream(ctx, funcResult.stdout, stdoutCollector);
+        functionStdout = decode(await collectBytes(stdoutCollector.stream()));
 
         // Get COMPREPLY values (supports both scalar and array)
         const compreplyValues = getCompreplyValues(ctx);
@@ -515,7 +521,12 @@ export async function handleCompgen(
     try {
       // Parse and execute the command
       const ast = parse(commandString);
-      const cmdResult = await ctx.executeScript(ast);
+      const stdoutCollector = createCollector();
+      const cmdResult = await withChannels(
+        ctx,
+        new Map([[1, stdoutCollector]]),
+        () => ctx.executeScript(ast),
+      );
 
       // Check for errors
       if (cmdResult.exitCode !== 0) {
@@ -524,7 +535,8 @@ export async function handleCompgen(
 
       // Split stdout into lines and add as completions
       // All non-empty lines are used as completions (no prefix filtering)
-      const stdoutBytes = await collectBytes(cmdResult.stdout);
+      await pumpStream(ctx, cmdResult.stdout, stdoutCollector);
+      const stdoutBytes = await collectBytes(stdoutCollector.stream());
       if (stdoutBytes.length > 0) {
         const lines = decode(stdoutBytes).split("\n");
         for (const line of lines) {

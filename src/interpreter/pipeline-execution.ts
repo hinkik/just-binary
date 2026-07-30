@@ -15,6 +15,7 @@ import {
 } from "../utils/stream.js";
 import { BadSubstitutionError, ErrexitError, ExitError } from "./errors.js";
 import { ok } from "./helpers/result.js";
+import { createCollector, withChannels } from "./output-channels.js";
 import type { InterpreterContext } from "./types.js";
 
 /**
@@ -24,6 +25,19 @@ export type ExecuteCommandFn = (
   node: CommandNode,
   stdin: ByteStream,
 ) => Promise<ExecResult>;
+
+/**
+ * Install the Phase 2 stdout boundary without consuming the legacy stream.
+ * A collector is not a live pipe, so pumping here would drain lazy or infinite
+ * producers before the downstream command can read and cancel them.
+ */
+async function executeIntermediatePipelineStage(
+  ctx: InterpreterContext,
+  execute: () => Promise<ExecResult>,
+): Promise<ExecResult> {
+  const stdoutCollector = createCollector();
+  return withChannels(ctx, new Map([[1, stdoutCollector]]), execute);
+}
 
 /**
  * Execute a pipeline node (command or sequence of piped commands).
@@ -79,7 +93,11 @@ export async function executePipeline(
 
     let result: ExecResult;
     try {
-      result = await executeCommand(command, stdin);
+      result = isLast
+        ? await executeCommand(command, stdin)
+        : await executeIntermediatePipelineStage(ctx, () =>
+            executeCommand(command, stdin),
+          );
     } catch (error) {
       // BadSubstitutionError should fail the command but not abort the script
       if (error instanceof BadSubstitutionError) {

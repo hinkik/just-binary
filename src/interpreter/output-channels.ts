@@ -54,42 +54,46 @@ export async function withChannels<T>(
   }
 }
 
+export async function pumpStream(
+  ctx: InterpreterContext,
+  stream: ByteStream,
+  sink: OutputSink,
+): Promise<void> {
+  const reader = stream.getReader();
+  let finished = false;
+  try {
+    while (true) {
+      checkAborted(ctx.signal);
+      const { done, value } = await reader.read();
+      if (done) {
+        finished = true;
+        break;
+      }
+      if (!value || value.length === 0) {
+        continue;
+      }
+      await sink.write(value);
+      checkAborted(ctx.signal);
+    }
+  } finally {
+    if (!finished) {
+      try {
+        await reader.cancel();
+      } catch {
+        // Preserve the read, write, or abort failure that caused early exit.
+      }
+    }
+    reader.releaseLock();
+  }
+}
+
 export async function pumpResult(
   ctx: InterpreterContext,
   result: ExecResult,
 ): Promise<ExecResult> {
-  const pump = async (stream: ByteStream, sink: OutputSink): Promise<void> => {
-    const reader = stream.getReader();
-    let finished = false;
-    try {
-      while (true) {
-        checkAborted(ctx.signal);
-        const { done, value } = await reader.read();
-        if (done) {
-          finished = true;
-          break;
-        }
-        if (!value || value.length === 0) {
-          continue;
-        }
-        await sink.write(value);
-        checkAborted(ctx.signal);
-      }
-    } finally {
-      if (!finished) {
-        try {
-          await reader.cancel();
-        } catch {
-          // Preserve the read, write, or abort failure that caused early exit.
-        }
-      }
-      reader.releaseLock();
-    }
-  };
-
   const settled = await Promise.allSettled([
-    pump(result.stdout, ctx.outputChannels.get(1) ?? discardSink),
-    pump(result.stderr, ctx.outputChannels.get(2) ?? discardSink),
+    pumpStream(ctx, result.stdout, ctx.outputChannels.get(1) ?? discardSink),
+    pumpStream(ctx, result.stderr, ctx.outputChannels.get(2) ?? discardSink),
   ]);
   const rejected = settled.find(
     (outcome): outcome is PromiseRejectedResult =>

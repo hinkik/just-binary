@@ -7,6 +7,11 @@
  */
 
 import { collectText } from "../../utils/stream.js";
+import {
+  createCollector,
+  pumpStream,
+  withChannels,
+} from "../output-channels.js";
 import type { InterpreterContext } from "../types.js";
 import { getVariable } from "./variable.js";
 
@@ -171,9 +176,18 @@ export async function expandSubscriptForAssocArray(
         // Extract and execute the command
         const cmdStr = inner.slice(i + 2, j - 1);
         if (ctx.execFn) {
-          const cmdResult = await ctx.execFn(cmdStr);
+          const stdoutCollector = createCollector();
+          const cmdResult = await withChannels(
+            ctx,
+            new Map([[1, stdoutCollector]]),
+            () => ctx.execFn(cmdStr),
+          );
           // Strip trailing newlines like command substitution does
-          result += (await collectText(cmdResult.stdout)).replace(/\n+$/, "");
+          await pumpStream(ctx, cmdResult.stdout, stdoutCollector);
+          result += (await collectText(stdoutCollector.stream())).replace(
+            /\n+$/,
+            "",
+          );
           // Forward stderr to expansion stderr
           const stderrText = await collectText(cmdResult.stderr);
           if (stderrText.length > 0) {
@@ -219,8 +233,17 @@ export async function expandSubscriptForAssocArray(
       }
       const cmdStr = inner.slice(i + 1, j);
       if (ctx.execFn) {
-        const cmdResult = await ctx.execFn(cmdStr);
-        result += (await collectText(cmdResult.stdout)).replace(/\n+$/, "");
+        const stdoutCollector = createCollector();
+        const cmdResult = await withChannels(
+          ctx,
+          new Map([[1, stdoutCollector]]),
+          () => ctx.execFn(cmdStr),
+        );
+        await pumpStream(ctx, cmdResult.stdout, stdoutCollector);
+        result += (await collectText(stdoutCollector.stream())).replace(
+          /\n+$/,
+          "",
+        );
         const stderrText = await collectText(cmdResult.stderr);
         if (stderrText.length > 0) {
           ctx.state.expansionStderr =

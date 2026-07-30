@@ -30,6 +30,11 @@ import { decode, envGet, envSet } from "../utils/bytes.js";
 import { collectText, emptyStream } from "../utils/stream.js";
 import { ArithmeticError, NounsetError } from "./errors.js";
 import { getArrayElements, getVariable } from "./expansion.js";
+import {
+  createCollector,
+  pumpStream,
+  withChannels,
+} from "./output-channels.js";
 import type { InterpreterContext } from "./types.js";
 
 /**
@@ -458,14 +463,20 @@ export async function evaluateArithmetic(
     case "ArithCommandSubst": {
       // Execute the command and parse the result as a number
       if (ctx.execFn) {
-        const result = await ctx.execFn(expr.command);
+        const stdoutCollector = createCollector();
+        const result = await withChannels(
+          ctx,
+          new Map([[1, stdoutCollector]]),
+          () => ctx.execFn(expr.command),
+        );
         // Command substitution stderr should go to the shell's stderr at expansion time
         const stderrText = await collectText(result.stderr);
         if (stderrText.length > 0) {
           ctx.state.expansionStderr =
             (ctx.state.expansionStderr || "") + stderrText;
         }
-        const output = (await collectText(result.stdout))
+        await pumpStream(ctx, result.stdout, stdoutCollector);
+        const output = (await collectText(stdoutCollector.stream()))
           .replace(/\n+$/, "")
           .trim();
         return Number.parseInt(output, 10) || 0;
@@ -984,8 +995,16 @@ async function evalConcatPartToStringAsync(
       return await expandBracedContent(ctx, expr.content);
     case "ArithCommandSubst": {
       if (ctx.execFn) {
-        const result = await ctx.execFn(expr.command);
-        return (await collectText(result.stdout)).replace(/\n+$/, "").trim();
+        const stdoutCollector = createCollector();
+        const result = await withChannels(
+          ctx,
+          new Map([[1, stdoutCollector]]),
+          () => ctx.execFn(expr.command),
+        );
+        await pumpStream(ctx, result.stdout, stdoutCollector);
+        return (await collectText(stdoutCollector.stream()))
+          .replace(/\n+$/, "")
+          .trim();
       }
       return "0";
     }
