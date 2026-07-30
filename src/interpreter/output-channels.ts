@@ -5,6 +5,7 @@ import {
   emptyStream,
   fromChunks,
   fromString,
+  isKnownEmptyStream,
 } from "../utils/stream.js";
 import {
   AbortExecutionError,
@@ -249,6 +250,13 @@ export async function pumpStream(
   if (checkSignal) {
     checkAborted(ctx.signal);
   }
+  // A stream from emptyStream() cannot yield bytes, so acquiring a reader
+  // would only cost a reader construction and release. Statements that
+  // produced no output (or already wrote theirs to the channels) hit this on
+  // every dispatch.
+  if (isKnownEmptyStream(stream)) {
+    return;
+  }
   const reader = stream.getReader();
   let finished = false;
   try {
@@ -321,11 +329,24 @@ export async function pumpResult(
     throw rejected.reason;
   }
 
-  return {
-    ...result,
-    stdout: outputFds.includes(1) ? emptyStream() : result.stdout,
-    stderr: outputFds.includes(2) ? emptyStream() : result.stderr,
-  };
+  // Pumped streams are replaced with empty ones so no caller can consume the
+  // bytes twice. A stream that was ALREADY a known-empty one is passed through
+  // instead of being rebuilt — it is unread and carries nothing either way,
+  // and constructing replacements dominated statement dispatch.
+  const pumpedStdout = outputFds.includes(1);
+  const pumpedStderr = outputFds.includes(2);
+  const stdout =
+    pumpedStdout && !isKnownEmptyStream(result.stdout)
+      ? emptyStream()
+      : result.stdout;
+  const stderr =
+    pumpedStderr && !isKnownEmptyStream(result.stderr)
+      ? emptyStream()
+      : result.stderr;
+  if (stdout === result.stdout && stderr === result.stderr) {
+    return result;
+  }
+  return { ...result, stdout, stderr };
 }
 
 /**
