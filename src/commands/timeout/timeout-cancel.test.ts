@@ -9,8 +9,10 @@ describe("timeout command cancellation", () => {
     const bash = new Bash();
 
     const start = Date.now();
+    // 0.5s deadline: wide enough that `echo part` always beats it, even on a
+    // loaded machine running the full suite.
     const result = await toText(
-      await bash.exec("timeout 0.1 bash -c 'echo part; sleep 30; echo never'"),
+      await bash.exec("timeout 0.5 bash -c 'echo part; sleep 30; echo never'"),
     );
     expect(result.exitCode).toBe(124);
     expect(result.stdout).toBe("part\n");

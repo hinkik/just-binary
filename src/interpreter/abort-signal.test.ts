@@ -1,6 +1,21 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../Bash.js";
+import { defineCommand } from "../custom-commands.js";
 import { toText } from "../test-utils.js";
+
+/**
+ * A `mark` command that reports execution progress back to the test, so
+ * aborts can be triggered by where the script actually is instead of racing
+ * a wall-clock timer against interpreter startup (flaky under suite load).
+ */
+function progressMark(onMark: (count: number) => void) {
+  let count = 0;
+  return defineCommand("mark", async () => {
+    count++;
+    onMark(count);
+    return { stdout: "", stderr: "", exitCode: 0 };
+  });
+}
 
 describe("ExecOptions.signal cancellation", () => {
   it("returns immediately when the signal is already aborted", async () => {
@@ -17,16 +32,20 @@ describe("ExecOptions.signal cancellation", () => {
   });
 
   it("cancels a sleeping command and preserves prior output", async () => {
-    const bash = new Bash();
     const controller = new AbortController();
-
-    const pending = bash.exec("echo before; sleep 30; echo after", {
-      signal: controller.signal,
+    // Abort shortly after `mark` runs — echo has completed, sleep is next.
+    const bash = new Bash({
+      customCommands: [
+        progressMark(() => setTimeout(() => controller.abort(), 25)),
+      ],
     });
-    setTimeout(() => controller.abort(), 50);
 
     const start = Date.now();
-    const result = await toText(await pending);
+    const result = await toText(
+      await bash.exec("echo before; mark; sleep 30; echo after", {
+        signal: controller.signal,
+      }),
+    );
     expect(result.exitCode).toBe(143);
     expect(result.stdout).toBe("before\n");
     expect(result.stderr).toBe("");
@@ -69,15 +88,22 @@ describe("ExecOptions.signal cancellation", () => {
   });
 
   it("cancels a loop that alternates output and sleeps", async () => {
-    const bash = new Bash();
     const controller = new AbortController();
-
-    const pending = bash.exec("while true; do echo x; sleep 0.3; done", {
-      signal: controller.signal,
+    // Abort synchronously on the second iteration's mark: exactly two echos
+    // have run, and the abort lands in the second sleep.
+    const bash = new Bash({
+      customCommands: [
+        progressMark((count) => {
+          if (count === 2) controller.abort();
+        }),
+      ],
     });
-    setTimeout(() => controller.abort(), 450);
 
-    const result = await toText(await pending);
+    const result = await toText(
+      await bash.exec("while true; do echo x; mark; sleep 0.3; done", {
+        signal: controller.signal,
+      }),
+    );
     expect(result.exitCode).toBe(143);
     expect(result.stdout).toBe("x\nx\n");
     expect(result.stderr).toBe("");
@@ -105,16 +131,21 @@ describe("ExecOptions.signal cancellation", () => {
   });
 
   it("propagates cancellation into nested bash -c executions", async () => {
-    const bash = new Bash();
     const controller = new AbortController();
-
-    const pending = bash.exec("bash -c 'echo inner; sleep 30'; echo outer", {
-      signal: controller.signal,
+    // mark runs inside the nested bash -c after its echo, so the abort
+    // deterministically lands in the nested sleep.
+    const bash = new Bash({
+      customCommands: [
+        progressMark(() => setTimeout(() => controller.abort(), 25)),
+      ],
     });
-    setTimeout(() => controller.abort(), 50);
 
     const start = Date.now();
-    const result = await toText(await pending);
+    const result = await toText(
+      await bash.exec("bash -c 'echo inner; mark; sleep 30'; echo outer", {
+        signal: controller.signal,
+      }),
+    );
     expect(result.exitCode).toBe(143);
     expect(result.stdout).toBe("inner\n");
     expect(result.stderr).toBe("");
