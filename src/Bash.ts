@@ -25,6 +25,7 @@ import { initFilesystem } from "./fs/init.js";
 import type { IFileSystem, InitialFiles } from "./fs/interface.js";
 import { mapToRecord, mapToRecordWithExtras } from "./helpers/env.js";
 import {
+  AbortExecutionError,
   ArithmeticError,
   ExecutionLimitError,
   ExitError,
@@ -60,6 +61,7 @@ import type {
   FeatureCoverageWriter,
   TraceCallback,
 } from "./types.js";
+import { combineAbortSignals } from "./utils/abort.js";
 import { EMPTY, envSet } from "./utils/bytes.js";
 import {
   type ByteStream,
@@ -125,8 +127,12 @@ export interface BashOptions {
    * Optional sleep function for the sleep command.
    * If provided, used instead of real setTimeout.
    * Useful for testing with mock clocks.
+   *
+   * Receives the execution's abort signal (when one was passed to exec) so
+   * custom implementations can wake up early on cancellation. Implementations
+   * that ignore the signal delay cancellation until they resolve.
    */
-  sleep?: (ms: number) => Promise<void>;
+  sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
   /**
    * Custom commands to register alongside built-in commands.
    * These take precedence over built-ins with the same name.
@@ -215,6 +221,20 @@ export interface ExecOptions {
    * Wrap a Uint8Array with `fromBytes(...)` or a string with `fromString(...)`.
    */
   stdin?: ByteStream;
+  /**
+   * Abort signal to cancel this execution.
+   *
+   * Cancellation is cooperative: it is checked before every statement, on
+   * every loop iteration, and by long-waiting commands (sleep, timeout).
+   * Nested executions (bash -c, xargs, command substitution) inherit it
+   * automatically.
+   *
+   * An aborted execution resolves normally (it does not reject) with the
+   * output produced so far and an exit code derived from the abort reason:
+   * "SIGINT" → 130, "SIGKILL" → 137, "SIGTERM" or anything else → 143, and
+   * AbortSignal.timeout()'s TimeoutError → 124.
+   */
+  signal?: AbortSignal;
 }
 
 export class Bash {
@@ -223,7 +243,7 @@ export class Bash {
   private useDefaultLayout: boolean = false;
   private limits: Required<ExecutionLimits>;
   private secureFetch?: SecureFetch;
-  private sleepFn?: (ms: number) => Promise<void>;
+  private sleepFn?: (ms: number, signal?: AbortSignal) => Promise<void>;
   private traceFn?: TraceCallback;
   private logger?: BashLogger;
   private defenseInDepthConfig?: DefenseInDepthConfig | boolean;
@@ -490,6 +510,15 @@ export class Bash {
       };
     }
 
+    if (options?.signal?.aborted) {
+      return {
+        stdout: emptyStream(),
+        stderr: emptyStream(),
+        exitCode: new AbortExecutionError(options.signal.reason).exitCode,
+        env: mapToRecordWithExtras(this.state.env, options?.env),
+      };
+    }
+
     // Log command execution
     this.logger?.info("exec", { command: commandLine });
 
@@ -576,11 +605,18 @@ export class Bash {
           fs: this.fs,
           commands: this.commands,
           limits: this.limits,
-          exec: this.exec.bind(this),
+          // Nested executions (bash -c, xargs, timeout, ...) inherit this
+          // execution's signal; a nested call may add its own on top.
+          exec: (script, execOptions) =>
+            this.exec(script, {
+              ...execOptions,
+              signal: combineAbortSignals(options?.signal, execOptions?.signal),
+            }),
           fetch: this.secureFetch,
           sleep: this.sleepFn,
           trace: this.traceFn,
           coverage: this.coverageWriter,
+          signal: options?.signal,
         };
 
         const interpreter = new Interpreter(interpreterOptions, execState);
@@ -618,6 +654,17 @@ export class Bash {
           stdout: error.stdout,
           stderr: error.stderr,
           exitCode: 1,
+          env: mapToRecordWithExtras(this.state.env, options?.env),
+        });
+      }
+      // AbortExecutionError is thrown when the execution's signal aborts.
+      // Checked before ExecutionLimitError — it is a subclass with its own
+      // reason-derived exit code (130/137/143/124) instead of 126.
+      if (error instanceof AbortExecutionError) {
+        return this.logResult({
+          stdout: error.stdout,
+          stderr: error.stderr,
+          exitCode: error.exitCode,
           env: mapToRecordWithExtras(this.state.env, options?.env),
         });
       }

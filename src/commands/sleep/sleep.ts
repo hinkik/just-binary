@@ -1,3 +1,4 @@
+import { AbortExecutionError, checkAborted } from "../../interpreter/errors.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { decodeArgs } from "../../utils/bytes.js";
 import { emptyStream, fromString } from "../../utils/stream.js";
@@ -41,6 +42,28 @@ function parseDuration(arg: string): number | null {
   }
 }
 
+/**
+ * setTimeout-based sleep that wakes up and throws when the signal aborts,
+ * clearing the timer so no work is left behind.
+ */
+function interruptibleSleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new AbortExecutionError(signal.reason));
+      return;
+    }
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(new AbortExecutionError(signal?.reason));
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
 export const sleepCommand: Command = {
   name: "sleep",
 
@@ -74,9 +97,12 @@ export const sleepCommand: Command = {
 
     // Use mock sleep if available in context, otherwise real setTimeout
     if (ctx.sleep) {
-      await ctx.sleep(totalMs);
+      await ctx.sleep(totalMs, ctx.signal);
+      // A custom sleep may resolve early (or ignore the signal entirely);
+      // surface the abort either way.
+      checkAborted(ctx.signal);
     } else {
-      await new Promise((resolve) => setTimeout(resolve, totalMs));
+      await interruptibleSleep(totalMs, ctx.signal);
     }
 
     return { stdout: emptyStream(), stderr: emptyStream(), exitCode: 0 };

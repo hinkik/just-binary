@@ -78,6 +78,7 @@ import {
   BraceExpansionError,
   BreakError,
   ContinueError,
+  checkAborted,
   ErrexitError,
   ExecutionLimitError,
   ExitError,
@@ -195,16 +196,19 @@ export interface InterpreterOptions {
       env?: Record<string, string>;
       cwd?: string;
       stdin?: ByteStream;
+      signal?: AbortSignal;
     },
   ) => Promise<ExecResult>;
   /** Optional secure fetch function for network-enabled commands */
   fetch?: SecureFetch;
   /** Optional sleep function for testing with mock clocks */
-  sleep?: (ms: number) => Promise<void>;
+  sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
   /** Optional trace callback for performance profiling */
   trace?: TraceCallback;
   /** Optional feature coverage writer for fuzzing instrumentation */
   coverage?: FeatureCoverageWriter;
+  /** Abort signal for this execution (from ExecOptions.signal) */
+  signal?: AbortSignal;
 }
 
 export class Interpreter {
@@ -224,6 +228,7 @@ export class Interpreter {
       sleep: options.sleep,
       trace: options.trace,
       coverage: options.coverage,
+      signal: options.signal,
     };
   }
 
@@ -291,6 +296,9 @@ export class Interpreter {
           };
         }
         if (error instanceof ExecutionLimitError) {
+          // Preserve output from completed statements (groups/subshells
+          // already do this in executeStatements).
+          error.prependOutput(stdout, stderr);
           throw error;
         }
         if (error instanceof ErrexitError) {
@@ -391,12 +399,23 @@ export class Interpreter {
   }
 
   private async executeStatement(node: StatementNode): Promise<ExecResult> {
+    checkAborted(this.ctx.signal);
+
     this.ctx.state.commandCount++;
     if (this.ctx.state.commandCount > this.ctx.limits.maxCommandCount) {
       throwExecutionLimit(
         `too many commands executed (>${this.ctx.limits.maxCommandCount}), increase executionLimits.maxCommandCount`,
         "commands",
       );
+    }
+
+    // Statement-dense scripts award only microtasks between statements, so a
+    // timer-fired abort (e.g. AbortSignal.timeout) could starve forever.
+    // When cancellation is possible, periodically yield to the macrotask
+    // queue so pending timers get a chance to fire.
+    if (this.ctx.signal && this.ctx.state.commandCount % 1024 === 0) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      checkAborted(this.ctx.signal);
     }
 
     if (node.deferredError) {
@@ -953,81 +972,90 @@ export class Interpreter {
     let controlFlowError: BreakError | ContinueError | null = null;
 
     try {
-      cmdResult = await this.runCommand(
-        commandName,
-        args,
-        quotedArgs,
-        stdinStream ?? fromBytes(stdinBytes),
-        false,
-        false,
-        stdinSourceFd,
+      try {
+        cmdResult = await this.runCommand(
+          commandName,
+          args,
+          quotedArgs,
+          stdinStream ?? fromBytes(stdinBytes),
+          false,
+          false,
+          stdinSourceFd,
+        );
+      } catch (error) {
+        if (error instanceof BreakError || error instanceof ContinueError) {
+          controlFlowError = error;
+          cmdResult = ok();
+        } else {
+          throw error;
+        }
+      }
+
+      const stderrPrefix = xtraceAssignmentOutput + xtraceOutput;
+      if (stderrPrefix) {
+        cmdResult = {
+          ...cmdResult,
+          stderr: concatStreams(fromString(stderrPrefix), cmdResult.stderr),
+        };
+      }
+
+      cmdResult = await applyRedirections(
+        this.ctx,
+        cmdResult,
+        node.redirections,
       );
-    } catch (error) {
-      if (error instanceof BreakError || error instanceof ContinueError) {
-        controlFlowError = error;
-        cmdResult = ok();
+
+      if (controlFlowError) {
+        throw controlFlowError;
+      }
+
+      if (args.length > 0) {
+        let lastArgStr = decode(args[args.length - 1]);
+        if (
+          (commandName === "declare" ||
+            commandName === "local" ||
+            commandName === "typeset") &&
+          /^[a-zA-Z_][a-zA-Z0-9_]*=\(/.test(lastArgStr)
+        ) {
+          const match = lastArgStr.match(/^([a-zA-Z_][a-zA-Z0-9_]*)=\(/);
+          if (match) {
+            lastArgStr = match[1];
+          }
+        }
+        this.ctx.state.lastArg = encode(lastArgStr);
       } else {
-        throw error;
+        this.ctx.state.lastArg = encode(commandName);
       }
-    }
+    } finally {
+      // Restore temp assignments even when the command throws (break/continue,
+      // exit, abort, safety limits) — otherwise `FOO=bar cmd` leaks FOO into
+      // the enclosing environment.
+      const isPosixSpecialWithPersistence =
+        isPosixSpecialBuiltin(commandName) &&
+        commandName !== "unset" &&
+        commandName !== "eval";
+      const shouldRestoreTempAssignments =
+        !this.ctx.state.options.posix || !isPosixSpecialWithPersistence;
 
-    const stderrPrefix = xtraceAssignmentOutput + xtraceOutput;
-    if (stderrPrefix) {
-      cmdResult = {
-        ...cmdResult,
-        stderr: concatStreams(fromString(stderrPrefix), cmdResult.stderr),
-      };
-    }
-
-    cmdResult = await applyRedirections(this.ctx, cmdResult, node.redirections);
-
-    if (controlFlowError) {
-      throw controlFlowError;
-    }
-
-    if (args.length > 0) {
-      let lastArgStr = decode(args[args.length - 1]);
-      if (
-        (commandName === "declare" ||
-          commandName === "local" ||
-          commandName === "typeset") &&
-        /^[a-zA-Z_][a-zA-Z0-9_]*=\(/.test(lastArgStr)
-      ) {
-        const match = lastArgStr.match(/^([a-zA-Z_][a-zA-Z0-9_]*)=\(/);
-        if (match) {
-          lastArgStr = match[1];
+      if (shouldRestoreTempAssignments) {
+        for (const [name, value] of tempAssignments) {
+          if (this.ctx.state.fullyUnsetLocals?.has(name)) {
+            continue;
+          }
+          if (value === undefined) this.ctx.state.env.delete(name);
+          else this.ctx.state.env.set(name, value);
         }
       }
-      this.ctx.state.lastArg = encode(lastArgStr);
-    } else {
-      this.ctx.state.lastArg = encode(commandName);
-    }
 
-    const isPosixSpecialWithPersistence =
-      isPosixSpecialBuiltin(commandName) &&
-      commandName !== "unset" &&
-      commandName !== "eval";
-    const shouldRestoreTempAssignments =
-      !this.ctx.state.options.posix || !isPosixSpecialWithPersistence;
-
-    if (shouldRestoreTempAssignments) {
-      for (const [name, value] of tempAssignments) {
-        if (this.ctx.state.fullyUnsetLocals?.has(name)) {
-          continue;
+      if (this.ctx.state.tempExportedVars) {
+        for (const name of tempAssignments.keys()) {
+          this.ctx.state.tempExportedVars.delete(name);
         }
-        if (value === undefined) this.ctx.state.env.delete(name);
-        else this.ctx.state.env.set(name, value);
       }
-    }
 
-    if (this.ctx.state.tempExportedVars) {
-      for (const name of tempAssignments.keys()) {
-        this.ctx.state.tempExportedVars.delete(name);
+      if (tempAssignments.size > 0 && this.ctx.state.tempEnvBindings) {
+        this.ctx.state.tempEnvBindings.pop();
       }
-    }
-
-    if (tempAssignments.size > 0 && this.ctx.state.tempEnvBindings) {
-      this.ctx.state.tempEnvBindings.pop();
     }
 
     if (this.ctx.state.expansionStderr) {

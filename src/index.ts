@@ -45,6 +45,12 @@ export {
   ReadWriteFs,
   type ReadWriteFsOptions,
 } from "./fs/read-write-fs/index.js";
+// Cancellation API: check ctx.signal in custom commands and throw
+// AbortExecutionError so an abort propagates instead of becoming exit 1.
+export {
+  AbortExecutionError,
+  checkAborted,
+} from "./interpreter/errors.js";
 export type { NetworkConfig } from "./network/index.js";
 export {
   NetworkAccessDeniedError,

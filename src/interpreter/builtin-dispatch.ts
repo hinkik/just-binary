@@ -474,6 +474,7 @@ export async function executeExternalCommand(
     fileDescriptors: ctx.state.fileDescriptors,
     xpgEcho: ctx.state.shoptOptions.xpg_echo,
     coverage: ctx.coverage,
+    signal: ctx.signal,
   };
 
   try {

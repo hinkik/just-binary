@@ -1,4 +1,6 @@
+import { checkAborted } from "../../interpreter/errors.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
+import { combineAbortSignals } from "../../utils/abort.js";
 import { decodeArgs } from "../../utils/bytes.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
@@ -150,27 +152,38 @@ export const timeoutCommand: Command = {
       })
       .join(" ");
 
-    // Race between command and timeout
-    const timeoutPromise = new Promise<{ timedOut: true }>((resolve) => {
-      setTimeout(() => resolve({ timedOut: true }), durationMs);
-    });
+    // Run the command with a deadline signal so it is actually cancelled on
+    // timeout (like GNU timeout's SIGTERM) instead of racing and leaking it.
+    const deadline = new AbortController();
+    const timer = setTimeout(() => deadline.abort("SIGTERM"), durationMs);
 
-    const execPromise = ctx
-      .exec(commandStr, { cwd: ctx.cwd })
-      .then((result) => ({ timedOut: false as const, result }));
+    let result: ExecResult;
+    try {
+      result = await ctx.exec(commandStr, {
+        cwd: ctx.cwd,
+        stdin: ctx.stdin,
+        signal: combineAbortSignals(ctx.signal, deadline.signal),
+      });
+    } finally {
+      clearTimeout(timer);
+    }
 
-    const outcome = await Promise.race([timeoutPromise, execPromise]);
+    // An outer abort (the whole script was cancelled) propagates; only our
+    // own deadline maps to timeout's exit code.
+    checkAborted(ctx.signal, result.stdout, result.stderr);
 
-    if (outcome.timedOut) {
-      // Command timed out
+    if (deadline.signal.aborted) {
+      // Child was killed by the deadline: it exits 143 (SIGTERM); timeout
+      // itself reports 124, or the child's status with --preserve-status.
+      // Partial output produced before the kill passes through.
       return {
-        stdout: emptyStream(),
-        stderr: emptyStream(),
-        exitCode: preserveStatus ? 124 : 124,
+        stdout: result.stdout,
+        stderr: result.stderr,
+        exitCode: preserveStatus ? result.exitCode : 124,
       };
     }
 
-    return outcome.result;
+    return result;
   },
 };
 

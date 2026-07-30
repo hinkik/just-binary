@@ -402,6 +402,7 @@ export interface InterpreterContext {
       env?: Record<string, string>;
       cwd?: string;
       stdin?: ByteStream;
+      signal?: AbortSignal;
     },
   ) => Promise<ExecResult>;
   executeScript: (node: ScriptNode) => Promise<ExecResult>;
@@ -410,7 +411,9 @@ export interface InterpreterContext {
   /** Optional secure fetch function for network-enabled commands */
   fetch?: SecureFetch;
   /** Optional sleep function for testing with mock clocks */
-  sleep?: (ms: number) => Promise<void>;
+  sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
+  /** Abort signal for this execution (from ExecOptions.signal) */
+  signal?: AbortSignal;
   /** Optional trace callback for performance profiling */
   trace?: TraceCallback;
   /** Current command substitution nesting depth (for limit enforcement) */

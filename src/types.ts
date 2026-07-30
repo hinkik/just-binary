@@ -37,6 +37,12 @@ export interface CommandExecOptions {
   cwd: string;
   /** Standard input as a byte stream. Optional — defaults to an empty stream. */
   stdin?: ByteStream;
+  /**
+   * Abort signal for the nested execution. The parent execution's signal is
+   * always inherited automatically; pass a signal here to cancel the nested
+   * execution earlier than the parent (e.g. the timeout command).
+   */
+  signal?: AbortSignal;
 }
 
 export interface TraceEvent {
@@ -68,7 +74,13 @@ export interface CommandContext {
   exec?: (command: string, options: CommandExecOptions) => Promise<ExecResult>;
   fetch?: SecureFetch;
   getRegisteredCommands?: () => string[];
-  sleep?: (ms: number) => Promise<void>;
+  sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
+  /**
+   * Abort signal for the current execution (from ExecOptions.signal).
+   * Long-running commands should check it before/after waits and pass it
+   * to cancellable operations.
+   */
+  signal?: AbortSignal;
   fileDescriptors?: Map<number, string>;
   xpgEcho?: boolean;
   substitutionDepth?: number;

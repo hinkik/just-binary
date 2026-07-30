@@ -34,7 +34,12 @@ import {
 } from "../utils/stream.js";
 import { evaluateArithmetic } from "./arithmetic.js";
 import { matchPattern } from "./conditionals.js";
-import { BreakError, ContinueError, GlobError } from "./errors.js";
+import {
+  AbortExecutionError,
+  BreakError,
+  ContinueError,
+  GlobError,
+} from "./errors.js";
 import {
   escapeGlobChars,
   expandWord,
@@ -125,6 +130,13 @@ export async function executeFor(
   try {
     for (const value of words) {
       iterations++;
+      if (ctx.signal?.aborted) {
+        throw new AbortExecutionError(
+          ctx.signal.reason,
+          buildStdout(),
+          buildStderr(),
+        );
+      }
       if (iterations > ctx.limits.maxLoopIterations) {
         throwExecutionLimit(
           `for loop: too many iterations (${ctx.limits.maxLoopIterations}), increase executionLimits.maxLoopIterations`,
@@ -223,6 +235,13 @@ export async function executeCStyleFor(
   try {
     while (true) {
       iterations++;
+      if (ctx.signal?.aborted) {
+        throw new AbortExecutionError(
+          ctx.signal.reason,
+          buildStdout(),
+          buildStderr(),
+        );
+      }
       if (iterations > ctx.limits.maxLoopIterations) {
         throwExecutionLimit(
           `for loop: too many iterations (${ctx.limits.maxLoopIterations}), increase executionLimits.maxLoopIterations`,
@@ -371,6 +390,13 @@ export async function executeWhile(
   try {
     while (true) {
       iterations++;
+      if (ctx.signal?.aborted) {
+        throw new AbortExecutionError(
+          ctx.signal.reason,
+          buildStdout(),
+          buildStderr(),
+        );
+      }
       if (iterations > ctx.limits.maxLoopIterations) {
         throwExecutionLimit(
           `while loop: too many iterations (${ctx.limits.maxLoopIterations}), increase executionLimits.maxLoopIterations`,
@@ -493,6 +519,13 @@ export async function executeUntil(
   try {
     while (true) {
       iterations++;
+      if (ctx.signal?.aborted) {
+        throw new AbortExecutionError(
+          ctx.signal.reason,
+          buildStdout(),
+          buildStderr(),
+        );
+      }
       if (iterations > ctx.limits.maxLoopIterations) {
         throwExecutionLimit(
           `until loop: too many iterations (${ctx.limits.maxLoopIterations}), increase executionLimits.maxLoopIterations`,

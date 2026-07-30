@@ -216,7 +216,7 @@ export class BraceExpansionError extends ControlFlowError {
  * Exit code 126 indicates a limit was exceeded.
  */
 export class ExecutionLimitError extends ControlFlowError {
-  readonly name = "ExecutionLimitError";
+  readonly name: string = "ExecutionLimitError";
   static readonly EXIT_CODE = 126;
 
   constructor(
@@ -227,7 +227,8 @@ export class ExecutionLimitError extends ControlFlowError {
       | "iterations"
       | "string_length"
       | "glob_operations"
-      | "substitution_depth",
+      | "substitution_depth"
+      | "aborted",
     stdout: ByteStream = emptyStream(),
     stderr?: ByteStream,
   ) {
@@ -237,6 +238,75 @@ export class ExecutionLimitError extends ControlFlowError {
     const finalStderr =
       stderr === undefined ? formatted : concatStreams(stderr, formatted);
     super(message, stdout, finalStderr);
+  }
+}
+
+/**
+ * Map an AbortSignal reason to the exit code a killed process would have.
+ * Matches real shell conventions: 128 + signal number.
+ */
+function abortExitCode(reason: unknown): number {
+  if (reason instanceof DOMException && reason.name === "TimeoutError") {
+    // AbortSignal.timeout() — same as GNU timeout's deadline kill
+    return 124;
+  }
+  switch (reason) {
+    case "SIGINT":
+      return 130;
+    case "SIGKILL":
+      return 137;
+    case "SIGTERM":
+      return 143;
+    default:
+      return 143;
+  }
+}
+
+/**
+ * Error thrown when execution is cancelled via ExecOptions.signal.
+ *
+ * Extends ExecutionLimitError so every existing "safety limits must always
+ * propagate" rethrow site treats cancellation the same way: it unwinds the
+ * whole execution instead of being converted to a local exit code.
+ *
+ * Unlike limit errors, aborted commands die silently (like a killed process),
+ * so no "bash: ..." line is appended to stderr — only output accumulated
+ * before the abort is preserved.
+ *
+ * The exit code depends on the abort reason: string reasons "SIGINT"/"SIGKILL"/
+ * "SIGTERM" map to 130/137/143, AbortSignal.timeout()'s TimeoutError maps to
+ * 124, and anything else defaults to 143 (killed by SIGTERM).
+ */
+export class AbortExecutionError extends ExecutionLimitError {
+  override readonly name: string = "AbortExecutionError";
+  readonly exitCode: number;
+
+  constructor(
+    reason: unknown,
+    stdout: ByteStream = emptyStream(),
+    stderr?: ByteStream,
+  ) {
+    super("execution aborted", "aborted", stdout, stderr);
+    // The parent constructor appends "bash: execution aborted" to stderr for
+    // limit reporting; killed processes are silent, so keep only the output
+    // that was accumulated before the abort.
+    this.stderr = stderr ?? emptyStream();
+    this.exitCode = abortExitCode(reason);
+  }
+}
+
+/**
+ * Throw AbortExecutionError if the signal has been aborted.
+ * Cooperative cancellation check — called at statement dispatch and loop
+ * guards, and by leaf commands before/after long waits.
+ */
+export function checkAborted(
+  signal: AbortSignal | undefined,
+  stdout?: ByteStream,
+  stderr?: ByteStream,
+): void {
+  if (signal?.aborted) {
+    throw new AbortExecutionError(signal.reason, stdout, stderr);
   }
 }
 
