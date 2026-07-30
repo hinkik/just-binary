@@ -73,6 +73,7 @@ import {
   executeWhile,
 } from "./control-flow.js";
 import {
+  AbortExecutionError,
   ArithmeticError,
   BadSubstitutionError,
   BraceExpansionError,
@@ -106,7 +107,13 @@ import {
   parseRwFdContent,
 } from "./helpers/word-matching.js";
 import { traceSimpleCommand } from "./helpers/xtrace.js";
-import { type OutputChannels, pumpResult } from "./output-channels.js";
+import {
+  createCollector,
+  type OutputChannels,
+  pumpErrorStreams,
+  pumpResult,
+  withChannels,
+} from "./output-channels.js";
 import { executePipeline as executePipelineHelper } from "./pipeline-execution.js";
 import {
   applyRedirections,
@@ -224,9 +231,9 @@ export class Interpreter {
       outputChannels: options.outputChannels,
       limits: options.limits,
       execFn: options.exec,
-      executeScript: this.executeScript.bind(this),
+      executeScript: this.executeScriptCompat.bind(this),
       executeStatement: this.executeStatement.bind(this),
-      executeCommand: this.executeCommand.bind(this),
+      executeCommand: this.executeCommandCompat.bind(this),
       fetch: options.fetch,
       sleep: options.sleep,
       trace: options.trace,
@@ -273,93 +280,131 @@ export class Interpreter {
     return pumpResult(this.ctx, result);
   }
 
+  /**
+   * Preserve result-stream semantics at callers that still aggregate output.
+   * Converted execution runs against local fd 1/2 collectors, then hands those
+   * streams back to the legacy caller in statement order.
+   */
+  private async executeWithLegacyResult(
+    execute: () => Promise<ExecResult>,
+  ): Promise<ExecResult> {
+    const stdoutCollector = createCollector();
+    const stderrCollector = createCollector();
+    const channels = new Map(this.ctx.outputChannels);
+    channels.set(1, stdoutCollector);
+    channels.set(2, stderrCollector);
+
+    return withChannels(this.ctx, channels, async () => {
+      try {
+        const result = await execute();
+        const pumped = await pumpResult(this.ctx, result);
+        return {
+          ...pumped,
+          stdout: stdoutCollector.stream(),
+          stderr: stderrCollector.stream(),
+        };
+      } catch (error) {
+        if (await pumpErrorStreams(this.ctx, error)) {
+          const outputError = error as {
+            stdout: ByteStream;
+            stderr: ByteStream;
+          };
+          outputError.stdout = stdoutCollector.stream();
+          outputError.stderr = stderrCollector.stream();
+        }
+        throw error;
+      }
+    });
+  }
+
+  private executeScriptCompat(node: ScriptNode): Promise<ExecResult> {
+    return this.executeWithLegacyResult(() => this.executeScript(node));
+  }
+
+  private executeStatementCompat(node: StatementNode): Promise<ExecResult> {
+    return this.executeWithLegacyResult(() => this.executeStatement(node));
+  }
+
+  private executeCommandCompat(
+    node: CommandNode,
+    stdin: ByteStream,
+  ): Promise<ExecResult> {
+    return this.executeWithLegacyResult(() => this.executeCommand(node, stdin));
+  }
+
   async executeScript(node: ScriptNode): Promise<ExecResult> {
-    let stdout: ByteStream = emptyStream();
-    let stderr: ByteStream = emptyStream();
     let exitCode = 0;
 
     for (const statement of node.statements) {
       try {
         const result = await this.executeStatement(statement);
-        stdout = concatStreams(stdout, result.stdout);
-        stderr = concatStreams(stderr, result.stderr);
+        const childHandledAbort =
+          this.ctx.signal?.aborted === true &&
+          result.exitCode ===
+            new AbortExecutionError(this.ctx.signal.reason).exitCode;
+        await pumpResult(this.ctx, result, !childHandledAbort);
         exitCode = result.exitCode;
         this.ctx.state.lastExitCode = exitCode;
         envSet(this.ctx.state.env, "?", String(exitCode));
       } catch (error) {
+        await pumpErrorStreams(this.ctx, error);
         if (error instanceof ExitError) {
-          error.prependOutput(stdout, stderr);
           throw error;
         }
         if (error instanceof PosixFatalError) {
-          stdout = concatStreams(stdout, error.stdout);
-          stderr = concatStreams(stderr, error.stderr);
           exitCode = error.exitCode;
           this.ctx.state.lastExitCode = exitCode;
           envSet(this.ctx.state.env, "?", String(exitCode));
           return {
-            stdout,
-            stderr,
+            stdout: emptyStream(),
+            stderr: emptyStream(),
             exitCode,
             env: mapToRecord(this.ctx.state.env),
           };
         }
         if (error instanceof ExecutionLimitError) {
-          // Preserve output from completed statements (groups/subshells
-          // already do this in executeStatements).
-          error.prependOutput(stdout, stderr);
           throw error;
         }
         if (error instanceof ErrexitError) {
-          stdout = concatStreams(stdout, error.stdout);
-          stderr = concatStreams(stderr, error.stderr);
           exitCode = error.exitCode;
           this.ctx.state.lastExitCode = exitCode;
           envSet(this.ctx.state.env, "?", String(exitCode));
           return {
-            stdout,
-            stderr,
+            stdout: emptyStream(),
+            stderr: emptyStream(),
             exitCode,
             env: mapToRecord(this.ctx.state.env),
           };
         }
         if (error instanceof NounsetError) {
-          stdout = concatStreams(stdout, error.stdout);
-          stderr = concatStreams(stderr, error.stderr);
           exitCode = 1;
           this.ctx.state.lastExitCode = exitCode;
           envSet(this.ctx.state.env, "?", String(exitCode));
           return {
-            stdout,
-            stderr,
+            stdout: emptyStream(),
+            stderr: emptyStream(),
             exitCode,
             env: mapToRecord(this.ctx.state.env),
           };
         }
         if (error instanceof BadSubstitutionError) {
-          stdout = concatStreams(stdout, error.stdout);
-          stderr = concatStreams(stderr, error.stderr);
           exitCode = 1;
           this.ctx.state.lastExitCode = exitCode;
           envSet(this.ctx.state.env, "?", String(exitCode));
           return {
-            stdout,
-            stderr,
+            stdout: emptyStream(),
+            stderr: emptyStream(),
             exitCode,
             env: mapToRecord(this.ctx.state.env),
           };
         }
         if (error instanceof ArithmeticError) {
-          stdout = concatStreams(stdout, error.stdout);
-          stderr = concatStreams(stderr, error.stderr);
           exitCode = 1;
           this.ctx.state.lastExitCode = exitCode;
           envSet(this.ctx.state.env, "?", String(exitCode));
           continue;
         }
         if (error instanceof BraceExpansionError) {
-          stdout = concatStreams(stdout, error.stdout);
-          stderr = concatStreams(stderr, error.stderr);
           exitCode = 1;
           this.ctx.state.lastExitCode = exitCode;
           envSet(this.ctx.state.env, "?", String(exitCode));
@@ -367,15 +412,11 @@ export class Interpreter {
         }
         if (error instanceof BreakError || error instanceof ContinueError) {
           if (this.ctx.state.loopDepth > 0) {
-            error.prependOutput(stdout, stderr);
             throw error;
           }
-          stdout = concatStreams(stdout, error.stdout);
-          stderr = concatStreams(stderr, error.stderr);
           continue;
         }
         if (error instanceof ReturnError) {
-          error.prependOutput(stdout, stderr);
           throw error;
         }
         throw error;
@@ -383,8 +424,8 @@ export class Interpreter {
     }
 
     return {
-      stdout,
-      stderr,
+      stdout: emptyStream(),
+      stderr: emptyStream(),
       exitCode,
       env: mapToRecord(this.ctx.state.env),
     };
@@ -403,7 +444,7 @@ export class Interpreter {
       scriptPath,
       decodeArgs(args),
       stdin,
-      (ast) => this.executeScript(ast),
+      (ast) => this.executeScriptCompat(ast),
     );
   }
 
@@ -457,6 +498,17 @@ export class Interpreter {
 
       if (operator === "&&" && exitCode !== 0) continue;
       if (operator === "||" && exitCode === 0) continue;
+
+      const hasConvertedCommand = pipeline.commands.some((command) =>
+        ["If", "For", "CStyleFor", "While", "Until", "Case"].includes(
+          command.type,
+        ),
+      );
+      if (hasConvertedCommand) {
+        await pumpResult(this.ctx, { stdout, stderr, exitCode });
+        stdout = emptyStream();
+        stderr = emptyStream();
+      }
 
       const result = await this.executePipeline(pipeline);
       stdout = concatStreams(stdout, result.stdout);
@@ -1138,7 +1190,7 @@ export class Interpreter {
     stdin: ByteStream = emptyStream(),
   ): Promise<ExecResult> {
     return executeSubshellHelper(this.ctx, node, stdin, (stmt) =>
-      this.executeStatement(stmt),
+      this.executeStatementCompat(stmt),
     );
   }
 
@@ -1147,7 +1199,7 @@ export class Interpreter {
     stdin: ByteStream = emptyStream(),
   ): Promise<ExecResult> {
     return executeGroupHelper(this.ctx, node, stdin, (stmt) =>
-      this.executeStatement(stmt),
+      this.executeStatementCompat(stmt),
     );
   }
 

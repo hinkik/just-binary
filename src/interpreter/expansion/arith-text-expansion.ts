@@ -9,7 +9,7 @@
 import { collectText } from "../../utils/stream.js";
 import {
   createCollector,
-  pumpStream,
+  pumpResult,
   withChannels,
 } from "../output-channels.js";
 import type { InterpreterContext } from "../types.js";
@@ -177,19 +177,23 @@ export async function expandSubscriptForAssocArray(
         const cmdStr = inner.slice(i + 2, j - 1);
         if (ctx.execFn) {
           const stdoutCollector = createCollector();
-          const cmdResult = await withChannels(
-            ctx,
-            new Map([[1, stdoutCollector]]),
-            () => ctx.execFn(cmdStr),
+          const stderrCollector = createCollector();
+          const captureChannels = new Map(ctx.outputChannels);
+          captureChannels.set(1, stdoutCollector);
+          captureChannels.set(2, stderrCollector);
+          const cmdResult = await withChannels(ctx, captureChannels, () =>
+            ctx.execFn(cmdStr),
           );
           // Strip trailing newlines like command substitution does
-          await pumpStream(ctx, cmdResult.stdout, stdoutCollector);
+          await withChannels(ctx, captureChannels, () =>
+            pumpResult(ctx, cmdResult),
+          );
           result += (await collectText(stdoutCollector.stream())).replace(
             /\n+$/,
             "",
           );
           // Forward stderr to expansion stderr
-          const stderrText = await collectText(cmdResult.stderr);
+          const stderrText = await collectText(stderrCollector.stream());
           if (stderrText.length > 0) {
             ctx.state.expansionStderr =
               (ctx.state.expansionStderr || "") + stderrText;
@@ -234,17 +238,21 @@ export async function expandSubscriptForAssocArray(
       const cmdStr = inner.slice(i + 1, j);
       if (ctx.execFn) {
         const stdoutCollector = createCollector();
-        const cmdResult = await withChannels(
-          ctx,
-          new Map([[1, stdoutCollector]]),
-          () => ctx.execFn(cmdStr),
+        const stderrCollector = createCollector();
+        const captureChannels = new Map(ctx.outputChannels);
+        captureChannels.set(1, stdoutCollector);
+        captureChannels.set(2, stderrCollector);
+        const cmdResult = await withChannels(ctx, captureChannels, () =>
+          ctx.execFn(cmdStr),
         );
-        await pumpStream(ctx, cmdResult.stdout, stdoutCollector);
+        await withChannels(ctx, captureChannels, () =>
+          pumpResult(ctx, cmdResult),
+        );
         result += (await collectText(stdoutCollector.stream())).replace(
           /\n+$/,
           "",
         );
-        const stderrText = await collectText(cmdResult.stderr);
+        const stderrText = await collectText(stderrCollector.stream());
         if (stderrText.length > 0) {
           ctx.state.expansionStderr =
             (ctx.state.expansionStderr || "") + stderrText;

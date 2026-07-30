@@ -8,11 +8,12 @@
 import type { ScriptNode } from "../../ast/types.js";
 import { Parser } from "../../parser/parser.js";
 import { envGet, envSet } from "../../utils/bytes.js";
-import { collectText, emptyStream } from "../../utils/stream.js";
+import { collectText } from "../../utils/stream.js";
 import { ExecutionLimitError, ExitError } from "../errors.js";
 import {
   createCollector,
-  pumpStream,
+  pumpErrorStreams,
+  pumpResult,
   withChannels,
 } from "../output-channels.js";
 import type { InterpreterContext } from "../types.js";
@@ -129,12 +130,14 @@ async function executeCommandSubstitutionFromString(
   const savedSuppressVerbose = ctx.state.suppressVerbose;
   ctx.state.suppressVerbose = true;
   const stdoutCollector = createCollector();
+  const stderrCollector = createCollector();
+  const captureChannels = new Map(ctx.outputChannels);
+  captureChannels.set(1, stdoutCollector);
+  captureChannels.set(2, stderrCollector);
 
   try {
-    const result = await withChannels(
-      ctx,
-      new Map([[1, stdoutCollector]]),
-      () => ctx.executeScript(ast),
+    const result = await withChannels(ctx, captureChannels, () =>
+      ctx.executeScript(ast),
     );
     // Restore environment but preserve exit code
     const exitCode = result.exitCode;
@@ -143,13 +146,13 @@ async function executeCommandSubstitutionFromString(
     ctx.state.suppressVerbose = savedSuppressVerbose;
     ctx.state.lastExitCode = exitCode;
     envSet(ctx.state.env, "?", String(exitCode));
-    const stderrText = await collectText(result.stderr);
+    await withChannels(ctx, captureChannels, () => pumpResult(ctx, result));
+    const stderrText = await collectText(stderrCollector.stream());
     if (stderrText.length > 0) {
       ctx.state.expansionStderr =
         (ctx.state.expansionStderr || "") + stderrText;
     }
     ctx.state.bashPid = savedBashPid;
-    await pumpStream(ctx, result.stdout, stdoutCollector);
     return (await collectText(stdoutCollector.stream())).replace(/\n+$/, "");
   } catch (error) {
     ctx.state.env = savedEnv;
@@ -157,17 +160,15 @@ async function executeCommandSubstitutionFromString(
     ctx.state.bashPid = savedBashPid;
     ctx.state.suppressVerbose = savedSuppressVerbose;
     if (error instanceof ExecutionLimitError) {
+      await pumpErrorStreams(ctx, error);
       throw error;
     }
     if (error instanceof ExitError) {
       ctx.state.lastExitCode = error.exitCode;
       envSet(ctx.state.env, "?", String(error.exitCode));
-      const errorStdout = error.stdout;
-      try {
-        await pumpStream(ctx, errorStdout, stdoutCollector);
-      } finally {
-        error.stdout = emptyStream();
-      }
+      await withChannels(ctx, captureChannels, () =>
+        pumpErrorStreams(ctx, error),
+      );
       return (await collectText(stdoutCollector.stream())).replace(/\n+$/, "");
     }
     return "";

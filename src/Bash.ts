@@ -681,8 +681,8 @@ export class Bash {
       // ExitError propagates from 'exit' builtin (including via eval/source)
       if (error instanceof ExitError) {
         return this.logResult({
-          stdout: error.stdout,
-          stderr: error.stderr,
+          stdout: concatStreams(stdoutCollector.stream(), error.stdout),
+          stderr: concatStreams(stderrCollector.stream(), error.stderr),
           exitCode: error.exitCode,
           env: mapToRecordWithExtras(this.state.env, options?.env),
         });
@@ -690,16 +690,16 @@ export class Bash {
       // PosixFatalError propagates from special builtins in POSIX mode
       if (error instanceof PosixFatalError) {
         return this.logResult({
-          stdout: error.stdout,
-          stderr: error.stderr,
+          stdout: concatStreams(stdoutCollector.stream(), error.stdout),
+          stderr: concatStreams(stderrCollector.stream(), error.stderr),
           exitCode: error.exitCode,
           env: mapToRecordWithExtras(this.state.env, options?.env),
         });
       }
       if (error instanceof ArithmeticError) {
         return this.logResult({
-          stdout: error.stdout,
-          stderr: error.stderr,
+          stdout: concatStreams(stdoutCollector.stream(), error.stdout),
+          stderr: concatStreams(stderrCollector.stream(), error.stderr),
           exitCode: 1,
           env: mapToRecordWithExtras(this.state.env, options?.env),
         });
@@ -719,8 +719,8 @@ export class Bash {
       // (command count, recursion depth, loop iterations)
       if (error instanceof ExecutionLimitError) {
         return this.logResult({
-          stdout: error.stdout,
-          stderr: error.stderr,
+          stdout: concatStreams(stdoutCollector.stream(), error.stdout),
+          stderr: concatStreams(stderrCollector.stream(), error.stderr),
           exitCode: ExecutionLimitError.EXIT_CODE,
           env: mapToRecordWithExtras(this.state.env, options?.env),
         });

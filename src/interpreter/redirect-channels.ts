@@ -64,6 +64,47 @@ function queuedFileSink(ctx: InterpreterContext, filePath: string): OutputSink {
   };
 }
 
+function resolveDescriptorSink(
+  ctx: InterpreterContext,
+  channels: OutputChannels,
+  descriptors: Map<number, string>,
+  fd: number,
+  visited = new Set<number>(),
+): OutputSink | undefined {
+  const installed = channels.get(fd);
+  if (installed) {
+    return installed;
+  }
+  if (visited.has(fd)) {
+    return undefined;
+  }
+  visited.add(fd);
+
+  const descriptor = descriptors.get(fd);
+  let sink: OutputSink | undefined;
+  if (descriptor?.startsWith("__file__:")) {
+    sink = queuedFileSink(ctx, descriptor.slice(9));
+  } else if (descriptor?.startsWith("__file_append__:")) {
+    sink = queuedFileSink(ctx, descriptor.slice(16));
+  } else if (descriptor?.startsWith("__dupout__:")) {
+    const sourceFd = Number.parseInt(descriptor.slice(11), 10);
+    if (!Number.isNaN(sourceFd)) {
+      sink = resolveDescriptorSink(
+        ctx,
+        channels,
+        descriptors,
+        sourceFd,
+        visited,
+      );
+    }
+  }
+
+  if (sink) {
+    channels.set(fd, sink);
+  }
+  return sink;
+}
+
 async function installFileSink(
   ctx: InterpreterContext,
   channels: OutputChannels,
@@ -294,7 +335,12 @@ export async function compileOutputRedirections(
       : sourceText;
     const sourceFd = Number.parseInt(normalizedSource, 10);
     if (!Number.isNaN(sourceFd)) {
-      const sourceSink = channels.get(sourceFd);
+      const sourceSink = resolveDescriptorSink(
+        ctx,
+        channels,
+        descriptors,
+        sourceFd,
+      );
       if (!sourceSink) {
         return compilationError(
           channels,

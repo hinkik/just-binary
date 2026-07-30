@@ -34,9 +34,40 @@ export type ExecuteCommandFn = (
 async function executeIntermediatePipelineStage(
   ctx: InterpreterContext,
   execute: () => Promise<ExecResult>,
+  captureStderr: boolean,
 ): Promise<ExecResult> {
   const stdoutCollector = createCollector();
-  return withChannels(ctx, new Map([[1, stdoutCollector]]), execute);
+  const stderrCollector = captureStderr ? createCollector() : undefined;
+  const channels = new Map(ctx.outputChannels);
+  channels.set(1, stdoutCollector);
+  if (stderrCollector) {
+    channels.set(2, stderrCollector);
+  }
+
+  try {
+    const result = await withChannels(ctx, channels, execute);
+    return {
+      ...result,
+      stdout: concatStreams(result.stdout, stdoutCollector.stream()),
+      stderr: stderrCollector
+        ? concatStreams(result.stderr, stderrCollector.stream())
+        : result.stderr,
+    };
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      "stdout" in error &&
+      "stderr" in error &&
+      error.stdout instanceof ReadableStream &&
+      error.stderr instanceof ReadableStream
+    ) {
+      error.stdout = concatStreams(error.stdout, stdoutCollector.stream());
+      if (stderrCollector) {
+        error.stderr = concatStreams(error.stderr, stderrCollector.stream());
+      }
+    }
+    throw error;
+  }
 }
 
 /**
@@ -65,6 +96,7 @@ export async function executePipeline(
     const command = node.commands[i];
     const isLast = i === node.commands.length - 1;
     const isFirst = i === 0;
+    const pipeStderrToNext = node.pipeStderr?.[i] ?? false;
 
     // In a multi-command pipeline, each command runs in a subshell context
     // where $_ starts empty (subshells don't inherit $_ from parent in same way)
@@ -95,8 +127,10 @@ export async function executePipeline(
     try {
       result = isLast
         ? await executeCommand(command, stdin)
-        : await executeIntermediatePipelineStage(ctx, () =>
-            executeCommand(command, stdin),
+        : await executeIntermediatePipelineStage(
+            ctx,
+            () => executeCommand(command, stdin),
+            pipeStderrToNext,
           );
     } catch (error) {
       // BadSubstitutionError should fail the command but not abort the script
@@ -148,7 +182,6 @@ export async function executePipeline(
 
     if (!isLast) {
       // Check if this pipe is |& (pipe stderr to next command's stdin too)
-      const pipeStderrToNext = node.pipeStderr?.[i] ?? false;
       if (pipeStderrToNext) {
         // |& pipes both stdout and stderr to next command's stdin
         stdin = concatStreams(result.stderr, result.stdout);

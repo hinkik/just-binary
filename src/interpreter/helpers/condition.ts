@@ -7,11 +7,8 @@
 
 import type { StatementNode } from "../../ast/types.js";
 import type { ExecResult } from "../../types.js";
-import {
-  type ByteStream,
-  concatStreams,
-  emptyStream,
-} from "../../utils/stream.js";
+import { emptyStream } from "../../utils/stream.js";
+import { pumpErrorStreams, pumpResult } from "../output-channels.js";
 import type { InterpreterContext } from "../types.js";
 
 /**
@@ -20,7 +17,7 @@ import type { InterpreterContext } from "../types.js";
  *
  * @param ctx - Interpreter context
  * @param statements - Condition statements to execute
- * @returns Accumulated stdout, stderr, and final exit code
+ * @returns Empty streams and the final exit code
  */
 export async function executeCondition(
   ctx: InterpreterContext,
@@ -29,20 +26,24 @@ export async function executeCondition(
   const savedInCondition = ctx.state.inCondition;
   ctx.state.inCondition = true;
 
-  let stdout: ByteStream = emptyStream();
-  let stderr: ByteStream = emptyStream();
   let exitCode = 0;
 
   try {
     for (const stmt of statements) {
       const result = await ctx.executeStatement(stmt);
-      stdout = concatStreams(stdout, result.stdout);
-      stderr = concatStreams(stderr, result.stderr);
+      await pumpResult(ctx, result);
       exitCode = result.exitCode;
     }
+  } catch (error) {
+    await pumpErrorStreams(ctx, error);
+    throw error;
   } finally {
     ctx.state.inCondition = savedInCondition;
   }
 
-  return { stdout, stderr, exitCode };
+  return {
+    stdout: emptyStream(),
+    stderr: emptyStream(),
+    exitCode,
+  };
 }

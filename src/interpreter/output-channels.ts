@@ -58,12 +58,18 @@ export async function pumpStream(
   ctx: InterpreterContext,
   stream: ByteStream,
   sink: OutputSink,
+  checkSignal = true,
 ): Promise<void> {
+  if (checkSignal) {
+    checkAborted(ctx.signal);
+  }
   const reader = stream.getReader();
   let finished = false;
   try {
     while (true) {
-      checkAborted(ctx.signal);
+      if (checkSignal) {
+        checkAborted(ctx.signal);
+      }
       const { done, value } = await reader.read();
       if (done) {
         finished = true;
@@ -73,7 +79,9 @@ export async function pumpStream(
         continue;
       }
       await sink.write(value);
-      checkAborted(ctx.signal);
+      if (checkSignal) {
+        checkAborted(ctx.signal);
+      }
     }
   } finally {
     if (!finished) {
@@ -90,10 +98,21 @@ export async function pumpStream(
 export async function pumpResult(
   ctx: InterpreterContext,
   result: ExecResult,
+  checkSignal = true,
 ): Promise<ExecResult> {
   const settled = await Promise.allSettled([
-    pumpStream(ctx, result.stdout, ctx.outputChannels.get(1) ?? discardSink),
-    pumpStream(ctx, result.stderr, ctx.outputChannels.get(2) ?? discardSink),
+    pumpStream(
+      ctx,
+      result.stdout,
+      ctx.outputChannels.get(1) ?? discardSink,
+      checkSignal,
+    ),
+    pumpStream(
+      ctx,
+      result.stderr,
+      ctx.outputChannels.get(2) ?? discardSink,
+      checkSignal,
+    ),
   ]);
   const rejected = settled.find(
     (outcome): outcome is PromiseRejectedResult =>
@@ -108,4 +127,53 @@ export async function pumpResult(
     stdout: emptyStream(),
     stderr: emptyStream(),
   };
+}
+
+interface OutputCarryingError {
+  stdout: ByteStream;
+  stderr: ByteStream;
+}
+
+function carriesOutput(error: unknown): error is OutputCarryingError {
+  return (
+    error instanceof Error &&
+    "stdout" in error &&
+    "stderr" in error &&
+    error.stdout instanceof ReadableStream &&
+    error.stderr instanceof ReadableStream
+  );
+}
+
+/**
+ * Move streams carried by a legacy control-flow error into the active table.
+ *
+ * Abort checks are disabled while draining because an AbortExecutionError is
+ * handled only after its signal has fired; the finite output already produced
+ * before cancellation still has to reach the current sinks exactly once.
+ */
+export async function pumpErrorStreams(
+  ctx: InterpreterContext,
+  error: unknown,
+): Promise<boolean> {
+  if (!carriesOutput(error)) {
+    return false;
+  }
+
+  const stdout = error.stdout;
+  const stderr = error.stderr;
+  const settled = await Promise.allSettled([
+    pumpStream(ctx, stdout, ctx.outputChannels.get(1) ?? discardSink, false),
+    pumpStream(ctx, stderr, ctx.outputChannels.get(2) ?? discardSink, false),
+  ]);
+  error.stdout = emptyStream();
+  error.stderr = emptyStream();
+
+  const rejected = settled.find(
+    (outcome): outcome is PromiseRejectedResult =>
+      outcome.status === "rejected",
+  );
+  if (rejected) {
+    throw rejected.reason;
+  }
+  return true;
 }

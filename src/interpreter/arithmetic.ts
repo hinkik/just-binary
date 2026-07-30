@@ -32,7 +32,7 @@ import { ArithmeticError, NounsetError } from "./errors.js";
 import { getArrayElements, getVariable } from "./expansion.js";
 import {
   createCollector,
-  pumpStream,
+  pumpResult,
   withChannels,
 } from "./output-channels.js";
 import type { InterpreterContext } from "./types.js";
@@ -464,18 +464,20 @@ export async function evaluateArithmetic(
       // Execute the command and parse the result as a number
       if (ctx.execFn) {
         const stdoutCollector = createCollector();
-        const result = await withChannels(
-          ctx,
-          new Map([[1, stdoutCollector]]),
-          () => ctx.execFn(expr.command),
+        const stderrCollector = createCollector();
+        const captureChannels = new Map(ctx.outputChannels);
+        captureChannels.set(1, stdoutCollector);
+        captureChannels.set(2, stderrCollector);
+        const result = await withChannels(ctx, captureChannels, () =>
+          ctx.execFn(expr.command),
         );
+        await withChannels(ctx, captureChannels, () => pumpResult(ctx, result));
         // Command substitution stderr should go to the shell's stderr at expansion time
-        const stderrText = await collectText(result.stderr);
+        const stderrText = await collectText(stderrCollector.stream());
         if (stderrText.length > 0) {
           ctx.state.expansionStderr =
             (ctx.state.expansionStderr || "") + stderrText;
         }
-        await pumpStream(ctx, result.stdout, stdoutCollector);
         const output = (await collectText(stdoutCollector.stream()))
           .replace(/\n+$/, "")
           .trim();
@@ -996,12 +998,14 @@ async function evalConcatPartToStringAsync(
     case "ArithCommandSubst": {
       if (ctx.execFn) {
         const stdoutCollector = createCollector();
-        const result = await withChannels(
-          ctx,
-          new Map([[1, stdoutCollector]]),
-          () => ctx.execFn(expr.command),
+        const stderrCollector = createCollector();
+        const captureChannels = new Map(ctx.outputChannels);
+        captureChannels.set(1, stdoutCollector);
+        captureChannels.set(2, stderrCollector);
+        const result = await withChannels(ctx, captureChannels, () =>
+          ctx.execFn(expr.command),
         );
-        await pumpStream(ctx, result.stdout, stdoutCollector);
+        await withChannels(ctx, captureChannels, () => pumpResult(ctx, result));
         return (await collectText(stdoutCollector.stream()))
           .replace(/\n+$/, "")
           .trim();

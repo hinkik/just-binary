@@ -28,7 +28,7 @@ import {
   envSet,
   trimTrailingNewlines,
 } from "../utils/bytes.js";
-import { collectBytes, collectText, emptyStream } from "../utils/stream.js";
+import { collectBytes, collectText } from "../utils/stream.js";
 import { evaluateArithmetic } from "./arithmetic.js";
 import {
   BadSubstitutionError,
@@ -37,7 +37,8 @@ import {
 } from "./errors.js";
 import {
   createCollector,
-  pumpStream,
+  pumpErrorStreams,
+  pumpResult,
   withChannels,
 } from "./output-channels.js";
 
@@ -832,11 +833,13 @@ async function executeCommandSubstitutionBytes(
   const savedSuppressVerbose = ctx.state.suppressVerbose;
   ctx.state.suppressVerbose = true;
   const stdoutCollector = createCollector();
+  const stderrCollector = createCollector();
+  const captureChannels = new Map(ctx.outputChannels);
+  captureChannels.set(1, stdoutCollector);
+  captureChannels.set(2, stderrCollector);
   try {
-    const result = await withChannels(
-      ctx,
-      new Map([[1, stdoutCollector]]),
-      () => ctx.executeScript(part.body),
+    const result = await withChannels(ctx, captureChannels, () =>
+      ctx.executeScript(part.body),
     );
     const exitCode = result.exitCode;
     ctx.state.env = savedEnv;
@@ -844,14 +847,14 @@ async function executeCommandSubstitutionBytes(
     ctx.state.suppressVerbose = savedSuppressVerbose;
     ctx.state.lastExitCode = exitCode;
     envSet(ctx.state.env, "?", String(exitCode));
-    const stderrText = await collectText(result.stderr);
+    await withChannels(ctx, captureChannels, () => pumpResult(ctx, result));
+    const stderrText = await collectText(stderrCollector.stream());
     if (stderrText.length > 0) {
       ctx.state.expansionStderr =
         (ctx.state.expansionStderr || "") + stderrText;
     }
     ctx.state.bashPid = savedBashPid;
     ctx.substitutionDepth = savedDepth;
-    await pumpStream(ctx, result.stdout, stdoutCollector);
     const output = trimTrailingNewlines(
       await collectBytes(stdoutCollector.stream()),
     );
@@ -869,21 +872,19 @@ async function executeCommandSubstitutionBytes(
     ctx.substitutionDepth = savedDepth;
     ctx.state.suppressVerbose = savedSuppressVerbose;
     if (error instanceof ExecutionLimitError) {
+      await pumpErrorStreams(ctx, error);
       throw error;
     }
     if (error instanceof ExitError) {
       ctx.state.lastExitCode = error.exitCode;
       envSet(ctx.state.env, "?", String(error.exitCode));
-      const errorStdout = error.stdout;
-      const errStderrText = await collectText(error.stderr);
+      await withChannels(ctx, captureChannels, () =>
+        pumpErrorStreams(ctx, error),
+      );
+      const errStderrText = await collectText(stderrCollector.stream());
       if (errStderrText.length > 0) {
         ctx.state.expansionStderr =
           (ctx.state.expansionStderr || "") + errStderrText;
-      }
-      try {
-        await pumpStream(ctx, errorStdout, stdoutCollector);
-      } finally {
-        error.stdout = emptyStream();
       }
       const exitOutput = trimTrailingNewlines(
         await collectBytes(stdoutCollector.stream()),
