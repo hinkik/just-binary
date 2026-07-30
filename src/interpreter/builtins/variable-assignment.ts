@@ -106,7 +106,7 @@ export async function setVariable(
 
   // Check if variable is readonly (if checking is enabled)
   if (checkReadonly) {
-    const error = checkReadonlyError(ctx, name);
+    const error = await checkReadonlyError(ctx, name);
     if (error) return error;
   }
 

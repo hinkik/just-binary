@@ -27,7 +27,7 @@ import {
 } from "../parser/arithmetic-parser.js";
 import { Parser } from "../parser/parser.js";
 import { decode, envGet, envSet } from "../utils/bytes.js";
-import { collectText, emptyStream } from "../utils/stream.js";
+import { collectText } from "../utils/stream.js";
 import { ArithmeticError, NounsetError } from "./errors.js";
 import { getArrayElements, getVariable } from "./expansion.js";
 import {
@@ -274,8 +274,8 @@ async function evaluateArithValue(
     const errorToken = unparsed.split(/\s+/)[0] || unparsed;
     throw new ArithmeticError(
       `syntax error in expression (error token is "${errorToken}")`,
-      emptyStream(),
-      emptyStream(),
+      false,
+      false,
     );
   }
   return await evaluateArithmetic(ctx, expr);
@@ -603,11 +603,7 @@ export async function evaluateArithmetic(
 
     case "ArithDoubleSubscript": {
       // Double subscript like a[1][1] is not valid - fail silently with exit code 1
-      throw new ArithmeticError(
-        "double subscript",
-        emptyStream(),
-        emptyStream(),
-      );
+      throw new ArithmeticError("double subscript", false, false);
     }
 
     case "ArithNumberSubscript": {
@@ -620,12 +616,7 @@ export async function evaluateArithmetic(
     case "ArithSyntaxError": {
       // Syntax error node - throw at evaluation time so script can parse successfully
       // These are fatal errors (like missing operand) that should abort the script
-      throw new ArithmeticError(
-        expr.message,
-        emptyStream(),
-        emptyStream(),
-        true,
-      );
+      throw new ArithmeticError(expr.message, true, false);
     }
 
     case "ArithSingleQuote": {

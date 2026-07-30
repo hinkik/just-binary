@@ -2,58 +2,46 @@ import { describe, expect, it } from "vitest";
 import { Bash } from "../Bash.js";
 import { defineCommand } from "../custom-commands.js";
 import { toText } from "../test-utils.js";
-import { fromString } from "../utils/stream.js";
 import { ExecutionLimitError } from "./errors.js";
 
-function legacyThrowingCommand() {
-  return defineCommand("legacy-throw", async () => {
-    throw new ExecutionLimitError(
-      "legacy boundary failed",
-      "iterations",
-      fromString("legacy-out\n"),
-      fromString("legacy-error\n"),
-    );
+function diagnosticThrowingCommand() {
+  return defineCommand("diagnostic-limit", async () => {
+    throw new ExecutionLimitError("diagnostic failed", "iterations");
   });
 }
-
-const expectedError =
-  "legacy-error\n" +
-  "bash: legacy boundary failed\n" +
-  "bash: echo: write error: No space left on device\n";
 
 describe("scope channel write failures", () => {
   it.each([
     {
       name: "group",
-      script: "{ legacy-throw; } > /dev/full 2> /write-error",
+      script: "{ diagnostic-limit; } 2> /dev/full",
     },
     {
       name: "subshell",
-      script: "(legacy-throw) > /dev/full 2> /write-error",
+      script: "(diagnostic-limit) 2> /dev/full",
     },
     {
       name: "function definition",
-      script: "f() { legacy-throw; } > /dev/full 2> /write-error; f",
+      script: "f() { diagnostic-limit; } 2> /dev/full; f",
     },
-  ])("converts a carried-stream failure inside a $name table", async ({
+  ])("converts a failed diagnostic write through a $name table", async ({
     script,
   }) => {
-    const bash = new Bash({
-      cwd: "/",
-      customCommands: [legacyThrowingCommand()],
-    });
-    const result = await toText(await bash.exec(script));
+    const result = await toText(
+      await new Bash({
+        cwd: "/",
+        customCommands: [diagnosticThrowingCommand()],
+      }).exec(script),
+    );
 
     expect({
       stdout: result.stdout,
       stderr: result.stderr,
       exitCode: result.exitCode,
-      file: await bash.fs.readFileText("/write-error"),
     }).toEqual({
       stdout: "",
       stderr: "",
       exitCode: 1,
-      file: expectedError,
     });
   });
 

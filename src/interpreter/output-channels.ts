@@ -6,7 +6,16 @@ import {
   fromChunks,
   fromString,
 } from "../utils/stream.js";
-import { checkAborted } from "./errors.js";
+import {
+  AbortExecutionError,
+  ArithmeticError,
+  BadSubstitutionError,
+  BraceExpansionError,
+  checkAborted,
+  ExecutionLimitError,
+  GlobError,
+  NounsetError,
+} from "./errors.js";
 import type { InterpreterContext } from "./types.js";
 
 export interface OutputSink {
@@ -28,7 +37,9 @@ export interface OutputChannels {
   overrides?: Set<number>;
 }
 
-interface OutputCollector extends OutputSink {
+export interface OutputCollector extends OutputSink {
+  /** Decode the accumulated bytes without consuming the collector. */
+  text(): string;
   /** Valid after all writes for the execution have settled. */
   stream(): ByteStream;
 }
@@ -136,10 +147,11 @@ export async function writeToChannel(
   ctx: InterpreterContext,
   fd: number,
   chunk: Uint8Array | string,
+  failClosed = false,
 ): Promise<void> {
   const bytes = typeof chunk === "string" ? encode(chunk) : chunk;
   if (bytes.length > 0) {
-    await channelSink(ctx.outputChannels, fd, false).write(bytes);
+    await channelSink(ctx.outputChannels, fd, failClosed).write(bytes);
   }
 }
 
@@ -157,6 +169,16 @@ export function createCollector(forward?: OutputSink): OutputCollector {
       const write = writeChain.then(() => forward.write(chunk));
       writeChain = write.catch(() => undefined);
       return write;
+    },
+    text(): string {
+      const decoder = new TextDecoder();
+      let output = "";
+      for (const chunk of chunks) {
+        if (chunk.length > 0) {
+          output += decoder.decode(chunk, { stream: true });
+        }
+      }
+      return output + decoder.decode();
     },
     stream(): ByteStream {
       return fromChunks(chunks);
@@ -225,6 +247,10 @@ export async function pumpResult(
   checkSignal = true,
   outputFds: readonly (1 | 2)[] = [1, 2],
 ): Promise<ExecResult> {
+  const childHandledAbort =
+    ctx.signal?.aborted === true &&
+    result.exitCode === new AbortExecutionError(ctx.signal.reason).exitCode;
+  const shouldCheckSignal = checkSignal && !childHandledAbort;
   const pumps: Promise<void>[] = [];
   if (outputFds.includes(1)) {
     pumps.push(
@@ -232,7 +258,7 @@ export async function pumpResult(
         ctx,
         result.stdout,
         channelSink(ctx.outputChannels, 1),
-        checkSignal,
+        shouldCheckSignal,
       ),
     );
   }
@@ -242,7 +268,7 @@ export async function pumpResult(
         ctx,
         result.stderr,
         channelSink(ctx.outputChannels, 2),
-        checkSignal,
+        shouldCheckSignal,
       ),
     );
   }
@@ -262,66 +288,50 @@ export async function pumpResult(
   };
 }
 
-interface OutputCarryingError {
-  stdout: ByteStream;
-  stderr: ByteStream;
-}
-
-function carriesOutput(error: unknown): error is OutputCarryingError {
-  return (
-    error instanceof Error &&
-    "stdout" in error &&
-    "stderr" in error &&
-    error.stdout instanceof ReadableStream &&
-    error.stderr instanceof ReadableStream
-  );
-}
-
 /**
- * Move streams carried by a legacy control-flow error into the active table.
- *
- * Abort checks are disabled while draining because an AbortExecutionError is
- * handled only after its signal has fired; the finite output already produced
- * before cancellation still has to reach the current sinks exactly once.
+ * Write a control-flow diagnostic to the active fd 2 exactly once.
  */
-export async function pumpErrorStreams(
+export async function writeErrorDiagnostic(
   ctx: InterpreterContext,
   error: unknown,
   outputFds: readonly (1 | 2)[] = [1, 2],
 ): Promise<boolean> {
-  if (!carriesOutput(error)) {
+  if (
+    !(error instanceof Error) ||
+    error instanceof AbortExecutionError ||
+    !outputFds.includes(2)
+  ) {
     return false;
   }
 
-  const stdout = error.stdout;
-  const stderr = error.stderr;
-  const pumps: Promise<void>[] = [];
-  if (outputFds.includes(1)) {
-    pumps.push(
-      pumpStream(ctx, stdout, channelSink(ctx.outputChannels, 1), false),
-    );
-  }
-  if (outputFds.includes(2)) {
-    pumps.push(
-      pumpStream(ctx, stderr, channelSink(ctx.outputChannels, 2), false),
-    );
-  }
-  const settled = await Promise.allSettled(pumps);
-  if (outputFds.includes(1)) {
-    error.stdout = emptyStream();
-  }
-  if (outputFds.includes(2)) {
-    error.stderr = emptyStream();
+  let diagnostic: string | undefined;
+  if (
+    error instanceof ExecutionLimitError ||
+    error instanceof NounsetError ||
+    error instanceof BraceExpansionError
+  ) {
+    diagnostic = `bash: ${error.message}\n`;
+  } else if (error instanceof ArithmeticError && error.reportDiagnostic) {
+    diagnostic = `bash: ${error.message}\n`;
+  } else if (error instanceof BadSubstitutionError) {
+    diagnostic = `bash: ${error.message}: bad substitution\n`;
+  } else if (error instanceof GlobError) {
+    diagnostic = `bash: no match: ${error.pattern}\n`;
   }
 
-  const rejected = settled.find(
-    (outcome): outcome is PromiseRejectedResult =>
-      outcome.status === "rejected",
-  );
-  if (rejected) {
-    throw rejected.reason;
+  if (diagnostic === undefined) {
+    return false;
   }
-  return outputFds.length > 0;
+  let reportedDiagnostics = ctx.reportedDiagnostics;
+  if (!reportedDiagnostics) {
+    reportedDiagnostics = new WeakSet();
+    ctx.reportedDiagnostics = reportedDiagnostics;
+  }
+  if (!reportedDiagnostics.has(error)) {
+    await channelSink(ctx.outputChannels, 2).write(encode(diagnostic));
+    reportedDiagnostics.add(error);
+  }
+  return true;
 }
 
 function isNoSpaceError(error: unknown): error is Error & { code: "ENOSPC" } {
@@ -362,30 +372,30 @@ async function reportWriteFailure(
   };
 }
 
-export async function pumpErrorStreamsWithWriteFailure(
+export async function writeErrorDiagnosticWithWriteFailure(
   ctx: InterpreterContext,
   error: unknown,
   outputFds?: readonly (1 | 2)[],
 ): Promise<{
   writeFailure: ExecResult | null;
-  carriedOutput: boolean;
+  diagnosticWritten: boolean;
 }> {
   try {
-    const carriedOutput = await pumpErrorStreams(ctx, error, outputFds);
+    const diagnosticWritten = await writeErrorDiagnostic(ctx, error, outputFds);
     return isNoSpaceError(error) || isBadFileDescriptorError(error)
       ? {
           writeFailure: await reportWriteFailure(ctx, error),
-          carriedOutput,
+          diagnosticWritten,
         }
-      : { writeFailure: null, carriedOutput };
-  } catch (pumpError) {
-    if (isNoSpaceError(pumpError) || isBadFileDescriptorError(pumpError)) {
+      : { writeFailure: null, diagnosticWritten };
+  } catch (writeError) {
+    if (isNoSpaceError(writeError) || isBadFileDescriptorError(writeError)) {
       return {
-        writeFailure: await reportWriteFailure(ctx, pumpError),
-        carriedOutput: true,
+        writeFailure: await reportWriteFailure(ctx, writeError),
+        diagnosticWritten: true,
       };
     }
-    throw pumpError;
+    throw writeError;
   }
 }
 
@@ -397,13 +407,13 @@ export async function executeAndPumpResult(
   try {
     return await pumpResult(ctx, await execute(), true, outputFds);
   } catch (error) {
-    const { carriedOutput, writeFailure } =
-      await pumpErrorStreamsWithWriteFailure(ctx, error);
+    const { diagnosticWritten, writeFailure } =
+      await writeErrorDiagnosticWithWriteFailure(ctx, error);
     if (writeFailure) {
       return writeFailure;
     }
     if (isNoSpaceError(error) || isBadFileDescriptorError(error)) {
-      return carriedOutput
+      return diagnosticWritten
         ? {
             stdout: emptyStream(),
             stderr: emptyStream(),

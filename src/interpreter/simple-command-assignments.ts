@@ -12,7 +12,6 @@ import { parseArithmeticExpression } from "../parser/arithmetic-parser.js";
 import { Parser } from "../parser/parser.js";
 import type { ExecResult } from "../types.js";
 import { decode, EMPTY, envGet, envSet } from "../utils/bytes.js";
-import { emptyStream, fromString } from "../utils/stream.js";
 import { evaluateArithmetic } from "./arithmetic.js";
 import {
   applyCaseTransform,
@@ -40,6 +39,7 @@ import { checkReadonlyError, isReadonly } from "./helpers/readonly.js";
 import { failure, throwExecutionLimit } from "./helpers/result.js";
 import { expandTildesInValue } from "./helpers/tilde.js";
 import { traceAssignment } from "./helpers/xtrace.js";
+import { writeToChannel } from "./output-channels.js";
 import type { InterpreterContext } from "./types.js";
 
 /**
@@ -206,7 +206,7 @@ async function processArrayAssignment(
   if (isNameref(ctx, name)) {
     const target = getNamerefTarget(ctx, name);
     if (target === undefined || target === "") {
-      throw new ExitError(1, emptyStream(), emptyStream());
+      throw new ExitError(1);
     }
     const resolved = resolveNameref(ctx, name);
     if (resolved && /^[a-zA-Z_][a-zA-Z0-9_]*\[@\]$/.test(resolved)) {
@@ -224,7 +224,7 @@ async function processArrayAssignment(
       xtraceOutput += `bash: ${name}: readonly variable\n`;
       return { continueToNext: true, xtraceOutput };
     }
-    const readonlyError = checkReadonlyError(ctx, name);
+    const readonlyError = await checkReadonlyError(ctx, name);
     if (readonlyError) {
       return { continueToNext: false, xtraceOutput: "", error: readonlyError };
     }
@@ -562,7 +562,7 @@ async function processSubscriptAssignment(
     if (node.name) {
       return { continueToNext: true, xtraceOutput: "" };
     }
-    const readonlyError = checkReadonlyError(ctx, resolvedArrayName);
+    const readonlyError = await checkReadonlyError(ctx, resolvedArrayName);
     if (readonlyError) {
       return { continueToNext: false, xtraceOutput: "", error: readonlyError };
     }
@@ -673,7 +673,8 @@ async function computeIndexedArrayIndex(
         const lineNum = ctx.state.currentLine;
         const errorMsg = `bash: line ${lineNum}: ${subscriptExpr}: ${e.message}\n`;
         if (e.fatal) {
-          throw new ExitError(1, emptyStream(), fromString(errorMsg));
+          await writeToChannel(ctx, 2, errorMsg, true);
+          throw new ExitError(1);
         }
         return { index: 0, error: failure(errorMsg) };
       }
@@ -764,7 +765,7 @@ async function processScalarAssignment(
       xtraceOutput += `bash: ${targetName}: readonly variable\n`;
       return { continueToNext: true, xtraceOutput };
     }
-    const readonlyError = checkReadonlyError(ctx, targetName);
+    const readonlyError = await checkReadonlyError(ctx, targetName);
     if (readonlyError) {
       return { continueToNext: false, xtraceOutput: "", error: readonlyError };
     }

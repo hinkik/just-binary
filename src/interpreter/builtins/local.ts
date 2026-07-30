@@ -91,7 +91,7 @@ export async function handleLocal(
       }
 
       // Check if variable is readonly
-      checkReadonlyError(ctx, name, "bash");
+      await checkReadonlyError(ctx, name, "bash");
 
       // Save previous value for scope restoration
       if (!currentScope.has(name)) {
@@ -141,7 +141,7 @@ export async function handleLocal(
       const content = arrayAppendMatch[2];
 
       // Check if variable is readonly
-      checkReadonlyError(ctx, name, "bash");
+      await checkReadonlyError(ctx, name, "bash");
 
       // Save previous value for scope restoration
       if (!currentScope.has(name)) {
@@ -210,7 +210,7 @@ export async function handleLocal(
       const appendValue = expandTildesInValue(ctx, appendMatch[2]);
 
       // Check if variable is readonly
-      checkReadonlyError(ctx, name, "bash");
+      await checkReadonlyError(ctx, name, "bash");
 
       // Save previous value for scope restoration
       if (!currentScope.has(name)) {
@@ -241,7 +241,7 @@ export async function handleLocal(
       const indexValue = expandTildesInValue(ctx, indexMatch[3]);
 
       // Check if variable is readonly
-      checkReadonlyError(ctx, name, "bash");
+      await checkReadonlyError(ctx, name, "bash");
 
       // Save previous array values for scope restoration
       if (!currentScope.has(name)) {
@@ -389,7 +389,7 @@ export async function handleLocal(
       envSet(ctx.state.env, `${name}__length`, "0");
     } else if (value !== undefined) {
       // Check if variable is readonly
-      checkReadonlyError(ctx, name, "bash");
+      await checkReadonlyError(ctx, name, "bash");
 
       // For namerefs, validate the target
       if (

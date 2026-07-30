@@ -7,7 +7,7 @@ import type { ExecResult } from "../../types.js";
 import { EMPTY, encode, envGet, envSet } from "../../utils/bytes.js";
 import { ExitError, ReturnError } from "../errors.js";
 import { failure, result } from "../helpers/result.js";
-import { pumpErrorStreams, pumpResult } from "../output-channels.js";
+import { pumpResult, writeErrorDiagnostic } from "../output-channels.js";
 import type { InterpreterContext } from "../types.js";
 
 export async function handleSource(
@@ -130,7 +130,7 @@ export async function handleSource(
     return pumpedResult;
   } catch (error) {
     cleanup();
-    await pumpErrorStreams(ctx, error);
+    await writeErrorDiagnostic(ctx, error);
 
     // ExitError propagates up to exit the shell
     if (error instanceof ExitError) {

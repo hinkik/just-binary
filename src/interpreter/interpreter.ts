@@ -113,10 +113,10 @@ import {
   executeAndPumpResult,
   isChannelClosed,
   type OutputChannels,
-  pumpErrorStreams,
-  pumpErrorStreamsWithWriteFailure,
   pumpResult,
   withChannels,
+  writeErrorDiagnostic,
+  writeErrorDiagnosticWithWriteFailure,
   writeToChannel,
 } from "./output-channels.js";
 import { executePipeline as executePipelineHelper } from "./pipeline-execution.js";
@@ -234,6 +234,7 @@ export class Interpreter {
       fs: options.fs,
       commands: options.commands,
       outputChannels: options.outputChannels,
+      reportedDiagnostics: new WeakSet(),
       limits: options.limits,
       execFn: options.exec,
       executeScript: this.executeScript.bind(this),
@@ -281,7 +282,7 @@ export class Interpreter {
 
   async executeRootScript(node: ScriptNode): Promise<ExecResult> {
     const result = await this.executeScript(node);
-    checkAborted(this.ctx.signal, result.stdout, result.stderr);
+    checkAborted(this.ctx.signal);
     return pumpResult(this.ctx, result);
   }
 
@@ -300,7 +301,7 @@ export class Interpreter {
         this.ctx.state.lastExitCode = exitCode;
         envSet(this.ctx.state.env, "?", String(exitCode));
       } catch (error) {
-        await pumpErrorStreams(this.ctx, error);
+        await writeErrorDiagnostic(this.ctx, error);
         if (error instanceof ExitError) {
           throw error;
         }
@@ -471,7 +472,7 @@ export class Interpreter {
       !this.ctx.state.inCondition &&
       !innerWasSafe
     ) {
-      throw new ErrexitError(exitCode, emptyStream(), emptyStream());
+      throw new ErrexitError(exitCode);
     }
 
     return { stdout: emptyStream(), stderr: emptyStream(), exitCode };
@@ -522,11 +523,13 @@ export class Interpreter {
     node: SimpleCommandNode,
     stdin: ByteStream,
   ): Promise<ExecResult> {
+    this.ctx.reportedDiagnostics = new WeakSet();
     try {
       return await this.executeSimpleCommandInner(node, stdin);
     } catch (error) {
       if (error instanceof GlobError) {
-        return { stdout: emptyStream(), stderr: error.stderr, exitCode: 1 };
+        await writeErrorDiagnostic(this.ctx, error);
+        return { stdout: emptyStream(), stderr: emptyStream(), exitCode: 1 };
       }
       throw error;
     }
@@ -1096,7 +1099,8 @@ export class Interpreter {
           const pumpedError = await withChannels(
             this.ctx,
             channelRedirections.channels,
-            () => pumpErrorStreamsWithWriteFailure(this.ctx, error, outputFds),
+            () =>
+              writeErrorDiagnosticWithWriteFailure(this.ctx, error, outputFds),
           );
           writeFailure = pumpedError.writeFailure;
           if (writeFailure) {

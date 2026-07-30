@@ -3,18 +3,13 @@ import { Bash } from "../Bash.js";
 import { defineCommand } from "../custom-commands.js";
 import type { InitialFiles } from "../fs/interface.js";
 import { toText } from "../test-utils.js";
-import { decode } from "../utils/bytes.js";
-import { emptyStream, fromString } from "../utils/stream.js";
+import { decode, encode } from "../utils/bytes.js";
+import { emptyStream } from "../utils/stream.js";
 import { ExecutionLimitError } from "./errors.js";
 
 function lazyFailingInput() {
   return defineCommand("lazy-failing-input", async () => {
-    const error = new ExecutionLimitError(
-      "lazy input failed",
-      "iterations",
-      fromString("legacy-out\n"),
-      fromString("legacy-error\n"),
-    );
+    const error = new ExecutionLimitError("lazy input failed", "iterations");
     return {
       stdout: new ReadableStream<Uint8Array>({
         pull(controller) {
@@ -27,38 +22,38 @@ function lazyFailingInput() {
   });
 }
 
-function legacyThrowingCommand() {
-  return defineCommand("legacy-throw", async () => {
-    throw new ExecutionLimitError(
-      "legacy boundary failed",
-      "iterations",
-      fromString("legacy-out\n"),
-      fromString("legacy-error\n"),
-    );
+function throwingCommand() {
+  return defineCommand("throw-limit", async () => {
+    throw new ExecutionLimitError("boundary failed", "iterations");
   });
 }
 
-interface LegacyBoundaryCase {
+interface BoundaryCase {
   name: string;
   script: string;
   files: InitialFiles;
 }
 
-const legacyBoundaryCases: LegacyBoundaryCase[] = [
+const boundaryCases: BoundaryCase[] = [
   {
     name: "group",
-    script: "{ legacy-throw; } > /boundary-error 2>&1",
+    script:
+      "{ echo boundary-out; echo boundary-error >&2; throw-limit; } > /boundary-error 2>&1",
     files: {},
   },
   {
     name: "eval",
-    script: "eval 'legacy-throw' > /boundary-error 2>&1",
+    script:
+      "eval 'echo boundary-out; echo boundary-error >&2; throw-limit' > /boundary-error 2>&1",
     files: {},
   },
   {
     name: "source",
     script: "source /throwing-source > /boundary-error 2>&1",
-    files: { "/throwing-source": "legacy-throw" },
+    files: {
+      "/throwing-source":
+        "echo boundary-out; echo boundary-error >&2; throw-limit",
+    },
   },
 ];
 
@@ -91,10 +86,60 @@ describe("scope channel lazy-input errors", () => {
       stderr: result.stderr,
       exitCode: result.exitCode,
     }).toEqual({
-      observedStdout: "legacy-out\n",
-      observedStderr: "legacy-error\nbash: lazy input failed\n",
-      stdout: "legacy-out\n",
-      stderr: "legacy-error\nbash: lazy input failed\n",
+      observedStdout: "",
+      observedStderr: "bash: lazy input failed\n",
+      stdout: "",
+      stderr: "bash: lazy input failed\n",
+      exitCode: 126,
+    });
+  });
+
+  it("preserves a lazy prefix before the stream failure diagnostic", async () => {
+    const error = new ExecutionLimitError("lazy prefix failed", "iterations");
+    let pulled = false;
+    const command = defineCommand("lazy-prefix", async () => ({
+      stdout: new ReadableStream<Uint8Array>({
+        pull(controller) {
+          if (!pulled) {
+            pulled = true;
+            controller.enqueue(encode("prefix\n"));
+            return;
+          }
+          controller.error(error);
+        },
+      }),
+      stderr: emptyStream(),
+      exitCode: 0,
+    }));
+    let observedStdout = "";
+    let observedStderr = "";
+
+    const result = await toText(
+      await new Bash({ customCommands: [command] }).exec("lazy-prefix | cat", {
+        stdoutSink: {
+          write(chunk) {
+            observedStdout += decode(chunk);
+          },
+        },
+        stderrSink: {
+          write(chunk) {
+            observedStderr += decode(chunk);
+          },
+        },
+      }),
+    );
+
+    expect({
+      observedStdout,
+      observedStderr,
+      stdout: result.stdout,
+      stderr: result.stderr,
+      exitCode: result.exitCode,
+    }).toEqual({
+      observedStdout: "prefix\n",
+      observedStderr: "bash: lazy prefix failed\n",
+      stdout: "prefix\n",
+      stderr: "bash: lazy prefix failed\n",
       exitCode: 126,
     });
   });
@@ -116,7 +161,7 @@ describe("scope channel lazy-input errors", () => {
       stdout: "",
       stderr: "",
       exitCode: 126,
-      file: "legacy-out\nlegacy-error\nbash: lazy input failed\n",
+      file: "bash: lazy input failed\n",
     });
   });
 
@@ -150,14 +195,14 @@ describe("scope channel lazy-input errors", () => {
       },
     }).toEqual({
       failed: { stdout: "", stderr: "", exitCode: 126 },
-      file: "legacy-out\nlegacy-error\nbash: lazy input failed\n",
+      file: "bash: lazy input failed\n",
       followup: { stdout: "restored\n", stderr: "", exitCode: 0 },
     });
   });
 
   it.each(
-    legacyBoundaryCases,
-  )("pumps and blanks legacy-carried bytes through a redirected $name", async ({
+    boundaryCases,
+  )("routes a diagnostic through a redirected $name", async ({
     files,
     script,
   }) => {
@@ -165,7 +210,7 @@ describe("scope channel lazy-input errors", () => {
     let observedStderr = "";
     const bash = new Bash({
       cwd: "/",
-      customCommands: [legacyThrowingCommand()],
+      customCommands: [throwingCommand()],
       files,
     });
     const result = await toText(
@@ -196,32 +241,7 @@ describe("scope channel lazy-input errors", () => {
       stdout: "",
       stderr: "",
       exitCode: 126,
-      file: "legacy-out\nlegacy-error\nbash: legacy boundary failed\n",
-    });
-  });
-
-  it("keeps a carried-stream write failure inside the leaf channel table", async () => {
-    const bash = new Bash({
-      cwd: "/",
-      customCommands: [legacyThrowingCommand()],
-    });
-    const result = await toText(
-      await bash.exec(
-        "{ legacy-throw > /dev/full 2> /write-error; } 3> /unused; cat /write-error",
-      ),
-    );
-
-    expect({
-      stdout: result.stdout,
-      stderr: result.stderr,
-      exitCode: result.exitCode,
-      file: await bash.fs.readFileText("/write-error"),
-    }).toEqual({
-      stdout:
-        "legacy-error\nbash: legacy boundary failed\nbash: echo: write error: No space left on device\n",
-      stderr: "",
-      exitCode: 0,
-      file: "legacy-error\nbash: legacy boundary failed\nbash: echo: write error: No space left on device\n",
+      file: "boundary-out\nboundary-error\nbash: boundary failed\n",
     });
   });
 });

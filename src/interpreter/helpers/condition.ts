@@ -8,7 +8,7 @@
 import type { StatementNode } from "../../ast/types.js";
 import type { ExecResult } from "../../types.js";
 import { emptyStream } from "../../utils/stream.js";
-import { pumpErrorStreams, pumpResult } from "../output-channels.js";
+import { pumpResult, writeErrorDiagnostic } from "../output-channels.js";
 import type { InterpreterContext } from "../types.js";
 
 /**
@@ -35,7 +35,7 @@ export async function executeCondition(
       exitCode = result.exitCode;
     }
   } catch (error) {
-    await pumpErrorStreams(ctx, error);
+    await writeErrorDiagnostic(ctx, error);
     throw error;
   } finally {
     ctx.state.inCondition = savedInCondition;

@@ -52,9 +52,9 @@ import { failure, throwExecutionLimit } from "./helpers/result.js";
 import { executeStatements } from "./helpers/statements.js";
 import { traceSimpleCommand } from "./helpers/xtrace.js";
 import {
-  pumpErrorStreams,
   pumpResult,
   withChannels,
+  writeErrorDiagnostic,
   writeToChannel,
 } from "./output-channels.js";
 import { compileOutputRedirections } from "./redirect-channels.js";
@@ -90,13 +90,13 @@ async function executeWithCompoundRedirections(
         exitCode,
       };
     } catch (error) {
-      const carriedOutput = await pumpErrorStreams(ctx, error);
+      const diagnosticWritten = await writeErrorDiagnostic(ctx, error);
       if (
         error instanceof Error &&
         "code" in error &&
         error.code === "ENOSPC"
       ) {
-        if (!carriedOutput) {
+        if (!diagnosticWritten) {
           return await pumpResult(ctx, failure(errorLine(error)));
         }
         return {
@@ -158,7 +158,7 @@ export async function executeFor(
         }
       } catch (error) {
         if (error instanceof GlobError) {
-          await pumpErrorStreams(ctx, error);
+          await writeErrorDiagnostic(ctx, error);
           return 1;
         }
         throw error;
@@ -193,7 +193,7 @@ export async function executeFor(
             exitCode = stmtResult.exitCode;
           }
         } catch (error) {
-          const carriedOutput = await pumpErrorStreams(ctx, error);
+          const diagnosticWritten = await writeErrorDiagnostic(ctx, error);
           const loopResult = handleLoopError(error, ctx.state.loopDepth);
           if (loopResult.action === "break") {
             break;
@@ -202,7 +202,7 @@ export async function executeFor(
             continue;
           }
           if (loopResult.action === "error") {
-            if (!carriedOutput) {
+            if (!diagnosticWritten) {
               await pumpResult(ctx, failure(errorLine(loopResult.error)));
             }
             return loopResult.exitCode ?? 1;
@@ -267,7 +267,7 @@ export async function executeCStyleFor(
             exitCode = stmtResult.exitCode;
           }
         } catch (error) {
-          const carriedOutput = await pumpErrorStreams(ctx, error);
+          const diagnosticWritten = await writeErrorDiagnostic(ctx, error);
           const loopResult = handleLoopError(error, ctx.state.loopDepth);
           if (loopResult.action === "break") {
             break;
@@ -279,7 +279,7 @@ export async function executeCStyleFor(
             continue;
           }
           if (loopResult.action === "error") {
-            if (!carriedOutput) {
+            if (!diagnosticWritten) {
               await pumpResult(ctx, failure(errorLine(loopResult.error)));
             }
             return loopResult.exitCode ?? 1;
@@ -381,7 +381,7 @@ export async function executeWhile(
             conditionExitCode = (await executeCondition(ctx, node.condition))
               .exitCode;
           } catch (error) {
-            await pumpErrorStreams(ctx, error);
+            await writeErrorDiagnostic(ctx, error);
             if (error instanceof BreakError) {
               if (error.levels > 1 && ctx.state.loopDepth > 1) {
                 error.levels--;
@@ -410,7 +410,7 @@ export async function executeWhile(
               exitCode = stmtResult.exitCode;
             }
           } catch (error) {
-            const carriedOutput = await pumpErrorStreams(ctx, error);
+            const diagnosticWritten = await writeErrorDiagnostic(ctx, error);
             const loopResult = handleLoopError(error, ctx.state.loopDepth);
             if (loopResult.action === "break") {
               break;
@@ -419,7 +419,7 @@ export async function executeWhile(
               continue;
             }
             if (loopResult.action === "error") {
-              if (!carriedOutput) {
+              if (!diagnosticWritten) {
                 await pumpResult(ctx, failure(errorLine(loopResult.error)));
               }
               return loopResult.exitCode ?? 1;
@@ -469,7 +469,7 @@ export async function executeUntil(
             exitCode = stmtResult.exitCode;
           }
         } catch (error) {
-          const carriedOutput = await pumpErrorStreams(ctx, error);
+          const diagnosticWritten = await writeErrorDiagnostic(ctx, error);
           const loopResult = handleLoopError(error, ctx.state.loopDepth);
           if (loopResult.action === "break") {
             break;
@@ -478,7 +478,7 @@ export async function executeUntil(
             continue;
           }
           if (loopResult.action === "error") {
-            if (!carriedOutput) {
+            if (!diagnosticWritten) {
               await pumpResult(ctx, failure(errorLine(loopResult.error)));
             }
             return loopResult.exitCode ?? 1;

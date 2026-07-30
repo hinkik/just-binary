@@ -1,4 +1,4 @@
-import { checkAborted } from "../../interpreter/errors.js";
+import { AbortExecutionError } from "../../interpreter/errors.js";
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { combineAbortSignals } from "../../utils/abort.js";
 import { decodeArgs } from "../../utils/bytes.js";
@@ -170,7 +170,12 @@ export const timeoutCommand: Command = {
 
     // An outer abort (the whole script was cancelled) propagates; only our
     // own deadline maps to timeout's exit code.
-    checkAborted(ctx.signal, result.stdout, result.stderr);
+    if (ctx.signal?.aborted) {
+      return {
+        ...result,
+        exitCode: new AbortExecutionError(ctx.signal.reason).exitCode,
+      };
+    }
 
     if (deadline.signal.aborted) {
       // Child was killed by the deadline: it exits 143 (SIGTERM); timeout

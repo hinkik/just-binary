@@ -28,23 +28,25 @@ import { ok, result, throwExecutionLimit } from "./helpers/result.js";
 import { POSIX_SPECIAL_BUILTINS } from "./helpers/shell-constants.js";
 import {
   executeAndPumpResult,
-  pumpErrorStreams,
-  pumpErrorStreamsWithWriteFailure,
   withChannels,
+  writeErrorDiagnostic,
+  writeErrorDiagnosticWithWriteFailure,
+  writeToChannel,
 } from "./output-channels.js";
 import { compileOutputRedirections } from "./redirect-channels.js";
 import { processFdVariableRedirections } from "./redirections.js";
 import type { InterpreterContext } from "./types.js";
 
-export function executeFunctionDef(
+export async function executeFunctionDef(
   ctx: InterpreterContext,
   node: FunctionDefNode,
-): ExecResult {
+): Promise<ExecResult> {
   // In POSIX mode, special built-ins cannot be redefined as functions
   // This is a fatal error that exits the script
   if (ctx.state.options.posix && POSIX_SPECIAL_BUILTINS.has(node.name)) {
     const stderr = `bash: line ${ctx.state.currentLine}: \`${node.name}': is a special builtin\n`;
-    throw new ExitError(2, emptyStream(), fromString(stderr));
+    await writeToChannel(ctx, 2, stderr, true);
+    throw new ExitError(2);
   }
   // Store the source file where this function is defined (for BASH_SOURCE)
   // Use currentSource from state, or the node's sourceFile, or "main" as default
@@ -252,8 +254,7 @@ export async function callFunction(
         }
 
         // Materialize pipeline input under the function-definition redirect
-        // table. A lazy producer can throw while being drained, and any output
-        // carried by that error belongs to the redirected function call.
+        // table so failures are reported through the function's active fd 2.
         const pipelineBytes = await collectBytes(stdin);
         const effectiveStdin =
           pipelineBytes.length > 0
@@ -265,10 +266,9 @@ export async function callFunction(
           Promise.resolve(execResult),
         );
       } catch (error) {
-        // Converted children already write to the live table. Legacy children
-        // may still attach streams to control-flow errors, so drain and blank
-        // them before handling or propagating the error.
-        const { writeFailure } = await pumpErrorStreamsWithWriteFailure(
+        // Report control-flow diagnostics through the live table before
+        // handling or propagating the error.
+        const { writeFailure } = await writeErrorDiagnosticWithWriteFailure(
           ctx,
           error,
         );
@@ -283,8 +283,8 @@ export async function callFunction(
     });
   } catch (error) {
     // Redirect compilation can throw before the call-local table is installed.
-    // Errors from inside the table have already been drained and blanked.
-    await pumpErrorStreams(ctx, error);
+    // Errors from inside the table have already been reported there.
+    await writeErrorDiagnostic(ctx, error);
     throw error;
   } finally {
     cleanup();

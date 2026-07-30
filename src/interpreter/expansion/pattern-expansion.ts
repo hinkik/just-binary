@@ -14,9 +14,9 @@ import {
   cloneOutputChannels,
   createCollector,
   overrideChannelSink,
-  pumpErrorStreams,
   pumpResult,
   withChannels,
+  writeErrorDiagnostic,
 } from "../output-channels.js";
 import type { InterpreterContext } from "../types.js";
 import { escapeGlobChars } from "./glob-escape.js";
@@ -165,7 +165,7 @@ async function executeCommandSubstitutionFromString(
     ctx.state.suppressVerbose = savedSuppressVerbose;
     if (error instanceof ExecutionLimitError) {
       await withChannels(ctx, captureChannels, () =>
-        pumpErrorStreams(ctx, error),
+        writeErrorDiagnostic(ctx, error),
       );
       throw error;
     }
@@ -173,7 +173,7 @@ async function executeCommandSubstitutionFromString(
       ctx.state.lastExitCode = error.exitCode;
       envSet(ctx.state.env, "?", String(error.exitCode));
       await withChannels(ctx, captureChannels, () =>
-        pumpErrorStreams(ctx, error),
+        writeErrorDiagnostic(ctx, error),
       );
       return (await collectText(stdoutCollector.stream())).replace(/\n+$/, "");
     }

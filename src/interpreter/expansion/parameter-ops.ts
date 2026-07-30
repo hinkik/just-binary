@@ -24,12 +24,12 @@ import { parseArithmeticExpression } from "../../parser/arithmetic-parser.js";
 import { Parser } from "../../parser/parser.js";
 import { createUserRegex } from "../../regex/index.js";
 import { decode, envGet, envSet } from "../../utils/bytes.js";
-import { emptyStream, fromString } from "../../utils/stream.js";
 import { evaluateArithmetic } from "../arithmetic.js";
 import { ArithmeticError, BadSubstitutionError, ExitError } from "../errors.js";
 import { getIfsSeparator } from "../helpers/ifs.js";
 import { getNamerefTarget, isNameref } from "../helpers/nameref.js";
 import { escapeRegex } from "../helpers/regex.js";
+import { writeToChannel } from "../output-channels.js";
 import type { InterpreterContext } from "../types.js";
 import { patternToRegex } from "./pattern.js";
 import { getVarNamesWithPrefix } from "./pattern-removal.js";
@@ -172,7 +172,8 @@ export async function handleErrorIfUnset(
           opCtx.inDoubleQuotes,
         )
       : `${parameter}: parameter null or not set`;
-    throw new ExitError(1, emptyStream(), fromString(`bash: ${message}\n`));
+    await writeToChannel(ctx, 2, `bash: ${message}\n`, true);
+    throw new ExitError(1);
   }
   return opCtx.effectiveValue;
 }
@@ -435,11 +436,13 @@ export async function handleSubstring(
   if (arrayMatchSubstr) {
     const arrayName = arrayMatchSubstr[1];
     if (ctx.state.associativeArrays?.has(arrayName)) {
-      throw new ExitError(
-        1,
-        emptyStream(),
-        fromString(`bash: \${${arrayName}[@]: 0: 3}: bad substitution\n`),
+      await writeToChannel(
+        ctx,
+        2,
+        `bash: \${${arrayName}[@]: 0: 3}: bad substitution\n`,
+        true,
       );
+      throw new ExitError(1);
     }
     const elements = getArrayElements(ctx, arrayName);
     let startIdx = 0;

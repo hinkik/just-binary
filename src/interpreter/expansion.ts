@@ -39,9 +39,9 @@ import {
   cloneOutputChannels,
   createCollector,
   overrideChannelSink,
-  pumpErrorStreams,
   pumpResult,
   withChannels,
+  writeErrorDiagnostic,
 } from "./output-channels.js";
 
 /**
@@ -876,10 +876,10 @@ async function executeCommandSubstitutionBytes(
     ctx.substitutionDepth = savedDepth;
     ctx.state.suppressVerbose = savedSuppressVerbose;
     if (error instanceof ExecutionLimitError) {
-      // Preserve the stdout capture boundary while forwarding any legacy
-      // carried stderr through the inherited active fd 2.
+      // Preserve the stdout capture boundary while reporting through the
+      // inherited active fd 2.
       await withChannels(ctx, captureChannels, () =>
-        pumpErrorStreams(ctx, error),
+        writeErrorDiagnostic(ctx, error),
       );
       throw error;
     }
@@ -887,7 +887,7 @@ async function executeCommandSubstitutionBytes(
       ctx.state.lastExitCode = error.exitCode;
       envSet(ctx.state.env, "?", String(error.exitCode));
       await withChannels(ctx, captureChannels, () =>
-        pumpErrorStreams(ctx, error),
+        writeErrorDiagnostic(ctx, error),
       );
       const exitOutput = trimTrailingNewlines(
         await collectBytes(stdoutCollector.stream()),

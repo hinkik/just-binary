@@ -99,22 +99,6 @@ export function testResult(passed: boolean): ExecResult {
 export function throwExecutionLimit(
   message: string,
   limitType: "recursion" | "iterations" | "commands",
-  stdout?: Uint8Array | ByteStream,
-  stderr?: Uint8Array | ByteStream,
 ): never {
-  const so =
-    stdout === undefined
-      ? emptyStream()
-      : stdout instanceof Uint8Array
-        ? fromBytes(stdout)
-        : stdout;
-  // Leave stderr undefined when not provided so the ExecutionLimitError
-  // constructor inserts the default `bash: ${message}\n` message.
-  const se =
-    stderr === undefined
-      ? undefined
-      : stderr instanceof Uint8Array
-        ? fromBytes(stderr)
-        : stderr;
-  throw new ExecutionLimitError(message, limitType, so, se);
+  throw new ExecutionLimitError(message, limitType);
 }

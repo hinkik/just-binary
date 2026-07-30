@@ -15,7 +15,7 @@ import {
   isScopeExitError,
   SubshellExitError,
 } from "../errors.js";
-import { pumpErrorStreams, pumpResult } from "../output-channels.js";
+import { pumpResult, writeErrorDiagnostic } from "../output-channels.js";
 import type { InterpreterContext } from "../types.js";
 import { getErrorMessage } from "./errors.js";
 import { failure } from "./result.js";
@@ -41,7 +41,7 @@ export async function executeStatements(
       exitCode = result.exitCode;
     }
   } catch (error) {
-    const carriedOutput = await pumpErrorStreams(ctx, error);
+    const diagnosticWritten = await writeErrorDiagnostic(ctx, error);
     if (
       isScopeExitError(error) ||
       error instanceof ErrexitError ||
@@ -51,7 +51,7 @@ export async function executeStatements(
     ) {
       throw error;
     }
-    if (!carriedOutput) {
+    if (!diagnosticWritten) {
       const message = getErrorMessage(error);
       await pumpResult(
         ctx,

@@ -42,6 +42,7 @@ import {
 } from "./interpreter/index.js";
 import {
   createCollector,
+  type OutputCollector,
   type OutputSink,
 } from "./interpreter/output-channels.js";
 import { type ExecutionLimits, resolveLimits } from "./limits.js";
@@ -66,15 +67,8 @@ import type {
   TraceCallback,
 } from "./types.js";
 import { combineAbortSignals } from "./utils/abort.js";
-import { EMPTY, envSet } from "./utils/bytes.js";
-import {
-  type ByteStream,
-  collectText,
-  concatStreams,
-  emptyStream,
-  fromString,
-  teeStream,
-} from "./utils/stream.js";
+import { EMPTY, encode, envSet } from "./utils/bytes.js";
+import { type ByteStream, emptyStream, fromString } from "./utils/stream.js";
 
 export type { ExecutionLimits } from "./limits.js";
 
@@ -464,35 +458,27 @@ export class Bash {
     }
   }
 
-  private async logResult(result: BashExecResult): Promise<BashExecResult> {
-    if (!this.logger) {
-      return result;
-    }
+  private logResult(
+    result: Pick<BashExecResult, "exitCode" | "env">,
+    stdoutCollector: OutputCollector,
+    stderrCollector: OutputCollector,
+  ): BashExecResult {
     const logger = this.logger;
-    // Tee streams so the logger can read independently. We await both log
-    // drains before returning so callers can read `logger.logs` synchronously
-    // after `await bash.exec(...)`. The user-facing tee branches retain their
-    // chunks (Web Streams tee buffers per-branch), so the caller still gets
-    // the full output when they consume the returned streams.
-    const [stdoutForUser, stdoutForLog] = teeStream(result.stdout);
-    const [stderrForUser, stderrForLog] = teeStream(result.stderr);
-
-    const [stdoutText, stderrText] = await Promise.all([
-      collectText(stdoutForLog),
-      collectText(stderrForLog),
-    ]);
-    if (stdoutText.length > 0) {
-      logger.debug("stdout", { output: stdoutText });
+    if (logger) {
+      const stdoutText = stdoutCollector.text();
+      const stderrText = stderrCollector.text();
+      if (stdoutText.length > 0) {
+        logger.debug("stdout", { output: stdoutText });
+      }
+      if (stderrText.length > 0) {
+        logger.info("stderr", { output: stderrText });
+      }
+      logger.info("exit", { exitCode: result.exitCode });
     }
-    if (stderrText.length > 0) {
-      logger.info("stderr", { output: stderrText });
-    }
-    logger.info("exit", { exitCode: result.exitCode });
-
     return {
       ...result,
-      stdout: stdoutForUser,
-      stderr: stderrForUser,
+      stdout: stdoutCollector.stream(),
+      stderr: stderrCollector.stream(),
     };
   }
 
@@ -633,11 +619,13 @@ export class Bash {
       ? DefenseInDepthBox.getInstance(this.defenseInDepthConfig)
       : null;
     const defenseHandle = defenseBox?.activate();
+    let rootParsed = false;
 
     try {
       // Run execution inside defense-in-depth context if enabled
       const executeScript = async (): Promise<BashExecResult> => {
         const ast = parse(normalized);
+        rootParsed = true;
 
         // Create interpreter with appropriate state
         const interpreterOptions: InterpreterOptions = {
@@ -667,11 +655,11 @@ export class Bash {
         const interpreter = new Interpreter(interpreterOptions, execState);
         const result = await interpreter.executeRootScript(ast);
         // Interpreter always sets env, assert it for type safety
-        return this.logResult({
-          ...result,
-          stdout: stdoutCollector.stream(),
-          stderr: stderrCollector.stream(),
-        } as BashExecResult);
+        return this.logResult(
+          result as BashExecResult,
+          stdoutCollector,
+          stderrCollector,
+        );
       };
 
       // If defense-in-depth is enabled, run within the protected context
@@ -685,97 +673,114 @@ export class Bash {
       }
       // ExitError propagates from 'exit' builtin (including via eval/source)
       if (error instanceof ExitError) {
-        return this.logResult({
-          stdout: concatStreams(stdoutCollector.stream(), error.stdout),
-          stderr: concatStreams(stderrCollector.stream(), error.stderr),
-          exitCode: error.exitCode,
-          env: mapToRecordWithExtras(this.state.env, options?.env),
-        });
+        return this.logResult(
+          {
+            exitCode: error.exitCode,
+            env: mapToRecordWithExtras(this.state.env, options?.env),
+          },
+          stdoutCollector,
+          stderrCollector,
+        );
       }
       // PosixFatalError propagates from special builtins in POSIX mode
       if (error instanceof PosixFatalError) {
-        return this.logResult({
-          stdout: concatStreams(stdoutCollector.stream(), error.stdout),
-          stderr: concatStreams(stderrCollector.stream(), error.stderr),
-          exitCode: error.exitCode,
-          env: mapToRecordWithExtras(this.state.env, options?.env),
-        });
+        return this.logResult(
+          {
+            exitCode: error.exitCode,
+            env: mapToRecordWithExtras(this.state.env, options?.env),
+          },
+          stdoutCollector,
+          stderrCollector,
+        );
       }
       if (error instanceof ArithmeticError) {
-        return this.logResult({
-          stdout: concatStreams(stdoutCollector.stream(), error.stdout),
-          stderr: concatStreams(stderrCollector.stream(), error.stderr),
-          exitCode: 1,
-          env: mapToRecordWithExtras(this.state.env, options?.env),
-        });
+        if (!rootParsed) {
+          await stderrCollector.write(encode(`bash: ${error.message}\n`));
+        }
+        return this.logResult(
+          {
+            exitCode: 1,
+            env: mapToRecordWithExtras(this.state.env, options?.env),
+          },
+          stdoutCollector,
+          stderrCollector,
+        );
       }
       // AbortExecutionError is thrown when the execution's signal aborts.
       // Checked before ExecutionLimitError — it is a subclass with its own
       // reason-derived exit code (130/137/143/124) instead of 126.
       if (error instanceof AbortExecutionError) {
-        return this.logResult({
-          stdout: concatStreams(stdoutCollector.stream(), error.stdout),
-          stderr: concatStreams(stderrCollector.stream(), error.stderr),
-          exitCode: error.exitCode,
-          env: mapToRecordWithExtras(this.state.env, options?.env),
-        });
+        return this.logResult(
+          {
+            exitCode: error.exitCode,
+            env: mapToRecordWithExtras(this.state.env, options?.env),
+          },
+          stdoutCollector,
+          stderrCollector,
+        );
       }
       // ExecutionLimitError is thrown when our conservative limits are exceeded
       // (command count, recursion depth, loop iterations)
       if (error instanceof ExecutionLimitError) {
-        return this.logResult({
-          stdout: concatStreams(stdoutCollector.stream(), error.stdout),
-          stderr: concatStreams(stderrCollector.stream(), error.stderr),
-          exitCode: ExecutionLimitError.EXIT_CODE,
-          env: mapToRecordWithExtras(this.state.env, options?.env),
-        });
+        return this.logResult(
+          {
+            exitCode: ExecutionLimitError.EXIT_CODE,
+            env: mapToRecordWithExtras(this.state.env, options?.env),
+          },
+          stdoutCollector,
+          stderrCollector,
+        );
       }
       // SecurityViolationError is thrown when defense-in-depth detects a blocked operation
       if (error instanceof SecurityViolationError) {
-        return this.logResult({
-          stdout: stdoutCollector.stream(),
-          stderr: concatStreams(
-            stderrCollector.stream(),
-            fromString(`bash: security violation: ${error.message}\n`),
-          ),
-          exitCode: 1,
-          env: mapToRecordWithExtras(this.state.env, options?.env),
-        });
+        await stderrCollector.write(
+          encode(`bash: security violation: ${error.message}\n`),
+        );
+        return this.logResult(
+          {
+            exitCode: 1,
+            env: mapToRecordWithExtras(this.state.env, options?.env),
+          },
+          stdoutCollector,
+          stderrCollector,
+        );
       }
       if ((error as ParseException).name === "ParseException") {
-        return this.logResult({
-          stdout: stdoutCollector.stream(),
-          stderr: concatStreams(
-            stderrCollector.stream(),
-            fromString(`bash: syntax error: ${(error as Error).message}\n`),
-          ),
-          exitCode: 2,
-          env: mapToRecordWithExtras(this.state.env, options?.env),
-        });
+        await stderrCollector.write(
+          encode(`bash: syntax error: ${(error as Error).message}\n`),
+        );
+        return this.logResult(
+          {
+            exitCode: 2,
+            env: mapToRecordWithExtras(this.state.env, options?.env),
+          },
+          stdoutCollector,
+          stderrCollector,
+        );
       }
       // LexerError is thrown for lexer-level issues like unterminated quotes
       if (error instanceof LexerError) {
-        return this.logResult({
-          stdout: stdoutCollector.stream(),
-          stderr: concatStreams(
-            stderrCollector.stream(),
-            fromString(`bash: ${error.message}\n`),
-          ),
-          exitCode: 2,
-          env: mapToRecordWithExtras(this.state.env, options?.env),
-        });
+        await stderrCollector.write(encode(`bash: ${error.message}\n`));
+        return this.logResult(
+          {
+            exitCode: 2,
+            env: mapToRecordWithExtras(this.state.env, options?.env),
+          },
+          stdoutCollector,
+          stderrCollector,
+        );
       }
       // RangeError occurs when JavaScript call stack is exceeded (deep recursion)
       if (error instanceof RangeError) {
-        return this.logResult({
-          stdout: stdoutCollector.stream(),
-          stderr: concatStreams(
-            stderrCollector.stream(),
-            fromString(`bash: ${error.message}\n`),
-          ),
-          exitCode: 1,
-          env: mapToRecordWithExtras(this.state.env, options?.env),
-        });
+        await stderrCollector.write(encode(`bash: ${error.message}\n`));
+        return this.logResult(
+          {
+            exitCode: 1,
+            env: mapToRecordWithExtras(this.state.env, options?.env),
+          },
+          stdoutCollector,
+          stderrCollector,
+        );
       }
       throw error;
     } finally {

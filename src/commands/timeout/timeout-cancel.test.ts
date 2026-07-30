@@ -1,6 +1,23 @@
 import { describe, expect, it } from "vitest";
 import { Bash } from "../../Bash.js";
+import { defineCommand } from "../../custom-commands.js";
 import { toText } from "../../test-utils.js";
+import { decode } from "../../utils/bytes.js";
+
+function outerAbortSetup(): {
+  bash: Bash;
+  controller: AbortController;
+} {
+  const controller = new AbortController();
+  const mark = defineCommand("mark", async () => {
+    setTimeout(() => controller.abort("SIGTERM"), 25);
+    return { stdout: "", stderr: "", exitCode: 0 };
+  });
+  return {
+    bash: new Bash({ customCommands: [mark] }),
+    controller,
+  };
+}
 
 // timeout now cancels its child through the exec AbortSignal instead of
 // racing and leaking it. These tests exercise the cancellation path.
@@ -57,6 +74,109 @@ describe("timeout command cancellation", () => {
     expect(result.exitCode).toBe(143);
     expect(result.stdout).toBe("");
     expect(Date.now() - start).toBeLessThan(5000);
+  });
+
+  it("preserves nested output through returned streams and host sinks on outer abort", async () => {
+    const { bash, controller } = outerAbortSetup();
+    let observedStdout = "";
+    let observedStderr = "";
+
+    const result = await toText(
+      await bash.exec(
+        "timeout 30 bash -c 'printf out; printf err >&2; mark; sleep 30'",
+        {
+          signal: controller.signal,
+          stdoutSink: {
+            write(chunk) {
+              observedStdout += decode(chunk);
+            },
+          },
+          stderrSink: {
+            write(chunk) {
+              observedStderr += decode(chunk);
+            },
+          },
+        },
+      ),
+    );
+
+    expect({
+      observedStdout,
+      observedStderr,
+      stdout: result.stdout,
+      stderr: result.stderr,
+      exitCode: result.exitCode,
+    }).toEqual({
+      observedStdout: "out",
+      observedStderr: "err",
+      stdout: "out",
+      stderr: "err",
+      exitCode: 143,
+    });
+  });
+
+  it("preserves nested output when timeout is an intermediate pipeline stage", async () => {
+    const { bash, controller } = outerAbortSetup();
+    const result = await toText(
+      await bash.exec(
+        "timeout 30 bash -c 'printf out; printf err >&2; mark; sleep 30' | cat",
+        { signal: controller.signal },
+      ),
+    );
+
+    expect({
+      stdout: result.stdout,
+      stderr: result.stderr,
+      exitCode: result.exitCode,
+    }).toEqual({
+      stdout: "out",
+      stderr: "err",
+      exitCode: 143,
+    });
+  });
+
+  it("finishes active timeout redirections before propagating an outer abort", async () => {
+    const { bash, controller } = outerAbortSetup();
+    const result = await toText(
+      await bash.exec(
+        "timeout 30 bash -c 'printf out; printf err >&2; mark; sleep 30' > /partial 2> /partial-err",
+        { signal: controller.signal },
+      ),
+    );
+
+    expect({
+      stdout: result.stdout,
+      stderr: result.stderr,
+      exitCode: result.exitCode,
+      stdoutFile: await bash.fs.readFileText("/partial"),
+      stderrFile: await bash.fs.readFileText("/partial-err"),
+    }).toEqual({
+      stdout: "",
+      stderr: "",
+      exitCode: 143,
+      stdoutFile: "out",
+      stderrFile: "err",
+    });
+  });
+
+  it("does not execute an OR-list continuation after an outer abort", async () => {
+    const { bash, controller } = outerAbortSetup();
+    const result = await toText(
+      await bash.exec(
+        "timeout 30 bash -c 'printf out; printf err >&2; mark; sleep 30' || echo never",
+        { signal: controller.signal },
+      ),
+    );
+
+    expect({
+      stdout: result.stdout,
+      stderr: result.stderr,
+      exitCode: result.exitCode,
+    }).toEqual({
+      stdout: "out",
+      stderr: "err",
+      exitCode: 143,
+    });
   });
 
   it("forwards stdin to the child", async () => {

@@ -5,8 +5,8 @@
  */
 
 import type { ExecResult } from "../../types.js";
-import { emptyStream, fromString } from "../../utils/stream.js";
 import { ExitError } from "../errors.js";
+import { writeToChannel } from "../output-channels.js";
 import type { InterpreterContext } from "../types.js";
 
 /**
@@ -39,15 +39,16 @@ export function isReadonly(ctx: InterpreterContext, name: string): boolean {
  * @returns null if variable is not readonly (can be modified)
  * @throws ExitError if variable is readonly
  */
-export function checkReadonlyError(
+export async function checkReadonlyError(
   ctx: InterpreterContext,
   name: string,
   command = "bash",
-): ExecResult | null {
+): Promise<ExecResult | null> {
   if (isReadonly(ctx, name)) {
     const stderr = `${command}: ${name}: readonly variable\n`;
     // Assigning to a readonly variable is always fatal
-    throw new ExitError(1, emptyStream(), fromString(stderr));
+    await writeToChannel(ctx, 2, stderr, true);
+    throw new ExitError(1);
   }
   return null;
 }

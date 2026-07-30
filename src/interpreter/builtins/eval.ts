@@ -15,7 +15,7 @@ import {
   ReturnError,
 } from "../errors.js";
 import { failure, ok } from "../helpers/result.js";
-import { pumpErrorStreams, pumpResult } from "../output-channels.js";
+import { pumpResult, writeErrorDiagnostic } from "../output-channels.js";
 import type { InterpreterContext } from "../types.js";
 
 export async function handleEval(
@@ -66,10 +66,9 @@ export async function handleEval(
     const result = await ctx.executeScript(ast);
     return await pumpResult(ctx, result);
   } catch (error) {
-    // Converted script execution writes directly to the active channels.
-    // Drain and blank any output still carried by a legacy child so control
-    // flow never delivers the same bytes again at an outer boundary.
-    await pumpErrorStreams(ctx, error);
+    // Script execution writes directly to the active channels. Report any
+    // control-flow diagnostic before propagating or converting the error.
+    await writeErrorDiagnostic(ctx, error);
 
     // Rethrow control flow errors so they propagate to outer loops/functions
     if (

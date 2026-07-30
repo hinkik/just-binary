@@ -391,6 +391,8 @@ export interface InterpreterContext {
   fs: IFileSystem;
   commands: CommandRegistry;
   outputChannels: OutputChannels;
+  /** Errors already diagnosed while the current command unwinds. */
+  reportedDiagnostics?: WeakSet<Error>;
   /** Execution limits configuration */
   limits: Required<ExecutionLimits>;
   execFn: (

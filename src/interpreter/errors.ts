@@ -8,34 +8,12 @@
  * - errexit: Exit on error (set -e)
  * - nounset: Error on unset variables (set -u)
  *
- * All control flow errors carry stdout/stderr ByteStreams to accumulate
- * output as they propagate through the execution stack.
  */
-
-import type { ByteStream } from "../utils/stream.js";
-import { concatStreams, emptyStream, fromString } from "../utils/stream.js";
 
 /**
  * Base class for all control flow errors.
- * Carries stdout/stderr to preserve output during propagation.
  */
-abstract class ControlFlowError extends Error {
-  constructor(
-    message: string,
-    public stdout: ByteStream = emptyStream(),
-    public stderr: ByteStream = emptyStream(),
-  ) {
-    super(message);
-  }
-
-  /**
-   * Prepend output from the current context before re-throwing.
-   */
-  prependOutput(stdout: ByteStream, stderr: ByteStream): void {
-    this.stdout = concatStreams(stdout, this.stdout);
-    this.stderr = concatStreams(stderr, this.stderr);
-  }
-}
+abstract class ControlFlowError extends Error {}
 
 /**
  * Error thrown when break is called to exit loops.
@@ -43,12 +21,8 @@ abstract class ControlFlowError extends Error {
 export class BreakError extends ControlFlowError {
   readonly name = "BreakError";
 
-  constructor(
-    public levels: number = 1,
-    stdout: ByteStream = emptyStream(),
-    stderr: ByteStream = emptyStream(),
-  ) {
-    super("break", stdout, stderr);
+  constructor(public levels: number = 1) {
+    super("break");
   }
 }
 
@@ -58,12 +32,8 @@ export class BreakError extends ControlFlowError {
 export class ContinueError extends ControlFlowError {
   readonly name = "ContinueError";
 
-  constructor(
-    public levels: number = 1,
-    stdout: ByteStream = emptyStream(),
-    stderr: ByteStream = emptyStream(),
-  ) {
-    super("continue", stdout, stderr);
+  constructor(public levels: number = 1) {
+    super("continue");
   }
 }
 
@@ -73,12 +43,8 @@ export class ContinueError extends ControlFlowError {
 export class ReturnError extends ControlFlowError {
   readonly name = "ReturnError";
 
-  constructor(
-    public exitCode: number = 0,
-    stdout: ByteStream = emptyStream(),
-    stderr: ByteStream = emptyStream(),
-  ) {
-    super("return", stdout, stderr);
+  constructor(public exitCode: number = 0) {
+    super("return");
   }
 }
 
@@ -88,12 +54,8 @@ export class ReturnError extends ControlFlowError {
 export class ErrexitError extends ControlFlowError {
   readonly name = "ErrexitError";
 
-  constructor(
-    public readonly exitCode: number,
-    stdout: ByteStream = emptyStream(),
-    stderr: ByteStream = emptyStream(),
-  ) {
-    super(`errexit: command exited with status ${exitCode}`, stdout, stderr);
+  constructor(public readonly exitCode: number) {
+    super(`errexit: command exited with status ${exitCode}`);
   }
 }
 
@@ -103,15 +65,8 @@ export class ErrexitError extends ControlFlowError {
 export class NounsetError extends ControlFlowError {
   readonly name = "NounsetError";
 
-  constructor(
-    public varName: string,
-    stdout: ByteStream = emptyStream(),
-  ) {
-    super(
-      `${varName}: unbound variable`,
-      stdout,
-      fromString(`bash: ${varName}: unbound variable\n`),
-    );
+  constructor(public varName: string) {
+    super(`${varName}: unbound variable`);
   }
 }
 
@@ -121,12 +76,8 @@ export class NounsetError extends ControlFlowError {
 export class ExitError extends ControlFlowError {
   readonly name = "ExitError";
 
-  constructor(
-    public readonly exitCode: number,
-    stdout: ByteStream = emptyStream(),
-    stderr: ByteStream = emptyStream(),
-  ) {
-    super(`exit`, stdout, stderr);
+  constructor(public readonly exitCode: number) {
+    super("exit");
   }
 }
 
@@ -145,11 +96,10 @@ export class ArithmeticError extends ControlFlowError {
 
   constructor(
     message: string,
-    stdout: ByteStream = emptyStream(),
-    stderr?: ByteStream,
     fatal = false,
+    public readonly reportDiagnostic = true,
   ) {
-    super(message, stdout, stderr ?? fromString(`bash: ${message}\n`));
+    super(message);
     this.fatal = fatal;
   }
 }
@@ -160,18 +110,6 @@ export class ArithmeticError extends ControlFlowError {
  */
 export class BadSubstitutionError extends ControlFlowError {
   readonly name = "BadSubstitutionError";
-
-  constructor(
-    message: string,
-    stdout: ByteStream = emptyStream(),
-    stderr?: ByteStream,
-  ) {
-    super(
-      message,
-      stdout,
-      stderr ?? fromString(`bash: ${message}: bad substitution\n`),
-    );
-  }
 }
 
 /**
@@ -181,16 +119,8 @@ export class BadSubstitutionError extends ControlFlowError {
 export class GlobError extends ControlFlowError {
   readonly name = "GlobError";
 
-  constructor(
-    pattern: string,
-    stdout: ByteStream = emptyStream(),
-    stderr?: ByteStream,
-  ) {
-    super(
-      `no match: ${pattern}`,
-      stdout,
-      stderr ?? fromString(`bash: no match: ${pattern}\n`),
-    );
+  constructor(public readonly pattern: string) {
+    super(`no match: ${pattern}`);
   }
 }
 
@@ -200,14 +130,6 @@ export class GlobError extends ControlFlowError {
  */
 export class BraceExpansionError extends ControlFlowError {
   readonly name = "BraceExpansionError";
-
-  constructor(
-    message: string,
-    stdout: ByteStream = emptyStream(),
-    stderr?: ByteStream,
-  ) {
-    super(message, stdout, stderr ?? fromString(`bash: ${message}\n`));
-  }
 }
 
 /**
@@ -229,15 +151,8 @@ export class ExecutionLimitError extends ControlFlowError {
       | "glob_operations"
       | "substitution_depth"
       | "aborted",
-    stdout: ByteStream = emptyStream(),
-    stderr?: ByteStream,
   ) {
-    // Always append the bash-formatted limit message to stderr — callers
-    // pass accumulated output here, and we must surface the limit reason.
-    const formatted = fromString(`bash: ${message}\n`);
-    const finalStderr =
-      stderr === undefined ? formatted : concatStreams(stderr, formatted);
-    super(message, stdout, finalStderr);
+    super(message);
   }
 }
 
@@ -269,9 +184,7 @@ function abortExitCode(reason: unknown): number {
  * propagate" rethrow site treats cancellation the same way: it unwinds the
  * whole execution instead of being converted to a local exit code.
  *
- * Unlike limit errors, aborted commands die silently (like a killed process),
- * so no "bash: ..." line is appended to stderr — only output accumulated
- * before the abort is preserved.
+ * Unlike limit errors, aborted commands die silently (like a killed process).
  *
  * The exit code depends on the abort reason: string reasons "SIGINT"/"SIGKILL"/
  * "SIGTERM" map to 130/137/143, AbortSignal.timeout()'s TimeoutError maps to
@@ -281,16 +194,8 @@ export class AbortExecutionError extends ExecutionLimitError {
   override readonly name: string = "AbortExecutionError";
   readonly exitCode: number;
 
-  constructor(
-    reason: unknown,
-    stdout: ByteStream = emptyStream(),
-    stderr?: ByteStream,
-  ) {
-    super("execution aborted", "aborted", stdout, stderr);
-    // The parent constructor appends "bash: execution aborted" to stderr for
-    // limit reporting; killed processes are silent, so keep only the output
-    // that was accumulated before the abort.
-    this.stderr = stderr ?? emptyStream();
+  constructor(reason: unknown) {
+    super("execution aborted", "aborted");
     this.exitCode = abortExitCode(reason);
   }
 }
@@ -300,13 +205,9 @@ export class AbortExecutionError extends ExecutionLimitError {
  * Cooperative cancellation check — called at statement dispatch and loop
  * guards, and by leaf commands before/after long waits.
  */
-export function checkAborted(
-  signal: AbortSignal | undefined,
-  stdout?: ByteStream,
-  stderr?: ByteStream,
-): void {
+export function checkAborted(signal: AbortSignal | undefined): void {
   if (signal?.aborted) {
-    throw new AbortExecutionError(signal.reason, stdout, stderr);
+    throw new AbortExecutionError(signal.reason);
   }
 }
 
@@ -317,11 +218,8 @@ export function checkAborted(
 export class SubshellExitError extends ControlFlowError {
   readonly name = "SubshellExitError";
 
-  constructor(
-    stdout: ByteStream = emptyStream(),
-    stderr: ByteStream = emptyStream(),
-  ) {
-    super("subshell exit", stdout, stderr);
+  constructor() {
+    super("subshell exit");
   }
 }
 
@@ -345,11 +243,7 @@ export function isScopeExitError(
 export class PosixFatalError extends ControlFlowError {
   readonly name = "PosixFatalError";
 
-  constructor(
-    public readonly exitCode: number,
-    stdout: ByteStream = emptyStream(),
-    stderr: ByteStream = emptyStream(),
-  ) {
-    super("posix fatal error", stdout, stderr);
+  constructor(public readonly exitCode: number) {
+    super("posix fatal error");
   }
 }

@@ -40,9 +40,9 @@ import { failure, result } from "./helpers/result.js";
 import {
   cloneOutputChannels,
   executeAndPumpResult,
-  pumpErrorStreams,
-  pumpErrorStreamsWithWriteFailure,
   withChannels,
+  writeErrorDiagnostic,
+  writeErrorDiagnosticWithWriteFailure,
 } from "./output-channels.js";
 import {
   type CompiledOutputRedirections,
@@ -192,8 +192,8 @@ export async function executeSubshell(
         }
         return await finish(exitCode);
       } catch (error) {
-        const { carriedOutput, writeFailure } =
-          await pumpErrorStreamsWithWriteFailure(ctx, error);
+        const { diagnosticWritten, writeFailure } =
+          await writeErrorDiagnosticWithWriteFailure(ctx, error);
         if (writeFailure) {
           return writeFailure;
         }
@@ -219,7 +219,7 @@ export async function executeSubshell(
         ) {
           return await finish(error.exitCode);
         }
-        if (!carriedOutput) {
+        if (!diagnosticWritten) {
           await executeAndPumpResult(ctx, () =>
             Promise.resolve(failure(`${getErrorMessage(error)}\n`)),
           );
@@ -229,9 +229,9 @@ export async function executeSubshell(
     });
   } catch (error) {
     // Redirect compilation can throw before the call-local table is available.
-    // Drain any legacy-carried bytes through the subshell's cloned base table.
+    // Report through the subshell's cloned base table.
     await withChannels(ctx, subshellChannels, () =>
-      pumpErrorStreams(ctx, error),
+      writeErrorDiagnostic(ctx, error),
     );
     throw error;
   } finally {
@@ -351,8 +351,8 @@ export async function executeGroup(
 
       return result(emptyStream(), emptyStream(), exitCode);
     } catch (error) {
-      const { carriedOutput, writeFailure } =
-        await pumpErrorStreamsWithWriteFailure(ctx, error);
+      const { diagnosticWritten, writeFailure } =
+        await writeErrorDiagnosticWithWriteFailure(ctx, error);
       if (writeFailure) {
         return writeFailure;
       }
@@ -366,7 +366,7 @@ export async function executeGroup(
       ) {
         throw error;
       }
-      if (!carriedOutput) {
+      if (!diagnosticWritten) {
         await executeAndPumpResult(ctx, () =>
           Promise.resolve(failure(`${getErrorMessage(error)}\n`)),
         );
@@ -466,13 +466,15 @@ export async function executeUserScript(
     const execResult = await executeScript(ast);
     return await executeAndPumpResult(ctx, () => Promise.resolve(execResult));
   } catch (error) {
-    const { writeFailure } = await pumpErrorStreamsWithWriteFailure(ctx, error);
+    const { writeFailure } = await writeErrorDiagnosticWithWriteFailure(
+      ctx,
+      error,
+    );
     if (writeFailure) {
       return writeFailure;
     }
 
-    // ExitError propagates up after any legacy-carried bytes have been moved
-    // into the active table and blanked.
+    // ExitError propagates after its diagnostic has reached the active table.
     if (error instanceof ExitError) {
       throw error;
     }

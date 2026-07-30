@@ -33,7 +33,9 @@ describe("Bash.exec root collector error handling", () => {
       exitCode: result.exitCode,
     }).toEqual({
       observedStdout: "before-out\n",
-      observedStderr: "before-err\n",
+      observedStderr:
+        "before-err\n" +
+        "bash: syntax error: Parse error at 1:1: syntax error near unexpected token `}'\n",
       stdout: "before-out\n",
       stderr:
         "before-err\n" +

@@ -13,15 +13,15 @@
 
 import type { ExecResult } from "../../types.js";
 import { envGet, envSet } from "../../utils/bytes.js";
-import { emptyStream, fromString } from "../../utils/stream.js";
 import { PosixFatalError } from "../errors.js";
 import { failure, ok } from "../helpers/result.js";
+import { writeToChannel } from "../output-channels.js";
 import type { InterpreterContext } from "../types.js";
 
-export function handleShift(
+export async function handleShift(
   ctx: InterpreterContext,
   args: string[],
-): ExecResult {
+): Promise<ExecResult> {
   // Default shift count is 1
   let n = 1;
 
@@ -31,7 +31,8 @@ export function handleShift(
       const errorMsg = `bash: shift: ${args[0]}: numeric argument required\n`;
       // In POSIX mode, this error is fatal
       if (ctx.state.options.posix) {
-        throw new PosixFatalError(1, emptyStream(), fromString(errorMsg));
+        await writeToChannel(ctx, 2, errorMsg, true);
+        throw new PosixFatalError(1);
       }
       return failure(errorMsg);
     }
@@ -46,7 +47,8 @@ export function handleShift(
     const errorMsg = "bash: shift: shift count out of range\n";
     // In POSIX mode, this error is fatal
     if (ctx.state.options.posix) {
-      throw new PosixFatalError(1, emptyStream(), fromString(errorMsg));
+      await writeToChannel(ctx, 2, errorMsg, true);
+      throw new PosixFatalError(1);
     }
     return failure(errorMsg);
   }
