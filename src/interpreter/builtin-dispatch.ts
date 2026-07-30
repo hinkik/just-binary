@@ -89,6 +89,14 @@ export type ExecuteUserScriptFn = (
 ) => Promise<ExecResult>;
 
 /**
+ * Type for executing a converted boundary inside the simple command's
+ * temporary output-redirection channel table.
+ */
+export type ExecuteLiveBoundaryFn = (
+  execute: () => Promise<ExecResult>,
+) => Promise<ExecResult>;
+
+/**
  * Dispatch context containing dependencies needed for builtin dispatch
  */
 export interface BuiltinDispatchContext {
@@ -96,6 +104,7 @@ export interface BuiltinDispatchContext {
   runCommand: RunCommandFn;
   buildExportedEnv: BuildExportedEnvFn;
   executeUserScript: ExecuteUserScriptFn;
+  executeLiveBoundary: ExecuteLiveBoundaryFn;
 }
 
 /**
@@ -112,7 +121,7 @@ export async function dispatchBuiltin(
   _useDefaultPath: boolean,
   stdinSourceFd: number,
 ): Promise<ExecResult | null> {
-  const { ctx, runCommand } = dispatchCtx;
+  const { ctx, executeLiveBoundary, runCommand } = dispatchCtx;
   // Decode args to strings for builtins that work with text
   const strArgs = decodeArgs(args);
 
@@ -149,7 +158,7 @@ export async function dispatchBuiltin(
   // In POSIX mode, eval is a special builtin that cannot be overridden by functions
   // In non-POSIX mode (bash default), functions can override eval
   if (commandName === "eval" && ctx.state.options.posix) {
-    return handleEval(ctx, strArgs, stdin);
+    return executeLiveBoundary(() => handleEval(ctx, strArgs, stdin));
   }
   if (commandName === "shift") {
     return handleShift(ctx, strArgs);
@@ -176,7 +185,7 @@ export async function dispatchBuiltin(
     return handleDirs(ctx, strArgs);
   }
   if (commandName === "source" || commandName === ".") {
-    return handleSource(ctx, strArgs);
+    return executeLiveBoundary(() => handleSource(ctx, strArgs));
   }
   if (commandName === "read") {
     return await handleRead(
@@ -200,13 +209,13 @@ export async function dispatchBuiltin(
   if (!skipFunctions) {
     const func = ctx.state.functions.get(commandName);
     if (func) {
-      return callFunction(ctx, func, strArgs, stdin);
+      return executeLiveBoundary(() => callFunction(ctx, func, strArgs, stdin));
     }
   }
   // Simple builtins (can be overridden by functions)
   // eval: In non-POSIX mode, functions can override eval (handled above for POSIX mode)
   if (commandName === "eval") {
-    return handleEval(ctx, strArgs, stdin);
+    return executeLiveBoundary(() => handleEval(ctx, strArgs, stdin));
   }
   if (commandName === "cd") {
     return await handleCd(ctx, strArgs);
@@ -386,7 +395,8 @@ export async function executeExternalCommand(
   stdin: ByteStream,
   useDefaultPath: boolean,
 ): Promise<ExecResult> {
-  const { ctx, buildExportedEnv, executeUserScript } = dispatchCtx;
+  const { buildExportedEnv, ctx, executeLiveBoundary, executeUserScript } =
+    dispatchCtx;
 
   // External commands - resolve via PATH
   // For command -p, use default PATH /usr/bin:/bin instead of $PATH
@@ -424,7 +434,9 @@ export async function executeExternalCommand(
       }
       ctx.state.hashTable.set(commandName, resolved.path);
     }
-    return await executeUserScript(resolved.path, args, stdin);
+    return await executeLiveBoundary(() =>
+      executeUserScript(resolved.path, args, stdin),
+    );
   }
   const { cmd, path: cmdPath } = resolved;
   // Add to hash table for PATH caching (only for non-path commands)

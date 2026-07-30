@@ -480,18 +480,23 @@ export async function handleCompgen(
       try {
         // Call the function - errors during execution return exit code 1
         const stdoutCollector = createCollector();
+        const stderrCollector = createCollector();
         const funcResult = await withChannels(
           ctx,
-          new Map([[1, stdoutCollector]]),
+          new Map([
+            [1, stdoutCollector],
+            [2, stderrCollector],
+          ]),
           () => callFunction(ctx, func, funcArgs, emptyStream()),
         );
+        await pumpStream(ctx, funcResult.stderr, stderrCollector);
 
         // Check if there was an error (e.g., division by zero)
         if (funcResult.exitCode !== 0) {
           // Restore saved environment
           restoreEnv(ctx, savedEnv);
           restoreEnv(ctx, savedCompreply);
-          return result(EMPTY, funcResult.stderr, 1);
+          return result(EMPTY, stderrCollector.stream(), 1);
         }
 
         // Capture function stdout (e.g., debug output from the function)
@@ -522,15 +527,20 @@ export async function handleCompgen(
       // Parse and execute the command
       const ast = parse(commandString);
       const stdoutCollector = createCollector();
+      const stderrCollector = createCollector();
       const cmdResult = await withChannels(
         ctx,
-        new Map([[1, stdoutCollector]]),
+        new Map([
+          [1, stdoutCollector],
+          [2, stderrCollector],
+        ]),
         () => ctx.executeScript(ast),
       );
+      await pumpStream(ctx, cmdResult.stderr, stderrCollector);
 
       // Check for errors
       if (cmdResult.exitCode !== 0) {
-        return result(EMPTY, cmdResult.stderr, cmdResult.exitCode);
+        return result(EMPTY, stderrCollector.stream(), cmdResult.exitCode);
       }
 
       // Split stdout into lines and add as completions

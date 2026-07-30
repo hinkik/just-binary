@@ -15,7 +15,12 @@ import {
 } from "../utils/stream.js";
 import { BadSubstitutionError, ErrexitError, ExitError } from "./errors.js";
 import { ok } from "./helpers/result.js";
-import { createCollector, withChannels } from "./output-channels.js";
+import {
+  cloneOutputChannels,
+  createCollector,
+  overrideChannelSink,
+  withChannels,
+} from "./output-channels.js";
 import type { InterpreterContext } from "./types.js";
 
 /**
@@ -38,10 +43,10 @@ async function executeIntermediatePipelineStage(
 ): Promise<ExecResult> {
   const stdoutCollector = createCollector();
   const stderrCollector = captureStderr ? createCollector() : undefined;
-  const channels = new Map(ctx.outputChannels);
-  channels.set(1, stdoutCollector);
+  const channels = cloneOutputChannels(ctx.outputChannels);
+  overrideChannelSink(channels, 1, stdoutCollector);
   if (stderrCollector) {
-    channels.set(2, stderrCollector);
+    overrideChannelSink(channels, 2, stderrCollector);
   }
 
   try {
@@ -125,13 +130,22 @@ export async function executePipeline(
 
     let result: ExecResult;
     try {
-      result = isLast
-        ? await executeCommand(command, stdin)
-        : await executeIntermediatePipelineStage(
-            ctx,
-            () => executeCommand(command, stdin),
-            pipeStderrToNext,
-          );
+      if (isLast) {
+        const executeLastStage = () => executeCommand(command, stdin);
+        result = runsInSubshell
+          ? await withChannels(
+              ctx,
+              cloneOutputChannels(ctx.outputChannels),
+              executeLastStage,
+            )
+          : await executeLastStage();
+      } else {
+        result = await executeIntermediatePipelineStage(
+          ctx,
+          () => executeCommand(command, stdin),
+          pipeStderrToNext,
+        );
+      }
     } catch (error) {
       // BadSubstitutionError should fail the command but not abort the script
       if (error instanceof BadSubstitutionError) {

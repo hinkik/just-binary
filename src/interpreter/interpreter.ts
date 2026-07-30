@@ -17,6 +17,7 @@ import type {
   GroupNode,
   HereDocNode,
   PipelineNode,
+  RedirectionNode,
   ScriptNode,
   SimpleCommandNode,
   StatementNode,
@@ -108,17 +109,21 @@ import {
 } from "./helpers/word-matching.js";
 import { traceSimpleCommand } from "./helpers/xtrace.js";
 import {
-  createCollector,
+  executeAndPumpResult,
+  hasNonStandardChannelBinding,
+  isChannelClosed,
   type OutputChannels,
   pumpErrorStreams,
+  pumpErrorStreamsWithWriteFailure,
   pumpResult,
   withChannels,
 } from "./output-channels.js";
 import { executePipeline as executePipelineHelper } from "./pipeline-execution.js";
+import { compileOutputRedirections } from "./redirect-channels.js";
 import {
   applyRedirections,
+  getBadFileDescriptorError,
   preOpenOutputRedirects,
-  processFdVariableRedirections,
 } from "./redirections.js";
 import { processAssignments } from "./simple-command-assignments.js";
 import {
@@ -220,8 +225,15 @@ export interface InterpreterOptions {
   signal?: AbortSignal;
 }
 
+interface LiveCommandScope {
+  redirections: RedirectionNode[];
+  handled: boolean;
+  channelsInstalled?: boolean;
+}
+
 export class Interpreter {
   private ctx: InterpreterContext;
+  private readonly statementOutputFlushers: Array<() => Promise<void>> = [];
 
   constructor(options: InterpreterOptions, state: InterpreterState) {
     this.ctx = {
@@ -231,9 +243,9 @@ export class Interpreter {
       outputChannels: options.outputChannels,
       limits: options.limits,
       execFn: options.exec,
-      executeScript: this.executeScriptCompat.bind(this),
+      executeScript: this.executeScript.bind(this),
       executeStatement: this.executeStatement.bind(this),
-      executeCommand: this.executeCommandCompat.bind(this),
+      executeCommand: this.executeCommand.bind(this),
       fetch: options.fetch,
       sleep: options.sleep,
       trace: options.trace,
@@ -278,58 +290,6 @@ export class Interpreter {
     const result = await this.executeScript(node);
     checkAborted(this.ctx.signal, result.stdout, result.stderr);
     return pumpResult(this.ctx, result);
-  }
-
-  /**
-   * Preserve result-stream semantics at callers that still aggregate output.
-   * Converted execution runs against local fd 1/2 collectors, then hands those
-   * streams back to the legacy caller in statement order.
-   */
-  private async executeWithLegacyResult(
-    execute: () => Promise<ExecResult>,
-  ): Promise<ExecResult> {
-    const stdoutCollector = createCollector();
-    const stderrCollector = createCollector();
-    const channels = new Map(this.ctx.outputChannels);
-    channels.set(1, stdoutCollector);
-    channels.set(2, stderrCollector);
-
-    return withChannels(this.ctx, channels, async () => {
-      try {
-        const result = await execute();
-        const pumped = await pumpResult(this.ctx, result);
-        return {
-          ...pumped,
-          stdout: stdoutCollector.stream(),
-          stderr: stderrCollector.stream(),
-        };
-      } catch (error) {
-        if (await pumpErrorStreams(this.ctx, error)) {
-          const outputError = error as {
-            stdout: ByteStream;
-            stderr: ByteStream;
-          };
-          outputError.stdout = stdoutCollector.stream();
-          outputError.stderr = stderrCollector.stream();
-        }
-        throw error;
-      }
-    });
-  }
-
-  private executeScriptCompat(node: ScriptNode): Promise<ExecResult> {
-    return this.executeWithLegacyResult(() => this.executeScript(node));
-  }
-
-  private executeStatementCompat(node: StatementNode): Promise<ExecResult> {
-    return this.executeWithLegacyResult(() => this.executeStatement(node));
-  }
-
-  private executeCommandCompat(
-    node: CommandNode,
-    stdin: ByteStream,
-  ): Promise<ExecResult> {
-    return this.executeWithLegacyResult(() => this.executeCommand(node, stdin));
   }
 
   async executeScript(node: ScriptNode): Promise<ExecResult> {
@@ -444,7 +404,7 @@ export class Interpreter {
       scriptPath,
       decodeArgs(args),
       stdin,
-      (ast) => this.executeScriptCompat(ast),
+      (ast) => this.executeScript(ast),
     );
   }
 
@@ -491,53 +451,72 @@ export class Interpreter {
     let exitCode = 0;
     let lastExecutedIndex = -1;
     let lastPipelineNegated = false;
+    const statementChannels = this.ctx.outputChannels;
 
-    for (let i = 0; i < node.pipelines.length; i++) {
-      const pipeline = node.pipelines[i];
-      const operator = i > 0 ? node.operators[i - 1] : null;
-
-      if (operator === "&&" && exitCode !== 0) continue;
-      if (operator === "||" && exitCode === 0) continue;
-
-      const hasConvertedCommand = pipeline.commands.some((command) =>
-        ["If", "For", "CStyleFor", "While", "Until", "Case"].includes(
-          command.type,
-        ),
+    const flushPendingOutput = async (): Promise<void> => {
+      await withChannels(this.ctx, statementChannels, () =>
+        pumpResult(this.ctx, { stdout, stderr, exitCode }),
       );
-      if (hasConvertedCommand) {
-        await pumpResult(this.ctx, { stdout, stderr, exitCode });
-        stdout = emptyStream();
-        stderr = emptyStream();
+      stdout = emptyStream();
+      stderr = emptyStream();
+    };
+    this.statementOutputFlushers.push(flushPendingOutput);
+
+    try {
+      for (let i = 0; i < node.pipelines.length; i++) {
+        const pipeline = node.pipelines[i];
+        const operator = i > 0 ? node.operators[i - 1] : null;
+
+        if (operator === "&&" && exitCode !== 0) continue;
+        if (operator === "||" && exitCode === 0) continue;
+
+        const hasConvertedCompound = pipeline.commands.some((command) =>
+          [
+            "If",
+            "For",
+            "CStyleFor",
+            "While",
+            "Until",
+            "Case",
+            "Group",
+            "Subshell",
+          ].includes(command.type),
+        );
+        if (hasConvertedCompound) {
+          await flushPendingOutput();
+        }
+
+        const result = await this.executePipeline(pipeline);
+        stdout = concatStreams(stdout, result.stdout);
+        stderr = concatStreams(stderr, result.stderr);
+        exitCode = result.exitCode;
+        lastExecutedIndex = i;
+        lastPipelineNegated = pipeline.negated;
+
+        this.ctx.state.lastExitCode = exitCode;
+        envSet(this.ctx.state.env, "?", String(exitCode));
       }
 
-      const result = await this.executePipeline(pipeline);
-      stdout = concatStreams(stdout, result.stdout);
-      stderr = concatStreams(stderr, result.stderr);
-      exitCode = result.exitCode;
-      lastExecutedIndex = i;
-      lastPipelineNegated = pipeline.negated;
+      const wasShortCircuited = lastExecutedIndex < node.pipelines.length - 1;
+      const innerWasSafe = this.ctx.state.errexitSafe;
+      this.ctx.state.errexitSafe =
+        wasShortCircuited || lastPipelineNegated || innerWasSafe;
 
-      this.ctx.state.lastExitCode = exitCode;
-      envSet(this.ctx.state.env, "?", String(exitCode));
+      if (
+        this.ctx.state.options.errexit &&
+        exitCode !== 0 &&
+        lastExecutedIndex === node.pipelines.length - 1 &&
+        !lastPipelineNegated &&
+        !this.ctx.state.inCondition &&
+        !innerWasSafe
+      ) {
+        throw new ErrexitError(exitCode, stdout, stderr);
+      }
+
+      return { stdout, stderr, exitCode };
+    } finally {
+      this.statementOutputFlushers.pop();
     }
-
-    const wasShortCircuited = lastExecutedIndex < node.pipelines.length - 1;
-    const innerWasSafe = this.ctx.state.errexitSafe;
-    this.ctx.state.errexitSafe =
-      wasShortCircuited || lastPipelineNegated || innerWasSafe;
-
-    if (
-      this.ctx.state.options.errexit &&
-      exitCode !== 0 &&
-      lastExecutedIndex === node.pipelines.length - 1 &&
-      !lastPipelineNegated &&
-      !this.ctx.state.inCondition &&
-      !innerWasSafe
-    ) {
-      throw new ErrexitError(exitCode, stdout, stderr);
-    }
-
-    return { stdout, stderr, exitCode };
   }
 
   private async executePipeline(node: PipelineNode): Promise<ExecResult> {
@@ -675,17 +654,9 @@ export class Interpreter {
       }
     }
 
-    const fdVarError = await processFdVariableRedirections(
-      this.ctx,
-      node.redirections,
+    const hasFdVariable = node.redirections.some(
+      (redirection) => redirection.fdVariable !== undefined,
     );
-    if (fdVarError) {
-      for (const [name, value] of tempAssignments) {
-        if (value === undefined) this.ctx.state.env.delete(name);
-        else this.ctx.state.env.set(name, value);
-      }
-      return fdVarError;
-    }
 
     let stdinSourceFd = -1;
 
@@ -693,6 +664,7 @@ export class Interpreter {
     // stream through untouched. This is critical for performance —
     // `cat huge | head -c 5` MUST NOT drain `cat`'s stream here.
     const stdinAffectingRedir = node.redirections.some((r) => {
+      if (r.fdVariable) return false;
       if (r.operator === "<<" || r.operator === "<<-" || r.operator === "<<<")
         return true;
       const fd = r.fd ?? 0;
@@ -710,6 +682,12 @@ export class Interpreter {
     }
 
     for (const redir of node.redirections) {
+      // The channel compiler below installs FD-variable descriptors in lexical
+      // order. They do not replace fd 0, and their targets expand there once.
+      if (redir.fdVariable) {
+        continue;
+      }
+
       if (
         (redir.operator === "<<" || redir.operator === "<<-") &&
         redir.target.type === "HereDoc"
@@ -762,9 +740,33 @@ export class Interpreter {
         }
       }
 
-      if (redir.operator === "<&" && redir.target.type === "Word") {
+      if (
+        redir.operator === "<&" &&
+        (redir.fd ?? 0) === 0 &&
+        redir.target.type === "Word"
+      ) {
         const target = await expandWord(this.ctx, redir.target as WordNode);
-        const sourceFd = Number.parseInt(target, 10);
+        const normalizedSource = target.startsWith("&")
+          ? target.slice(1)
+          : target;
+        if (normalizedSource !== "-" && !/^\d+-?$/.test(normalizedSource)) {
+          for (const [name, value] of tempAssignments) {
+            if (value === undefined) this.ctx.state.env.delete(name);
+            else this.ctx.state.env.set(name, value);
+          }
+          return failure(`bash: ${target}: ambiguous redirect\n`);
+        }
+        const sourceFd = Number.parseInt(normalizedSource, 10);
+        if (
+          !Number.isNaN(sourceFd) &&
+          isChannelClosed(this.ctx.outputChannels, sourceFd)
+        ) {
+          for (const [name, value] of tempAssignments) {
+            if (value === undefined) this.ctx.state.env.delete(name);
+            else this.ctx.state.env.set(name, value);
+          }
+          return failure(getBadFileDescriptorError(sourceFd));
+        }
         if (!Number.isNaN(sourceFd) && this.ctx.state.fileDescriptors) {
           const fdContent = this.ctx.state.fileDescriptors.get(sourceFd);
           if (fdContent !== undefined) {
@@ -782,7 +784,23 @@ export class Interpreter {
             } else {
               stdinBytes = encode(fdContent);
             }
+          } else if (sourceFd >= 3 && !this.ctx.outputChannels.has(sourceFd)) {
+            for (const [name, value] of tempAssignments) {
+              if (value === undefined) this.ctx.state.env.delete(name);
+              else this.ctx.state.env.set(name, value);
+            }
+            return failure(getBadFileDescriptorError(sourceFd));
           }
+        } else if (
+          !Number.isNaN(sourceFd) &&
+          sourceFd >= 3 &&
+          !this.ctx.outputChannels.has(sourceFd)
+        ) {
+          for (const [name, value] of tempAssignments) {
+            if (value === undefined) this.ctx.state.env.delete(name);
+            else this.ctx.state.env.set(name, value);
+          }
+          return failure(getBadFileDescriptorError(sourceFd));
         }
       }
     }
@@ -845,6 +863,35 @@ export class Interpreter {
           }
         }
       }
+    }
+
+    // Output {var} redirects have to be compiled in the same left-to-right
+    // sequence as ordinary redirects. The legacy prepass cannot bind
+    // `{copy}>&1` correctly when an earlier `>file` changes fd 1.
+    //
+    // Commands inheriting temporary compound fds use this same narrow path so
+    // fd 3+ remains visible without cutting over ordinary Phase 6 leaves.
+    const inheritsTemporaryOutputFd = hasNonStandardChannelBinding(
+      this.ctx.outputChannels,
+    );
+    const channelRedirections =
+      node.redirections.length > 0 &&
+      (hasFdVariable || inheritsTemporaryOutputFd)
+        ? await compileOutputRedirections(
+            this.ctx,
+            this.ctx.outputChannels,
+            node.redirections,
+            { inputRedirectionsProcessed: true },
+          )
+        : undefined;
+    if (channelRedirections?.error) {
+      for (const [name, value] of tempAssignments) {
+        if (value === undefined) this.ctx.state.env.delete(name);
+        else this.ctx.state.env.set(name, value);
+      }
+      return await withChannels(this.ctx, channelRedirections.channels, () =>
+        pumpResult(this.ctx, channelRedirections.error as ExecResult),
+      );
     }
 
     if (!commandName) {
@@ -1029,22 +1076,50 @@ export class Interpreter {
       this.ctx.state.tempEnvBindings.push(new Map(tempAssignments));
     }
 
-    let cmdResult: ExecResult;
+    let cmdResult!: ExecResult;
     let controlFlowError: BreakError | ContinueError | null = null;
+    const liveCommandScope: LiveCommandScope = {
+      redirections: node.redirections,
+      handled: false,
+      channelsInstalled: channelRedirections !== undefined,
+    };
 
     try {
       try {
-        cmdResult = await this.runCommand(
-          commandName,
-          args,
-          quotedArgs,
-          stdinStream ?? fromBytes(stdinBytes),
-          false,
-          false,
-          stdinSourceFd,
-        );
+        const run = () =>
+          this.runCommand(
+            commandName,
+            args,
+            quotedArgs,
+            stdinStream ?? fromBytes(stdinBytes),
+            false,
+            false,
+            stdinSourceFd,
+            liveCommandScope,
+          );
+        cmdResult = channelRedirections
+          ? await withChannels(this.ctx, channelRedirections.channels, run)
+          : await run();
       } catch (error) {
-        if (error instanceof BreakError || error instanceof ContinueError) {
+        let writeFailure: ExecResult | null = null;
+        if (channelRedirections && !liveCommandScope.handled) {
+          const pumpedError = await withChannels(
+            this.ctx,
+            channelRedirections.channels,
+            () => pumpErrorStreamsWithWriteFailure(this.ctx, error),
+          );
+          writeFailure = pumpedError.writeFailure;
+          if (writeFailure) {
+            cmdResult = writeFailure;
+            liveCommandScope.handled = true;
+          }
+        }
+        if (writeFailure) {
+          // A sink failure replaces the command's original control-flow error.
+        } else if (
+          error instanceof BreakError ||
+          error instanceof ContinueError
+        ) {
           controlFlowError = error;
           cmdResult = ok();
         } else {
@@ -1060,10 +1135,20 @@ export class Interpreter {
         };
       }
 
+      if (channelRedirections && !liveCommandScope.handled) {
+        cmdResult = await withChannels(
+          this.ctx,
+          channelRedirections.channels,
+          () =>
+            executeAndPumpResult(this.ctx, () => Promise.resolve(cmdResult)),
+        );
+        liveCommandScope.handled = true;
+      }
+
       cmdResult = await applyRedirections(
         this.ctx,
         cmdResult,
-        node.redirections,
+        liveCommandScope.handled ? [] : node.redirections,
       );
 
       if (controlFlowError) {
@@ -1133,6 +1218,55 @@ export class Interpreter {
     return cmdResult;
   }
 
+  /**
+   * Run only Phase 5 live boundaries inside a simple command's output
+   * redirections. Legacy leaf commands still return streams for the existing
+   * post-command redirection path until Phase 6.
+   */
+  private async executeLiveCommandBoundary(
+    scope: LiveCommandScope | undefined,
+    execute: () => Promise<ExecResult>,
+  ): Promise<ExecResult> {
+    if (!scope) {
+      return execute();
+    }
+
+    const flushPendingOutput =
+      this.statementOutputFlushers[this.statementOutputFlushers.length - 1];
+    await flushPendingOutput?.();
+
+    scope.handled = true;
+    const executeAndPump = () => executeAndPumpResult(this.ctx, execute);
+
+    if (scope.channelsInstalled) {
+      return executeAndPump();
+    }
+
+    // FD-variable redirects were already installed by the simple-command
+    // setup path. Compiling them again would allocate a second descriptor and
+    // repeat target-expansion side effects.
+    const outputRedirections = scope.redirections.filter(
+      (redirection) => !redirection.fdVariable,
+    );
+    if (outputRedirections.length === 0) {
+      return executeAndPump();
+    }
+
+    const compiled = await compileOutputRedirections(
+      this.ctx,
+      this.ctx.outputChannels,
+      outputRedirections,
+      { inputRedirectionsProcessed: true },
+    );
+    if (compiled.error) {
+      return withChannels(this.ctx, compiled.channels, () =>
+        pumpResult(this.ctx, compiled.error as ExecResult),
+      );
+    }
+
+    return withChannels(this.ctx, compiled.channels, executeAndPump);
+  }
+
   private async runCommand(
     commandName: string,
     args: Uint8Array[],
@@ -1141,14 +1275,17 @@ export class Interpreter {
     skipFunctions = false,
     useDefaultPath = false,
     stdinSourceFd = -1,
+    liveCommandScope?: LiveCommandScope,
   ): Promise<ExecResult> {
     const dispatchCtx: BuiltinDispatchContext = {
       ctx: this.ctx,
       runCommand: (name, a, qa, s, sf, udp, ssf) =>
-        this.runCommand(name, a, qa, s, sf, udp, ssf),
+        this.runCommand(name, a, qa, s, sf, udp, ssf, liveCommandScope),
       buildExportedEnv: () => this.buildExportedEnv(),
       executeUserScript: (path, a, s) =>
         this.executeUserScript(path, a, s ?? emptyStream()),
+      executeLiveBoundary: (execute) =>
+        this.executeLiveCommandBoundary(liveCommandScope, execute),
     };
 
     const builtinResult = await dispatchBuiltin(
@@ -1190,7 +1327,7 @@ export class Interpreter {
     stdin: ByteStream = emptyStream(),
   ): Promise<ExecResult> {
     return executeSubshellHelper(this.ctx, node, stdin, (stmt) =>
-      this.executeStatementCompat(stmt),
+      this.executeStatement(stmt),
     );
   }
 
@@ -1199,7 +1336,7 @@ export class Interpreter {
     stdin: ByteStream = emptyStream(),
   ): Promise<ExecResult> {
     return executeGroupHelper(this.ctx, node, stdin, (stmt) =>
-      this.executeStatementCompat(stmt),
+      this.executeStatement(stmt),
     );
   }
 

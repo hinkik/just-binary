@@ -8,7 +8,9 @@
 
 import { collectText } from "../../utils/stream.js";
 import {
+  cloneOutputChannels,
   createCollector,
+  overrideChannelSink,
   pumpResult,
   withChannels,
 } from "../output-channels.js";
@@ -178,9 +180,9 @@ export async function expandSubscriptForAssocArray(
         if (ctx.execFn) {
           const stdoutCollector = createCollector();
           const stderrCollector = createCollector();
-          const captureChannels = new Map(ctx.outputChannels);
-          captureChannels.set(1, stdoutCollector);
-          captureChannels.set(2, stderrCollector);
+          const captureChannels = cloneOutputChannels(ctx.outputChannels);
+          overrideChannelSink(captureChannels, 1, stdoutCollector);
+          overrideChannelSink(captureChannels, 2, stderrCollector);
           const cmdResult = await withChannels(ctx, captureChannels, () =>
             ctx.execFn(cmdStr),
           );
@@ -239,9 +241,9 @@ export async function expandSubscriptForAssocArray(
       if (ctx.execFn) {
         const stdoutCollector = createCollector();
         const stderrCollector = createCollector();
-        const captureChannels = new Map(ctx.outputChannels);
-        captureChannels.set(1, stdoutCollector);
-        captureChannels.set(2, stderrCollector);
+        const captureChannels = cloneOutputChannels(ctx.outputChannels);
+        overrideChannelSink(captureChannels, 1, stdoutCollector);
+        overrideChannelSink(captureChannels, 2, stderrCollector);
         const cmdResult = await withChannels(ctx, captureChannels, () =>
           ctx.execFn(cmdStr),
         );

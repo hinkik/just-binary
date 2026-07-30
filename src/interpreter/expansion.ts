@@ -28,7 +28,7 @@ import {
   envSet,
   trimTrailingNewlines,
 } from "../utils/bytes.js";
-import { collectBytes, collectText } from "../utils/stream.js";
+import { collectBytes, collectText, emptyStream } from "../utils/stream.js";
 import { evaluateArithmetic } from "./arithmetic.js";
 import {
   BadSubstitutionError,
@@ -36,7 +36,9 @@ import {
   ExitError,
 } from "./errors.js";
 import {
+  cloneOutputChannels,
   createCollector,
+  overrideChannelSink,
   pumpErrorStreams,
   pumpResult,
   withChannels,
@@ -834,9 +836,9 @@ async function executeCommandSubstitutionBytes(
   ctx.state.suppressVerbose = true;
   const stdoutCollector = createCollector();
   const stderrCollector = createCollector();
-  const captureChannels = new Map(ctx.outputChannels);
-  captureChannels.set(1, stdoutCollector);
-  captureChannels.set(2, stderrCollector);
+  const captureChannels = cloneOutputChannels(ctx.outputChannels);
+  overrideChannelSink(captureChannels, 1, stdoutCollector);
+  overrideChannelSink(captureChannels, 2, stderrCollector);
   try {
     const result = await withChannels(ctx, captureChannels, () =>
       ctx.executeScript(part.body),
@@ -872,6 +874,15 @@ async function executeCommandSubstitutionBytes(
     ctx.substitutionDepth = savedDepth;
     ctx.state.suppressVerbose = savedSuppressVerbose;
     if (error instanceof ExecutionLimitError) {
+      // Converted nested scripts have already delivered their fatal stderr to
+      // the substitution collector and blanked the carried error streams.
+      // Forward only that captured stderr to the enclosing table; captured
+      // stdout must remain isolated on fatal expansion paths.
+      await pumpResult(ctx, {
+        stdout: emptyStream(),
+        stderr: stderrCollector.stream(),
+        exitCode: ExecutionLimitError.EXIT_CODE,
+      });
       await pumpErrorStreams(ctx, error);
       throw error;
     }

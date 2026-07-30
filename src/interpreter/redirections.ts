@@ -123,51 +123,20 @@ function parseRwFdContent(fdContent: string): {
 }
 
 /**
- * Pre-expanded redirect targets, keyed by index into the redirections array.
- * This allows us to expand redirect targets (including side effects) before
- * executing a function body, then apply the redirections after.
- */
-export type ExpandedRedirectTargets = Map<number, string>;
-
-/**
- * Pre-expand redirect targets for function definitions.
- * This is needed because redirections on function definitions are evaluated
- * each time the function is called, and any side effects (like $((i++)))
- * must occur BEFORE the function body executes.
- */
-export async function preExpandRedirectTargets(
-  ctx: InterpreterContext,
-  redirections: RedirectionNode[],
-): Promise<{ targets: ExpandedRedirectTargets; error?: string }> {
-  const targets: ExpandedRedirectTargets = new Map();
-
-  for (let i = 0; i < redirections.length; i++) {
-    const redir = redirections[i];
-    if (redir.target.type === "HereDoc") {
-      continue;
-    }
-
-    const expandResult = await expandRedirectionTarget(ctx, redir);
-    if ("error" in expandResult) {
-      return { targets, error: expandResult.error };
-    }
-    targets.set(i, expandResult.target);
-  }
-
-  return { targets };
-}
-
-/**
  * Allocate the next available file descriptor (starting at 10).
  * Returns the allocated FD number.
  */
-export function allocateFd(ctx: InterpreterContext): number {
+export function allocateFd(
+  ctx: InterpreterContext,
+  isUnavailable: (fd: number) => boolean = () => false,
+): number {
   if (ctx.state.nextFd === undefined) {
     ctx.state.nextFd = 10;
   }
-  const fd = ctx.state.nextFd;
-  ctx.state.nextFd++;
-  return fd;
+  while (isUnavailable(ctx.state.nextFd)) {
+    ctx.state.nextFd++;
+  }
+  return ctx.state.nextFd++;
 }
 
 /**
@@ -178,6 +147,7 @@ export function allocateFd(ctx: InterpreterContext): number {
 export async function processFdVariableRedirections(
   ctx: InterpreterContext,
   redirections: RedirectionNode[],
+  isFdUnavailable?: (fd: number) => boolean,
 ): Promise<ExecResult | null> {
   for (const redir of redirections) {
     if (!redir.fdVariable) {
@@ -192,12 +162,13 @@ export async function processFdVariableRedirections(
     // Handle close operation: {fd}>&- or {fd}<&-
     // For close operations, we look up the existing variable value (the FD number)
     // and close that FD, rather than allocating a new one.
+    let expandedDupTarget: string | undefined;
     if (
       (redir.operator === ">&" || redir.operator === "<&") &&
       redir.target.type === "Word"
     ) {
-      const target = await expandWord(ctx, redir.target as WordNode);
-      if (target === "-") {
+      expandedDupTarget = await expandWord(ctx, redir.target as WordNode);
+      if (expandedDupTarget === "-") {
         // Close operation - look up the FD from the variable and close it
         if (ctx.state.env.has(redir.fdVariable)) {
           const fdNum = Number.parseInt(
@@ -214,14 +185,15 @@ export async function processFdVariableRedirections(
     }
 
     // Allocate a new FD (for non-close operations)
-    const fd = allocateFd(ctx);
+    const fd = allocateFd(ctx, isFdUnavailable);
 
     // Set the variable to the allocated FD number
     envSet(ctx.state.env, redir.fdVariable, String(fd));
 
     // For file redirections, store the file path mapping
     if (redir.target.type === "Word") {
-      const target = await expandWord(ctx, redir.target as WordNode);
+      const target =
+        expandedDupTarget ?? (await expandWord(ctx, redir.target as WordNode));
 
       // Handle FD duplication: {fd}>&N or {fd}<&N
       if (redir.operator === ">&" || redir.operator === "<&") {
@@ -231,6 +203,12 @@ export async function processFdVariableRedirections(
           const content = ctx.state.fileDescriptors.get(sourceFd);
           if (content !== undefined) {
             ctx.state.fileDescriptors.set(fd, content);
+          } else {
+            return makeResult(
+              emptyStream(),
+              fromString(getBadFileDescriptorError(sourceFd)),
+              1,
+            );
           }
           continue;
         }
@@ -411,7 +389,6 @@ export async function applyRedirections(
   ctx: InterpreterContext,
   result: ExecResult,
   redirections: RedirectionNode[],
-  preExpandedTargets?: ExpandedRedirectTargets,
 ): Promise<ExecResult> {
   let stdout: ByteStream = result.stdout;
   let stderr: ByteStream = result.stderr;
@@ -423,28 +400,32 @@ export async function applyRedirections(
       continue;
     }
 
-    // Use pre-expanded target if available, otherwise expand now
-    let target: string;
-    const preExpanded = preExpandedTargets?.get(i);
-    if (preExpanded !== undefined) {
-      target = preExpanded;
-    } else {
-      const expandResult = await expandRedirectionTarget(ctx, redir);
-      if ("error" in expandResult) {
-        stderr = concatStreams(stderr, fromString(expandResult.error));
-        exitCode = 1;
-        // When redirect fails, discard the output that would have been redirected
-        stdout = emptyStream();
-        continue;
-      }
-      target = expandResult.target;
+    if (
+      redir.operator === "<" ||
+      redir.operator === "<>" ||
+      redir.operator === "<<<" ||
+      redir.operator === "<<" ||
+      redir.operator === "<<-" ||
+      (redir.operator === "<&" && (redir.fd ?? 0) === 0)
+    ) {
+      continue;
     }
 
-    // Skip FD variable redirections in applyRedirections - they're already handled
-    // by processFdVariableRedirections and don't affect stdout/stderr directly
+    // FD-variable redirects are installed before command execution. Do not
+    // expand their targets again while applying ordinary stream redirects.
     if (redir.fdVariable) {
       continue;
     }
+
+    const expandResult = await expandRedirectionTarget(ctx, redir);
+    if ("error" in expandResult) {
+      stderr = concatStreams(stderr, fromString(expandResult.error));
+      exitCode = 1;
+      // When redirect fails, discard the output that would have been redirected
+      stdout = emptyStream();
+      continue;
+    }
+    const target = expandResult.target;
 
     // Reject paths containing null bytes - these cause filesystem errors
     const invalidTargetError = getInvalidRedirectTargetError(target);

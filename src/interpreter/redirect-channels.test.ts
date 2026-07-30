@@ -160,6 +160,28 @@ describe("output redirect channel compilation", () => {
     });
   });
 
+  it("compiles explicit stdout and stderr <& duplication as output", async () => {
+    const stdout = { value: "" };
+    const stderr = { value: "" };
+    const channels = baseChannels(textSink(stdout), textSink(stderr));
+    const ctx = createContext(new InMemoryFs(), channels);
+    const compiled = await compileOutputRedirections(
+      ctx,
+      channels,
+      redirects(": 1<&2 2<&1"),
+    );
+
+    expect({
+      legacyRedirections: compiled.legacyRedirections,
+      stdoutUsesOriginalStderr: compiled.channels.get(1) === channels.get(2),
+      stderrUsesOriginalStderr: compiled.channels.get(2) === channels.get(2),
+    }).toEqual({
+      legacyRedirections: [],
+      stdoutUsesOriginalStderr: true,
+      stderrUsesOriginalStderr: true,
+    });
+  });
+
   it("snapshots fd-variable metadata before the source is closed", async () => {
     const channels = baseChannels(
       textSink({ value: "" }),

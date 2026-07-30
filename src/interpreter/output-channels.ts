@@ -1,5 +1,10 @@
 import type { ExecResult } from "../types.js";
-import { type ByteStream, emptyStream, fromChunks } from "../utils/stream.js";
+import {
+  type ByteStream,
+  emptyStream,
+  fromChunks,
+  fromString,
+} from "../utils/stream.js";
 import { checkAborted } from "./errors.js";
 import type { InterpreterContext } from "./types.js";
 
@@ -13,6 +18,127 @@ export type OutputChannels = Map<number, OutputSink>;
 export interface OutputCollector extends OutputSink {
   /** Valid after all writes for the execution have settled. */
   stream(): ByteStream;
+}
+
+export const CLOSED_CHANNEL_DESCRIPTOR = "__closed__";
+
+const channelDescriptors = new WeakMap<OutputChannels, Map<number, string>>();
+const temporaryChannelParents = new WeakMap<OutputChannels, OutputChannels>();
+const temporaryChannelOverrides = new WeakMap<OutputChannels, Set<number>>();
+
+function descriptorsFor(channels: OutputChannels): Map<number, string> {
+  let descriptors = channelDescriptors.get(channels);
+  if (!descriptors) {
+    descriptors = new Map();
+    channelDescriptors.set(channels, descriptors);
+  }
+  return descriptors;
+}
+
+export function copyChannelDescriptors(
+  channels: OutputChannels,
+): Map<number, string> {
+  return new Map(channelDescriptors.get(channels));
+}
+
+export function trackChannelDescriptors(
+  channels: OutputChannels,
+  descriptors: Map<number, string>,
+): void {
+  channelDescriptors.set(channels, descriptors);
+}
+
+export function trackTemporaryChannelParent(
+  channels: OutputChannels,
+  parent: OutputChannels,
+): void {
+  temporaryChannelParents.set(channels, parent);
+  temporaryChannelOverrides.set(channels, new Set());
+}
+
+export function markTemporaryChannelOverride(
+  channels: OutputChannels,
+  fd: number,
+): void {
+  temporaryChannelOverrides.get(channels)?.add(fd);
+}
+
+export function cloneOutputChannels(channels: OutputChannels): OutputChannels {
+  const clone = new Map(channels);
+  trackChannelDescriptors(clone, copyChannelDescriptors(channels));
+  return clone;
+}
+
+export function overrideChannelSink(
+  channels: OutputChannels,
+  fd: number,
+  sink: OutputSink,
+): void {
+  channels.set(fd, sink);
+  channelDescriptors.get(channels)?.delete(fd);
+}
+
+export function hasChannelBinding(
+  channels: OutputChannels,
+  fd: number,
+): boolean {
+  let current: OutputChannels | undefined = channels;
+  while (current) {
+    if (current.has(fd) || channelDescriptors.get(current)?.has(fd)) {
+      return true;
+    }
+    current = temporaryChannelParents.get(current);
+  }
+  return false;
+}
+
+export function hasNonStandardChannelBinding(
+  channels: OutputChannels,
+): boolean {
+  if (Array.from(channels.keys()).some((fd) => fd >= 3)) {
+    return true;
+  }
+  return Array.from(channelDescriptors.get(channels)?.keys() ?? []).some(
+    (fd) => fd >= 3,
+  );
+}
+
+export function isChannelClosed(channels: OutputChannels, fd: number): boolean {
+  return (
+    channelDescriptors.get(channels)?.get(fd) === CLOSED_CHANNEL_DESCRIPTOR
+  );
+}
+
+export function setPersistentChannel(
+  channels: OutputChannels,
+  fd: number,
+  sink: OutputSink,
+  descriptor: string,
+): void {
+  let current: OutputChannels | undefined = channels;
+  while (current) {
+    current.set(fd, sink);
+    descriptorsFor(current).set(fd, descriptor);
+    current = temporaryChannelParents.get(current);
+  }
+}
+
+export function deletePersistentChannel(
+  channels: OutputChannels,
+  fd: number,
+): boolean {
+  let current: OutputChannels | undefined = channels;
+  while (current) {
+    const stopAfterCurrent =
+      temporaryChannelOverrides.get(current)?.has(fd) === true;
+    current.delete(fd);
+    descriptorsFor(current).set(fd, CLOSED_CHANNEL_DESCRIPTOR);
+    if (stopAfterCurrent) {
+      return false;
+    }
+    current = temporaryChannelParents.get(current);
+  }
+  return true;
 }
 
 const discardSink: OutputSink = {
@@ -176,4 +302,81 @@ export async function pumpErrorStreams(
     throw rejected.reason;
   }
   return true;
+}
+
+function isNoSpaceError(error: unknown): error is Error & { code: "ENOSPC" } {
+  return error instanceof Error && "code" in error && error.code === "ENOSPC";
+}
+
+async function reportNoSpaceFailure(
+  ctx: InterpreterContext,
+  error: Error,
+): Promise<ExecResult> {
+  const message = error.message.endsWith("\n")
+    ? error.message
+    : `${error.message}\n`;
+  try {
+    await pumpResult(ctx, {
+      stdout: emptyStream(),
+      stderr: fromString(message),
+      exitCode: 1,
+    });
+  } catch (reportError) {
+    if (!isNoSpaceError(reportError)) {
+      throw reportError;
+    }
+  }
+  return {
+    stdout: emptyStream(),
+    stderr: emptyStream(),
+    exitCode: 1,
+  };
+}
+
+export async function pumpErrorStreamsWithWriteFailure(
+  ctx: InterpreterContext,
+  error: unknown,
+): Promise<{
+  writeFailure: ExecResult | null;
+  carriedOutput: boolean;
+}> {
+  try {
+    return {
+      writeFailure: null,
+      carriedOutput: await pumpErrorStreams(ctx, error),
+    };
+  } catch (pumpError) {
+    if (isNoSpaceError(pumpError)) {
+      return {
+        writeFailure: await reportNoSpaceFailure(ctx, pumpError),
+        carriedOutput: true,
+      };
+    }
+    throw pumpError;
+  }
+}
+
+export async function executeAndPumpResult(
+  ctx: InterpreterContext,
+  execute: () => Promise<ExecResult>,
+): Promise<ExecResult> {
+  try {
+    return await pumpResult(ctx, await execute());
+  } catch (error) {
+    const { carriedOutput, writeFailure } =
+      await pumpErrorStreamsWithWriteFailure(ctx, error);
+    if (writeFailure) {
+      return writeFailure;
+    }
+    if (isNoSpaceError(error)) {
+      return carriedOutput
+        ? {
+            stdout: emptyStream(),
+            stderr: emptyStream(),
+            exitCode: 1,
+          }
+        : reportNoSpaceFailure(ctx, error);
+    }
+    throw error;
+  }
 }

@@ -7,6 +7,7 @@ import type { ExecResult } from "../../types.js";
 import { EMPTY, encode, envGet, envSet } from "../../utils/bytes.js";
 import { ExitError, ReturnError } from "../errors.js";
 import { failure, result } from "../helpers/result.js";
+import { pumpErrorStreams, pumpResult } from "../output-channels.js";
 import type { InterpreterContext } from "../types.js";
 
 export async function handleSource(
@@ -123,11 +124,13 @@ export async function handleSource(
   ctx.state.currentSource = filename;
   try {
     const ast = parse(content);
-    const result = await ctx.executeScript(ast);
+    const scriptResult = await ctx.executeScript(ast);
+    const pumpedResult = await pumpResult(ctx, scriptResult);
     cleanup();
-    return result;
+    return pumpedResult;
   } catch (error) {
     cleanup();
+    await pumpErrorStreams(ctx, error);
 
     // ExitError propagates up to exit the shell
     if (error instanceof ExitError) {
@@ -136,7 +139,7 @@ export async function handleSource(
 
     // Handle return in sourced script - treat as normal exit
     if (error instanceof ReturnError) {
-      return result(error.stdout, error.stderr, error.exitCode);
+      return result(EMPTY, EMPTY, error.exitCode);
     }
 
     if ((error as ParseException).name === "ParseException") {

@@ -8,10 +8,12 @@
 import type { ScriptNode } from "../../ast/types.js";
 import { Parser } from "../../parser/parser.js";
 import { envGet, envSet } from "../../utils/bytes.js";
-import { collectText } from "../../utils/stream.js";
+import { collectText, emptyStream } from "../../utils/stream.js";
 import { ExecutionLimitError, ExitError } from "../errors.js";
 import {
+  cloneOutputChannels,
   createCollector,
+  overrideChannelSink,
   pumpErrorStreams,
   pumpResult,
   withChannels,
@@ -131,9 +133,9 @@ async function executeCommandSubstitutionFromString(
   ctx.state.suppressVerbose = true;
   const stdoutCollector = createCollector();
   const stderrCollector = createCollector();
-  const captureChannels = new Map(ctx.outputChannels);
-  captureChannels.set(1, stdoutCollector);
-  captureChannels.set(2, stderrCollector);
+  const captureChannels = cloneOutputChannels(ctx.outputChannels);
+  overrideChannelSink(captureChannels, 1, stdoutCollector);
+  overrideChannelSink(captureChannels, 2, stderrCollector);
 
   try {
     const result = await withChannels(ctx, captureChannels, () =>
@@ -160,6 +162,11 @@ async function executeCommandSubstitutionFromString(
     ctx.state.bashPid = savedBashPid;
     ctx.state.suppressVerbose = savedSuppressVerbose;
     if (error instanceof ExecutionLimitError) {
+      await pumpResult(ctx, {
+        stdout: emptyStream(),
+        stderr: stderrCollector.stream(),
+        exitCode: ExecutionLimitError.EXIT_CODE,
+      });
       await pumpErrorStreams(ctx, error);
       throw error;
     }

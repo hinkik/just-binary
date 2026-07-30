@@ -1,14 +1,26 @@
-import type { RedirectionNode } from "../ast/types.js";
+import type { RedirectionNode, WordNode } from "../ast/types.js";
 import type { ExecResult } from "../types.js";
 import { envGet, envSet } from "../utils/bytes.js";
 import { failure } from "./helpers/result.js";
-import type { OutputChannels, OutputSink } from "./output-channels.js";
+import {
+  CLOSED_CHANNEL_DESCRIPTOR,
+  copyChannelDescriptors,
+  deletePersistentChannel,
+  hasChannelBinding,
+  markTemporaryChannelOverride,
+  type OutputChannels,
+  type OutputSink,
+  setPersistentChannel,
+  trackChannelDescriptors,
+  trackTemporaryChannelParent,
+} from "./output-channels.js";
 import {
   allocateFd,
   checkOutputRedirectTarget,
   expandRedirectionTarget,
   getBadFileDescriptorError,
   getInvalidRedirectTargetError,
+  processFdVariableRedirections,
 } from "./redirections.js";
 import type { InterpreterContext } from "./types.js";
 
@@ -25,6 +37,7 @@ interface InstalledFileSink {
 
 interface CompileOptions {
   persistent?: boolean;
+  inputRedirectionsProcessed?: boolean;
 }
 
 const nullSink: OutputSink = {
@@ -45,12 +58,22 @@ function isInputRedirection(redir: RedirectionNode): boolean {
   return (
     redir.target.type === "HereDoc" ||
     redir.operator === "<" ||
-    redir.operator === "<&" ||
     redir.operator === "<>" ||
     redir.operator === "<<<" ||
     redir.operator === "<<" ||
     redir.operator === "<<-"
   );
+}
+
+function withExpandedTarget(
+  redir: RedirectionNode,
+  target: string,
+): RedirectionNode {
+  const expandedWord: WordNode = {
+    type: "Word",
+    parts: [{ type: "Literal", value: target }],
+  };
+  return { ...redir, target: expandedWord };
 }
 
 function queuedFileSink(ctx: InterpreterContext, filePath: string): OutputSink {
@@ -203,8 +226,21 @@ function deleteDescriptor(
   redir: RedirectionNode,
   fd: number,
   persistent: boolean,
+  activeDescriptor: string | undefined,
+  reachedOwningTable = true,
 ): void {
-  if (persistent || redir.fdVariable) {
+  const storedDescriptor = ctx.state.fileDescriptors?.get(fd);
+  const normalizedActiveDescriptor = activeDescriptor?.startsWith(
+    "__file_append__:",
+  )
+    ? `__file__:${activeDescriptor.slice(16)}`
+    : activeDescriptor;
+  if (
+    (persistent || redir.fdVariable) &&
+    reachedOwningTable &&
+    storedDescriptor !== undefined &&
+    storedDescriptor === normalizedActiveDescriptor
+  ) {
     ctx.state.fileDescriptors?.delete(fd);
   }
 }
@@ -224,9 +260,12 @@ function compilationError(
 /**
  * Compile output redirections into a fresh channel table.
  *
- * Input redirections are returned untouched for the legacy caller. The input
- * channel table is never mutated; fd duplication snapshots the sink installed
- * at that point in the left-to-right redirect sequence.
+ * Ordinary input redirections are returned for the legacy caller. FD-variable
+ * input redirections are processed inline so descriptor allocation preserves
+ * source order. The input channel table is not mutated except when a persistent
+ * brace-FD close/move intentionally reaches through temporary compiler tables;
+ * fd duplication snapshots the sink installed at that point in the
+ * left-to-right redirect sequence.
  */
 export async function compileOutputRedirections(
   ctx: InterpreterContext,
@@ -236,38 +275,123 @@ export async function compileOutputRedirections(
 ): Promise<CompiledOutputRedirections> {
   const channels = new Map(current);
   const descriptors = new Map(ctx.state.fileDescriptors);
+  for (const [fd, descriptor] of copyChannelDescriptors(current)) {
+    descriptors.set(fd, descriptor);
+  }
+  trackChannelDescriptors(channels, descriptors);
+  trackTemporaryChannelParent(channels, current);
   const legacyRedirections: RedirectionNode[] = [];
   const persistent = options.persistent === true;
 
   for (const redir of redirections) {
-    if (isInputRedirection(redir)) {
+    if (
+      options.inputRedirectionsProcessed &&
+      redir.operator === "<&" &&
+      !redir.fdVariable &&
+      (redir.fd ?? 0) === 0
+    ) {
       legacyRedirections.push(redir);
       continue;
     }
 
-    const expanded = await expandRedirectionTarget(ctx, redir);
-    if ("error" in expanded) {
-      return compilationError(channels, legacyRedirections, expanded.error);
+    let preExpandedTarget: string | undefined;
+    if (redir.operator === "<&" && redir.target.type === "Word") {
+      const expanded = await expandRedirectionTarget(ctx, redir);
+      if ("error" in expanded) {
+        return compilationError(channels, legacyRedirections, expanded.error);
+      }
+      preExpandedTarget = expanded.target;
+      const normalizedSource = preExpandedTarget.startsWith("&")
+        ? preExpandedTarget.slice(1)
+        : preExpandedTarget;
+      const numericSource = /^\d+-?$/.test(normalizedSource);
+      if (preExpandedTarget !== "-" && !numericSource) {
+        return compilationError(
+          channels,
+          legacyRedirections,
+          `bash: ${preExpandedTarget}: ambiguous redirect\n`,
+        );
+      }
+
+      // Replacing fd 0 remains on the input path. Preserve the already
+      // expanded target so arithmetic/command substitutions run once.
+      if (!redir.fdVariable && (redir.fd ?? 0) === 0) {
+        legacyRedirections.push(withExpandedTarget(redir, preExpandedTarget));
+        continue;
+      }
     }
-    const target = expanded.target;
+
+    if (isInputRedirection(redir)) {
+      if (redir.fdVariable && redir.target.type === "Word") {
+        const fdVarError = await processFdVariableRedirections(
+          ctx,
+          [redir],
+          (fd) => descriptors.has(fd) || hasChannelBinding(channels, fd),
+        );
+        if (fdVarError) {
+          return {
+            channels,
+            legacyRedirections,
+            error: fdVarError,
+          };
+        }
+        const fd = Number.parseInt(envGet(ctx.state.env, redir.fdVariable), 10);
+        const descriptor = ctx.state.fileDescriptors?.get(fd);
+        if (!Number.isNaN(fd) && descriptor !== undefined) {
+          descriptors.set(fd, descriptor);
+        }
+      } else {
+        legacyRedirections.push(redir);
+      }
+      continue;
+    }
+
+    let target: string;
+    if (preExpandedTarget !== undefined) {
+      target = preExpandedTarget;
+    } else {
+      const expanded = await expandRedirectionTarget(ctx, redir);
+      if ("error" in expanded) {
+        return compilationError(channels, legacyRedirections, expanded.error);
+      }
+      target = expanded.target;
+    }
     const invalidTargetError = getInvalidRedirectTargetError(target);
     if (invalidTargetError) {
       return compilationError(channels, legacyRedirections, invalidTargetError);
     }
 
-    if (redir.operator === ">&" && target === "-" && redir.fdVariable) {
+    if (
+      (redir.operator === ">&" || redir.operator === "<&") &&
+      target === "-" &&
+      redir.fdVariable
+    ) {
       if (ctx.state.env.has(redir.fdVariable)) {
         const fd = Number.parseInt(envGet(ctx.state.env, redir.fdVariable), 10);
         if (!Number.isNaN(fd)) {
-          channels.delete(fd);
-          descriptors.delete(fd);
-          deleteDescriptor(ctx, redir, fd, persistent);
+          const activeDescriptor = descriptors.get(fd);
+          const reachedOwningTable = deletePersistentChannel(channels, fd);
+          deleteDescriptor(
+            ctx,
+            redir,
+            fd,
+            persistent,
+            activeDescriptor,
+            reachedOwningTable,
+          );
         }
       }
       continue;
     }
 
-    const fd = redir.fdVariable ? allocateFd(ctx) : (redir.fd ?? 1);
+    const fd = redir.fdVariable
+      ? allocateFd(
+          ctx,
+          (candidate) =>
+            descriptors.has(candidate) ||
+            hasChannelBinding(channels, candidate),
+        )
+      : (redir.fd ?? (redir.operator === "<&" ? 0 : 1));
     if (redir.fdVariable) {
       envSet(ctx.state.env, redir.fdVariable, String(fd));
     }
@@ -304,27 +428,41 @@ export async function compileOutputRedirections(
         channels.set(2, installed.sink);
         descriptors.set(1, installed.descriptor);
         descriptors.set(2, installed.descriptor);
+        markTemporaryChannelOverride(channels, 1);
+        markTemporaryChannelOverride(channels, 2);
         if (persistent) {
           setDescriptor(ctx, 1, installed.descriptor);
           setDescriptor(ctx, 2, installed.descriptor);
         }
       } else {
-        channels.set(fd, installed.sink);
-        descriptors.set(fd, installed.descriptor);
+        if (redir.fdVariable) {
+          setPersistentChannel(
+            channels,
+            fd,
+            installed.sink,
+            installed.descriptor,
+          );
+        } else {
+          channels.set(fd, installed.sink);
+          descriptors.set(fd, installed.descriptor);
+          markTemporaryChannelOverride(channels, fd);
+        }
         mirrorDescriptor(ctx, redir, fd, installed.descriptor, persistent);
       }
       continue;
     }
 
-    if (redir.operator !== ">&") {
+    if (redir.operator !== ">&" && redir.operator !== "<&") {
       legacyRedirections.push(redir);
       continue;
     }
 
     if (target === "-") {
+      const activeDescriptor = descriptors.get(fd);
+      markTemporaryChannelOverride(channels, fd);
       channels.delete(fd);
-      descriptors.delete(fd);
-      deleteDescriptor(ctx, redir, fd, persistent);
+      descriptors.set(fd, CLOSED_CHANNEL_DESCRIPTOR);
+      deleteDescriptor(ctx, redir, fd, persistent, activeDescriptor);
       continue;
     }
 
@@ -333,7 +471,9 @@ export async function compileOutputRedirections(
     const normalizedSource = sourceText.startsWith("&")
       ? sourceText.slice(1)
       : sourceText;
-    const sourceFd = Number.parseInt(normalizedSource, 10);
+    const sourceFd = /^\d+$/.test(normalizedSource)
+      ? Number.parseInt(normalizedSource, 10)
+      : Number.NaN;
     if (!Number.isNaN(sourceFd)) {
       const sourceSink = resolveDescriptorSink(
         ctx,
@@ -342,22 +482,83 @@ export async function compileOutputRedirections(
         sourceFd,
       );
       if (!sourceSink) {
+        const sourceDescriptor = descriptors.get(sourceFd);
+        if (sourceDescriptor === CLOSED_CHANNEL_DESCRIPTOR) {
+          return compilationError(
+            channels,
+            legacyRedirections,
+            getBadFileDescriptorError(sourceFd),
+          );
+        }
+        if (redir.operator === "<&" && redir.fdVariable) {
+          if (sourceDescriptor !== undefined) {
+            descriptors.set(fd, sourceDescriptor);
+            setDescriptor(ctx, fd, sourceDescriptor);
+            if (moveSource) {
+              const reachedOwningTable = deletePersistentChannel(
+                channels,
+                sourceFd,
+              );
+              deleteDescriptor(
+                ctx,
+                redir,
+                sourceFd,
+                persistent,
+                sourceDescriptor,
+                reachedOwningTable,
+              );
+            }
+            continue;
+          }
+        }
+        if (redir.operator === "<&" && !redir.fdVariable) {
+          legacyRedirections.push(withExpandedTarget(redir, target));
+          continue;
+        }
         return compilationError(
           channels,
           legacyRedirections,
           getBadFileDescriptorError(sourceFd),
         );
       }
-      channels.set(fd, sourceSink);
       const descriptor = snapshotDescriptor(descriptors, sourceFd);
-      descriptors.set(fd, descriptor);
+      if (redir.fdVariable) {
+        setPersistentChannel(channels, fd, sourceSink, descriptor);
+      } else {
+        channels.set(fd, sourceSink);
+        descriptors.set(fd, descriptor);
+      }
       mirrorDescriptor(ctx, redir, fd, descriptor, persistent);
       if (moveSource) {
-        channels.delete(sourceFd);
-        descriptors.delete(sourceFd);
-        deleteDescriptor(ctx, redir, sourceFd, persistent);
+        let reachedOwningTable = true;
+        if (redir.fdVariable) {
+          reachedOwningTable = deletePersistentChannel(channels, sourceFd);
+        } else {
+          markTemporaryChannelOverride(channels, sourceFd);
+          channels.delete(sourceFd);
+          descriptors.set(sourceFd, CLOSED_CHANNEL_DESCRIPTOR);
+        }
+        deleteDescriptor(
+          ctx,
+          redir,
+          sourceFd,
+          persistent,
+          descriptor,
+          reachedOwningTable,
+        );
+      }
+      if (!redir.fdVariable) {
+        markTemporaryChannelOverride(channels, fd);
       }
       continue;
+    }
+
+    if (redir.operator === "<&") {
+      return compilationError(
+        channels,
+        legacyRedirections,
+        `bash: ${target}: ambiguous redirect\n`,
+      );
     }
 
     const installed = await installFileSink(
@@ -375,13 +576,25 @@ export async function compileOutputRedirections(
       channels.set(2, installed.sink);
       descriptors.set(1, installed.descriptor);
       descriptors.set(2, installed.descriptor);
+      markTemporaryChannelOverride(channels, 1);
+      markTemporaryChannelOverride(channels, 2);
       if (persistent) {
         setDescriptor(ctx, 1, installed.descriptor);
         setDescriptor(ctx, 2, installed.descriptor);
       }
     } else {
-      channels.set(fd, installed.sink);
-      descriptors.set(fd, installed.descriptor);
+      if (redir.fdVariable) {
+        setPersistentChannel(
+          channels,
+          fd,
+          installed.sink,
+          installed.descriptor,
+        );
+      } else {
+        channels.set(fd, installed.sink);
+        descriptors.set(fd, installed.descriptor);
+        markTemporaryChannelOverride(channels, fd);
+      }
       mirrorDescriptor(ctx, redir, fd, installed.descriptor, persistent);
     }
   }
@@ -413,5 +626,9 @@ export async function applyPersistentOutputRedirections(
   for (const [fd, sink] of compiled.channels) {
     liveChannels.set(fd, sink);
   }
+  trackChannelDescriptors(
+    liveChannels,
+    copyChannelDescriptors(compiled.channels),
+  );
   return { ...compiled, channels: liveChannels };
 }

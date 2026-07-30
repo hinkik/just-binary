@@ -452,6 +452,22 @@ async function compareOutputsInternal(
     );
   }
 
+  if (options?.compareStderr) {
+    let bashEnvStderr = await collectText(bashEnvResult.stderr);
+    let expectedStderr = realBashStderr;
+    if (options.normalizeWhitespace) {
+      bashEnvStderr = normalizeWhitespace(bashEnvStderr);
+      expectedStderr = normalizeWhitespace(expectedStderr);
+    }
+    if (bashEnvStderr !== expectedStderr) {
+      throw new Error(
+        `stderr mismatch for "${command}"\n` +
+          `Expected (recorded bash): ${JSON.stringify(realBashStderr)}\n` +
+          `Received (BashEnv):       ${JSON.stringify(bashEnvStderr)}`,
+      );
+    }
+  }
+
   if (options?.compareExitCode !== false) {
     if (bashEnvResult.exitCode !== realBashExitCode) {
       throw new Error(

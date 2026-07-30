@@ -1,0 +1,109 @@
+{
+  "13d0ec4fce3c1320": {
+    "command": "(echo subshell) > sub; f() { echo function; } > fn; f; cat sub fn",
+    "files": {},
+    "stdout": "subshell\nfunction\n",
+    "stderr": "",
+    "exitCode": 0
+  },
+  "20d516094317ac32": {
+    "command": "{ echo group >&3; } 3>g; (echo sub >&3) 3>s; f() { echo definition >&3; } 3>f; f; h() { echo call >&3; }; h 3>c; cat g s f c",
+    "files": {},
+    "stdout": "group\nsub\ndefinition\ncall\n",
+    "stderr": "",
+    "exitCode": 0
+  },
+  "3c5def36cc56730d": {
+    "command": "(exit 5); echo sub:$?; f() { return 3; }; f; echo fn:$?; (set -e; { false; echo never; }); echo errexit:$?",
+    "files": {},
+    "stdout": "sub:5\nfn:3\nerrexit:1\n",
+    "stderr": "",
+    "exitCode": 0
+  },
+  "3d813562348c43bb": {
+    "command": "out=$( (echo sub; echo se >&2); { echo group; echo ge >&2; }; f() { echo fn; echo fe >&2; }; f ); printf '<%s>\\n' \"$out\"",
+    "files": {},
+    "stdout": "<sub\ngroup\nfn>\n",
+    "stderr": "se\nge\nfe\n",
+    "exitCode": 0
+  },
+  "3e9dc8671192d602": {
+    "command": "{ echo group; } 1<&2; (echo subshell) 1<&2; f() { echo function; } 1<&2; f; { echo fd3 >&3; } 3<&1",
+    "files": {},
+    "stdout": "fd3\n",
+    "stderr": "group\nsubshell\nfunction\n",
+    "exitCode": 0
+  },
+  "4f1bb93bd575ea2f": {
+    "command": "for i in 1 2; do bash -c 'echo inner'; done",
+    "files": {},
+    "stdout": "inner\ninner\n",
+    "stderr": "",
+    "exitCode": 0
+  },
+  "52db2b4d2c6a96e0": {
+    "command": "{ echo stderr >&3 1>&2; } 3>first; { echo file 1>&2 >&3; } 3>second; cat first second",
+    "files": {},
+    "stdout": "file\n",
+    "stderr": "stderr\n",
+    "exitCode": 0
+  },
+  "6bfed5f949a78435": {
+    "command": "{ echo a; echo e >&2; } > combined 2>&1; cat combined",
+    "files": {},
+    "stdout": "a\ne\n",
+    "stderr": "",
+    "exitCode": 0
+  },
+  "7088d07fa5f5c0e0": {
+    "command": "i=0; (:)>$((i++)); printf 'i=%s file=%s\\n' \"$i\" \"$(cat 0)\"",
+    "files": {},
+    "stdout": "i=0 file=\n",
+    "stderr": "",
+    "exitCode": 0
+  },
+  "71f8ebc660874239": {
+    "command": "output=$({ echo never; } 2>&1 1<&word); status=$?; printf '%s\\nstatus=%s\\n' \"${output#/bin/}\" \"$status\"",
+    "files": {},
+    "stdout": "bash: word: ambiguous redirect\nstatus=1\n",
+    "stderr": "",
+    "exitCode": 0
+  },
+  "7d92f004596590ef": {
+    "command": "output=$({ mkdir made 1<&word; [[ -d made ]] && echo exists >&3; } 3>out 2>&1); status=$?; printf '%s\\nstatus=%s\\n' \"${output#/bin/}\" \"$status\"; [[ -d made ]] && echo made; cat out",
+    "files": {},
+    "stdout": "bash: word: ambiguous redirect\nstatus=1\n",
+    "stderr": "",
+    "exitCode": 0
+  },
+  "86e0cebcbff68526": {
+    "command": "eval 'echo eval-out; echo eval-error >&2' > eval-file 2>&1; source sourced > source-file 2>&1; cat eval-file source-file",
+    "files": {
+      "sourced": "echo source-out; echo source-error >&2"
+    },
+    "stdout": "eval-out\neval-error\nsource-out\nsource-error\n",
+    "stderr": "",
+    "exitCode": 0
+  },
+  "955d77efc483c704": {
+    "command": "i=2; f() { echo function; }; f 1<&$((i++)); printf 'i=%s\\n' \"$i\"",
+    "files": {},
+    "stdout": "i=3\n",
+    "stderr": "function\n",
+    "exitCode": 0
+  },
+  "d1d218e128b95d86": {
+    "command": "{ echo ab; echo cd; } | tr a-z A-Z; (echo abc; echo xyz) | rev",
+    "files": {},
+    "stdout": "AB\nCD\ncba\nzyx\n",
+    "stderr": "",
+    "exitCode": 0
+  },
+  "d450e5d864ec2690": {
+    "command": "i=0; f() { printf \"body:%s\\n\" \"$i\"; } > \"def-$((i++))\"; i=4; f > call; printf \"i:%s\\n\" \"$i\"; printf \"files:\"; printf \"<%s>\" def-*; printf \"\\ndef:\"; cat def-*; printf \"call:\"; cat call",
+    "files": {},
+    "stdout": "i:5\nfiles:<def-4>\ndef:body:5\ncall:",
+    "stderr": "",
+    "exitCode": 0
+  }
+}
