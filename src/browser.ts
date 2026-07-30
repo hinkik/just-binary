@@ -50,11 +50,7 @@ export {
   type MountableFsOptions,
   type MountConfig,
 } from "./fs/mountable-fs/index.js";
-export type {
-  OutputChannels,
-  OutputCollector,
-  OutputSink,
-} from "./interpreter/output-channels.js";
+export type { OutputSink } from "./interpreter/output-channels.js";
 export type { NetworkConfig } from "./network/index.js";
 export {
   NetworkAccessDeniedError,

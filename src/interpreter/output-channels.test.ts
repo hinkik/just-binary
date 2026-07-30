@@ -4,7 +4,11 @@ import { defineCommand } from "../custom-commands.js";
 import { toText } from "../test-utils.js";
 import { decode, encode } from "../utils/bytes.js";
 import { emptyStream, fromChunks } from "../utils/stream.js";
-import { type OutputSink, withChannels } from "./output-channels.js";
+import {
+  type OutputChannels,
+  type OutputSink,
+  withChannels,
+} from "./output-channels.js";
 import type { InterpreterContext } from "./types.js";
 
 interface Deferred {
@@ -278,8 +282,8 @@ describe("root output channels", () => {
   });
 
   it("restores the prior channels when scoped execution rejects", async () => {
-    const original = new Map<number, OutputSink>();
-    const replacement = new Map<number, OutputSink>();
+    const original: OutputChannels = { bindings: new Map() };
+    const replacement: OutputChannels = { bindings: new Map() };
     const ctx = { outputChannels: original } as InterpreterContext;
     const failure = new Error("scoped failure");
 

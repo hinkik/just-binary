@@ -483,10 +483,12 @@ export async function handleCompgen(
         const stderrCollector = createCollector();
         const funcResult = await withChannels(
           ctx,
-          new Map([
-            [1, stdoutCollector],
-            [2, stderrCollector],
-          ]),
+          {
+            bindings: new Map([
+              [1, { sink: stdoutCollector }],
+              [2, { sink: stderrCollector }],
+            ]),
+          },
           () => callFunction(ctx, func, funcArgs, emptyStream()),
         );
         await pumpStream(ctx, funcResult.stderr, stderrCollector);
@@ -530,10 +532,12 @@ export async function handleCompgen(
       const stderrCollector = createCollector();
       const cmdResult = await withChannels(
         ctx,
-        new Map([
-          [1, stdoutCollector],
-          [2, stderrCollector],
-        ]),
+        {
+          bindings: new Map([
+            [1, { sink: stdoutCollector }],
+            [2, { sink: stderrCollector }],
+          ]),
+        },
         () => ctx.executeScript(ast),
       );
       await pumpStream(ctx, cmdResult.stderr, stderrCollector);

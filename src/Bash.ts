@@ -640,10 +640,12 @@ export class Bash {
         const interpreterOptions: InterpreterOptions = {
           fs: this.fs,
           commands: this.commands,
-          outputChannels: new Map([
-            [1, stdoutCollector],
-            [2, stderrCollector],
-          ]),
+          outputChannels: {
+            bindings: new Map([
+              [1, { sink: stdoutCollector }],
+              [2, { sink: stderrCollector }],
+            ]),
+          },
           limits: this.limits,
           // Nested executions (bash -c, xargs, timeout, ...) inherit this
           // execution's signal; a nested call may add its own on top.

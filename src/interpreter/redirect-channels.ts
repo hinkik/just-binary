@@ -4,15 +4,11 @@ import { envGet, envSet } from "../utils/bytes.js";
 import { failure } from "./helpers/result.js";
 import {
   CLOSED_CHANNEL_DESCRIPTOR,
-  copyChannelDescriptors,
   deletePersistentChannel,
   hasChannelBinding,
-  markTemporaryChannelOverride,
   type OutputChannels,
   type OutputSink,
   setPersistentChannel,
-  trackChannelDescriptors,
-  trackTemporaryChannelParent,
 } from "./output-channels.js";
 import {
   allocateFd,
@@ -90,11 +86,11 @@ function queuedFileSink(ctx: InterpreterContext, filePath: string): OutputSink {
 function resolveDescriptorSink(
   ctx: InterpreterContext,
   channels: OutputChannels,
-  descriptors: Map<number, string>,
   fd: number,
   visited = new Set<number>(),
 ): OutputSink | undefined {
-  const installed = channels.get(fd);
+  const binding = channels.bindings.get(fd);
+  const installed = binding?.sink;
   if (installed) {
     return installed;
   }
@@ -103,7 +99,7 @@ function resolveDescriptorSink(
   }
   visited.add(fd);
 
-  const descriptor = descriptors.get(fd);
+  const descriptor = binding?.descriptor;
   let sink: OutputSink | undefined;
   if (descriptor?.startsWith("__file__:")) {
     sink = queuedFileSink(ctx, descriptor.slice(9));
@@ -112,18 +108,12 @@ function resolveDescriptorSink(
   } else if (descriptor?.startsWith("__dupout__:")) {
     const sourceFd = Number.parseInt(descriptor.slice(11), 10);
     if (!Number.isNaN(sourceFd)) {
-      sink = resolveDescriptorSink(
-        ctx,
-        channels,
-        descriptors,
-        sourceFd,
-        visited,
-      );
+      sink = resolveDescriptorSink(ctx, channels, sourceFd, visited);
     }
   }
 
   if (sink) {
-    channels.set(fd, sink);
+    channels.bindings.set(fd, { ...binding, sink });
   }
   return sink;
 }
@@ -131,7 +121,6 @@ function resolveDescriptorSink(
 async function installFileSink(
   ctx: InterpreterContext,
   channels: OutputChannels,
-  descriptors: Map<number, string>,
   target: string,
   mode: "truncate" | "append",
   isClobber = false,
@@ -144,13 +133,14 @@ async function installFileSink(
   }
   if (target === "/dev/stdout" || target === "/dev/stderr") {
     const sourceFd = target === "/dev/stdout" ? 1 : 2;
-    const sink = channels.get(sourceFd);
+    const sourceBinding = channels.bindings.get(sourceFd);
+    const sink = sourceBinding?.sink;
     if (!sink) {
       return { error: getBadFileDescriptorError(sourceFd) };
     }
     return {
       sink,
-      descriptor: descriptors.get(sourceFd) ?? `__dupout__:${sourceFd}`,
+      descriptor: sourceBinding.descriptor ?? `__dupout__:${sourceFd}`,
     };
   }
 
@@ -195,10 +185,12 @@ function setDescriptor(
 }
 
 function snapshotDescriptor(
-  descriptors: Map<number, string>,
+  channels: OutputChannels,
   sourceFd: number,
 ): string {
-  return descriptors.get(sourceFd) ?? `__dupout__:${sourceFd}`;
+  return (
+    channels.bindings.get(sourceFd)?.descriptor ?? `__dupout__:${sourceFd}`
+  );
 }
 
 function mirrorDescriptor(
@@ -273,13 +265,17 @@ export async function compileOutputRedirections(
   redirections: RedirectionNode[],
   options: CompileOptions = {},
 ): Promise<CompiledOutputRedirections> {
-  const channels = new Map(current);
-  const descriptors = new Map(ctx.state.fileDescriptors);
-  for (const [fd, descriptor] of copyChannelDescriptors(current)) {
-    descriptors.set(fd, descriptor);
+  const channels: OutputChannels = {
+    bindings: new Map(current.bindings),
+    parent: current,
+    overrides: new Set(),
+  };
+  for (const [fd, descriptor] of ctx.state.fileDescriptors ?? []) {
+    const binding = channels.bindings.get(fd);
+    if (binding?.descriptor === undefined) {
+      channels.bindings.set(fd, { ...binding, descriptor });
+    }
   }
-  trackChannelDescriptors(channels, descriptors);
-  trackTemporaryChannelParent(channels, current);
   const legacyRedirections: RedirectionNode[] = [];
   const persistent = options.persistent === true;
 
@@ -326,7 +322,7 @@ export async function compileOutputRedirections(
         const fdVarError = await processFdVariableRedirections(
           ctx,
           [redir],
-          (fd) => descriptors.has(fd) || hasChannelBinding(channels, fd),
+          (fd) => hasChannelBinding(channels, fd),
         );
         if (fdVarError) {
           return {
@@ -338,7 +334,8 @@ export async function compileOutputRedirections(
         const fd = Number.parseInt(envGet(ctx.state.env, redir.fdVariable), 10);
         const descriptor = ctx.state.fileDescriptors?.get(fd);
         if (!Number.isNaN(fd) && descriptor !== undefined) {
-          descriptors.set(fd, descriptor);
+          const binding = channels.bindings.get(fd);
+          channels.bindings.set(fd, { ...binding, descriptor });
         }
       } else {
         legacyRedirections.push(redir);
@@ -369,7 +366,7 @@ export async function compileOutputRedirections(
       if (ctx.state.env.has(redir.fdVariable)) {
         const fd = Number.parseInt(envGet(ctx.state.env, redir.fdVariable), 10);
         if (!Number.isNaN(fd)) {
-          const activeDescriptor = descriptors.get(fd);
+          const activeDescriptor = channels.bindings.get(fd)?.descriptor;
           const reachedOwningTable = deletePersistentChannel(channels, fd);
           deleteDescriptor(
             ctx,
@@ -385,12 +382,7 @@ export async function compileOutputRedirections(
     }
 
     const fd = redir.fdVariable
-      ? allocateFd(
-          ctx,
-          (candidate) =>
-            descriptors.has(candidate) ||
-            hasChannelBinding(channels, candidate),
-        )
+      ? allocateFd(ctx, (candidate) => hasChannelBinding(channels, candidate))
       : (redir.fd ?? (redir.operator === "<&" ? 0 : 1));
     if (redir.fdVariable) {
       envSet(ctx.state.env, redir.fdVariable, String(fd));
@@ -414,7 +406,6 @@ export async function compileOutputRedirections(
       const installed = await installFileSink(
         ctx,
         channels,
-        descriptors,
         target,
         append ? "append" : "truncate",
         redir.operator === ">|",
@@ -424,12 +415,16 @@ export async function compileOutputRedirections(
       }
 
       if (redir.operator === "&>" || redir.operator === "&>>") {
-        channels.set(1, installed.sink);
-        channels.set(2, installed.sink);
-        descriptors.set(1, installed.descriptor);
-        descriptors.set(2, installed.descriptor);
-        markTemporaryChannelOverride(channels, 1);
-        markTemporaryChannelOverride(channels, 2);
+        channels.bindings.set(1, {
+          sink: installed.sink,
+          descriptor: installed.descriptor,
+        });
+        channels.bindings.set(2, {
+          sink: installed.sink,
+          descriptor: installed.descriptor,
+        });
+        channels.overrides?.add(1);
+        channels.overrides?.add(2);
         if (persistent) {
           setDescriptor(ctx, 1, installed.descriptor);
           setDescriptor(ctx, 2, installed.descriptor);
@@ -443,9 +438,11 @@ export async function compileOutputRedirections(
             installed.descriptor,
           );
         } else {
-          channels.set(fd, installed.sink);
-          descriptors.set(fd, installed.descriptor);
-          markTemporaryChannelOverride(channels, fd);
+          channels.bindings.set(fd, {
+            sink: installed.sink,
+            descriptor: installed.descriptor,
+          });
+          channels.overrides?.add(fd);
         }
         mirrorDescriptor(ctx, redir, fd, installed.descriptor, persistent);
       }
@@ -458,10 +455,11 @@ export async function compileOutputRedirections(
     }
 
     if (target === "-") {
-      const activeDescriptor = descriptors.get(fd);
-      markTemporaryChannelOverride(channels, fd);
-      channels.delete(fd);
-      descriptors.set(fd, CLOSED_CHANNEL_DESCRIPTOR);
+      const activeDescriptor = channels.bindings.get(fd)?.descriptor;
+      channels.overrides?.add(fd);
+      channels.bindings.set(fd, {
+        descriptor: CLOSED_CHANNEL_DESCRIPTOR,
+      });
       deleteDescriptor(ctx, redir, fd, persistent, activeDescriptor);
       continue;
     }
@@ -475,14 +473,9 @@ export async function compileOutputRedirections(
       ? Number.parseInt(normalizedSource, 10)
       : Number.NaN;
     if (!Number.isNaN(sourceFd)) {
-      const sourceSink = resolveDescriptorSink(
-        ctx,
-        channels,
-        descriptors,
-        sourceFd,
-      );
+      const sourceSink = resolveDescriptorSink(ctx, channels, sourceFd);
       if (!sourceSink) {
-        const sourceDescriptor = descriptors.get(sourceFd);
+        const sourceDescriptor = channels.bindings.get(sourceFd)?.descriptor;
         if (sourceDescriptor === CLOSED_CHANNEL_DESCRIPTOR) {
           return compilationError(
             channels,
@@ -492,7 +485,7 @@ export async function compileOutputRedirections(
         }
         if (redir.operator === "<&" && redir.fdVariable) {
           if (sourceDescriptor !== undefined) {
-            descriptors.set(fd, sourceDescriptor);
+            channels.bindings.set(fd, { descriptor: sourceDescriptor });
             setDescriptor(ctx, fd, sourceDescriptor);
             if (moveSource) {
               const reachedOwningTable = deletePersistentChannel(
@@ -521,12 +514,11 @@ export async function compileOutputRedirections(
           getBadFileDescriptorError(sourceFd),
         );
       }
-      const descriptor = snapshotDescriptor(descriptors, sourceFd);
+      const descriptor = snapshotDescriptor(channels, sourceFd);
       if (redir.fdVariable) {
         setPersistentChannel(channels, fd, sourceSink, descriptor);
       } else {
-        channels.set(fd, sourceSink);
-        descriptors.set(fd, descriptor);
+        channels.bindings.set(fd, { sink: sourceSink, descriptor });
       }
       mirrorDescriptor(ctx, redir, fd, descriptor, persistent);
       if (moveSource) {
@@ -534,9 +526,10 @@ export async function compileOutputRedirections(
         if (redir.fdVariable) {
           reachedOwningTable = deletePersistentChannel(channels, sourceFd);
         } else {
-          markTemporaryChannelOverride(channels, sourceFd);
-          channels.delete(sourceFd);
-          descriptors.set(sourceFd, CLOSED_CHANNEL_DESCRIPTOR);
+          channels.overrides?.add(sourceFd);
+          channels.bindings.set(sourceFd, {
+            descriptor: CLOSED_CHANNEL_DESCRIPTOR,
+          });
         }
         deleteDescriptor(
           ctx,
@@ -548,7 +541,7 @@ export async function compileOutputRedirections(
         );
       }
       if (!redir.fdVariable) {
-        markTemporaryChannelOverride(channels, fd);
+        channels.overrides?.add(fd);
       }
       continue;
     }
@@ -561,23 +554,21 @@ export async function compileOutputRedirections(
       );
     }
 
-    const installed = await installFileSink(
-      ctx,
-      channels,
-      descriptors,
-      target,
-      "truncate",
-    );
+    const installed = await installFileSink(ctx, channels, target, "truncate");
     if ("error" in installed) {
       return compilationError(channels, legacyRedirections, installed.error);
     }
     if (redir.fd == null && !redir.fdVariable) {
-      channels.set(1, installed.sink);
-      channels.set(2, installed.sink);
-      descriptors.set(1, installed.descriptor);
-      descriptors.set(2, installed.descriptor);
-      markTemporaryChannelOverride(channels, 1);
-      markTemporaryChannelOverride(channels, 2);
+      channels.bindings.set(1, {
+        sink: installed.sink,
+        descriptor: installed.descriptor,
+      });
+      channels.bindings.set(2, {
+        sink: installed.sink,
+        descriptor: installed.descriptor,
+      });
+      channels.overrides?.add(1);
+      channels.overrides?.add(2);
       if (persistent) {
         setDescriptor(ctx, 1, installed.descriptor);
         setDescriptor(ctx, 2, installed.descriptor);
@@ -591,9 +582,11 @@ export async function compileOutputRedirections(
           installed.descriptor,
         );
       } else {
-        channels.set(fd, installed.sink);
-        descriptors.set(fd, installed.descriptor);
-        markTemporaryChannelOverride(channels, fd);
+        channels.bindings.set(fd, {
+          sink: installed.sink,
+          descriptor: installed.descriptor,
+        });
+        channels.overrides?.add(fd);
       }
       mirrorDescriptor(ctx, redir, fd, installed.descriptor, persistent);
     }
@@ -622,13 +615,9 @@ export async function applyPersistentOutputRedirections(
     return compiled;
   }
 
-  liveChannels.clear();
-  for (const [fd, sink] of compiled.channels) {
-    liveChannels.set(fd, sink);
+  liveChannels.bindings.clear();
+  for (const [fd, binding] of compiled.channels.bindings) {
+    liveChannels.bindings.set(fd, { ...binding });
   }
-  trackChannelDescriptors(
-    liveChannels,
-    copyChannelDescriptors(compiled.channels),
-  );
   return { ...compiled, channels: liveChannels };
 }

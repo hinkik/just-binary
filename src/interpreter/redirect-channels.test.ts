@@ -62,10 +62,12 @@ function createContext(
 }
 
 function baseChannels(stdout: OutputSink, stderr: OutputSink): OutputChannels {
-  return new Map([
-    [1, stdout],
-    [2, stderr],
-  ]);
+  return {
+    bindings: new Map([
+      [1, { sink: stdout }],
+      [2, { sink: stderr }],
+    ]),
+  };
 }
 
 describe("output redirect channel compilation", () => {
@@ -82,8 +84,8 @@ describe("output redirect channel compilation", () => {
     );
 
     expect({
-      compiledHasFd2: compiled.channels.has(2),
-      inputHasFd2: channels.has(2),
+      compiledHasFd2: compiled.channels.bindings.get(2)?.sink !== undefined,
+      inputHasFd2: channels.bindings.get(2)?.sink !== undefined,
     }).toEqual({ compiledHasFd2: false, inputHasFd2: true });
   });
 
@@ -152,7 +154,7 @@ describe("output redirect channel compilation", () => {
     expect({
       freshTable: compiled.channels !== channels,
       legacyRedirections: compiled.legacyRedirections,
-      outputInstalled: compiled.channels.has(5),
+      outputInstalled: compiled.channels.bindings.get(5)?.sink !== undefined,
     }).toEqual({
       freshTable: true,
       legacyRedirections: input,
@@ -173,8 +175,12 @@ describe("output redirect channel compilation", () => {
 
     expect({
       legacyRedirections: compiled.legacyRedirections,
-      stdoutUsesOriginalStderr: compiled.channels.get(1) === channels.get(2),
-      stderrUsesOriginalStderr: compiled.channels.get(2) === channels.get(2),
+      stdoutUsesOriginalStderr:
+        compiled.channels.bindings.get(1)?.sink ===
+        channels.bindings.get(2)?.sink,
+      stderrUsesOriginalStderr:
+        compiled.channels.bindings.get(2)?.sink ===
+        channels.bindings.get(2)?.sink,
     }).toEqual({
       legacyRedirections: [],
       stdoutUsesOriginalStderr: true,
@@ -196,8 +202,8 @@ describe("output redirect channel compilation", () => {
 
     expect({
       values: ["source", "copy"].map((name) => envGet(ctx.state.env, name)),
-      sourceOpen: compiled.channels.has(10),
-      copyOpen: compiled.channels.has(11),
+      sourceOpen: compiled.channels.bindings.get(10)?.sink !== undefined,
+      copyOpen: compiled.channels.bindings.get(11)?.sink !== undefined,
       descriptors: [...(ctx.state.fileDescriptors ?? new Map()).entries()],
     }).toEqual({
       values: ["10", "11"],
@@ -218,7 +224,8 @@ describe("output redirect channel compilation", () => {
     );
     expect({
       copyIsRedirectedStdout:
-        ordered.channels.get(10) === ordered.channels.get(1),
+        ordered.channels.bindings.get(10)?.sink ===
+        ordered.channels.bindings.get(1)?.sink,
       descriptor: orderedCtx.state.fileDescriptors?.get(10),
     }).toEqual({
       copyIsRedirectedStdout: true,
@@ -241,7 +248,9 @@ describe("output redirect channel compilation", () => {
       values: ["out", "app", "copy"].map((name) => envGet(ctx.state.env, name)),
       nextFd: ctx.state.nextFd,
       descriptors: [...(ctx.state.fileDescriptors ?? new Map()).entries()],
-      copyIsStdout: allocated.channels.get(12) === channels.get(1),
+      copyIsStdout:
+        allocated.channels.bindings.get(12)?.sink ===
+        channels.bindings.get(1)?.sink,
     }).toEqual({
       values: ["10", "11", "12"],
       nextFd: 13,
@@ -260,7 +269,8 @@ describe("output redirect channel compilation", () => {
     );
     expect({
       sameLiveTable: persistent.channels === live,
-      stdoutAndStderrAlias: live.get(1) === live.get(2),
+      stdoutAndStderrAlias:
+        live.bindings.get(1)?.sink === live.bindings.get(2)?.sink,
       legacy: persistent.legacyRedirections,
       descriptors: [...(ctx.state.fileDescriptors ?? new Map()).entries()],
     }).toEqual({

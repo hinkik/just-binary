@@ -784,7 +784,10 @@ export class Interpreter {
             } else {
               stdinBytes = encode(fdContent);
             }
-          } else if (sourceFd >= 3 && !this.ctx.outputChannels.has(sourceFd)) {
+          } else if (
+            sourceFd >= 3 &&
+            !this.ctx.outputChannels.bindings.get(sourceFd)?.sink
+          ) {
             for (const [name, value] of tempAssignments) {
               if (value === undefined) this.ctx.state.env.delete(name);
               else this.ctx.state.env.set(name, value);
@@ -794,7 +797,7 @@ export class Interpreter {
         } else if (
           !Number.isNaN(sourceFd) &&
           sourceFd >= 3 &&
-          !this.ctx.outputChannels.has(sourceFd)
+          !this.ctx.outputChannels.bindings.get(sourceFd)?.sink
         ) {
           for (const [name, value] of tempAssignments) {
             if (value === undefined) this.ctx.state.env.delete(name);

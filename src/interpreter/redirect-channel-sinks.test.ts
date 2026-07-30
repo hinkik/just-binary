@@ -51,10 +51,12 @@ function createContext(
 }
 
 function baseChannels(stdout: OutputSink, stderr: OutputSink): OutputChannels {
-  return new Map([
-    [1, stdout],
-    [2, stderr],
-  ]);
+  return {
+    bindings: new Map([
+      [1, { sink: stdout }],
+      [2, { sink: stderr }],
+    ]),
+  };
 }
 
 describe("output redirect channel sinks", () => {
@@ -74,14 +76,16 @@ describe("output redirect channel sinks", () => {
     expect({
       error: compiled.error,
       installed: await fs.readFileText("/out"),
-      originalUnchanged: original.get(1) !== compiled.channels.get(1),
+      originalUnchanged:
+        original.bindings.get(1)?.sink !==
+        compiled.channels.bindings.get(1)?.sink,
     }).toEqual({
       error: undefined,
       installed: "",
       originalUnchanged: true,
     });
 
-    const sink = compiled.channels.get(1);
+    const sink = compiled.channels.bindings.get(1)?.sink;
     await sink?.write(encode("first"));
     expect(await fs.readFileText("/out")).toBe("first");
     await sink?.write(encode("-second"));
@@ -100,7 +104,7 @@ describe("output redirect channel sinks", () => {
       channels,
       redirects(": >>out"),
     );
-    const sink = compiled.channels.get(1);
+    const sink = compiled.channels.bindings.get(1)?.sink;
 
     const first = sink?.write(encode("-A"));
     const second = sink?.write(encode("-B"));
@@ -122,9 +126,15 @@ describe("output redirect channel sinks", () => {
       original,
       redirects(": >shared 2>&1"),
     );
-    expect(shared.channels.get(2)).toBe(shared.channels.get(1));
-    const sharedOne = shared.channels.get(1)?.write(encode("one"));
-    const sharedTwo = shared.channels.get(2)?.write(encode("-two"));
+    expect(shared.channels.bindings.get(2)?.sink).toBe(
+      shared.channels.bindings.get(1)?.sink,
+    );
+    const sharedOne = shared.channels.bindings
+      .get(1)
+      ?.sink?.write(encode("one"));
+    const sharedTwo = shared.channels.bindings
+      .get(2)
+      ?.sink?.write(encode("-two"));
     await Promise.all([sharedOne, sharedTwo]);
 
     const split = await compileOutputRedirections(
@@ -133,18 +143,20 @@ describe("output redirect channel sinks", () => {
       redirects(": 2>&1 >split"),
     );
     expect({
-      splitStderrIsOldStdout: split.channels.get(2) === stdoutSink,
-      splitStdoutIsOldStdout: split.channels.get(1) === stdoutSink,
-      originalStdout: original.get(1) === stdoutSink,
-      originalStderr: original.get(2) === stderrSink,
+      splitStderrIsOldStdout:
+        split.channels.bindings.get(2)?.sink === stdoutSink,
+      splitStdoutIsOldStdout:
+        split.channels.bindings.get(1)?.sink === stdoutSink,
+      originalStdout: original.bindings.get(1)?.sink === stdoutSink,
+      originalStderr: original.bindings.get(2)?.sink === stderrSink,
     }).toEqual({
       splitStderrIsOldStdout: true,
       splitStdoutIsOldStdout: false,
       originalStdout: true,
       originalStderr: true,
     });
-    await split.channels.get(2)?.write(encode("outside"));
-    await split.channels.get(1)?.write(encode("inside"));
+    await split.channels.bindings.get(2)?.sink?.write(encode("outside"));
+    await split.channels.bindings.get(1)?.sink?.write(encode("inside"));
 
     expect({
       shared: await fs.readFileText("/shared"),
@@ -173,14 +185,14 @@ describe("output redirect channel sinks", () => {
     );
 
     expect({
-      stdoutSnapshot: compiled.channels.get(3) === stdoutSink,
-      stderrSnapshot: compiled.channels.get(4) === stderrSink,
+      stdoutSnapshot: compiled.channels.bindings.get(3)?.sink === stdoutSink,
+      stderrSnapshot: compiled.channels.bindings.get(4)?.sink === stderrSink,
     }).toEqual({ stdoutSnapshot: true, stderrSnapshot: true });
-    await compiled.channels.get(5)?.write(encode("discarded"));
+    await compiled.channels.bindings.get(5)?.sink?.write(encode("discarded"));
 
     let fullError: unknown;
     try {
-      await compiled.channels.get(6)?.write(encode("fails"));
+      await compiled.channels.bindings.get(6)?.sink?.write(encode("fails"));
     } catch (error) {
       fullError = error;
     }

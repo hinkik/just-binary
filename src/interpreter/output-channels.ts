@@ -13,60 +13,29 @@ export interface OutputSink {
   write(chunk: Uint8Array): void | Promise<void>;
 }
 
-export type OutputChannels = Map<number, OutputSink>;
+/** One fd's binding. An absent sink with a descriptor records a closed fd. */
+interface ChannelBinding {
+  sink?: OutputSink;
+  descriptor?: string;
+}
 
-export interface OutputCollector extends OutputSink {
+export interface OutputChannels {
+  bindings: Map<number, ChannelBinding>;
+  /** Enclosing table when this one is a temporary redirection scope. */
+  parent?: OutputChannels;
+  /** Fds whose bindings this temporary scope overrode. */
+  overrides?: Set<number>;
+}
+
+interface OutputCollector extends OutputSink {
   /** Valid after all writes for the execution have settled. */
   stream(): ByteStream;
 }
 
 export const CLOSED_CHANNEL_DESCRIPTOR = "__closed__";
 
-const channelDescriptors = new WeakMap<OutputChannels, Map<number, string>>();
-const temporaryChannelParents = new WeakMap<OutputChannels, OutputChannels>();
-const temporaryChannelOverrides = new WeakMap<OutputChannels, Set<number>>();
-
-function descriptorsFor(channels: OutputChannels): Map<number, string> {
-  let descriptors = channelDescriptors.get(channels);
-  if (!descriptors) {
-    descriptors = new Map();
-    channelDescriptors.set(channels, descriptors);
-  }
-  return descriptors;
-}
-
-export function copyChannelDescriptors(
-  channels: OutputChannels,
-): Map<number, string> {
-  return new Map(channelDescriptors.get(channels));
-}
-
-export function trackChannelDescriptors(
-  channels: OutputChannels,
-  descriptors: Map<number, string>,
-): void {
-  channelDescriptors.set(channels, descriptors);
-}
-
-export function trackTemporaryChannelParent(
-  channels: OutputChannels,
-  parent: OutputChannels,
-): void {
-  temporaryChannelParents.set(channels, parent);
-  temporaryChannelOverrides.set(channels, new Set());
-}
-
-export function markTemporaryChannelOverride(
-  channels: OutputChannels,
-  fd: number,
-): void {
-  temporaryChannelOverrides.get(channels)?.add(fd);
-}
-
 export function cloneOutputChannels(channels: OutputChannels): OutputChannels {
-  const clone = new Map(channels);
-  trackChannelDescriptors(clone, copyChannelDescriptors(channels));
-  return clone;
+  return { bindings: new Map(channels.bindings) };
 }
 
 export function overrideChannelSink(
@@ -74,8 +43,7 @@ export function overrideChannelSink(
   fd: number,
   sink: OutputSink,
 ): void {
-  channels.set(fd, sink);
-  channelDescriptors.get(channels)?.delete(fd);
+  channels.bindings.set(fd, { sink });
 }
 
 export function hasChannelBinding(
@@ -84,10 +52,10 @@ export function hasChannelBinding(
 ): boolean {
   let current: OutputChannels | undefined = channels;
   while (current) {
-    if (current.has(fd) || channelDescriptors.get(current)?.has(fd)) {
+    if (current.bindings.has(fd)) {
       return true;
     }
-    current = temporaryChannelParents.get(current);
+    current = current.parent;
   }
   return false;
 }
@@ -95,18 +63,11 @@ export function hasChannelBinding(
 export function hasNonStandardChannelBinding(
   channels: OutputChannels,
 ): boolean {
-  if (Array.from(channels.keys()).some((fd) => fd >= 3)) {
-    return true;
-  }
-  return Array.from(channelDescriptors.get(channels)?.keys() ?? []).some(
-    (fd) => fd >= 3,
-  );
+  return Array.from(channels.bindings.keys()).some((fd) => fd >= 3);
 }
 
 export function isChannelClosed(channels: OutputChannels, fd: number): boolean {
-  return (
-    channelDescriptors.get(channels)?.get(fd) === CLOSED_CHANNEL_DESCRIPTOR
-  );
+  return channels.bindings.get(fd)?.descriptor === CLOSED_CHANNEL_DESCRIPTOR;
 }
 
 export function setPersistentChannel(
@@ -117,9 +78,8 @@ export function setPersistentChannel(
 ): void {
   let current: OutputChannels | undefined = channels;
   while (current) {
-    current.set(fd, sink);
-    descriptorsFor(current).set(fd, descriptor);
-    current = temporaryChannelParents.get(current);
+    current.bindings.set(fd, { sink, descriptor });
+    current = current.parent;
   }
 }
 
@@ -129,14 +89,12 @@ export function deletePersistentChannel(
 ): boolean {
   let current: OutputChannels | undefined = channels;
   while (current) {
-    const stopAfterCurrent =
-      temporaryChannelOverrides.get(current)?.has(fd) === true;
-    current.delete(fd);
-    descriptorsFor(current).set(fd, CLOSED_CHANNEL_DESCRIPTOR);
+    const stopAfterCurrent = current.overrides?.has(fd) === true;
+    current.bindings.set(fd, { descriptor: CLOSED_CHANNEL_DESCRIPTOR });
     if (stopAfterCurrent) {
       return false;
     }
-    current = temporaryChannelParents.get(current);
+    current = current.parent;
   }
   return true;
 }
@@ -230,13 +188,13 @@ export async function pumpResult(
     pumpStream(
       ctx,
       result.stdout,
-      ctx.outputChannels.get(1) ?? discardSink,
+      ctx.outputChannels.bindings.get(1)?.sink ?? discardSink,
       checkSignal,
     ),
     pumpStream(
       ctx,
       result.stderr,
-      ctx.outputChannels.get(2) ?? discardSink,
+      ctx.outputChannels.bindings.get(2)?.sink ?? discardSink,
       checkSignal,
     ),
   ]);
@@ -288,8 +246,18 @@ export async function pumpErrorStreams(
   const stdout = error.stdout;
   const stderr = error.stderr;
   const settled = await Promise.allSettled([
-    pumpStream(ctx, stdout, ctx.outputChannels.get(1) ?? discardSink, false),
-    pumpStream(ctx, stderr, ctx.outputChannels.get(2) ?? discardSink, false),
+    pumpStream(
+      ctx,
+      stdout,
+      ctx.outputChannels.bindings.get(1)?.sink ?? discardSink,
+      false,
+    ),
+    pumpStream(
+      ctx,
+      stderr,
+      ctx.outputChannels.bindings.get(2)?.sink ?? discardSink,
+      false,
+    ),
   ]);
   error.stdout = emptyStream();
   error.stderr = emptyStream();
