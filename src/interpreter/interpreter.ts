@@ -106,6 +106,7 @@ import {
   parseRwFdContent,
 } from "./helpers/word-matching.js";
 import { traceSimpleCommand } from "./helpers/xtrace.js";
+import { type OutputChannels, pumpResult } from "./output-channels.js";
 import { executePipeline as executePipelineHelper } from "./pipeline-execution.js";
 import {
   applyRedirections,
@@ -189,6 +190,7 @@ function wordCanUseBytesPath(ctx: InterpreterContext, word: WordNode): boolean {
 export interface InterpreterOptions {
   fs: IFileSystem;
   commands: CommandRegistry;
+  outputChannels: OutputChannels;
   limits: Required<ExecutionLimits>;
   exec: (
     script: string,
@@ -219,6 +221,7 @@ export class Interpreter {
       state,
       fs: options.fs,
       commands: options.commands,
+      outputChannels: options.outputChannels,
       limits: options.limits,
       execFn: options.exec,
       executeScript: this.executeScript.bind(this),
@@ -262,6 +265,12 @@ export class Interpreter {
       }
     }
     return env;
+  }
+
+  async executeRootScript(node: ScriptNode): Promise<ExecResult> {
+    const result = await this.executeScript(node);
+    checkAborted(this.ctx.signal, result.stdout, result.stderr);
+    return pumpResult(this.ctx, result);
   }
 
   async executeScript(node: ScriptNode): Promise<ExecResult> {

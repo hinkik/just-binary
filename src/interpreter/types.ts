@@ -18,6 +18,7 @@ import type {
   TraceCallback,
 } from "../types.js";
 import type { ByteStream } from "../utils/stream.js";
+import type { OutputChannels } from "./output-channels.js";
 
 /**
  * Completion specification for a command, set by the `complete` builtin.
@@ -394,6 +395,7 @@ export interface InterpreterContext {
   state: InterpreterState;
   fs: IFileSystem;
   commands: CommandRegistry;
+  outputChannels: OutputChannels;
   /** Execution limits configuration */
   limits: Required<ExecutionLimits>;
   execFn: (

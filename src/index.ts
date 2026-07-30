@@ -51,6 +51,11 @@ export {
   AbortExecutionError,
   checkAborted,
 } from "./interpreter/errors.js";
+export type {
+  OutputChannels,
+  OutputCollector,
+  OutputSink,
+} from "./interpreter/output-channels.js";
 export type { NetworkConfig } from "./network/index.js";
 export {
   NetworkAccessDeniedError,

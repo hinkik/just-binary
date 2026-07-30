@@ -59,6 +59,7 @@ function createMockCtx(): InterpreterContext {
     state,
     fs: {} as unknown as InterpreterContext["fs"],
     commands: {} as unknown as InterpreterContext["commands"],
+    outputChannels: new Map(),
     limits: {} as unknown as InterpreterContext["limits"],
     execFn: async () => ({
       stdout: emptyStream(),

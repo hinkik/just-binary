@@ -40,6 +40,10 @@ import {
   type InterpreterOptions,
   type InterpreterState,
 } from "./interpreter/index.js";
+import {
+  createCollector,
+  type OutputSink,
+} from "./interpreter/output-channels.js";
 import { type ExecutionLimits, resolveLimits } from "./limits.js";
 import {
   createSecureFetch,
@@ -66,6 +70,7 @@ import { EMPTY, envSet } from "./utils/bytes.js";
 import {
   type ByteStream,
   collectText,
+  concatStreams,
   emptyStream,
   fromString,
   teeStream,
@@ -221,6 +226,16 @@ export interface ExecOptions {
    * Wrap a Uint8Array with `fromBytes(...)` or a string with `fromString(...)`.
    */
   stdin?: ByteStream;
+  /**
+   * Optional stdout observer. Writes are awaited, but the returned stdout
+   * stream is still complete and unaffected by the observer.
+   */
+  stdoutSink?: OutputSink;
+  /**
+   * Optional stderr observer. Writes are awaited, but the returned stderr
+   * stream is still complete and unaffected by the observer.
+   */
+  stderrSink?: OutputSink;
   /**
    * Abort signal to cancel this execution.
    *
@@ -519,6 +534,27 @@ export class Bash {
       };
     }
 
+    const sinkFailures = new Set<unknown>();
+    const trackSink = (
+      sink: OutputSink | undefined,
+    ): OutputSink | undefined => {
+      if (!sink) {
+        return undefined;
+      }
+      return {
+        async write(chunk) {
+          try {
+            await sink.write(chunk);
+          } catch (error) {
+            sinkFailures.add(error);
+            throw error;
+          }
+        },
+      };
+    };
+    const stdoutCollector = createCollector(trackSink(options?.stdoutSink));
+    const stderrCollector = createCollector(trackSink(options?.stderrSink));
+
     // Log command execution
     this.logger?.info("exec", { command: commandLine });
 
@@ -604,6 +640,10 @@ export class Bash {
         const interpreterOptions: InterpreterOptions = {
           fs: this.fs,
           commands: this.commands,
+          outputChannels: new Map([
+            [1, stdoutCollector],
+            [2, stderrCollector],
+          ]),
           limits: this.limits,
           // Nested executions (bash -c, xargs, timeout, ...) inherit this
           // execution's signal; a nested call may add its own on top.
@@ -620,9 +660,13 @@ export class Bash {
         };
 
         const interpreter = new Interpreter(interpreterOptions, execState);
-        const result = await interpreter.executeScript(ast);
+        const result = await interpreter.executeRootScript(ast);
         // Interpreter always sets env, assert it for type safety
-        return this.logResult(result as BashExecResult);
+        return this.logResult({
+          ...result,
+          stdout: stdoutCollector.stream(),
+          stderr: stderrCollector.stream(),
+        } as BashExecResult);
       };
 
       // If defense-in-depth is enabled, run within the protected context
@@ -631,6 +675,9 @@ export class Bash {
       }
       return await executeScript();
     } catch (error) {
+      if (sinkFailures.has(error)) {
+        throw error;
+      }
       // ExitError propagates from 'exit' builtin (including via eval/source)
       if (error instanceof ExitError) {
         return this.logResult({
@@ -662,8 +709,8 @@ export class Bash {
       // reason-derived exit code (130/137/143/124) instead of 126.
       if (error instanceof AbortExecutionError) {
         return this.logResult({
-          stdout: error.stdout,
-          stderr: error.stderr,
+          stdout: concatStreams(stdoutCollector.stream(), error.stdout),
+          stderr: concatStreams(stderrCollector.stream(), error.stderr),
           exitCode: error.exitCode,
           env: mapToRecordWithExtras(this.state.env, options?.env),
         });
