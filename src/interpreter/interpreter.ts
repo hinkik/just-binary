@@ -28,12 +28,14 @@ import { mapToRecord } from "../helpers/env.js";
 import type { ExecutionLimits } from "../limits.js";
 import type { SecureFetch } from "../network/index.js";
 import { ParseException } from "../parser/types.js";
+import type { ProcessTable } from "../process/process-table.js";
 import type {
   CommandRegistry,
   ExecResult,
   FeatureCoverageWriter,
   TraceCallback,
 } from "../types.js";
+import { combineAbortSignals } from "../utils/abort.js";
 import {
   concat,
   decode,
@@ -110,6 +112,8 @@ import {
 } from "./helpers/word-matching.js";
 import { traceSimpleCommand } from "./helpers/xtrace.js";
 import {
+  cloneOutputChannels,
+  createCollector,
   executeAndPumpResult,
   isChannelClosed,
   type OutputChannels,
@@ -202,6 +206,7 @@ function wordCanUseBytesPath(ctx: InterpreterContext, word: WordNode): boolean {
 export interface InterpreterOptions {
   fs: IFileSystem;
   commands: CommandRegistry;
+  processes: ProcessTable;
   outputChannels: OutputChannels;
   limits: Required<ExecutionLimits>;
   exec: (
@@ -233,6 +238,7 @@ export class Interpreter {
       state,
       fs: options.fs,
       commands: options.commands,
+      processes: options.processes,
       outputChannels: options.outputChannels,
       reportedDiagnostics: new WeakSet(),
       limits: options.limits,
@@ -439,6 +445,225 @@ export class Interpreter {
     ) {
       await writeToChannel(this.ctx, 2, `${node.sourceText}\n`);
     }
+
+    if (node.background) {
+      if (
+        this.ctx.processes.runningCount >= this.ctx.limits.maxConcurrentJobs
+      ) {
+        this.ctx.processes.reportExecutionLimit();
+        await writeToChannel(
+          this.ctx,
+          2,
+          `bash: maximum concurrent jobs (${this.ctx.limits.maxConcurrentJobs}) exceeded\n`,
+        );
+        return failure("", 1);
+      }
+
+      const parentState = this.ctx.state;
+      const jobState: InterpreterState = {
+        ...parentState,
+        env: new Map(
+          [...parentState.env].map(([name, value]) => [name, value.slice()]),
+        ),
+        functions: new Map(parentState.functions),
+        localScopes: parentState.localScopes.map(
+          (scope) =>
+            new Map([...scope].map(([name, value]) => [name, value?.slice()])),
+        ),
+        options: { ...parentState.options },
+        shoptOptions: { ...parentState.shoptOptions },
+        lastArg: parentState.lastArg.slice(),
+        groupStdin: undefined,
+        ...(parentState.fileDescriptors
+          ? { fileDescriptors: new Map(parentState.fileDescriptors) }
+          : {}),
+        ...(parentState.readonlyVars
+          ? { readonlyVars: new Set(parentState.readonlyVars) }
+          : {}),
+        ...(parentState.associativeArrays
+          ? { associativeArrays: new Set(parentState.associativeArrays) }
+          : {}),
+        ...(parentState.namerefs
+          ? { namerefs: new Set(parentState.namerefs) }
+          : {}),
+        ...(parentState.boundNamerefs
+          ? { boundNamerefs: new Set(parentState.boundNamerefs) }
+          : {}),
+        ...(parentState.invalidNamerefs
+          ? { invalidNamerefs: new Set(parentState.invalidNamerefs) }
+          : {}),
+        ...(parentState.integerVars
+          ? { integerVars: new Set(parentState.integerVars) }
+          : {}),
+        ...(parentState.lowercaseVars
+          ? { lowercaseVars: new Set(parentState.lowercaseVars) }
+          : {}),
+        ...(parentState.uppercaseVars
+          ? { uppercaseVars: new Set(parentState.uppercaseVars) }
+          : {}),
+        ...(parentState.exportedVars
+          ? { exportedVars: new Set(parentState.exportedVars) }
+          : {}),
+        ...(parentState.tempExportedVars
+          ? { tempExportedVars: new Set(parentState.tempExportedVars) }
+          : {}),
+        ...(parentState.localExportedVars
+          ? {
+              localExportedVars: parentState.localExportedVars.map(
+                (names) => new Set(names),
+              ),
+            }
+          : {}),
+        ...(parentState.declaredVars
+          ? { declaredVars: new Set(parentState.declaredVars) }
+          : {}),
+        ...(parentState.localVarDepth
+          ? { localVarDepth: new Map(parentState.localVarDepth) }
+          : {}),
+        ...(parentState.localVarStack
+          ? {
+              localVarStack: new Map(
+                [...parentState.localVarStack].map(([name, entries]) => [
+                  name,
+                  entries.map((entry) => ({
+                    ...entry,
+                    value: entry.value?.slice(),
+                  })),
+                ]),
+              ),
+            }
+          : {}),
+        ...(parentState.fullyUnsetLocals
+          ? { fullyUnsetLocals: new Map(parentState.fullyUnsetLocals) }
+          : {}),
+        ...(parentState.tempEnvBindings
+          ? {
+              tempEnvBindings: parentState.tempEnvBindings.map(
+                (bindings) =>
+                  new Map(
+                    [...bindings].map(([name, value]) => [
+                      name,
+                      value?.slice(),
+                    ]),
+                  ),
+              ),
+            }
+          : {}),
+        ...(parentState.mutatedTempEnvVars
+          ? {
+              mutatedTempEnvVars: new Set(parentState.mutatedTempEnvVars),
+            }
+          : {}),
+        ...(parentState.accessedTempEnvVars
+          ? {
+              accessedTempEnvVars: new Set(parentState.accessedTempEnvVars),
+            }
+          : {}),
+        ...(parentState.callLineStack
+          ? { callLineStack: [...parentState.callLineStack] }
+          : {}),
+        ...(parentState.funcNameStack
+          ? { funcNameStack: [...parentState.funcNameStack] }
+          : {}),
+        ...(parentState.sourceStack
+          ? { sourceStack: [...parentState.sourceStack] }
+          : {}),
+        ...(parentState.completionSpecs
+          ? { completionSpecs: new Map(parentState.completionSpecs) }
+          : {}),
+        ...(parentState.directoryStack
+          ? { directoryStack: [...parentState.directoryStack] }
+          : {}),
+        ...(parentState.hashTable
+          ? { hashTable: new Map(parentState.hashTable) }
+          : {}),
+      };
+      const processes = this.ctx.processes;
+      const inheritedChannels = this.ctx.outputChannels;
+      let pid = 0;
+      const jobChannels = cloneOutputChannels(
+        inheritedChannels,
+        (fd, inheritedSink) => {
+          if (!processes.observesOutput) {
+            return inheritedSink;
+          }
+          return createCollector(
+            {
+              write(chunk) {
+                processes.observeOutput(pid, fd, chunk);
+                return inheritedSink.write(chunk);
+              },
+            },
+            false,
+          );
+        },
+      );
+      const command = node.sourceText?.trim() || "<background job>";
+
+      try {
+        pid = processes.start(command, async (jobPid, jobSignal) => {
+          jobState.bashPid = jobPid;
+          jobState.nextVirtualPid = Math.max(
+            jobState.nextVirtualPid,
+            jobPid + 1,
+          );
+          const signal = combineAbortSignals(this.ctx.signal, jobSignal);
+          const child = new Interpreter(
+            {
+              fs: this.ctx.fs,
+              commands: this.ctx.commands,
+              processes,
+              outputChannels: jobChannels,
+              limits: this.ctx.limits,
+              exec: (script, options) =>
+                this.ctx.execFn(script, {
+                  ...options,
+                  signal: combineAbortSignals(signal, options?.signal),
+                }),
+              fetch: this.ctx.fetch,
+              sleep: this.ctx.sleep,
+              trace: this.ctx.trace,
+              coverage: this.ctx.coverage,
+              signal,
+            },
+            jobState,
+          );
+
+          try {
+            const result = await child.executeRootScript({
+              type: "Script",
+              statements: [
+                { ...node, background: false, sourceText: undefined },
+              ],
+            });
+            return result.exitCode;
+          } catch (error) {
+            if (error instanceof AbortExecutionError) {
+              return error.exitCode;
+            }
+            if (error instanceof ExitError) {
+              return error.exitCode;
+            }
+            if (error instanceof ExecutionLimitError) {
+              processes.reportExecutionLimit();
+              return ExecutionLimitError.EXIT_CODE;
+            }
+            throw error;
+          }
+        });
+      } catch (error) {
+        await writeToChannel(
+          this.ctx,
+          2,
+          `bash: ${error instanceof Error ? error.message : String(error)}\n`,
+        );
+        return failure("", 1);
+      }
+
+      this.ctx.state.lastBackgroundPid = pid;
+      return ok();
+    }
+
     let exitCode = 0;
     let lastExecutedIndex = -1;
     let lastPipelineNegated = false;

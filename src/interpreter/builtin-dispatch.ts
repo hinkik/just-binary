@@ -30,6 +30,8 @@ import {
   handleGetopts,
   handleHash,
   handleHelp,
+  handleJobs,
+  handleKill,
   handleLet,
   handleLocal,
   handleMapfile,
@@ -42,6 +44,7 @@ import {
   handleShift,
   handleSource,
   handleUnset,
+  handleWait,
 } from "./builtins/index.js";
 import { handleShopt } from "./builtins/shopt.js";
 import {
@@ -238,8 +241,13 @@ export async function dispatchBuiltin(
     return runCommand(decode(cmd), rest, [], stdin, false, false, -1);
   }
   if (commandName === "wait") {
-    // wait - wait for background jobs (stub: no-op in this context)
-    return ok();
+    return await handleWait(ctx, strArgs);
+  }
+  if (commandName === "jobs") {
+    return handleJobs(ctx, strArgs);
+  }
+  if (commandName === "kill") {
+    return handleKill(ctx, strArgs);
   }
   if (commandName === "type") {
     return await handleTypeHelper(

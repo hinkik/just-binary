@@ -232,7 +232,7 @@ const content = await sandbox.readFile("/app/data.json");
 // Create directories
 await sandbox.mkDir("/app/logs", { recursive: true });
 
-// Clean up (no-op for Bash, but API-compatible)
+// Stop running commands and clean up
 await sandbox.stop();
 ```
 

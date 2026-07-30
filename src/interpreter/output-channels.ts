@@ -24,7 +24,7 @@ export interface OutputSink {
 }
 
 /** One fd's binding. An absent sink with a descriptor records a closed fd. */
-interface ChannelBinding {
+export interface ChannelBinding {
   sink?: OutputSink;
   descriptor?: string;
 }
@@ -40,14 +40,41 @@ export interface OutputChannels {
 export interface OutputCollector extends OutputSink {
   /** Decode the accumulated bytes without consuming the collector. */
   text(): string;
-  /** Valid after all writes for the execution have settled. */
+  /**
+   * Snapshot the accumulated bytes and stop retaining future writes.
+   *
+   * Future writes are still forwarded. This matters when a background job
+   * inherits a root collector and outlives the Bash.exec() that returned it.
+   */
   stream(): ByteStream;
+  /** Bytes currently retained for the next snapshot. */
+  readonly retainedByteLength: number;
 }
 
 export const CLOSED_CHANNEL_DESCRIPTOR = "__closed__";
 
-export function cloneOutputChannels(channels: OutputChannels): OutputChannels {
-  return { bindings: new Map(channels.bindings) };
+export function cloneOutputChannels(
+  channels: OutputChannels,
+  wrapSink?: (fd: number, sink: OutputSink) => OutputSink,
+): OutputChannels {
+  if (!wrapSink) {
+    return { bindings: new Map(channels.bindings) };
+  }
+
+  const bindings = new Map<number, ChannelBinding>();
+  for (const [fd, binding] of channels.bindings) {
+    bindings.set(fd, {
+      ...binding,
+      ...(binding.sink ? { sink: wrapSink(fd, binding.sink) } : {}),
+    });
+  }
+  return {
+    bindings,
+    ...(channels.parent
+      ? { parent: cloneOutputChannels(channels.parent, wrapSink) }
+      : {}),
+    ...(channels.overrides ? { overrides: new Set(channels.overrides) } : {}),
+  };
 }
 
 export function overrideChannelSink(
@@ -155,13 +182,21 @@ export async function writeToChannel(
   }
 }
 
-export function createCollector(forward?: OutputSink): OutputCollector {
-  const chunks: Uint8Array[] = [];
+export function createCollector(
+  forward?: OutputSink,
+  retain = true,
+): OutputCollector {
+  let chunks: Uint8Array[] = [];
+  let retainedByteLength = 0;
+  let retaining = retain;
   let writeChain = Promise.resolve();
 
   return {
     write(chunk: Uint8Array): void | Promise<void> {
-      chunks.push(forward ? chunk.slice() : chunk);
+      if (retaining) {
+        chunks.push(forward ? chunk.slice() : chunk);
+        retainedByteLength += chunk.length;
+      }
       if (!forward) {
         return;
       }
@@ -181,7 +216,14 @@ export function createCollector(forward?: OutputSink): OutputCollector {
       return output + decoder.decode();
     },
     stream(): ByteStream {
-      return fromChunks(chunks);
+      const snapshot = chunks;
+      chunks = [];
+      retainedByteLength = 0;
+      retaining = false;
+      return fromChunks(snapshot);
+    },
+    get retainedByteLength(): number {
+      return retainedByteLength;
     },
   };
 }

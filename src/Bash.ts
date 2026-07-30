@@ -53,6 +53,7 @@ import {
 } from "./network/index.js";
 import { LexerError } from "./parser/lexer.js";
 import { type ParseException, parse } from "./parser/parser.js";
+import { ProcessTable } from "./process/process-table.js";
 import {
   DefenseInDepthBox,
   SecurityViolationError,
@@ -72,6 +73,10 @@ import { type ByteStream, emptyStream, fromString } from "./utils/stream.js";
 
 export type { ExecutionLimits } from "./limits.js";
 
+// Captured before DefenseInDepthBox activates. Internal scheduling must remain
+// available while user code is prevented from reaching timer globals.
+const scheduleMacrotask = globalThis.setTimeout.bind(globalThis);
+
 /**
  * Logger interface for Bash execution logging.
  * Implement this interface to receive execution logs.
@@ -88,6 +93,13 @@ export interface BashOptions {
   env?: Record<string, string>;
   cwd?: string;
   fs?: IFileSystem;
+  /**
+   * Process table shared by jobs started from this shell.
+   *
+   * A Bash instance creates a private table when omitted. Inject one table
+   * into multiple Bash instances when they should see the same machine jobs.
+   */
+  processes?: ProcessTable;
   /**
    * Execution limits to prevent runaway compute.
    * See ExecutionLimits interface for available options.
@@ -248,6 +260,8 @@ export interface ExecOptions {
 
 export class Bash {
   readonly fs: IFileSystem;
+  readonly processes: ProcessTable;
+  private readonly ownsProcessTable: boolean;
   private commands: CommandRegistry = new Map();
   private useDefaultLayout: boolean = false;
   private limits: Required<ExecutionLimits>;
@@ -264,6 +278,8 @@ export class Bash {
   constructor(options: BashOptions = {}) {
     const fs = options.fs ?? new InMemoryFs(options.files);
     this.fs = fs;
+    this.ownsProcessTable = options.processes === undefined;
+    this.processes = options.processes ?? new ProcessTable();
 
     this.useDefaultLayout = !options.cwd && !options.files;
     const cwd = options.cwd || (this.useDefaultLayout ? "/home/user" : "/");
@@ -540,6 +556,8 @@ export class Bash {
     };
     const stdoutCollector = createCollector(trackSink(options?.stdoutSink));
     const stderrCollector = createCollector(trackSink(options?.stderrSink));
+    const initialJobCount = this.processes.list().length;
+    const initialLimitVersion = this.processes.executionLimitVersion;
 
     // Log command execution
     this.logger?.info("exec", { command: commandLine });
@@ -638,6 +656,7 @@ export class Bash {
             ]),
           },
           limits: this.limits,
+          processes: this.processes,
           // Nested executions (bash -c, xargs, timeout, ...) inherit this
           // execution's signal; a nested call may add its own on top.
           exec: (script, execOptions) =>
@@ -653,7 +672,23 @@ export class Bash {
         };
 
         const interpreter = new Interpreter(interpreterOptions, execState);
-        const result = await interpreter.executeRootScript(ast);
+        let result = await interpreter.executeRootScript(ast);
+        if (
+          this.ownsProcessTable &&
+          this.processes.list().length > initialJobCount
+        ) {
+          // Let immediately-runnable job graphs reach their first real async
+          // boundary. This preserves non-blocking `&` for sleeps and I/O while
+          // ensuring a microtask-only fork bomb surfaces its safety limit
+          // before its throwaway owning shell returns success.
+          await new Promise((resolve) => scheduleMacrotask(resolve, 0));
+          if (this.processes.executionLimitVersion !== initialLimitVersion) {
+            result = {
+              ...result,
+              exitCode: ExecutionLimitError.EXIT_CODE,
+            };
+          }
+        }
         // Interpreter always sets env, assert it for type safety
         return this.logResult(
           result as BashExecResult,

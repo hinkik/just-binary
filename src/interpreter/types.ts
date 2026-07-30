@@ -11,6 +11,7 @@ import type {
 import type { IFileSystem } from "../fs/interface.js";
 import type { ExecutionLimits } from "../limits.js";
 import type { SecureFetch } from "../network/index.js";
+import type { ProcessTable } from "../process/process-table.js";
 import type {
   CommandRegistry,
   ExecResult,
@@ -390,6 +391,8 @@ export interface InterpreterContext {
   state: InterpreterState;
   fs: IFileSystem;
   commands: CommandRegistry;
+  /** Kernel-like job state, shared independently from InterpreterState. */
+  processes: ProcessTable;
   outputChannels: OutputChannels;
   /** Errors already diagnosed while the current command unwinds. */
   reportedDiagnostics?: WeakSet<Error>;

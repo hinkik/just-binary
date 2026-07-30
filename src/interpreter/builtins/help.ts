@@ -391,20 +391,20 @@ const BUILTIN_HELP = new Map<string, [string, string]>([
   [
     "jobs",
     [
-      "jobs [-lnprs] [jobspec ...] or jobs -x command [args]",
+      "jobs [jobspec ...]",
       `Display status of jobs.
-    Lists the active jobs.
+    Lists all active jobs, or only the jobs identified by JOBSPEC.
     Exit Status:
-    Returns success unless an invalid option is given or an error occurs.`,
+    Returns success unless a JOBSPEC is unknown or an invalid option is given.`,
     ],
   ],
   [
     "kill",
     [
-      "kill [-s sigspec | -n signum | -sigspec] pid | jobspec ... or kill -l [sigspec]",
+      "kill [-TERM|-KILL|-INT|-15|-9|-2] pid | jobspec ...",
       `Send a signal to a job.
     Send the processes identified by PID or JOBSPEC the signal named by
-    SIGSPEC or SIGNUM.
+    the option.  SIGTERM is used when no option is supplied.
     Exit Status:
     Returns success unless an invalid option is given or an error occurs.`,
     ],
@@ -771,10 +771,10 @@ const BUILTIN_HELP = new Map<string, [string, string]>([
   [
     "wait",
     [
-      "wait [-fn] [id ...]",
+      "wait [id ...]",
       `Wait for job completion and return exit status.
     Waits for each process identified by an ID, which may be a process ID or a
-    job specification, and reports its termination status.
+    job specification.  With no ID, waits for all known jobs.
     Exit Status:
     Returns the status of the last ID; fails if ID is invalid or an invalid
     option is given.`,

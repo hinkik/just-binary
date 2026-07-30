@@ -3,8 +3,9 @@ import { Bash } from "../Bash.js";
 import { defineCommand } from "../custom-commands.js";
 import { toText } from "../test-utils.js";
 import { decode, encode } from "../utils/bytes.js";
-import { emptyStream, fromChunks } from "../utils/stream.js";
+import { collectText, emptyStream, fromChunks } from "../utils/stream.js";
 import {
+  createCollector,
   type OutputChannels,
   type OutputSink,
   withChannels,
@@ -210,6 +211,33 @@ describe("root output channels", () => {
       );
       expect({ stdout, stderr, exitCode }).toEqual(expected);
     }
+  });
+
+  it("forwards observer-only chunks without retaining bytes", async () => {
+    let forwardedBytes = 0;
+    const collector = createCollector(
+      {
+        write(chunk) {
+          forwardedBytes += chunk.length;
+        },
+      },
+      false,
+    );
+    const chunk = encode("x".repeat(64 * 1024));
+
+    for (let i = 0; i < 32; i++) {
+      await collector.write(chunk);
+    }
+
+    expect({
+      forwardedBytes,
+      retainedByteLength: collector.retainedByteLength,
+      snapshot: await collectText(collector.stream()),
+    }).toEqual({
+      forwardedBytes: 2 * 1024 * 1024,
+      retainedByteLength: 0,
+      snapshot: "",
+    });
   });
 
   it("rejects loudly when an observer write rejects", async () => {

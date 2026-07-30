@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { ProcessTable } from "../../process/process-table.js";
 import { toText } from "../../test-utils.js";
 import { EMPTY } from "../../utils/bytes.js";
 import { emptyStream } from "../../utils/stream.js";
@@ -58,6 +59,7 @@ function createMockCtx(): InterpreterContext {
     state,
     fs: {} as unknown as InterpreterContext["fs"],
     commands: {} as unknown as InterpreterContext["commands"],
+    processes: new ProcessTable(),
     outputChannels: { bindings: new Map() },
     limits: {} as unknown as InterpreterContext["limits"],
     execFn: async () => ({

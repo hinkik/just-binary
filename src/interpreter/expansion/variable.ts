@@ -203,8 +203,10 @@ export async function getVariable(
       // Simulated bash version (from shared metadata)
       return BASH_VERSION;
     case "!":
-      // PID of most recent background job (0 if none)
-      return String(ctx.state.lastBackgroundPid);
+      // Unset until this shell has started its first background job.
+      return ctx.state.lastBackgroundPid === 0
+        ? ""
+        : String(ctx.state.lastBackgroundPid);
     case "BASHPID":
       // Current bash process ID (changes in subshells, unlike $$)
       return String(ctx.state.bashPid);

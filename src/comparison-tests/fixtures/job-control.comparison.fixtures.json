@@ -1,0 +1,51 @@
+{
+  "039f7f43d6bef704": {
+    "command": "sleep 0.1 & jobs",
+    "files": {},
+    "stdout": "[1]+  Running                 sleep 0.1 &\n",
+    "stderr": "",
+    "exitCode": 0
+  },
+  "0b9dbdd4988befe7": {
+    "command": "wait",
+    "files": {},
+    "stdout": "",
+    "stderr": "",
+    "exitCode": 0
+  },
+  "4dbbb7f7d8c6047b": {
+    "command": "kill 99999999 2>err; status=$?; sed 's#^/bin/bash: line [0-9][0-9]*: #bash: #' err >&2; exit \"$status\"",
+    "files": {},
+    "stdout": "",
+    "stderr": "bash: kill: (99999999) - No such process\n",
+    "exitCode": 1
+  },
+  "53f1502b908bc9cd": {
+    "command": "true & wait",
+    "files": {},
+    "stdout": "",
+    "stderr": "",
+    "exitCode": 0
+  },
+  "642072c64d7315c3": {
+    "command": "echo hi & wait",
+    "files": {},
+    "stdout": "hi\n",
+    "stderr": "",
+    "exitCode": 0
+  },
+  "70926dd900f5c9d4": {
+    "command": "sleep 0.1 & [ \"$!\" -gt 0 ] && echo set; wait",
+    "files": {},
+    "stdout": "set\n",
+    "stderr": "",
+    "exitCode": 0
+  },
+  "a43b233df3f043d1": {
+    "command": "sleep 5 & kill $!; wait $! 2>/dev/null; echo $?",
+    "files": {},
+    "stdout": "143\n",
+    "stderr": "",
+    "exitCode": 0
+  }
+}

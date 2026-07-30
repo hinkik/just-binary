@@ -2,6 +2,7 @@ import { Bash } from "../Bash.js";
 import type { IFileSystem } from "../fs/interface.js";
 import { OverlayFs } from "../fs/overlay-fs/index.js";
 import type { NetworkConfig } from "../network/index.js";
+import { ProcessTable } from "../process/process-table.js";
 import type { CommandFinished } from "./Command.js";
 import { Command } from "./Command.js";
 
@@ -37,9 +38,17 @@ export interface WriteFilesInput {
 
 export class Sandbox {
   private bashEnv: Bash;
+  private commandProcesses: ProcessTable;
+  private shellProcesses: ProcessTable;
 
-  private constructor(bashEnv: Bash) {
+  private constructor(
+    bashEnv: Bash,
+    commandProcesses: ProcessTable,
+    shellProcesses: ProcessTable,
+  ) {
     this.bashEnv = bashEnv;
+    this.commandProcesses = commandProcesses;
+    this.shellProcesses = shellProcesses;
   }
 
   static async create(opts?: SandboxOptions): Promise<Sandbox> {
@@ -52,17 +61,22 @@ export class Sandbox {
       fs = new OverlayFs({ root: opts.overlayRoot });
     }
 
+    // Host commands and shell background jobs need distinct process namespaces:
+    // otherwise `wait` inside a command would wait for its own enclosing job.
+    const commandProcesses = new ProcessTable();
+    const shellProcesses = new ProcessTable();
     const bashEnv = new Bash({
       env: opts?.env,
       cwd: opts?.cwd,
       // Bash-specific extensions
       fs,
+      processes: shellProcesses,
       maxCallDepth: opts?.maxCallDepth,
       maxCommandCount: opts?.maxCommandCount,
       maxLoopIterations: opts?.maxLoopIterations,
       network: opts?.network,
     });
-    return new Sandbox(bashEnv);
+    return new Sandbox(bashEnv, commandProcesses, shellProcesses);
   }
 
   async runCommand(
@@ -72,7 +86,14 @@ export class Sandbox {
     // Use per-exec options for cwd and env (they don't persist after the command)
     const cwd = opts?.cwd ?? this.bashEnv.getCwd();
     const explicitCwd = opts?.cwd !== undefined;
-    return new Command(this.bashEnv, cmd, cwd, opts?.env, explicitCwd);
+    return new Command(
+      this.bashEnv,
+      cmd,
+      cwd,
+      opts?.env,
+      explicitCwd,
+      this.commandProcesses,
+    );
   }
 
   async writeFiles(files: WriteFilesInput): Promise<void> {
@@ -112,7 +133,8 @@ export class Sandbox {
   }
 
   async stop(): Promise<void> {
-    // No-op for local simulation
+    this.commandProcesses.dispose();
+    this.shellProcesses.dispose();
   }
 
   async extendTimeout(_ms: number): Promise<void> {

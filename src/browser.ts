@@ -58,6 +58,13 @@ export {
   TooManyRedirectsError,
 } from "./network/index.js";
 export type {
+  JobInfo,
+  JobRunner,
+  JobSignal,
+  ProcessTableOptions,
+} from "./process/process-table.js";
+export { ProcessTable } from "./process/process-table.js";
+export type {
   BashExecResult,
   Command,
   CommandContext,

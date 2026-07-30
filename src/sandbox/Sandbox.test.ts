@@ -210,14 +210,6 @@ describe("Sandbox API", () => {
     });
   });
 
-  describe("Command.kill()", () => {
-    it("should be a no-op but not throw", async () => {
-      const sandbox = await Sandbox.create();
-      const cmd = await sandbox.runCommand("echo test");
-      await expect(cmd.kill()).resolves.toBeUndefined();
-    });
-  });
-
   describe("sandbox.writeFiles()", () => {
     it("should write string content", async () => {
       const sandbox = await Sandbox.create();
@@ -307,13 +299,6 @@ describe("Sandbox API", () => {
       await sandbox.writeFiles({ "/a/b/c/test.txt": "nested" });
       const content = await sandbox.readFile("/a/b/c/test.txt");
       expect(content).toBe("nested");
-    });
-  });
-
-  describe("sandbox.stop()", () => {
-    it("should be a no-op but not throw", async () => {
-      const sandbox = await Sandbox.create();
-      await expect(sandbox.stop()).resolves.toBeUndefined();
     });
   });
 
