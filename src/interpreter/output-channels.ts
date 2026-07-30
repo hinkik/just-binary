@@ -40,13 +40,10 @@ export interface OutputChannels {
 export interface OutputCollector extends OutputSink {
   /** Decode the accumulated bytes without consuming the collector. */
   text(): string;
-  /**
-   * Snapshot the accumulated bytes and stop retaining future writes.
-   *
-   * Future writes are still forwarded. This matters when a background job
-   * inherits a root collector and outlives the Bash.exec() that returned it.
-   */
+  /** Snapshot the accumulated bytes without consuming the collector. */
   stream(): ByteStream;
+  /** Release retained bytes and forward future writes without buffering them. */
+  seal(): void;
   /** Bytes currently retained for the next snapshot. */
   readonly retainedByteLength: number;
 }
@@ -216,11 +213,12 @@ export function createCollector(
       return output + decoder.decode();
     },
     stream(): ByteStream {
-      const snapshot = chunks;
+      return fromChunks(chunks);
+    },
+    seal(): void {
       chunks = [];
       retainedByteLength = 0;
       retaining = false;
-      return fromChunks(snapshot);
     },
     get retainedByteLength(): number {
       return retainedByteLength;

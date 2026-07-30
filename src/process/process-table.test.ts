@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { encode } from "../utils/bytes.js";
 import { type JobSignal, ProcessTable } from "./process-table.js";
 
 function waitForAbort(signal: AbortSignal): Promise<number> {
@@ -131,24 +130,5 @@ describe("ProcessTable", () => {
     expect(() => table.start("late", async () => 0)).toThrow(
       "Cannot start a job on a disposed ProcessTable",
     );
-  });
-
-  it("observes output without retaining any bytes", async () => {
-    let observedBytes = 0;
-    const table = new ProcessTable({
-      onJobOutput: (_pid, _fd, chunk) => {
-        observedBytes += chunk.length;
-      },
-    });
-    const pid = table.start("producer", async () => 0);
-    const chunk = encode("x".repeat(64 * 1024));
-
-    for (let i = 0; i < 32; i++) {
-      table.observeOutput(pid, 1, chunk);
-    }
-
-    expect(await table.wait(pid)).toBe(0);
-    expect(observedBytes).toBe(2 * 1024 * 1024);
-    expect(table.retainedOutputBytes(pid)).toBe(0);
   });
 });

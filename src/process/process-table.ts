@@ -222,11 +222,6 @@ export class ProcessTable {
     }
   }
 
-  /** Diagnostic invariant used by hosts/tests: output storage is host policy. */
-  retainedOutputBytes(_pid: number): number {
-    return 0;
-  }
-
   /**
    * Monotonic safety event counter used by an owning shell to surface a
    * runaway background job before returning. Shared hosts can ignore it.

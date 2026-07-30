@@ -479,23 +479,28 @@ export class Bash {
     stdoutCollector: OutputCollector,
     stderrCollector: OutputCollector,
   ): BashExecResult {
-    const logger = this.logger;
-    if (logger) {
-      const stdoutText = stdoutCollector.text();
-      const stderrText = stderrCollector.text();
-      if (stdoutText.length > 0) {
-        logger.debug("stdout", { output: stdoutText });
+    try {
+      const logger = this.logger;
+      if (logger) {
+        const stdoutText = stdoutCollector.text();
+        const stderrText = stderrCollector.text();
+        if (stdoutText.length > 0) {
+          logger.debug("stdout", { output: stdoutText });
+        }
+        if (stderrText.length > 0) {
+          logger.info("stderr", { output: stderrText });
+        }
+        logger.info("exit", { exitCode: result.exitCode });
       }
-      if (stderrText.length > 0) {
-        logger.info("stderr", { output: stderrText });
-      }
-      logger.info("exit", { exitCode: result.exitCode });
+      return {
+        ...result,
+        stdout: stdoutCollector.stream(),
+        stderr: stderrCollector.stream(),
+      };
+    } finally {
+      stdoutCollector.seal();
+      stderrCollector.seal();
     }
-    return {
-      ...result,
-      stdout: stdoutCollector.stream(),
-      stderr: stderrCollector.stream(),
-    };
   }
 
   async exec(

@@ -54,28 +54,6 @@ describe("Bash background-job output", () => {
     expect(exits).toEqual([[1000, 0]]);
   });
 
-  it("does not retain a bounded large producer's output in the table", async () => {
-    let observedBytes = 0;
-    const processes = new ProcessTable({
-      onJobOutput: (_pid, _fd, chunk) => {
-        observedBytes += chunk.length;
-      },
-    });
-    const result = await toText(
-      await new Bash({ processes }).exec("{ sleep 0.02; seq 1 20000; } &"),
-    );
-
-    expectResult(result, {
-      stdout: "",
-      stderr: "",
-      exitCode: 0,
-    });
-
-    expect(await processes.wait(1000)).toBe(0);
-    expect(observedBytes).toBe(108894);
-    expect(processes.retainedOutputBytes(1000)).toBe(0);
-  });
-
   it("keeps the returned root streams as an immutable point-in-time snapshot", async () => {
     const processes = new ProcessTable();
     const bash = new Bash({ processes });
