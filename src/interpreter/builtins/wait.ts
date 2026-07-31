@@ -9,7 +9,12 @@ export async function handleWait(
   ctx: InterpreterContext,
   args: string[],
 ): Promise<ExecResult> {
-  const unsupportedOption = args.find((arg) => arg.startsWith("-"));
+  // `--` ends option parsing rather than being an option itself, so
+  // `wait -- 999999` reports "not a child" like a bare id would.
+  const endOfOptions = args.indexOf("--");
+  const operands = endOfOptions === -1 ? args : args.slice(endOfOptions + 1);
+  const optionArgs = endOfOptions === -1 ? args : args.slice(0, endOfOptions);
+  const unsupportedOption = optionArgs.find((arg) => arg.startsWith("-"));
   if (unsupportedOption) {
     return {
       stdout: emptyStream(),
@@ -19,6 +24,7 @@ export async function handleWait(
       exitCode: 2,
     };
   }
+  args = operands;
 
   checkAborted(ctx.signal);
   if (args.length === 0) {

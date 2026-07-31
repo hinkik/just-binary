@@ -23,6 +23,7 @@ describe("sequencing channels - Real Bash Comparison", () => {
       env,
       testDir,
       'for o in 1 2; do echo o$o; for i in 1 2; do echo i$o:$i; [ "$i" = 1 ] && continue; break 2; done; echo after; done; echo done',
+      { compareStderr: true },
     );
   });
 
@@ -32,6 +33,7 @@ describe("sequencing channels - Real Bash Comparison", () => {
       env,
       testDir,
       "if echo first; false; then echo no; elif echo second; true; then case foo in f*) echo match; echo case-error >&2;; esac; fi",
+      { compareStderr: true },
     );
   });
 
@@ -41,6 +43,7 @@ describe("sequencing channels - Real Bash Comparison", () => {
       env,
       testDir,
       'out=$(for i in 1 2; do echo $i; echo e$i >&2; done); echo "got:$out"',
+      { compareStderr: true },
     );
   });
 
@@ -50,6 +53,7 @@ describe("sequencing channels - Real Bash Comparison", () => {
       env,
       testDir,
       "for i in 1 2 3; do echo $i; done | tr 1-3 a-c",
+      { compareStderr: true },
     );
   });
 
@@ -59,6 +63,7 @@ describe("sequencing channels - Real Bash Comparison", () => {
       env,
       testDir,
       "for i in 1 2; do echo append$i; done >> out; cat out",
+      { compareStderr: true },
     );
   });
 });

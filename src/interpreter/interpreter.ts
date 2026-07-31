@@ -128,7 +128,10 @@ import {
   applyPersistentOutputRedirections,
   compileOutputRedirections,
 } from "./redirect-channels.js";
-import { getBadFileDescriptorError } from "./redirections.js";
+import {
+  getBadFileDescriptorError,
+  getInputRedirectionError,
+} from "./redirections.js";
 import { processAssignments } from "./simple-command-assignments.js";
 import {
   executeGroup as executeGroupHelper,
@@ -604,6 +607,7 @@ export class Interpreter {
           );
         });
       const command = node.sourceText?.trim() || "<background job>";
+      const jobLineageId = processes.createLineageId();
       let pid: number;
 
       try {
@@ -622,7 +626,12 @@ export class Interpreter {
                 fs: this.ctx.fs,
                 commands: this.ctx.commands,
                 processes,
-                lineageId: this.ctx.lineageId,
+                // A background job is a forked shell: jobs IT starts are its
+                // own children, not the parent's, so `wait` in the parent must
+                // not see them (and the job's own `wait` must not see itself).
+                // The job's record still carries the parent's lineage above,
+                // which is what makes the parent's `wait` await the job.
+                lineageId: jobLineageId,
                 outputChannels: jobChannels,
                 limits: this.ctx.limits,
                 jobTracker: this.ctx.jobTracker,
@@ -1046,7 +1055,7 @@ export class Interpreter {
             if (value === undefined) this.ctx.state.env.delete(name);
             else this.ctx.state.env.set(name, value);
           }
-          return failure(`bash: ${target}: No such file or directory\n`);
+          return failure(await getInputRedirectionError(this.ctx, target));
         }
       }
 
@@ -1232,10 +1241,12 @@ export class Interpreter {
           } catch {
             let errorResult: ExecResult;
             try {
+              const diagnostic = await getInputRedirectionError(
+                this.ctx,
+                target,
+              );
               errorResult = await executeAndPumpResult(this.ctx, () =>
-                Promise.resolve(
-                  failure(`bash: ${target}: No such file or directory\n`),
-                ),
+                Promise.resolve(failure(diagnostic)),
               );
             } finally {
               for (const [channels, bindings] of channelSnapshots) {

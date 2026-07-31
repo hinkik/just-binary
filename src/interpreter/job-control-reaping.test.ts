@@ -28,11 +28,11 @@ describe("Bash completed-job reaping", () => {
 
   it("restarts job numbering after wait-all drains the table", async () => {
     const result = await toText(
-      await new Bash().exec("sleep 0.01 & wait; sleep 0.01 & jobs"),
+      await new Bash().exec("sleep 0.01 & wait; sleep 5 & jobs; kill %1"),
     );
 
     expectResult(result, {
-      stdout: "[1]+  Running                 sleep 0.01 &\n",
+      stdout: "[1]+  Running                 sleep 5 &\n",
       stderr: "",
       exitCode: 0,
     });

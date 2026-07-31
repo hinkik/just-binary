@@ -65,7 +65,10 @@ describe("Sandbox process-table isolation", () => {
     };
 
     expect((await command.wait()).exitCode).toBe(0);
+    // Bounded: a reaping regression should fail this assertion, not hang the run.
+    const reapDeadline = Date.now() + 5_000;
     while (commandProbe.shellProcesses.runningCount > 0) {
+      expect(Date.now()).toBeLessThan(reapDeadline);
       await new Promise((resolve) => setTimeout(resolve, 5));
     }
     await new Promise<void>((resolve) => setImmediate(resolve));

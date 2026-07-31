@@ -20,6 +20,13 @@
     "stderr": "bash: nofile: No such file or directory\n",
     "exitCode": 0
   },
+  "76f6dfdab26fc1d3": {
+    "command": "mkdir dir; { cat < dir > made.txt; } 2>/dev/null; rc=$?; if [ -e made.txt ]; then state=present; else state=absent; fi; printf \"rc=%s file=%s\\n\" \"$rc\" \"$state\"",
+    "files": {},
+    "stdout": "rc=1 file=present\n",
+    "stderr": "",
+    "exitCode": 0
+  },
   "c4fb75cb286c4b84": {
     "command": "{ while read line; do :; done < nofile > made.txt; rc=$?; } 2>error; if [ -e made.txt ]; then state=present; else state=absent; fi; sed -E 's#^/bin/bash: (line [0-9]+: )?#bash: #' error >&2; printf \"rc=%s file=%s\\n\" \"$rc\" \"$state\"",
     "files": {},

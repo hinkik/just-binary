@@ -87,6 +87,31 @@ export function getBadFileDescriptorError(fd: number): string {
 }
 
 /**
+ * Diagnostic for an input redirection whose target could not be read.
+ *
+ * bash distinguishes the reasons: `cat < missing` reports "No such file or
+ * directory" from the shell, while `cat < some-dir` opens the directory fine and
+ * the reader fails with "cat: stdin: Is a directory". Attributing it to the
+ * command needs provenance carried across lazy streams, which we do not have, so
+ * report the accurate reason under the shell's name rather than claiming a
+ * directory is missing.
+ */
+export async function getInputRedirectionError(
+  ctx: InterpreterContext,
+  target: string,
+): Promise<string> {
+  try {
+    const stats = await ctx.fs.stat(ctx.fs.resolvePath(ctx.state.cwd, target));
+    if (stats.isDirectory) {
+      return `bash: ${target}: Is a directory\n`;
+    }
+  } catch {
+    // Unreadable or absent: fall through to the missing-file diagnostic.
+  }
+  return `bash: ${target}: No such file or directory\n`;
+}
+
+/**
  * Allocate the next available file descriptor (starting at 10).
  * Returns the allocated FD number.
  */

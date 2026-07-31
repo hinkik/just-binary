@@ -56,6 +56,23 @@ describe("redirection source ordering - Real Bash Comparison", () => {
     await compareOrdering("{ cat; } > made.txt < nofile");
   });
 
+  // A directory opens successfully as input in bash; only reading it fails, so
+  // the later redirection still takes effect and `made.txt` is created. The
+  // diagnostic itself is not compared: bash attributes it to the reader
+  // ("cat: stdin: Is a directory") while we report it from the shell, because
+  // command provenance is not carried across lazy streams.
+  it("applies a later redirect when the input is a directory", async () => {
+    const env = await setupFiles(testDir, {});
+    await compareOutputs(
+      env,
+      testDir,
+      "mkdir dir; { cat < dir > made.txt; } 2>/dev/null; rc=$?; " +
+        "if [ -e made.txt ]; then state=present; else state=absent; fi; " +
+        'printf "rc=%s file=%s\\n" "$rc" "$state"',
+      { compareStderr: true },
+    );
+  });
+
   it("routes an input error into an earlier stderr redirect", async () => {
     const env = await setupFiles(testDir, {});
     await compareOutputs(

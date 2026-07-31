@@ -50,15 +50,10 @@ export async function handleJobs(
         commandArgs.push(arg);
         continue;
       }
+      // Bash substitutes the PIDs of specs it can resolve and passes anything
+      // else through untouched: `jobs -x echo %99` prints `%99` and exits 0.
       const pid = ctx.processes.resolveJobSpec(arg);
-      if (pid === undefined) {
-        return {
-          stdout: emptyStream(),
-          stderr: fromString(`bash: ${arg}: no such job\n`),
-          exitCode: 1,
-        };
-      }
-      commandArgs.push(String(pid));
+      commandArgs.push(pid === undefined ? arg : String(pid));
     }
     return runCommand(command, commandArgs);
   }
@@ -91,12 +86,19 @@ export async function handleJobs(
   }
 
   const specs = args.slice(index);
+  // A spec may still resolve to a job that has already been reaped, which keeps
+  // `kill %1; wait %1` working. `jobs` does not report those: bash answers
+  // `jobs %1` for a finished job with "no such job".
+  const resolveLiveJob = (spec: string): number | undefined => {
+    const pid = ctx.processes.resolveJobSpec(spec);
+    return pid !== undefined && ctx.processes.get(pid) ? pid : undefined;
+  };
   const selectedPids =
     specs.length === 0
       ? undefined
       : new Set(
           specs
-            .map((spec) => ctx.processes.resolveJobSpec(spec))
+            .map(resolveLiveJob)
             .filter((pid): pid is number => pid !== undefined),
         );
   let stdout = "";
@@ -104,7 +106,7 @@ export async function handleJobs(
   let exitCode = 0;
 
   for (const spec of specs) {
-    if (ctx.processes.resolveJobSpec(spec) === undefined) {
+    if (resolveLiveJob(spec) === undefined) {
       stderr += `bash: jobs: ${spec}: no such job\n`;
       exitCode = 1;
     }

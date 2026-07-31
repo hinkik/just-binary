@@ -139,18 +139,83 @@ describe("kill and jobs common options", () => {
     });
   });
 
+  // Byte-for-byte what bash prints: the full platform table, four per line, tab
+  // separated, numbers right-aligned in two columns, final row ending in a tab.
+  // The darwin literal was captured from `bash -c 'kill -l'` on bash 3.2.57.
+  const DARWIN_KILL_L =
+    " 1) SIGHUP\t 2) SIGINT\t 3) SIGQUIT\t 4) SIGILL\n" +
+    " 5) SIGTRAP\t 6) SIGABRT\t 7) SIGEMT\t 8) SIGFPE\n" +
+    " 9) SIGKILL\t10) SIGBUS\t11) SIGSEGV\t12) SIGSYS\n" +
+    "13) SIGPIPE\t14) SIGALRM\t15) SIGTERM\t16) SIGURG\n" +
+    "17) SIGSTOP\t18) SIGTSTP\t19) SIGCONT\t20) SIGCHLD\n" +
+    "21) SIGTTIN\t22) SIGTTOU\t23) SIGIO\t24) SIGXCPU\n" +
+    "25) SIGXFSZ\t26) SIGVTALRM\t27) SIGPROF\t28) SIGWINCH\n" +
+    "29) SIGINFO\t30) SIGUSR1\t31) SIGUSR2\t\n";
+  const LINUX_KILL_L =
+    " 1) SIGHUP\t 2) SIGINT\t 3) SIGQUIT\t 4) SIGILL\n" +
+    " 5) SIGTRAP\t 6) SIGABRT\t 7) SIGBUS\t 8) SIGFPE\n" +
+    " 9) SIGKILL\t10) SIGUSR1\t11) SIGSEGV\t12) SIGUSR2\n" +
+    "13) SIGPIPE\t14) SIGALRM\t15) SIGTERM\t16) SIGSTKFLT\n" +
+    "17) SIGCHLD\t18) SIGCONT\t19) SIGSTOP\t20) SIGTSTP\n" +
+    "21) SIGTTIN\t22) SIGTTOU\t23) SIGURG\t24) SIGXCPU\n" +
+    "25) SIGXFSZ\t26) SIGVTALRM\t27) SIGPROF\t28) SIGWINCH\n" +
+    "29) SIGIO\t30) SIGPWR\t31) SIGSYS\t\n";
+
   it("accepts kill -l without an operand", async () => {
-    const usr1 = process.platform === "darwin" ? 30 : 10;
-    const usr2 = process.platform === "darwin" ? 31 : 12;
-    const stop = process.platform === "darwin" ? 17 : 19;
-    const cont = process.platform === "darwin" ? 19 : 18;
     const result = await toText(await new Bash().exec("kill -l"));
 
     expectResult(result, {
-      stdout:
-        "1) SIGHUP 2) SIGINT 3) SIGQUIT 9) SIGKILL 15) SIGTERM " +
-        `${usr1}) SIGUSR1 ${usr2}) SIGUSR2 ${stop}) SIGSTOP ${cont}) SIGCONT\n`,
+      stdout: process.platform === "darwin" ? DARWIN_KILL_L : LINUX_KILL_L,
       stderr: "",
+      exitCode: 0,
+    });
+  });
+
+  it("maps signal names and numbers both ways like bash", async () => {
+    const result = await toText(
+      await new Bash().exec("kill -l ABRT; kill -l 6; kill -l 137"),
+    );
+
+    expectResult(result, {
+      stdout: "6\nABRT\nKILL\n",
+      stderr: "",
+      exitCode: 0,
+    });
+  });
+
+  it("treats signal 0 as an existence probe", async () => {
+    const processes = new ProcessTable();
+    const bash = new Bash({ processes, sleep: sleepUntilAborted });
+    const result = await toText(
+      await bash.exec(
+        'sleep 9 & p=$!; kill -0 "$p"; echo "live=$?"; ' +
+          'kill "$p"; wait "$p" 2>/dev/null; kill -0 999999; echo "gone=$?"',
+      ),
+    );
+
+    expectResult(result, {
+      stdout: "live=0\ngone=1\n",
+      stderr: "bash: kill: (999999) - No such process\n",
+      exitCode: 0,
+    });
+  });
+
+  it("succeeds when it signalled at least one target", async () => {
+    const processes = new ProcessTable();
+    const bash = new Bash({ processes, sleep: sleepUntilAborted });
+    const result = await toText(
+      await bash.exec(
+        'sleep 9 & p=$!; kill "$p" 999999; echo "some=$?"; ' +
+          'wait "$p" 2>/dev/null; kill 999998 999999; echo "none=$?"',
+      ),
+    );
+
+    expectResult(result, {
+      stdout: "some=0\nnone=1\n",
+      stderr:
+        "bash: kill: (999999) - No such process\n" +
+        "bash: kill: (999998) - No such process\n" +
+        "bash: kill: (999999) - No such process\n",
       exitCode: 0,
     });
   });
