@@ -76,9 +76,15 @@ describe("job control options - Real Bash Comparison", () => {
   });
 
   it("supports long, running, and stopped job filters", async () => {
+    // `jobs -l` prints a real pid and pads its column, and neither is portable:
+    // the pid differs per run, and bash 5.x puts two spaces after the job spec
+    // where bash 3.2 puts one. Normalize the whole span between the job spec and
+    // the pid so the assertion is about structure rather than the host's pid or
+    // column width — CI re-records against its own bash, so a pattern matching
+    // only one bash silently leaves the raw pid in the expectation.
     await compare(
       "sleep 9 & p=$!; " +
-        "jobs -l | sed -E 's/^(\\[[0-9]+\\][+-]? )[0-9]+ /\\1PID /'; " +
+        "jobs -l | sed -E 's/^(\\[[0-9]+\\][+-]?)[[:space:]]+[0-9]+[[:space:]]+/\\1 PID /'; " +
         "jobs -r; printf 'stopped=<'; jobs -s; printf '>\\n'; " +
         "kill $p; wait $p 2>/dev/null",
     );
