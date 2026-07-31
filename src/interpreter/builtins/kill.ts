@@ -9,30 +9,130 @@ const KILL_USAGE =
 interface SignalDefinition {
   name: string;
   number: number;
-  delivery: JobSignal;
+  /** Absent when the signal's default action does not end the process. */
+  delivery?: JobSignal;
 }
 
 const darwin = typeof process !== "undefined" && process.platform === "darwin";
-// Virtual jobs have only running/done states. Terminating signals use the
-// closest abort delivery channel plus their own signal number, preserving
-// Bash's 128+n wait status. STOP and CONT are accepted no-ops because there is
-// no stopped state to transition into or out of.
-const SIGNAL_DEFINITIONS: SignalDefinition[] = [
-  { name: "HUP", number: 1, delivery: "SIGTERM" },
-  { name: "INT", number: 2, delivery: "SIGINT" },
-  { name: "QUIT", number: 3, delivery: "SIGTERM" },
-  { name: "KILL", number: 9, delivery: "SIGKILL" },
-  { name: "TERM", number: 15, delivery: "SIGTERM" },
-  { name: "USR1", number: darwin ? 30 : 10, delivery: "SIGTERM" },
-  { name: "USR2", number: darwin ? 31 : 12, delivery: "SIGTERM" },
-  { name: "STOP", number: darwin ? 17 : 19, delivery: "SIGSTOP" },
-  { name: "CONT", number: darwin ? 19 : 18, delivery: "SIGCONT" },
-];
+
+/**
+ * Signal names in platform order, matching what `kill -l` prints. Virtual jobs
+ * have only running/done states, so a terminating signal is delivered through
+ * the closest abort channel while carrying its own number, which preserves
+ * bash's 128+n wait status. Signals whose default action is to stop, continue,
+ * or be ignored are accepted no-ops: there is no stopped state to move into, and
+ * `kill -WINCH` must not end a job.
+ */
+const SIGNAL_NAMES: readonly string[] = darwin
+  ? // prettier-ignore
+    [
+      "HUP",
+      "INT",
+      "QUIT",
+      "ILL",
+      "TRAP",
+      "ABRT",
+      "EMT",
+      "FPE",
+      "KILL",
+      "BUS",
+      "SEGV",
+      "SYS",
+      "PIPE",
+      "ALRM",
+      "TERM",
+      "URG",
+      "STOP",
+      "TSTP",
+      "CONT",
+      "CHLD",
+      "TTIN",
+      "TTOU",
+      "IO",
+      "XCPU",
+      "XFSZ",
+      "VTALRM",
+      "PROF",
+      "WINCH",
+      "INFO",
+      "USR1",
+      "USR2",
+    ]
+  : // prettier-ignore
+    [
+      "HUP",
+      "INT",
+      "QUIT",
+      "ILL",
+      "TRAP",
+      "ABRT",
+      "BUS",
+      "FPE",
+      "KILL",
+      "USR1",
+      "SEGV",
+      "USR2",
+      "PIPE",
+      "ALRM",
+      "TERM",
+      "STKFLT",
+      "CHLD",
+      "CONT",
+      "STOP",
+      "TSTP",
+      "TTIN",
+      "TTOU",
+      "URG",
+      "XCPU",
+      "XFSZ",
+      "VTALRM",
+      "PROF",
+      "WINCH",
+      "IO",
+      "PWR",
+      "SYS",
+    ];
+
+/** Signals that do not terminate: stop/continue plus the ignored-by-default. */
+const NON_TERMINATING = new Set([
+  "STOP",
+  "TSTP",
+  "TTIN",
+  "TTOU",
+  "CONT",
+  "CHLD",
+  "URG",
+  "WINCH",
+  "INFO",
+]);
+
+function deliveryFor(name: string): JobSignal | undefined {
+  if (NON_TERMINATING.has(name)) {
+    return undefined;
+  }
+  if (name === "KILL") return "SIGKILL";
+  if (name === "INT") return "SIGINT";
+  return "SIGTERM";
+}
+
+const SIGNAL_DEFINITIONS: SignalDefinition[] = SIGNAL_NAMES.map(
+  (name, index) => ({
+    name,
+    number: index + 1,
+    delivery: deliveryFor(name),
+  }),
+);
+
+/** Signal 0 sends nothing; it only probes whether the target exists. */
+const EXISTENCE_PROBE: SignalDefinition = { name: "0", number: 0 };
 
 function parseSignal(spec: string): SignalDefinition | undefined {
   const upper = spec.toUpperCase().replace(/^SIG/, "");
   if (/^\d+$/.test(upper)) {
     const number = Number.parseInt(upper, 10);
+    if (number === 0) {
+      return EXISTENCE_PROBE;
+    }
     return SIGNAL_DEFINITIONS.find((signal) => signal.number === number);
   }
   return SIGNAL_DEFINITIONS.find((signal) => signal.name === upper);
@@ -50,12 +150,17 @@ function invalidSignal(spec: string): ExecResult {
 
 function listSignals(specs: string[]): ExecResult {
   if (specs.length === 0) {
+    // Bash lays the table out four per line, tab separated, with the number
+    // right-aligned in two columns, and ends the final row with a tab.
+    let stdout = "";
+    for (const signal of SIGNAL_DEFINITIONS) {
+      stdout += `${String(signal.number).padStart(2)}) SIG${signal.name}\t`;
+      if (signal.number % 4 === 0) {
+        stdout = `${stdout.slice(0, -1)}\n`;
+      }
+    }
     return {
-      stdout: fromString(
-        `${SIGNAL_DEFINITIONS.map(
-          (signal) => `${signal.number}) SIG${signal.name}`,
-        ).join(" ")}\n`,
-      ),
+      stdout: fromString(stdout.endsWith("\n") ? stdout : `${stdout}\n`),
       stderr: emptyStream(),
       exitCode: 0,
     };
@@ -121,19 +226,22 @@ export function handleKill(
     return {
       stdout: emptyStream(),
       stderr: fromString(KILL_USAGE),
-      exitCode: 2,
+      exitCode: 1,
     };
   }
 
   let stderr = "";
-  let exitCode = 0;
+  // Bash succeeds when it signalled at least one target, still reporting the
+  // ones it could not: `kill $live 999999` exits 0, `kill 999998 999999` exits 1.
+  let signalled = 0;
+  let failed = 0;
   for (const target of targets) {
     let pid: number | undefined;
     if (target.startsWith("%")) {
       pid = ctx.processes.resolveJobSpec(target);
       if (pid === undefined) {
         stderr += `bash: kill: ${target}: no such job\n`;
-        exitCode = 1;
+        failed++;
         continue;
       }
     } else if (/^\d+$/.test(target)) {
@@ -145,18 +253,28 @@ export function handleKill(
 
     if (pid === undefined) {
       stderr += `bash: kill: ${target}: arguments must be process or job IDs\n`;
-      exitCode = 1;
+      failed++;
       continue;
     }
-    if (!ctx.processes.kill(pid, signal.delivery, signal.number)) {
+
+    // Signal 0 only asks whether the target exists.
+    const delivered =
+      signal.number === 0
+        ? ctx.processes.get(pid) !== undefined
+        : signal.delivery === undefined
+          ? ctx.processes.get(pid) !== undefined
+          : ctx.processes.kill(pid, signal.delivery, signal.number);
+    if (delivered) {
+      signalled++;
+    } else {
       stderr += `bash: kill: (${pid}) - No such process\n`;
-      exitCode = 1;
+      failed++;
     }
   }
 
   return {
     stdout: emptyStream(),
     stderr: fromString(stderr),
-    exitCode,
+    exitCode: signalled > 0 || failed === 0 ? 0 : 1,
   };
 }

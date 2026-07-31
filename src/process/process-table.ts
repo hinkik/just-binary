@@ -55,7 +55,19 @@ interface ListJobsOptions {
 export type JobRunner = (pid: number, signal: AbortSignal) => Promise<number>;
 
 const FIRST_VIRTUAL_PID = 1000;
-const MAX_REAPED_WAIT_STATUSES = 64;
+/**
+ * Completed jobs are reaped immediately, so only a compact wait status survives
+ * per job. This caps how many, evicting least-recently-remembered first.
+ *
+ * Retention cannot be tied to the starting shell's lifetime: a table may be
+ * shared, and the whole point of that is letting a job outlive the shell that
+ * started it so another shell can still `wait` for it.
+ *
+ * Evicting a status makes `wait` report 127 where bash reports the real code, so
+ * the cap sits far above realistic use — reaching it needs one table to retain
+ * thousands of unwaited completed jobs. Real bash forgets old jobs too.
+ */
+const MAX_REAPED_WAIT_STATUSES = 4096;
 const scheduleDisposalTimeout = globalThis.setTimeout.bind(globalThis);
 const cancelDisposalTimeout = globalThis.clearTimeout.bind(globalThis);
 
@@ -63,6 +75,14 @@ export class ProcessTable {
   private readonly jobs = new Map<number, JobRecord>();
   private readonly reapedWaitStatuses = new Map<number, number>();
   private readonly reapedWaitLineages = new Map<number, number | undefined>();
+  /**
+   * Job numbers of reaped jobs, so `%n` still resolves right after the job dies.
+   * Real bash reaps asynchronously, so `kill %1; wait %1` resolves `%1` while
+   * `kill %1; sleep 0.3; wait %1` reports "no such job". We reap the instant the
+   * runner settles, which would lose that idiom; keeping the number mapping
+   * preserves it. Shares the wait-status lifecycle, so it is bounded the same way.
+   */
+  private readonly reapedJobNumbers = new Map<number, number>();
   private readonly options: ProcessTableOptions;
   private nextPid = FIRST_VIRTUAL_PID;
   private nextLineageId = 1;
@@ -111,7 +131,8 @@ export class ProcessTable {
         controller.signal.aborted ? abortExitCode(controller.signal.reason) : 1,
       )
       .then((exitCode) => {
-        if (this.jobs.get(pid) === record) {
+        const installed = this.jobs.get(pid) === record;
+        if (installed) {
           this.runningJobs--;
         }
         record.info = {
@@ -119,10 +140,25 @@ export class ProcessTable {
           state: "done",
           exitCode,
         };
-        // A completed-but-unreported job only needs its compact metadata.
-        // Drop execution machinery while `jobs`/`wait` still have a row to reap.
         record.controller = undefined;
         record.promise = undefined;
+        if (installed) {
+          // A non-interactive bash reaps a completed child immediately: `jobs`
+          // never lists it and `jobs %1` reports "no such job". Only the wait
+          // status survives, so `wait <pid>` still reports it like bash does.
+          // Dropping the record also keeps `jobs` markers and job-number
+          // recycling computed over live jobs alone, as bash does.
+          // TODO(job-termination-notice): bash prints a signal termination
+          // notice ("Terminated: 15") when it reaps a killed job. Emitting it
+          // needs a channel to write to, which the table deliberately lacks.
+          this.rememberWaitStatus(
+            pid,
+            exitCode,
+            record.lineageId,
+            record.jobNumber,
+          );
+          this.deleteJobs([pid]);
+        }
         try {
           void Promise.resolve(this.options.onJobExit?.(pid, exitCode)).catch(
             () => {
@@ -145,8 +181,9 @@ export class ProcessTable {
   }
 
   /**
-   * Snapshot jobs for the `jobs` builtin and reap every completed job included
-   * in the snapshot. Markers are computed once for the complete table.
+   * Snapshot jobs for the `jobs` builtin. Only live jobs are ever listed, since
+   * completed ones are reaped as they settle — a non-interactive bash likewise
+   * never lists a finished job. Markers are computed once for the whole table.
    */
   listJobs(
     selectedPids?: ReadonlySet<number>,
@@ -157,7 +194,6 @@ export class ProcessTable {
     );
     const currentPid = records.at(-1)?.info.pid;
     const previousPid = records.at(-2)?.info.pid;
-    const completedPids: number[] = [];
     const listed: ListedJob[] = [];
 
     for (const record of records) {
@@ -167,7 +203,7 @@ export class ProcessTable {
       if (options.runningOnly && record.info.state !== "running") {
         continue;
       }
-      // This process model does not have a stopped state.
+      // This process model has no stopped state, so `jobs -s` lists nothing.
       if (options.stoppedOnly) {
         continue;
       }
@@ -190,19 +226,8 @@ export class ProcessTable {
       if (options.changedOnly) {
         record.changedStateReported = record.info.state;
       }
-      if (record.info.state === "done") {
-        completedPids.push(record.info.pid);
-        this.rememberWaitStatus(
-          record.info.pid,
-          record.info.exitCode ?? 1,
-          record.lineageId,
-        );
-      }
     }
 
-    // TODO(job-termination-notice): the follow-up job-control work should emit
-    // Bash's signal termination notice when a killed job is reaped here.
-    this.deleteJobs(completedPids);
     return listed;
   }
 
@@ -263,40 +288,46 @@ export class ProcessTable {
       this.deleteJobs(records.map((record) => record.info.pid));
     }
     for (const completedPid of statusesToForget) {
-      this.reapedWaitStatuses.delete(completedPid);
-      this.reapedWaitLineages.delete(completedPid);
+      this.forgetWaitStatus(completedPid);
     }
     return 0;
   }
 
-  /** Wait for and reap only jobs launched by one top-level shell execution. */
+  /** Wait for and reap only jobs launched by one shell's own execution. */
   async waitForLineage(lineageId: number): Promise<number> {
-    const records = [...this.jobs.values()].filter(
-      (record) => record.lineageId === lineageId,
-    );
-    const statusesToForget = [...this.reapedWaitLineages.entries()].flatMap(
-      ([pid, reapedLineage]) => (reapedLineage === lineageId ? [pid] : []),
-    );
-    if (records.length > 0) {
+    const waitedPids = new Set<number>();
+    // Awaiting yields, so rescan instead of trusting one snapshot: a member of
+    // this lineage may register another before the batch settles.
+    for (;;) {
+      const records = [...this.jobs.values()].filter(
+        (record) => record.lineageId === lineageId,
+      );
+      if (records.length === 0) {
+        break;
+      }
       await Promise.all(
         records.map(
           (record) =>
             record.promise ?? Promise.resolve(record.info.exitCode ?? 1),
         ),
       );
+      for (const record of records) {
+        waitedPids.add(record.info.pid);
+      }
       this.deleteJobs(records.map((record) => record.info.pid));
     }
-    for (const pid of [
-      ...statusesToForget,
-      ...records.map((record) => record.info.pid),
-    ]) {
-      this.reapedWaitStatuses.delete(pid);
-      this.reapedWaitLineages.delete(pid);
+    for (const [pid, reapedLineage] of this.reapedWaitLineages) {
+      if (reapedLineage === lineageId) {
+        waitedPids.add(pid);
+      }
+    }
+    for (const pid of waitedPids) {
+      this.forgetWaitStatus(pid);
     }
     return 0;
   }
 
-  /** Allocate an identity inherited by nested interpreters in one root exec. */
+  /** Allocate an identity shared by one shell's own in-process execution. */
   createLineageId(): number {
     return this.nextLineageId++;
   }
@@ -323,6 +354,7 @@ export class ProcessTable {
     this.jobs.clear();
     this.reapedWaitStatuses.clear();
     this.reapedWaitLineages.clear();
+    this.reapedJobNumbers.clear();
     this.highestJobNumber = 0;
     this.runningJobs = 0;
 
@@ -330,6 +362,9 @@ export class ProcessTable {
       finishDisposal,
       this.options.disposeTimeoutMs ?? 1_000,
     );
+    // Do not hold the event loop open just to wait out an uncooperative runner:
+    // disposal is a deadline, not work the process should stay alive for.
+    (timeout as { unref?: () => void }).unref?.();
     void Promise.allSettled(
       records.flatMap((record) => (record.promise ? [record.promise] : [])),
     ).then(() => {
@@ -363,14 +398,18 @@ export class ProcessTable {
       return records.at(-1)?.info.pid;
     }
     if (spec === "%-") {
-      return records.at(-2)?.info.pid;
+      // Bash falls back to the current job when there is no previous one.
+      return (records.at(-2) ?? records.at(-1))?.info.pid;
     }
     const match = /^%(\d+)$/.exec(spec);
     if (!match) {
       return undefined;
     }
     const jobNumber = Number.parseInt(match[1], 10);
-    return records.find((record) => record.jobNumber === jobNumber)?.info.pid;
+    return (
+      records.find((record) => record.jobNumber === jobNumber)?.info.pid ??
+      this.reapedJobNumbers.get(jobNumber)
+    );
   }
 
   /** Whether job channel wrappers need to report output to the host. */
@@ -395,16 +434,30 @@ export class ProcessTable {
     pid: number,
     exitCode: number,
     lineageId?: number,
+    jobNumber?: number,
   ): void {
-    this.reapedWaitStatuses.delete(pid);
-    this.reapedWaitLineages.delete(pid);
+    this.forgetWaitStatus(pid);
+    // Re-inserting makes Map order recency order, so eviction drops the
+    // least-recently-remembered status first.
     this.reapedWaitStatuses.set(pid, exitCode);
     this.reapedWaitLineages.set(pid, lineageId);
+    if (jobNumber !== undefined) {
+      this.reapedJobNumbers.set(jobNumber, pid);
+    }
     if (this.reapedWaitStatuses.size > MAX_REAPED_WAIT_STATUSES) {
       const oldestPid = this.reapedWaitStatuses.keys().next().value;
       if (oldestPid !== undefined) {
-        this.reapedWaitStatuses.delete(oldestPid);
-        this.reapedWaitLineages.delete(oldestPid);
+        this.forgetWaitStatus(oldestPid);
+      }
+    }
+  }
+
+  private forgetWaitStatus(pid: number): void {
+    this.reapedWaitStatuses.delete(pid);
+    this.reapedWaitLineages.delete(pid);
+    for (const [jobNumber, reapedPid] of this.reapedJobNumbers) {
+      if (reapedPid === pid) {
+        this.reapedJobNumbers.delete(jobNumber);
       }
     }
   }

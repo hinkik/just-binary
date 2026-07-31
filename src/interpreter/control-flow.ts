@@ -58,6 +58,7 @@ import {
   writeToChannel,
 } from "./output-channels.js";
 import { compileOutputRedirections } from "./redirect-channels.js";
+import { getInputRedirectionError } from "./redirections.js";
 import type { InterpreterContext } from "./types.js";
 
 function errorLine(error: unknown): string {
@@ -352,7 +353,7 @@ export async function executeWhile(
           } catch {
             await pumpResult(
               ctx,
-              failure(`bash: ${target}: No such file or directory\n`),
+              failure(await getInputRedirectionError(ctx, target)),
             );
             return 1;
           }

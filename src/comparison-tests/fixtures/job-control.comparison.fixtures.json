@@ -13,6 +13,13 @@
     "stderr": "",
     "exitCode": 0
   },
+  "2e2d06970764507d": {
+    "command": "( { sleep 0.3; echo late > marker; } & ); wait; echo waited; [ -e marker ] && echo marker-exists || echo marker-absent",
+    "files": {},
+    "stdout": "waited\nmarker-absent\n",
+    "stderr": "",
+    "exitCode": 0
+  },
   "53f1502b908bc9cd": {
     "command": "true & wait",
     "files": {},
@@ -25,6 +32,13 @@
     "files": {},
     "stdout": "hi\n",
     "stderr": "",
+    "exitCode": 0
+  },
+  "64d12b81ce4593cf": {
+    "command": "false & sleep 0.05; jobs; printf \"jobs:%s\\n\" \"$?\"; jobs %1 2>err; printf \"spec:%s\\n\" \"$?\"; sed -E 's#^/bin/bash: (line [0-9]+: )?#bash: #' err >&2",
+    "files": {},
+    "stdout": "jobs:0\nspec:1\n",
+    "stderr": "bash: jobs: %1: no such job\n",
     "exitCode": 0
   },
   "70926dd900f5c9d4": {
@@ -48,6 +62,13 @@
     "stderr": "",
     "exitCode": 0
   },
+  "a7b718573449bade": {
+    "command": "sleep 0.01 & wait; sleep 5 & jobs; kill %1",
+    "files": {},
+    "stdout": "[1]+  Running                 sleep 5 &\n",
+    "stderr": "",
+    "exitCode": 0
+  },
   "ae1fdb58a80e7f78": {
     "command": "false & pid=$!; sleep 0.01; wait \"$pid\"; printf \"status:%s\\n\" \"$?\"",
     "files": {},
@@ -60,6 +81,13 @@
     "files": {},
     "stdout": "",
     "stderr": "",
+    "exitCode": 0
+  },
+  "e7a6eec2195d8df4": {
+    "command": "sleep 5 & p=$!; kill -0 \"$p\"; printf \"live:%s\\n\" \"$?\"; kill \"$p\" 999999 2>err; printf \"some:%s\\n\" \"$?\"; kill -l ABRT; wait \"$p\" 2>/dev/null; sed -E 's#^/bin/bash: (line [0-9]+: )?#bash: #' err >&2",
+    "files": {},
+    "stdout": "live:0\nsome:0\n6\n",
+    "stderr": "bash: kill: (999999) - No such process\n",
     "exitCode": 0
   },
   "f1321181e21b6baf": {

@@ -25,6 +25,7 @@ describe("compound command redirections - Real Bash Comparison", () => {
       env,
       testDir,
       'while read -r line; do echo "got:$line"; done < input.txt > out.txt; cat out.txt',
+      { compareStderr: true },
     );
   });
 
@@ -34,6 +35,7 @@ describe("compound command redirections - Real Bash Comparison", () => {
       env,
       testDir,
       "i=0; while [ $i -lt 3 ]; do echo n$i; i=$((i+1)); done > out.txt; cat out.txt",
+      { compareStderr: true },
     );
   });
 
@@ -43,6 +45,7 @@ describe("compound command redirections - Real Bash Comparison", () => {
       env,
       testDir,
       "if true; then echo yes; fi > out.txt; cat out.txt",
+      { compareStderr: true },
     );
   });
 
@@ -52,6 +55,7 @@ describe("compound command redirections - Real Bash Comparison", () => {
       env,
       testDir,
       "until [ -f stop ]; do echo tick; touch stop; done > out.txt; cat out.txt",
+      { compareStderr: true },
     );
   });
 });

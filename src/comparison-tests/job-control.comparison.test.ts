@@ -84,9 +84,57 @@ describe("job control - Real Bash Comparison", () => {
 
   it("recycles the job number after wait-all drains the table", async () => {
     const env = await setupFiles(testDir, {});
-    await compareOutputs(env, testDir, "sleep 0.01 & wait; sleep 0.01 & jobs", {
-      compareStderr: true,
-    });
+    await compareOutputs(
+      env,
+      testDir,
+      "sleep 0.01 & wait; sleep 5 & jobs; kill %1",
+      {
+        compareStderr: true,
+      },
+    );
+  });
+
+  // A non-interactive bash reaps a completed child as it notices it, so no later
+  // command can see the finished job — not `jobs`, and not a `%1` spec.
+  it("does not list or resolve a completed job", async () => {
+    const env = await setupFiles(testDir, {});
+    await compareOutputs(
+      env,
+      testDir,
+      'false & sleep 0.05; jobs; printf "jobs:%s\\n" "$?"; ' +
+        'jobs %1 2>err; printf "spec:%s\\n" "$?"; ' +
+        "sed -E 's#^/bin/bash: (line [0-9]+: )?#bash: #' err >&2",
+      { compareStderr: true },
+    );
+  });
+
+  // `wait` waits for the shell's own children. A subshell is a fork, so a job it
+  // starts belongs to it, and the parent's `wait` must return without it. Probed
+  // through a marker file rather than wall-clock time.
+  it("does not wait for a job started inside a subshell", async () => {
+    const env = await setupFiles(testDir, {});
+    await compareOutputs(
+      env,
+      testDir,
+      "( { sleep 0.3; echo late > marker; } & ); wait; echo waited; " +
+        "[ -e marker ] && echo marker-exists || echo marker-absent",
+      { compareStderr: true },
+    );
+  });
+
+  // Signal 0 sends nothing and only asks whether the target exists, and `kill`
+  // succeeds when it signalled at least one target.
+  it("supports the signal-0 existence probe and partial success", async () => {
+    const env = await setupFiles(testDir, {});
+    await compareOutputs(
+      env,
+      testDir,
+      'sleep 5 & p=$!; kill -0 "$p"; printf "live:%s\\n" "$?"; ' +
+        'kill "$p" 999999 2>err; printf "some:%s\\n" "$?"; ' +
+        'kill -l ABRT; wait "$p" 2>/dev/null; ' +
+        "sed -E 's#^/bin/bash: (line [0-9]+: )?#bash: #' err >&2",
+      { compareStderr: true },
+    );
   });
 
   it("retains a finished job's status for targeted wait", async () => {

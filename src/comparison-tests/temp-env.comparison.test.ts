@@ -29,6 +29,7 @@ describe("temp env bindings - Real Bash Comparison", () => {
         env,
         testDir,
         'for i in 1; do FOO=bar break; done; echo "[$FOO]"',
+        { compareStderr: true },
       );
     });
 
@@ -38,6 +39,7 @@ describe("temp env bindings - Real Bash Comparison", () => {
         env,
         testDir,
         'for i in 1 2; do FOO=bar continue; done; echo "[$FOO]"',
+        { compareStderr: true },
       );
     });
 
@@ -47,6 +49,7 @@ describe("temp env bindings - Real Bash Comparison", () => {
         env,
         testDir,
         'FOO=old; for i in 1; do FOO=new break; done; echo "[$FOO]"',
+        { compareStderr: true },
       );
     });
   });

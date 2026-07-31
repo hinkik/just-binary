@@ -330,9 +330,18 @@ export async function compileOutputRedirections(
           invalidTargetError,
         );
       }
+      // Existence is checked here so a failing `<` aborts before later
+      // redirections take effect, matching bash's left-to-right application.
+      // Use stat, not readFile: the real read happens below, so readFile would
+      // open the file twice per redirection and drop the stream it returns
+      // unconsumed — a real handle leak on a filesystem-backed fs.
       try {
         const filePath = ctx.fs.resolvePath(ctx.state.cwd, expanded.target);
-        await ctx.fs.readFile(filePath);
+        const stats = await ctx.fs.stat(filePath);
+        // A directory opens successfully in bash; only reading it fails, so the
+        // remaining redirections must still be applied. Leave that failure to
+        // the reader rather than aborting compilation here.
+        void stats;
       } catch {
         return compilationError(
           channels,

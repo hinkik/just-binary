@@ -128,7 +128,14 @@ export async function executeSubshell(
   // Save any existing groupStdin and set new one from pipeline
   const savedGroupStdin = ctx.state.groupStdin;
 
+  // A subshell is a forked shell, so background jobs started inside it are its
+  // children, not the parent's: `( cmd & ); wait` must not wait for cmd. Groups
+  // and functions deliberately keep the caller's lineage — they do not fork.
+  const savedLineageId = ctx.lineageId;
+  ctx.lineageId = ctx.processes.createLineageId();
+
   const restore = (): void => {
+    ctx.lineageId = savedLineageId;
     ctx.state.env = savedEnv;
     ctx.state.cwd = savedCwd;
     ctx.state.fileDescriptors = savedFileDescriptors;

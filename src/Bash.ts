@@ -685,12 +685,16 @@ export class Bash {
           lineageId,
           // Nested executions (bash -c, xargs, timeout, ...) inherit this
           // execution's signal; a nested call may add its own on top.
+          // Nested executions are separate shells (`bash -c`, `sh -c`, xargs,
+          // timeout, ...), so they deliberately do NOT inherit `lineageId`:
+          // a job started by `bash -c 'cmd &'` is not a child of this shell and
+          // its `wait` must not await it. `eval`/`source` run in-process and so
+          // keep this shell's lineage, which is what bash does.
           exec: (script, execOptions) =>
             this.exec(script, {
               ...execOptions,
               jobTracker,
               processes,
-              lineageId,
               signal: combineAbortSignals(options?.signal, execOptions?.signal),
             }),
           fetch: this.secureFetch,
