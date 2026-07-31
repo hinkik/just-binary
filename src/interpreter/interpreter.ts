@@ -211,6 +211,7 @@ export interface InterpreterOptions {
   fs: IFileSystem;
   commands: CommandRegistry;
   processes: ProcessTable;
+  lineageId: number;
   outputChannels: OutputChannels;
   limits: Required<ExecutionLimits>;
   jobTracker: JobExecutionTracker;
@@ -244,6 +245,7 @@ export class Interpreter {
       fs: options.fs,
       commands: options.commands,
       processes: options.processes,
+      lineageId: options.lineageId,
       outputChannels: options.outputChannels,
       reportedDiagnostics: new WeakSet(),
       limits: options.limits,
@@ -605,58 +607,63 @@ export class Interpreter {
       let pid: number;
 
       try {
-        pid = processes.start(command, async (jobPid, jobSignal) => {
-          const jobChannels = createJobChannels(jobPid);
-          jobState.bashPid = jobPid;
-          jobState.nextVirtualPid = Math.max(
-            jobState.nextVirtualPid,
-            jobPid + 1,
-          );
-          const signal = combineAbortSignals(this.ctx.signal, jobSignal);
-          const child = new Interpreter(
-            {
-              fs: this.ctx.fs,
-              commands: this.ctx.commands,
-              processes,
-              outputChannels: jobChannels,
-              limits: this.ctx.limits,
-              jobTracker: this.ctx.jobTracker,
-              exec: (script, options) =>
-                this.ctx.execFn(script, {
-                  ...options,
-                  signal: combineAbortSignals(signal, options?.signal),
-                }),
-              fetch: this.ctx.fetch,
-              sleep: this.ctx.sleep,
-              trace: this.ctx.trace,
-              coverage: this.ctx.coverage,
-              signal,
-            },
-            jobState,
-          );
+        pid = processes.start(
+          command,
+          async (jobPid, jobSignal) => {
+            const jobChannels = createJobChannels(jobPid);
+            jobState.bashPid = jobPid;
+            jobState.nextVirtualPid = Math.max(
+              jobState.nextVirtualPid,
+              jobPid + 1,
+            );
+            const signal = combineAbortSignals(this.ctx.signal, jobSignal);
+            const child = new Interpreter(
+              {
+                fs: this.ctx.fs,
+                commands: this.ctx.commands,
+                processes,
+                lineageId: this.ctx.lineageId,
+                outputChannels: jobChannels,
+                limits: this.ctx.limits,
+                jobTracker: this.ctx.jobTracker,
+                exec: (script, options) =>
+                  this.ctx.execFn(script, {
+                    ...options,
+                    signal: combineAbortSignals(signal, options?.signal),
+                  }),
+                fetch: this.ctx.fetch,
+                sleep: this.ctx.sleep,
+                trace: this.ctx.trace,
+                coverage: this.ctx.coverage,
+                signal,
+              },
+              jobState,
+            );
 
-          try {
-            const result = await child.executeRootScript({
-              type: "Script",
-              statements: [
-                { ...node, background: false, sourceText: undefined },
-              ],
-            });
-            return result.exitCode;
-          } catch (error) {
-            if (error instanceof AbortExecutionError) {
-              return error.exitCode;
+            try {
+              const result = await child.executeRootScript({
+                type: "Script",
+                statements: [
+                  { ...node, background: false, sourceText: undefined },
+                ],
+              });
+              return result.exitCode;
+            } catch (error) {
+              if (error instanceof AbortExecutionError) {
+                return error.exitCode;
+              }
+              if (error instanceof ExitError) {
+                return error.exitCode;
+              }
+              if (error instanceof ExecutionLimitError) {
+                this.ctx.jobTracker.limitExceeded = true;
+                return ExecutionLimitError.EXIT_CODE;
+              }
+              throw error;
             }
-            if (error instanceof ExitError) {
-              return error.exitCode;
-            }
-            if (error instanceof ExecutionLimitError) {
-              this.ctx.jobTracker.limitExceeded = true;
-              return ExecutionLimitError.EXIT_CODE;
-            }
-            throw error;
-          }
-        });
+          },
+          this.ctx.lineageId,
+        );
         this.ctx.jobTracker.started = true;
       } catch (error) {
         await writeToChannel(
@@ -807,7 +814,6 @@ export class Interpreter {
           this.ctx,
           currentChannels,
           node.redirections,
-          { inputRedirectionsProcessed: true },
         );
         if (compiled.error) {
           return await withChannels(this.ctx, compiled.channels, () =>
@@ -870,6 +876,90 @@ export class Interpreter {
       isWordLiteralMatch(node.name, ["exec"]) &&
       (node.args.length === 0 ||
         (node.args.length === 1 && isWordLiteralMatch(node.args[0], ["--"])));
+    const commandName = await expandWord(this.ctx, node.name);
+
+    const args: Uint8Array[] = [];
+    const quotedArgs: boolean[] = [];
+
+    const isLiteralAssignmentBuiltin =
+      isWordLiteralMatch(node.name, [
+        "local",
+        "declare",
+        "typeset",
+        "export",
+        "readonly",
+      ]) &&
+      (commandName === "local" ||
+        commandName === "declare" ||
+        commandName === "typeset" ||
+        commandName === "export" ||
+        commandName === "readonly");
+
+    if (isLiteralAssignmentBuiltin) {
+      for (const arg of node.args) {
+        const arrayAssignResult = await expandLocalArrayAssignmentHelper(
+          this.ctx,
+          arg,
+        );
+        if (arrayAssignResult) {
+          args.push(encode(arrayAssignResult));
+          quotedArgs.push(true);
+        } else {
+          const scalarAssignResult = await expandScalarAssignmentArgHelper(
+            this.ctx,
+            arg,
+          );
+          if (scalarAssignResult !== null) {
+            args.push(encode(scalarAssignResult));
+            quotedArgs.push(true);
+          } else {
+            const expanded = await expandWordWithGlob(this.ctx, arg);
+            for (const value of expanded.values) {
+              args.push(encode(value));
+              quotedArgs.push(expanded.quoted);
+            }
+          }
+        }
+      }
+    } else {
+      for (const arg of node.args) {
+        if (wordCanUseBytesPath(this.ctx, arg)) {
+          args.push(await expandWordToBytes(this.ctx, arg));
+          quotedArgs.push(true);
+        } else {
+          const expanded = await expandWordWithGlob(this.ctx, arg);
+          for (const value of expanded.values) {
+            args.push(encode(value));
+            quotedArgs.push(expanded.quoted);
+          }
+        }
+      }
+    }
+
+    const currentChannels = this.ctx.outputChannels;
+    const channelRedirections =
+      !isRedirectOnlyExec && node.redirections.length > 0
+        ? await compileOutputRedirections(
+            this.ctx,
+            currentChannels,
+            node.redirections,
+            {
+              persistMovedSource: SHELL_BUILTINS.has(commandName),
+            },
+          )
+        : undefined;
+    if (channelRedirections?.error) {
+      await writeToChannel(this.ctx, 2, xtraceAssignmentOutput);
+      for (const [name, value] of tempAssignments) {
+        if (value === undefined) this.ctx.state.env.delete(name);
+        else this.ctx.state.env.set(name, value);
+      }
+      return await withChannels(this.ctx, channelRedirections.channels, () =>
+        executeAndPumpResult(this.ctx, () =>
+          Promise.resolve(channelRedirections.error as ExecResult),
+        ),
+      );
+    }
 
     // Fast path: when no redirection mutates stdin, pass the pipeline
     // stream through untouched. This is critical for performance —
@@ -895,8 +985,10 @@ export class Interpreter {
       stdinStream = stdin;
     }
 
-    for (const redir of node.redirections) {
-      // The channel compiler below installs FD-variable descriptors in lexical
+    const inputRedirections =
+      channelRedirections?.legacyRedirections ?? node.redirections;
+    for (const redir of inputRedirections) {
+      // The channel compiler above installs FD-variable descriptors in lexical
       // order. They do not replace fd 0, and their targets expand there once.
       if (
         redir.fdVariable ||
@@ -1022,66 +1114,6 @@ export class Interpreter {
             else this.ctx.state.env.set(name, value);
           }
           return failure(getBadFileDescriptorError(sourceFd));
-        }
-      }
-    }
-
-    const commandName = await expandWord(this.ctx, node.name);
-
-    const args: Uint8Array[] = [];
-    const quotedArgs: boolean[] = [];
-
-    const isLiteralAssignmentBuiltin =
-      isWordLiteralMatch(node.name, [
-        "local",
-        "declare",
-        "typeset",
-        "export",
-        "readonly",
-      ]) &&
-      (commandName === "local" ||
-        commandName === "declare" ||
-        commandName === "typeset" ||
-        commandName === "export" ||
-        commandName === "readonly");
-
-    if (isLiteralAssignmentBuiltin) {
-      for (const arg of node.args) {
-        const arrayAssignResult = await expandLocalArrayAssignmentHelper(
-          this.ctx,
-          arg,
-        );
-        if (arrayAssignResult) {
-          args.push(encode(arrayAssignResult));
-          quotedArgs.push(true);
-        } else {
-          const scalarAssignResult = await expandScalarAssignmentArgHelper(
-            this.ctx,
-            arg,
-          );
-          if (scalarAssignResult !== null) {
-            args.push(encode(scalarAssignResult));
-            quotedArgs.push(true);
-          } else {
-            const expanded = await expandWordWithGlob(this.ctx, arg);
-            for (const value of expanded.values) {
-              args.push(encode(value));
-              quotedArgs.push(expanded.quoted);
-            }
-          }
-        }
-      }
-    } else {
-      for (const arg of node.args) {
-        if (wordCanUseBytesPath(this.ctx, arg)) {
-          args.push(await expandWordToBytes(this.ctx, arg));
-          quotedArgs.push(true);
-        } else {
-          const expanded = await expandWordWithGlob(this.ctx, arg);
-          for (const value of expanded.values) {
-            args.push(encode(value));
-            quotedArgs.push(expanded.quoted);
-          }
         }
       }
     }
@@ -1264,31 +1296,6 @@ export class Interpreter {
         }
       }
       return ok();
-    }
-
-    const currentChannels = this.ctx.outputChannels;
-    const channelRedirections =
-      node.redirections.length > 0
-        ? await compileOutputRedirections(
-            this.ctx,
-            currentChannels,
-            node.redirections,
-            {
-              inputRedirectionsProcessed: true,
-              persistMovedSource: SHELL_BUILTINS.has(commandName),
-            },
-          )
-        : undefined;
-    if (channelRedirections?.error) {
-      for (const [name, value] of tempAssignments) {
-        if (value === undefined) this.ctx.state.env.delete(name);
-        else this.ctx.state.env.set(name, value);
-      }
-      return await withChannels(this.ctx, channelRedirections.channels, () =>
-        executeAndPumpResult(this.ctx, () =>
-          Promise.resolve(channelRedirections.error as ExecResult),
-        ),
-      );
     }
 
     if (tempAssignments.size > 0) {

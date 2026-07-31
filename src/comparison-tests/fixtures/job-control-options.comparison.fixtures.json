@@ -1,0 +1,79 @@
+{
+  "18a01f42532ed6dd": {
+    "command": "sleep 9 & kill -KILL $!; wait $! 2>/dev/null; printf 'status:%s\\n' $?",
+    "files": {},
+    "stdout": "status:137\n",
+    "stderr": "",
+    "exitCode": 0
+  },
+  "32ff017324128915": {
+    "command": "sleep 9 & kill -9 $!; wait $! 2>/dev/null; printf 'status:%s\\n' $?",
+    "files": {},
+    "stdout": "status:137\n",
+    "stderr": "",
+    "exitCode": 0
+  },
+  "368b0c5507ec9392": {
+    "command": "printf \"term=%s nine=%s\\n\" \"$(kill -l TERM)\" \"$(kill -l 9)\"",
+    "files": {},
+    "stdout": "term=15 nine=KILL\n",
+    "stderr": "",
+    "exitCode": 0
+  },
+  "555316c68ef085a5": {
+    "command": "sleep 9 & p=$!; [ \"$(jobs -p)\" = \"$p\" ] && echo matched; kill $(jobs -p); wait $p 2>/dev/null; printf 'status:%s\\n' $?",
+    "files": {},
+    "stdout": "matched\nstatus:143\n",
+    "stderr": "",
+    "exitCode": 0
+  },
+  "631b3486f99c0e42": {
+    "command": "kill -BOGUS 999999 2>error; rc=$?; sed -E 's#^/bin/bash: (line [0-9]+: )?#bash: #' error >&2; printf \"status:%s\\n\" \"$rc\"",
+    "files": {},
+    "stdout": "status:1\n",
+    "stderr": "bash: kill: BOGUS: invalid signal specification\n",
+    "exitCode": 0
+  },
+  "6493d9651ba6fcf1": {
+    "command": "sleep 9 & p=$!; jobs -n; printf 'again=<'; jobs -n; printf '>\\n'; kill $p; wait $p 2>/dev/null",
+    "files": {},
+    "stdout": "[1]+  Running                 sleep 9 &\nagain=<>\n",
+    "stderr": "",
+    "exitCode": 143
+  },
+  "8eeed9dc8e66f322": {
+    "command": "sleep 9 & p=$!; jobs -x printf 'pid-set:%s\\n' %1 | sed -E 's/[0-9]+/yes/'; kill $p; wait $p 2>/dev/null",
+    "files": {},
+    "stdout": "pid-set:yes\n",
+    "stderr": "",
+    "exitCode": 143
+  },
+  "90a967218964fa99": {
+    "command": "sleep 9 & p=$!; jobs -l | sed -E 's/^(\\[[0-9]+\\][+-]? )[0-9]+ /\\1PID /'; jobs -r; printf 'stopped=<'; jobs -s; printf '>\\n'; kill $p; wait $p 2>/dev/null",
+    "files": {},
+    "stdout": "[1]+ PID Running                 sleep 9 &\n[1]+  Running                 sleep 9 &\nstopped=<>\n",
+    "stderr": "",
+    "exitCode": 143
+  },
+  "acde2fb9947db2af": {
+    "command": "sleep 9 & kill -s TERM $!; wait $! 2>/dev/null; printf 'status:%s\\n' $?",
+    "files": {},
+    "stdout": "status:143\n",
+    "stderr": "",
+    "exitCode": 0
+  },
+  "c22fb050c9c1b147": {
+    "command": "sleep 9 & kill -HUP $!; wait $! 2>/dev/null; printf 'status:%s\\n' $?",
+    "files": {},
+    "stdout": "status:129\n",
+    "stderr": "",
+    "exitCode": 0
+  },
+  "e74193d60758d300": {
+    "command": "sleep 9 & p=$!; kill -STOP $p; a=$?; kill -CONT $p; b=$?; kill -KILL $p; wait $p 2>/dev/null; printf 'stop:%s cont:%s wait:%s\\n' $a $b $?",
+    "files": {},
+    "stdout": "stop:0 cont:0 wait:137\n",
+    "stderr": "",
+    "exitCode": 0
+  }
+}

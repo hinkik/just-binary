@@ -8,7 +8,12 @@
 
 import { abortExitCode } from "../interpreter/errors.js";
 
-export type JobSignal = "SIGTERM" | "SIGINT" | "SIGKILL";
+export type JobSignal =
+  | "SIGTERM"
+  | "SIGINT"
+  | "SIGKILL"
+  | "SIGSTOP"
+  | "SIGCONT";
 
 export interface JobInfo {
   pid: number;
@@ -35,8 +40,16 @@ export interface ProcessTableOptions {
 interface JobRecord {
   info: JobInfo;
   jobNumber: number;
+  lineageId?: number;
   controller?: AbortController;
   promise?: Promise<number>;
+  changedStateReported?: JobInfo["state"];
+}
+
+interface ListJobsOptions {
+  changedOnly?: boolean;
+  runningOnly?: boolean;
+  stoppedOnly?: boolean;
 }
 
 export type JobRunner = (pid: number, signal: AbortSignal) => Promise<number>;
@@ -49,8 +62,10 @@ const cancelDisposalTimeout = globalThis.clearTimeout.bind(globalThis);
 export class ProcessTable {
   private readonly jobs = new Map<number, JobRecord>();
   private readonly reapedWaitStatuses = new Map<number, number>();
+  private readonly reapedWaitLineages = new Map<number, number | undefined>();
   private readonly options: ProcessTableOptions;
   private nextPid = FIRST_VIRTUAL_PID;
+  private nextLineageId = 1;
   private highestJobNumber = 0;
   private runningJobs = 0;
   private disposed = false;
@@ -66,7 +81,7 @@ export class ProcessTable {
    * The record is installed before the runner is invoked, so another shell
    * sharing this table can immediately inspect, kill, or wait for the job.
    */
-  start(command: string, runner: JobRunner): number {
+  start(command: string, runner: JobRunner, lineageId?: number): number {
     if (this.disposed) {
       throw new Error("Cannot start a job on a disposed ProcessTable");
     }
@@ -82,6 +97,7 @@ export class ProcessTable {
         state: "running",
       },
       jobNumber,
+      lineageId,
       controller,
       promise: Promise.resolve(0),
     };
@@ -132,7 +148,10 @@ export class ProcessTable {
    * Snapshot jobs for the `jobs` builtin and reap every completed job included
    * in the snapshot. Markers are computed once for the complete table.
    */
-  listJobs(selectedPids?: ReadonlySet<number>): ListedJob[] {
+  listJobs(
+    selectedPids?: ReadonlySet<number>,
+    options: ListJobsOptions = {},
+  ): ListedJob[] {
     const records = [...this.jobs.values()].sort(
       (a, b) => a.jobNumber - b.jobNumber,
     );
@@ -145,6 +164,19 @@ export class ProcessTable {
       if (selectedPids && !selectedPids.has(record.info.pid)) {
         continue;
       }
+      if (options.runningOnly && record.info.state !== "running") {
+        continue;
+      }
+      // This process model does not have a stopped state.
+      if (options.stoppedOnly) {
+        continue;
+      }
+      if (
+        options.changedOnly &&
+        record.changedStateReported === record.info.state
+      ) {
+        continue;
+      }
       listed.push({
         ...record.info,
         jobNumber: record.jobNumber,
@@ -155,9 +187,16 @@ export class ProcessTable {
               ? "-"
               : " ",
       });
+      if (options.changedOnly) {
+        record.changedStateReported = record.info.state;
+      }
       if (record.info.state === "done") {
         completedPids.push(record.info.pid);
-        this.rememberWaitStatus(record.info.pid, record.info.exitCode ?? 1);
+        this.rememberWaitStatus(
+          record.info.pid,
+          record.info.exitCode ?? 1,
+          record.lineageId,
+        );
       }
     }
 
@@ -172,15 +211,26 @@ export class ProcessTable {
     return info ? { ...info } : undefined;
   }
 
-  kill(pid: number, reason: JobSignal): boolean {
+  /**
+   * Deliver one of the table's cooperative signals. A signal number preserves
+   * 128+n for terminating signals mapped onto a supported delivery mode.
+   * STOP/CONT are acknowledged no-ops because jobs have no stopped state.
+   */
+  kill(pid: number, reason: JobSignal, signalNumber?: number): boolean {
     const record = this.jobs.get(pid);
     if (!record || record.info.state === "done") {
       return false;
     }
-    record.controller?.abort(reason);
+    if (reason !== "SIGSTOP" && reason !== "SIGCONT") {
+      record.controller?.abort(signalNumber ?? reason);
+    }
     return true;
   }
 
+  /**
+   * Wait for machine-level process state. With no PID this intentionally drains
+   * every job in the table; shell builtins must use waitForLineage instead.
+   */
   async wait(pid?: number): Promise<number> {
     if (pid !== undefined) {
       const record = this.jobs.get(pid);
@@ -192,7 +242,7 @@ export class ProcessTable {
           ? (record.info.exitCode ?? 1)
           : await (record.promise ?? Promise.resolve(1));
       if (this.jobs.get(pid) === record) {
-        this.rememberWaitStatus(pid, exitCode);
+        this.rememberWaitStatus(pid, exitCode, record.lineageId);
         this.deleteJobs([pid]);
       }
       return exitCode;
@@ -214,8 +264,41 @@ export class ProcessTable {
     }
     for (const completedPid of statusesToForget) {
       this.reapedWaitStatuses.delete(completedPid);
+      this.reapedWaitLineages.delete(completedPid);
     }
     return 0;
+  }
+
+  /** Wait for and reap only jobs launched by one top-level shell execution. */
+  async waitForLineage(lineageId: number): Promise<number> {
+    const records = [...this.jobs.values()].filter(
+      (record) => record.lineageId === lineageId,
+    );
+    const statusesToForget = [...this.reapedWaitLineages.entries()].flatMap(
+      ([pid, reapedLineage]) => (reapedLineage === lineageId ? [pid] : []),
+    );
+    if (records.length > 0) {
+      await Promise.all(
+        records.map(
+          (record) =>
+            record.promise ?? Promise.resolve(record.info.exitCode ?? 1),
+        ),
+      );
+      this.deleteJobs(records.map((record) => record.info.pid));
+    }
+    for (const pid of [
+      ...statusesToForget,
+      ...records.map((record) => record.info.pid),
+    ]) {
+      this.reapedWaitStatuses.delete(pid);
+      this.reapedWaitLineages.delete(pid);
+    }
+    return 0;
+  }
+
+  /** Allocate an identity inherited by nested interpreters in one root exec. */
+  createLineageId(): number {
+    return this.nextLineageId++;
   }
 
   abortAll(reason: JobSignal = "SIGTERM"): void {
@@ -239,6 +322,7 @@ export class ProcessTable {
     this.abortAll("SIGKILL");
     this.jobs.clear();
     this.reapedWaitStatuses.clear();
+    this.reapedWaitLineages.clear();
     this.highestJobNumber = 0;
     this.runningJobs = 0;
 
@@ -307,13 +391,20 @@ export class ProcessTable {
     }
   }
 
-  private rememberWaitStatus(pid: number, exitCode: number): void {
+  private rememberWaitStatus(
+    pid: number,
+    exitCode: number,
+    lineageId?: number,
+  ): void {
     this.reapedWaitStatuses.delete(pid);
+    this.reapedWaitLineages.delete(pid);
     this.reapedWaitStatuses.set(pid, exitCode);
+    this.reapedWaitLineages.set(pid, lineageId);
     if (this.reapedWaitStatuses.size > MAX_REAPED_WAIT_STATUSES) {
       const oldestPid = this.reapedWaitStatuses.keys().next().value;
       if (oldestPid !== undefined) {
         this.reapedWaitStatuses.delete(oldestPid);
+        this.reapedWaitLineages.delete(oldestPid);
       }
     }
   }

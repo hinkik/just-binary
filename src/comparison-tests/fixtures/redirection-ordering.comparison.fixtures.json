@@ -1,0 +1,51 @@
+{
+  "28d69cd2429f5fc2": {
+    "command": "cat 2>error <nofile; rc=$?; printf \"rc=%s err=<\" \"$rc\"; sed -E 's#^/bin/bash: (line [0-9]+: )?#bash: #' error; printf '>\\n'",
+    "files": {},
+    "stdout": "rc=1 err=<bash: nofile: No such file or directory\n>\n",
+    "stderr": "",
+    "exitCode": 0
+  },
+  "344818c0773fb2ac": {
+    "command": "{ { cat; } > made.txt < nofile; rc=$?; } 2>error; if [ -e made.txt ]; then state=present; else state=absent; fi; sed -E 's#^/bin/bash: (line [0-9]+: )?#bash: #' error >&2; printf \"rc=%s file=%s\\n\" \"$rc\" \"$state\"",
+    "files": {},
+    "stdout": "rc=1 file=present\n",
+    "stderr": "bash: nofile: No such file or directory\n",
+    "exitCode": 0
+  },
+  "4ba09d238cae1632": {
+    "command": "{ while read line; do :; done > made.txt < nofile; rc=$?; } 2>error; if [ -e made.txt ]; then state=present; else state=absent; fi; sed -E 's#^/bin/bash: (line [0-9]+: )?#bash: #' error >&2; printf \"rc=%s file=%s\\n\" \"$rc\" \"$state\"",
+    "files": {},
+    "stdout": "rc=1 file=present\n",
+    "stderr": "bash: nofile: No such file or directory\n",
+    "exitCode": 0
+  },
+  "c4fb75cb286c4b84": {
+    "command": "{ while read line; do :; done < nofile > made.txt; rc=$?; } 2>error; if [ -e made.txt ]; then state=present; else state=absent; fi; sed -E 's#^/bin/bash: (line [0-9]+: )?#bash: #' error >&2; printf \"rc=%s file=%s\\n\" \"$rc\" \"$state\"",
+    "files": {},
+    "stdout": "rc=1 file=absent\n",
+    "stderr": "bash: nofile: No such file or directory\n",
+    "exitCode": 0
+  },
+  "c8f596328a3053b6": {
+    "command": "{ cat < nofile > made.txt; rc=$?; } 2>error; if [ -e made.txt ]; then state=present; else state=absent; fi; sed -E 's#^/bin/bash: (line [0-9]+: )?#bash: #' error >&2; printf \"rc=%s file=%s\\n\" \"$rc\" \"$state\"",
+    "files": {},
+    "stdout": "rc=1 file=absent\n",
+    "stderr": "bash: nofile: No such file or directory\n",
+    "exitCode": 0
+  },
+  "ca34e63dee12bb38": {
+    "command": "{ { cat; } < nofile > made.txt; rc=$?; } 2>error; if [ -e made.txt ]; then state=present; else state=absent; fi; sed -E 's#^/bin/bash: (line [0-9]+: )?#bash: #' error >&2; printf \"rc=%s file=%s\\n\" \"$rc\" \"$state\"",
+    "files": {},
+    "stdout": "rc=1 file=absent\n",
+    "stderr": "bash: nofile: No such file or directory\n",
+    "exitCode": 0
+  },
+  "cf4d0aa25a3c8d82": {
+    "command": "{ cat > made.txt < nofile; rc=$?; } 2>error; if [ -e made.txt ]; then state=present; else state=absent; fi; sed -E 's#^/bin/bash: (line [0-9]+: )?#bash: #' error >&2; printf \"rc=%s file=%s\\n\" \"$rc\" \"$state\"",
+    "files": {},
+    "stdout": "rc=1 file=present\n",
+    "stderr": "bash: nofile: No such file or directory\n",
+    "exitCode": 0
+  }
+}

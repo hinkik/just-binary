@@ -221,6 +221,11 @@ export interface ExecOptions {
    */
   jobTracker?: JobExecutionTracker;
   /**
+   * Root execution lineage inherited by nested shells.
+   * @internal
+   */
+  lineageId?: number;
+  /**
    * Environment variables to set for this execution only.
    * These are merged with the current environment and restored after execution.
    */
@@ -262,9 +267,10 @@ export interface ExecOptions {
    * automatically.
    *
    * An aborted execution resolves normally (it does not reject) with the
-   * output produced so far and an exit code derived from the abort reason:
-   * "SIGINT" → 130, "SIGKILL" → 137, "SIGTERM" or anything else → 143, and
-   * AbortSignal.timeout()'s TimeoutError → 124.
+   * output produced so far and an exit code derived from the abort reason.
+   * Numeric signal reasons use 128 + signal, the supported signal strings map
+   * to their shell statuses, unknown reasons default to 143, and
+   * AbortSignal.timeout()'s TimeoutError maps to 124.
    */
   signal?: AbortSignal;
 }
@@ -571,6 +577,7 @@ export class Bash {
     const stdoutCollector = createCollector(trackSink(options?.stdoutSink));
     const stderrCollector = createCollector(trackSink(options?.stderrSink));
     const processes = options?.processes ?? this.processes;
+    const lineageId = options?.lineageId ?? processes.createLineageId();
     const jobTracker = options?.jobTracker ?? {
       started: false,
       limitExceeded: false,
@@ -675,6 +682,7 @@ export class Bash {
           limits: this.limits,
           jobTracker,
           processes,
+          lineageId,
           // Nested executions (bash -c, xargs, timeout, ...) inherit this
           // execution's signal; a nested call may add its own on top.
           exec: (script, execOptions) =>
@@ -682,6 +690,7 @@ export class Bash {
               ...execOptions,
               jobTracker,
               processes,
+              lineageId,
               signal: combineAbortSignals(options?.signal, execOptions?.signal),
             }),
           fetch: this.secureFetch,

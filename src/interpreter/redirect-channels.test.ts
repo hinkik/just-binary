@@ -135,7 +135,7 @@ describe("output redirect channel compilation", () => {
       textSink({ value: "" }),
       textSink({ value: "" }),
     );
-    const ctx = createContext(new InMemoryFs(), channels);
+    const ctx = createContext(new InMemoryFs({ "/in": "" }), channels);
     const input = redirects(": <in 3<&0 4<>rw <<<text");
     input.push(
       AST.redirection(
@@ -236,7 +236,7 @@ describe("output redirect channel compilation", () => {
   it("allocates fd variables and can persistently mutate a live table", async () => {
     const stdout = { value: "" };
     const channels = baseChannels(textSink(stdout), textSink({ value: "" }));
-    const fs = new InMemoryFs({ "/append": "old" });
+    const fs = new InMemoryFs({ "/append": "old", "/input": "" });
     const ctx = createContext(fs, channels);
     const allocated = await compileOutputRedirections(
       ctx,

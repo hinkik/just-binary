@@ -34,7 +34,6 @@ interface InstalledFileSink {
 
 interface CompileOptions {
   persistent?: boolean;
-  inputRedirectionsProcessed?: boolean;
   /** Bash fails to restore the moved source fd after running a builtin. */
   persistMovedSource?: boolean;
 }
@@ -260,12 +259,11 @@ function compilationError(
 /**
  * Compile output redirections into a fresh channel table.
  *
- * Ordinary input redirections are returned for the legacy caller. FD-variable
- * input redirections are processed inline so descriptor allocation preserves
- * source order. The input channel table is not mutated except when a persistent
- * brace-FD close/move intentionally reaches through temporary compiler tables;
- * fd duplication snapshots the sink installed at that point in the
- * left-to-right redirect sequence.
+ * Ordinary input redirections are opened in source order, then returned for
+ * the legacy caller to consume. Opening them here makes the first failure stop
+ * compilation before any later file sink is installed. FD-variable input
+ * redirections are processed inline so descriptor allocation also preserves
+ * source order.
  */
 export async function compileOutputRedirections(
   ctx: InterpreterContext,
@@ -288,16 +286,6 @@ export async function compileOutputRedirections(
   const persistent = options.persistent === true;
 
   for (const redir of redirections) {
-    if (
-      options.inputRedirectionsProcessed &&
-      redir.operator === "<&" &&
-      !redir.fdVariable &&
-      (redir.fd ?? 0) === 0
-    ) {
-      legacyRedirections.push(redir);
-      continue;
-    }
-
     let preExpandedTarget: string | undefined;
     if (redir.operator === "<&" && redir.target.type === "Word") {
       const expanded = await expandRedirectionTarget(ctx, redir);
@@ -323,6 +311,37 @@ export async function compileOutputRedirections(
         legacyRedirections.push(withExpandedTarget(redir, preExpandedTarget));
         continue;
       }
+    }
+
+    if (
+      redir.operator === "<" &&
+      !redir.fdVariable &&
+      redir.target.type === "Word"
+    ) {
+      const expanded = await expandRedirectionTarget(ctx, redir);
+      if ("error" in expanded) {
+        return compilationError(channels, legacyRedirections, expanded.error);
+      }
+      const invalidTargetError = getInvalidRedirectTargetError(expanded.target);
+      if (invalidTargetError) {
+        return compilationError(
+          channels,
+          legacyRedirections,
+          invalidTargetError,
+        );
+      }
+      try {
+        const filePath = ctx.fs.resolvePath(ctx.state.cwd, expanded.target);
+        await ctx.fs.readFile(filePath);
+      } catch {
+        return compilationError(
+          channels,
+          legacyRedirections,
+          `bash: ${expanded.target}: No such file or directory\n`,
+        );
+      }
+      legacyRedirections.push(withExpandedTarget(redir, expanded.target));
+      continue;
     }
 
     if (isInputRedirection(redir)) {

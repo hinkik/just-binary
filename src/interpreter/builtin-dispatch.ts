@@ -244,7 +244,14 @@ export async function dispatchBuiltin(
     return await handleWait(ctx, strArgs);
   }
   if (commandName === "jobs") {
-    return handleJobs(ctx, strArgs);
+    return await handleJobs(ctx, strArgs, (name, commandArgs) =>
+      runCommand(
+        name,
+        commandArgs.map(encode),
+        commandArgs.map(() => false),
+        emptyStream(),
+      ),
+    );
   }
   if (commandName === "kill") {
     return handleKill(ctx, strArgs);

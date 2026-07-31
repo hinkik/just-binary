@@ -165,6 +165,14 @@ export function abortExitCode(reason: unknown): number {
     // AbortSignal.timeout() — same as GNU timeout's deadline kill
     return 124;
   }
+  if (
+    typeof reason === "number" &&
+    Number.isInteger(reason) &&
+    reason > 0 &&
+    reason < 128
+  ) {
+    return 128 + reason;
+  }
   switch (reason) {
     case "SIGINT":
       return 130;
@@ -186,9 +194,10 @@ export function abortExitCode(reason: unknown): number {
  *
  * Unlike limit errors, aborted commands die silently (like a killed process).
  *
- * The exit code depends on the abort reason: string reasons "SIGINT"/"SIGKILL"/
- * "SIGTERM" map to 130/137/143, AbortSignal.timeout()'s TimeoutError maps to
- * 124, and anything else defaults to 143 (killed by SIGTERM).
+ * Numeric signal reasons map to 128 + signal. String reasons
+ * "SIGINT"/"SIGKILL"/"SIGTERM" map to 130/137/143,
+ * AbortSignal.timeout()'s TimeoutError maps to 124, and anything else defaults
+ * to 143 (killed by SIGTERM).
  */
 export class AbortExecutionError extends ExecutionLimitError {
   override readonly name: string = "AbortExecutionError";

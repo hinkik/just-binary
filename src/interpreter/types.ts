@@ -393,6 +393,8 @@ export interface InterpreterContext {
   commands: CommandRegistry;
   /** Kernel-like job state, shared independently from InterpreterState. */
   processes: ProcessTable;
+  /** Identity shared by one root exec and all nested shell execution. */
+  lineageId: number;
   outputChannels: OutputChannels;
   /** Errors already diagnosed while the current command unwinds. */
   reportedDiagnostics?: WeakSet<Error>;

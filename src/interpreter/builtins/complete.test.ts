@@ -60,6 +60,7 @@ function createMockCtx(): InterpreterContext {
     fs: {} as unknown as InterpreterContext["fs"],
     commands: {} as unknown as InterpreterContext["commands"],
     processes: new ProcessTable(),
+    lineageId: 1,
     jobTracker: { started: false, limitExceeded: false },
     outputChannels: { bindings: new Map() },
     limits: {} as unknown as InterpreterContext["limits"],

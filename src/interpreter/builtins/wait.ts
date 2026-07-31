@@ -29,8 +29,8 @@ export async function handleWait(
     });
     try {
       const exitCode = await (ctx.signal
-        ? Promise.race([ctx.processes.wait(), abort])
-        : ctx.processes.wait());
+        ? Promise.race([ctx.processes.waitForLineage(ctx.lineageId), abort])
+        : ctx.processes.waitForLineage(ctx.lineageId));
       return {
         stdout: emptyStream(),
         stderr: emptyStream(),
