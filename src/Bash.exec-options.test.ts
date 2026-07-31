@@ -771,8 +771,24 @@ describe("exec options", () => {
 
       await env.exec("echo out; echo err >&2");
 
-      expect(logger.logs[0].message).toBe("exec");
-      expect(logger.logs[logger.logs.length - 1].message).toBe("exit");
+      expect(logger.logs).toEqual([
+        {
+          level: "info",
+          message: "exec",
+          data: { command: "echo out; echo err >&2" },
+        },
+        {
+          level: "debug",
+          message: "stdout",
+          data: { output: "out\n" },
+        },
+        {
+          level: "info",
+          message: "stderr",
+          data: { output: "err\n" },
+        },
+        { level: "info", message: "exit", data: { exitCode: 0 } },
+      ]);
     });
 
     it("should not log stdout when empty", async () => {

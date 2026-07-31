@@ -11,6 +11,7 @@ import type {
 import type { IFileSystem } from "../fs/interface.js";
 import type { ExecutionLimits } from "../limits.js";
 import type { SecureFetch } from "../network/index.js";
+import type { ProcessTable } from "../process/process-table.js";
 import type {
   CommandRegistry,
   ExecResult,
@@ -18,6 +19,7 @@ import type {
   TraceCallback,
 } from "../types.js";
 import type { ByteStream } from "../utils/stream.js";
+import type { OutputChannels } from "./output-channels.js";
 
 /**
  * Completion specification for a command, set by the `complete` builtin.
@@ -309,19 +311,14 @@ export interface IOState {
 // ============================================================================
 // Expansion State
 // ============================================================================
-// Captures errors during parameter expansion that need to be reported
-// after the expansion completes (arithmetic errors, etc.)
+// Tracks status changes caused by parameter expansion.
 
 /**
- * Captures errors that occur during parameter expansion.
- * Some expansion errors need to be reported after expansion completes,
- * with their exit codes and stderr preserved.
+ * Tracks exit status changes caused by parameter expansion.
  */
 export interface ExpansionState {
   /** Exit code from expansion errors (arithmetic, etc.) - overrides command exit code */
   expansionExitCode?: number;
-  /** Stderr from expansion errors */
-  expansionStderr?: string;
 }
 
 // ============================================================================
@@ -394,14 +391,24 @@ export interface InterpreterContext {
   state: InterpreterState;
   fs: IFileSystem;
   commands: CommandRegistry;
+  /** Kernel-like job state, shared independently from InterpreterState. */
+  processes: ProcessTable;
+  /** Identity shared by one root exec and all nested shell execution. */
+  lineageId: number;
+  outputChannels: OutputChannels;
+  /** Errors already diagnosed while the current command unwinds. */
+  reportedDiagnostics?: WeakSet<Error>;
   /** Execution limits configuration */
   limits: Required<ExecutionLimits>;
+  /** Lifecycle events attributable to this root exec and its descendants. */
+  jobTracker: JobExecutionTracker;
   execFn: (
     script: string,
     options?: {
       env?: Record<string, string>;
       cwd?: string;
       stdin?: ByteStream;
+      signal?: AbortSignal;
     },
   ) => Promise<ExecResult>;
   executeScript: (node: ScriptNode) => Promise<ExecResult>;
@@ -410,11 +417,18 @@ export interface InterpreterContext {
   /** Optional secure fetch function for network-enabled commands */
   fetch?: SecureFetch;
   /** Optional sleep function for testing with mock clocks */
-  sleep?: (ms: number) => Promise<void>;
+  sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
+  /** Abort signal for this execution (from ExecOptions.signal) */
+  signal?: AbortSignal;
   /** Optional trace callback for performance profiling */
   trace?: TraceCallback;
   /** Current command substitution nesting depth (for limit enforcement) */
   substitutionDepth?: number;
   /** Optional feature coverage writer for fuzzing instrumentation */
   coverage?: FeatureCoverageWriter;
+}
+
+export interface JobExecutionTracker {
+  started: boolean;
+  limitExceeded: boolean;
 }

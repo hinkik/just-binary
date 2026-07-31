@@ -15,15 +15,16 @@ describe("timeout command", () => {
     });
 
     it("should timeout slow command", async () => {
-      const env = new Bash({
-        sleep: async (ms) => {
-          // Simulate actual sleep for testing
-          await new Promise((r) => setTimeout(r, ms));
-        },
-      });
+      // Default sleep is signal-aware: the deadline cancels the child
+      // instead of leaking a 10s timer behind a race.
+      const env = new Bash();
 
+      const start = Date.now();
       const result = await toText(await env.exec("timeout 0.05 sleep 10"));
       expect(result.exitCode).toBe(124);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toBe("");
+      expect(Date.now() - start).toBeLessThan(5000);
     });
 
     it("should pass arguments to command", async () => {

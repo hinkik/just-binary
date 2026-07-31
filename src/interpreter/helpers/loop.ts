@@ -6,11 +6,6 @@
  */
 
 import {
-  type ByteStream,
-  concatStreams,
-  fromString,
-} from "../../utils/stream.js";
-import {
   BreakError,
   ContinueError,
   ErrexitError,
@@ -18,14 +13,11 @@ import {
   ExitError,
   ReturnError,
 } from "../errors.js";
-import { getErrorMessage } from "./errors.js";
 
 export type LoopAction = "break" | "continue" | "rethrow" | "error";
 
 export interface LoopErrorResult {
   action: LoopAction;
-  stdout: ByteStream;
-  stderr: ByteStream;
   exitCode?: number;
   error?: unknown;
 }
@@ -34,45 +26,33 @@ export interface LoopErrorResult {
  * Handle errors thrown during loop body execution.
  *
  * @param error - The caught error
- * @param stdout - Current accumulated stdout
- * @param stderr - Current accumulated stderr
  * @param loopDepth - Current loop nesting depth from ctx.state.loopDepth
  * @returns Result indicating what action the loop should take
  */
 export function handleLoopError(
   error: unknown,
-  stdout: ByteStream,
-  stderr: ByteStream,
   loopDepth: number,
 ): LoopErrorResult {
   if (error instanceof BreakError) {
-    stdout = concatStreams(stdout, error.stdout);
-    stderr = concatStreams(stderr, error.stderr);
     // Only propagate if levels > 1 AND we're not at the outermost loop
     // Per bash docs: "If n is greater than the number of enclosing loops,
     // the last enclosing loop is exited"
     if (error.levels > 1 && loopDepth > 1) {
       error.levels--;
-      error.stdout = stdout;
-      error.stderr = stderr;
-      return { action: "rethrow", stdout, stderr, error };
+      return { action: "rethrow", error };
     }
-    return { action: "break", stdout, stderr };
+    return { action: "break" };
   }
 
   if (error instanceof ContinueError) {
-    stdout = concatStreams(stdout, error.stdout);
-    stderr = concatStreams(stderr, error.stderr);
     // Only propagate if levels > 1 AND we're not at the outermost loop
     // Per bash docs: "If n is greater than the number of enclosing loops,
     // the last enclosing loop is resumed"
     if (error.levels > 1 && loopDepth > 1) {
       error.levels--;
-      error.stdout = stdout;
-      error.stderr = stderr;
-      return { action: "rethrow", stdout, stderr, error };
+      return { action: "rethrow", error };
     }
-    return { action: "continue", stdout, stderr };
+    return { action: "continue" };
   }
 
   if (
@@ -81,16 +61,12 @@ export function handleLoopError(
     error instanceof ExitError ||
     error instanceof ExecutionLimitError
   ) {
-    error.prependOutput(stdout, stderr);
-    return { action: "rethrow", stdout, stderr, error };
+    return { action: "rethrow", error };
   }
 
-  // Generic error - return error result
-  const message = getErrorMessage(error);
   return {
     action: "error",
-    stdout,
-    stderr: concatStreams(stderr, fromString(`${message}\n`)),
     exitCode: 1,
+    error,
   };
 }

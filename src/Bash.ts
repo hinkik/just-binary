@@ -25,6 +25,7 @@ import { initFilesystem } from "./fs/init.js";
 import type { IFileSystem, InitialFiles } from "./fs/interface.js";
 import { mapToRecord, mapToRecordWithExtras } from "./helpers/env.js";
 import {
+  AbortExecutionError,
   ArithmeticError,
   ExecutionLimitError,
   ExitError,
@@ -38,7 +39,13 @@ import {
   Interpreter,
   type InterpreterOptions,
   type InterpreterState,
+  type JobExecutionTracker,
 } from "./interpreter/index.js";
+import {
+  createCollector,
+  type OutputCollector,
+  type OutputSink,
+} from "./interpreter/output-channels.js";
 import { type ExecutionLimits, resolveLimits } from "./limits.js";
 import {
   createSecureFetch,
@@ -47,6 +54,7 @@ import {
 } from "./network/index.js";
 import { LexerError } from "./parser/lexer.js";
 import { type ParseException, parse } from "./parser/parser.js";
+import { ProcessTable } from "./process/process-table.js";
 import {
   DefenseInDepthBox,
   SecurityViolationError,
@@ -60,16 +68,15 @@ import type {
   FeatureCoverageWriter,
   TraceCallback,
 } from "./types.js";
-import { EMPTY, envSet } from "./utils/bytes.js";
-import {
-  type ByteStream,
-  collectText,
-  emptyStream,
-  fromString,
-  teeStream,
-} from "./utils/stream.js";
+import { combineAbortSignals } from "./utils/abort.js";
+import { EMPTY, encode, envSet } from "./utils/bytes.js";
+import { type ByteStream, emptyStream, fromString } from "./utils/stream.js";
 
 export type { ExecutionLimits } from "./limits.js";
+
+// Captured before DefenseInDepthBox activates. Internal scheduling must remain
+// available while user code is prevented from reaching timer globals.
+const scheduleMacrotask = globalThis.setTimeout.bind(globalThis);
 
 /**
  * Logger interface for Bash execution logging.
@@ -87,6 +94,13 @@ export interface BashOptions {
   env?: Record<string, string>;
   cwd?: string;
   fs?: IFileSystem;
+  /**
+   * Process table shared by jobs started from this shell.
+   *
+   * A Bash instance creates a private table when omitted. Inject one table
+   * into multiple Bash instances when they should see the same machine jobs.
+   */
+  processes?: ProcessTable;
   /**
    * Execution limits to prevent runaway compute.
    * See ExecutionLimits interface for available options.
@@ -125,8 +139,12 @@ export interface BashOptions {
    * Optional sleep function for the sleep command.
    * If provided, used instead of real setTimeout.
    * Useful for testing with mock clocks.
+   *
+   * Receives the execution's abort signal (when one was passed to exec) so
+   * custom implementations can wake up early on cancellation. Implementations
+   * that ignore the signal delay cancellation until they resolve.
    */
-  sleep?: (ms: number) => Promise<void>;
+  sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
   /**
    * Custom commands to register alongside built-in commands.
    * These take precedence over built-ins with the same name.
@@ -193,6 +211,21 @@ export interface BashOptions {
 
 export interface ExecOptions {
   /**
+   * Process namespace override for hosts that isolate individual executions.
+   * @internal
+   */
+  processes?: ProcessTable;
+  /**
+   * Job lifecycle tracker shared by nested executions.
+   * @internal
+   */
+  jobTracker?: JobExecutionTracker;
+  /**
+   * Root execution lineage inherited by nested shells.
+   * @internal
+   */
+  lineageId?: number;
+  /**
    * Environment variables to set for this execution only.
    * These are merged with the current environment and restored after execution.
    */
@@ -215,15 +248,41 @@ export interface ExecOptions {
    * Wrap a Uint8Array with `fromBytes(...)` or a string with `fromString(...)`.
    */
   stdin?: ByteStream;
+  /**
+   * Optional stdout observer. Writes are awaited, but the returned stdout
+   * stream is still complete and unaffected by the observer.
+   */
+  stdoutSink?: OutputSink;
+  /**
+   * Optional stderr observer. Writes are awaited, but the returned stderr
+   * stream is still complete and unaffected by the observer.
+   */
+  stderrSink?: OutputSink;
+  /**
+   * Abort signal to cancel this execution.
+   *
+   * Cancellation is cooperative: it is checked before every statement, on
+   * every loop iteration, and by long-waiting commands (sleep, timeout).
+   * Nested executions (bash -c, xargs, command substitution) inherit it
+   * automatically.
+   *
+   * An aborted execution resolves normally (it does not reject) with the
+   * output produced so far and an exit code derived from the abort reason.
+   * Numeric signal reasons use 128 + signal, the supported signal strings map
+   * to their shell statuses, unknown reasons default to 143, and
+   * AbortSignal.timeout()'s TimeoutError maps to 124.
+   */
+  signal?: AbortSignal;
 }
 
 export class Bash {
   readonly fs: IFileSystem;
+  readonly processes: ProcessTable;
   private commands: CommandRegistry = new Map();
   private useDefaultLayout: boolean = false;
   private limits: Required<ExecutionLimits>;
   private secureFetch?: SecureFetch;
-  private sleepFn?: (ms: number) => Promise<void>;
+  private sleepFn?: (ms: number, signal?: AbortSignal) => Promise<void>;
   private traceFn?: TraceCallback;
   private logger?: BashLogger;
   private defenseInDepthConfig?: DefenseInDepthConfig | boolean;
@@ -235,6 +294,7 @@ export class Bash {
   constructor(options: BashOptions = {}) {
     const fs = options.fs ?? new InMemoryFs(options.files);
     this.fs = fs;
+    this.processes = options.processes ?? new ProcessTable();
 
     this.useDefaultLayout = !options.cwd && !options.files;
     const cwd = options.cwd || (this.useDefaultLayout ? "/home/user" : "/");
@@ -429,36 +489,33 @@ export class Bash {
     }
   }
 
-  private async logResult(result: BashExecResult): Promise<BashExecResult> {
-    if (!this.logger) {
-      return result;
+  private logResult(
+    result: Pick<BashExecResult, "exitCode" | "env">,
+    stdoutCollector: OutputCollector,
+    stderrCollector: OutputCollector,
+  ): BashExecResult {
+    try {
+      const logger = this.logger;
+      if (logger) {
+        const stdoutText = stdoutCollector.text();
+        const stderrText = stderrCollector.text();
+        if (stdoutText.length > 0) {
+          logger.debug("stdout", { output: stdoutText });
+        }
+        if (stderrText.length > 0) {
+          logger.info("stderr", { output: stderrText });
+        }
+        logger.info("exit", { exitCode: result.exitCode });
+      }
+      return {
+        ...result,
+        stdout: stdoutCollector.stream(),
+        stderr: stderrCollector.stream(),
+      };
+    } finally {
+      stdoutCollector.seal();
+      stderrCollector.seal();
     }
-    const logger = this.logger;
-    // Tee streams so the logger can read independently. We await both log
-    // drains before returning so callers can read `logger.logs` synchronously
-    // after `await bash.exec(...)`. The user-facing tee branches retain their
-    // chunks (Web Streams tee buffers per-branch), so the caller still gets
-    // the full output when they consume the returned streams.
-    const [stdoutForUser, stdoutForLog] = teeStream(result.stdout);
-    const [stderrForUser, stderrForLog] = teeStream(result.stderr);
-
-    const [stdoutText, stderrText] = await Promise.all([
-      collectText(stdoutForLog),
-      collectText(stderrForLog),
-    ]);
-    if (stdoutText.length > 0) {
-      logger.debug("stdout", { output: stdoutText });
-    }
-    if (stderrText.length > 0) {
-      logger.info("stderr", { output: stderrText });
-    }
-    logger.info("exit", { exitCode: result.exitCode });
-
-    return {
-      ...result,
-      stdout: stdoutForUser,
-      stderr: stderrForUser,
-    };
   }
 
   async exec(
@@ -489,6 +546,42 @@ export class Bash {
         env: mapToRecordWithExtras(this.state.env, options?.env),
       };
     }
+
+    if (options?.signal?.aborted) {
+      return {
+        stdout: emptyStream(),
+        stderr: emptyStream(),
+        exitCode: new AbortExecutionError(options.signal.reason).exitCode,
+        env: mapToRecordWithExtras(this.state.env, options?.env),
+      };
+    }
+
+    const sinkFailures = new Set<unknown>();
+    const trackSink = (
+      sink: OutputSink | undefined,
+    ): OutputSink | undefined => {
+      if (!sink) {
+        return undefined;
+      }
+      return {
+        async write(chunk) {
+          try {
+            await sink.write(chunk);
+          } catch (error) {
+            sinkFailures.add(error);
+            throw error;
+          }
+        },
+      };
+    };
+    const stdoutCollector = createCollector(trackSink(options?.stdoutSink));
+    const stderrCollector = createCollector(trackSink(options?.stderrSink));
+    const processes = options?.processes ?? this.processes;
+    const lineageId = options?.lineageId ?? processes.createLineageId();
+    const jobTracker = options?.jobTracker ?? {
+      started: false,
+      limitExceeded: false,
+    };
 
     // Log command execution
     this.logger?.info("exec", { command: commandLine });
@@ -545,6 +638,9 @@ export class Bash {
       functions: new Map(this.state.functions),
       localScopes: [...this.state.localScopes],
       options: { ...this.state.options },
+      fileDescriptors: this.state.fileDescriptors
+        ? new Map(this.state.fileDescriptors)
+        : undefined,
       // Share hashTable reference - it should persist across exec calls
       hashTable: this.state.hashTable,
       // Pass stdin through to commands (for bash -c with piped input)
@@ -565,28 +661,66 @@ export class Bash {
       ? DefenseInDepthBox.getInstance(this.defenseInDepthConfig)
       : null;
     const defenseHandle = defenseBox?.activate();
+    let rootParsed = false;
 
     try {
       // Run execution inside defense-in-depth context if enabled
       const executeScript = async (): Promise<BashExecResult> => {
         const ast = parse(normalized);
+        rootParsed = true;
 
         // Create interpreter with appropriate state
         const interpreterOptions: InterpreterOptions = {
           fs: this.fs,
           commands: this.commands,
+          outputChannels: {
+            bindings: new Map([
+              [1, { sink: stdoutCollector }],
+              [2, { sink: stderrCollector }],
+            ]),
+          },
           limits: this.limits,
-          exec: this.exec.bind(this),
+          jobTracker,
+          processes,
+          lineageId,
+          // Nested executions (bash -c, xargs, timeout, ...) inherit this
+          // execution's signal; a nested call may add its own on top.
+          exec: (script, execOptions) =>
+            this.exec(script, {
+              ...execOptions,
+              jobTracker,
+              processes,
+              lineageId,
+              signal: combineAbortSignals(options?.signal, execOptions?.signal),
+            }),
           fetch: this.secureFetch,
           sleep: this.sleepFn,
           trace: this.traceFn,
           coverage: this.coverageWriter,
+          signal: options?.signal,
         };
 
         const interpreter = new Interpreter(interpreterOptions, execState);
-        const result = await interpreter.executeScript(ast);
+        let result = await interpreter.executeRootScript(ast);
+        if (jobTracker.started) {
+          // Let immediately-runnable job graphs reach their first real async
+          // boundary. This preserves non-blocking `&` for sleeps and I/O while
+          // ensuring a microtask-only fork bomb surfaces its safety limit
+          // before its throwaway owning shell returns success.
+          await new Promise((resolve) => scheduleMacrotask(resolve, 0));
+          if (jobTracker.limitExceeded) {
+            result = {
+              ...result,
+              exitCode: ExecutionLimitError.EXIT_CODE,
+            };
+          }
+        }
         // Interpreter always sets env, assert it for type safety
-        return this.logResult(result as BashExecResult);
+        return this.logResult(
+          result as BashExecResult,
+          stdoutCollector,
+          stderrCollector,
+        );
       };
 
       // If defense-in-depth is enabled, run within the protected context
@@ -595,78 +729,119 @@ export class Bash {
       }
       return await executeScript();
     } catch (error) {
+      if (sinkFailures.has(error)) {
+        throw error;
+      }
       // ExitError propagates from 'exit' builtin (including via eval/source)
       if (error instanceof ExitError) {
-        return this.logResult({
-          stdout: error.stdout,
-          stderr: error.stderr,
-          exitCode: error.exitCode,
-          env: mapToRecordWithExtras(this.state.env, options?.env),
-        });
+        return this.logResult(
+          {
+            exitCode: error.exitCode,
+            env: mapToRecordWithExtras(this.state.env, options?.env),
+          },
+          stdoutCollector,
+          stderrCollector,
+        );
       }
       // PosixFatalError propagates from special builtins in POSIX mode
       if (error instanceof PosixFatalError) {
-        return this.logResult({
-          stdout: error.stdout,
-          stderr: error.stderr,
-          exitCode: error.exitCode,
-          env: mapToRecordWithExtras(this.state.env, options?.env),
-        });
+        return this.logResult(
+          {
+            exitCode: error.exitCode,
+            env: mapToRecordWithExtras(this.state.env, options?.env),
+          },
+          stdoutCollector,
+          stderrCollector,
+        );
       }
       if (error instanceof ArithmeticError) {
-        return this.logResult({
-          stdout: error.stdout,
-          stderr: error.stderr,
-          exitCode: 1,
-          env: mapToRecordWithExtras(this.state.env, options?.env),
-        });
+        if (!rootParsed) {
+          await stderrCollector.write(encode(`bash: ${error.message}\n`));
+        }
+        return this.logResult(
+          {
+            exitCode: 1,
+            env: mapToRecordWithExtras(this.state.env, options?.env),
+          },
+          stdoutCollector,
+          stderrCollector,
+        );
+      }
+      // AbortExecutionError is thrown when the execution's signal aborts.
+      // Checked before ExecutionLimitError — it is a subclass with its own
+      // reason-derived exit code (130/137/143/124) instead of 126.
+      if (error instanceof AbortExecutionError) {
+        return this.logResult(
+          {
+            exitCode: error.exitCode,
+            env: mapToRecordWithExtras(this.state.env, options?.env),
+          },
+          stdoutCollector,
+          stderrCollector,
+        );
       }
       // ExecutionLimitError is thrown when our conservative limits are exceeded
       // (command count, recursion depth, loop iterations)
       if (error instanceof ExecutionLimitError) {
-        return this.logResult({
-          stdout: error.stdout,
-          stderr: error.stderr,
-          exitCode: ExecutionLimitError.EXIT_CODE,
-          env: mapToRecordWithExtras(this.state.env, options?.env),
-        });
+        return this.logResult(
+          {
+            exitCode: ExecutionLimitError.EXIT_CODE,
+            env: mapToRecordWithExtras(this.state.env, options?.env),
+          },
+          stdoutCollector,
+          stderrCollector,
+        );
       }
       // SecurityViolationError is thrown when defense-in-depth detects a blocked operation
       if (error instanceof SecurityViolationError) {
-        return this.logResult({
-          stdout: emptyStream(),
-          stderr: fromString(`bash: security violation: ${error.message}\n`),
-          exitCode: 1,
-          env: mapToRecordWithExtras(this.state.env, options?.env),
-        });
+        await stderrCollector.write(
+          encode(`bash: security violation: ${error.message}\n`),
+        );
+        return this.logResult(
+          {
+            exitCode: 1,
+            env: mapToRecordWithExtras(this.state.env, options?.env),
+          },
+          stdoutCollector,
+          stderrCollector,
+        );
       }
       if ((error as ParseException).name === "ParseException") {
-        return this.logResult({
-          stdout: emptyStream(),
-          stderr: fromString(
-            `bash: syntax error: ${(error as Error).message}\n`,
-          ),
-          exitCode: 2,
-          env: mapToRecordWithExtras(this.state.env, options?.env),
-        });
+        await stderrCollector.write(
+          encode(`bash: syntax error: ${(error as Error).message}\n`),
+        );
+        return this.logResult(
+          {
+            exitCode: 2,
+            env: mapToRecordWithExtras(this.state.env, options?.env),
+          },
+          stdoutCollector,
+          stderrCollector,
+        );
       }
       // LexerError is thrown for lexer-level issues like unterminated quotes
       if (error instanceof LexerError) {
-        return this.logResult({
-          stdout: emptyStream(),
-          stderr: fromString(`bash: ${error.message}\n`),
-          exitCode: 2,
-          env: mapToRecordWithExtras(this.state.env, options?.env),
-        });
+        await stderrCollector.write(encode(`bash: ${error.message}\n`));
+        return this.logResult(
+          {
+            exitCode: 2,
+            env: mapToRecordWithExtras(this.state.env, options?.env),
+          },
+          stdoutCollector,
+          stderrCollector,
+        );
       }
       // RangeError occurs when JavaScript call stack is exceeded (deep recursion)
       if (error instanceof RangeError) {
-        return this.logResult({
-          stdout: emptyStream(),
-          stderr: fromString(`bash: ${error.message}\n`),
-          exitCode: 1,
-          env: mapToRecordWithExtras(this.state.env, options?.env),
-        });
+        await stderrCollector.write(encode(`bash: ${error.message}\n`));
+        return this.logResult(
+          {
+            exitCode: 1,
+            env: mapToRecordWithExtras(this.state.env, options?.env),
+          },
+          stdoutCollector,
+          stderrCollector,
+        );
       }
       throw error;
     } finally {

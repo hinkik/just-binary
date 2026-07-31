@@ -3,5 +3,6 @@ export { Interpreter } from "./interpreter.js";
 export type {
   InterpreterContext,
   InterpreterState,
+  JobExecutionTracker,
   ShellOptions,
 } from "./types.js";

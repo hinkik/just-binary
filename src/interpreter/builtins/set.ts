@@ -7,12 +7,12 @@
 
 import type { ExecResult } from "../../types.js";
 import { decode, envGet, envSet } from "../../utils/bytes.js";
-import { emptyStream, fromString } from "../../utils/stream.js";
 import { PosixFatalError } from "../errors.js";
 import { getArrayIndices, getAssocArrayKeys } from "../helpers/array.js";
 import { quoteArrayValue, quoteValue } from "../helpers/quoting.js";
 import { failure, ok, successText } from "../helpers/result.js";
 import { updateShellopts } from "../helpers/shellopts.js";
+import { writeToChannel } from "../output-channels.js";
 import type { InterpreterContext, ShellOptions } from "../types.js";
 
 const SET_USAGE = `set: usage: set [-eux] [+eux] [-o option] [+o option]
@@ -244,7 +244,10 @@ function getAssocArrayNames(ctx: InterpreterContext): Set<string> {
   return ctx.state.associativeArrays ?? new Set<string>();
 }
 
-export function handleSet(ctx: InterpreterContext, args: string[]): ExecResult {
+export async function handleSet(
+  ctx: InterpreterContext,
+  args: string[],
+): Promise<ExecResult> {
   if (args.includes("--help")) {
     return successText(SET_USAGE);
   }
@@ -359,7 +362,8 @@ export function handleSet(ctx: InterpreterContext, args: string[]): ExecResult {
         const errorMsg = `bash: set: ${optName}: invalid option name\n${SET_USAGE}`;
         // In POSIX mode, invalid option is fatal
         if (ctx.state.options.posix) {
-          throw new PosixFatalError(1, emptyStream(), fromString(errorMsg));
+          await writeToChannel(ctx, 2, errorMsg, true);
+          throw new PosixFatalError(1);
         }
         return failure(errorMsg);
       }
@@ -403,7 +407,8 @@ export function handleSet(ctx: InterpreterContext, args: string[]): ExecResult {
           const errorMsg = `bash: set: ${arg[0]}${flag}: invalid option\n${SET_USAGE}`;
           // In POSIX mode, invalid option is fatal
           if (ctx.state.options.posix) {
-            throw new PosixFatalError(1, emptyStream(), fromString(errorMsg));
+            await writeToChannel(ctx, 2, errorMsg, true);
+            throw new PosixFatalError(1);
           }
           return failure(errorMsg);
         }
@@ -443,7 +448,8 @@ export function handleSet(ctx: InterpreterContext, args: string[]): ExecResult {
       const errorMsg = `bash: set: ${arg}: invalid option\n${SET_USAGE}`;
       // In POSIX mode, invalid option is fatal
       if (ctx.state.options.posix) {
-        throw new PosixFatalError(1, emptyStream(), fromString(errorMsg));
+        await writeToChannel(ctx, 2, errorMsg, true);
+        throw new PosixFatalError(1);
       }
       return failure(errorMsg);
     }

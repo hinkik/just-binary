@@ -2,17 +2,16 @@
  * exit - Exit shell builtin
  */
 
-import {
-  type ByteStream,
-  emptyStream,
-  fromString,
-} from "../../utils/stream.js";
 import { ExitError } from "../errors.js";
+import { writeToChannel } from "../output-channels.js";
 import type { InterpreterContext } from "../types.js";
 
-export function handleExit(ctx: InterpreterContext, args: string[]): never {
+export async function handleExit(
+  ctx: InterpreterContext,
+  args: string[],
+): Promise<never> {
   let exitCode: number;
-  let stderr: ByteStream = emptyStream();
+  let diagnostic: string | undefined;
 
   if (args.length === 0) {
     // Use last command's exit code when no argument given
@@ -22,7 +21,7 @@ export function handleExit(ctx: InterpreterContext, args: string[]): never {
     const parsed = Number.parseInt(arg, 10);
     // Empty string or non-numeric is an error
     if (arg === "" || Number.isNaN(parsed) || !/^-?\d+$/.test(arg)) {
-      stderr = fromString(`bash: exit: ${arg}: numeric argument required\n`);
+      diagnostic = `bash: exit: ${arg}: numeric argument required\n`;
       exitCode = 2;
     } else {
       // Exit codes are modulo 256 (wrap around)
@@ -30,5 +29,8 @@ export function handleExit(ctx: InterpreterContext, args: string[]): never {
     }
   }
 
-  throw new ExitError(exitCode, emptyStream(), stderr);
+  if (diagnostic) {
+    await writeToChannel(ctx, 2, diagnostic, true);
+  }
+  throw new ExitError(exitCode);
 }

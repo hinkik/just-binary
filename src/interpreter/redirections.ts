@@ -13,13 +13,7 @@
 import type { RedirectionNode, WordNode } from "../ast/types.js";
 import type { ExecResult } from "../types.js";
 import { envGet, envSet } from "../utils/bytes.js";
-import {
-  type ByteStream,
-  collectBytes,
-  concatStreams,
-  emptyStream,
-  fromString,
-} from "../utils/stream.js";
+import { emptyStream, fromString } from "../utils/stream.js";
 import {
   expandRedirectTarget,
   expandWord,
@@ -32,7 +26,7 @@ import type { InterpreterContext } from "./types.js";
  * Check if a redirect target is valid for output (not a directory, respects noclobber).
  * Returns an error message string if invalid, null if valid.
  */
-async function checkOutputRedirectTarget(
+export async function checkOutputRedirectTarget(
   ctx: InterpreterContext,
   filePath: string,
   target: string,
@@ -58,93 +52,55 @@ async function checkOutputRedirectTarget(
 }
 
 /**
- * Parse the content of a read-write file descriptor.
- * Format: __rw__:pathLength:path:position:content
- * @returns The parsed components, or null if format is invalid
+ * Expand one redirect target using the same rules as the legacy redirect path.
  */
-function parseRwFdContent(fdContent: string): {
-  path: string;
-  position: number;
-  content: string;
-} | null {
-  if (!fdContent.startsWith("__rw__:")) {
-    return null;
+export async function expandRedirectionTarget(
+  ctx: InterpreterContext,
+  redir: RedirectionNode,
+): Promise<{ target: string } | { error: string }> {
+  if (redir.target.type === "HereDoc") {
+    throw new Error("Here-document targets are not words");
   }
-  const afterPrefix = fdContent.slice(7);
-  const firstColonIdx = afterPrefix.indexOf(":");
-  if (firstColonIdx === -1) return null;
-  const pathLength = Number.parseInt(afterPrefix.slice(0, firstColonIdx), 10);
-  if (Number.isNaN(pathLength) || pathLength < 0) return null;
-  const pathStart = firstColonIdx + 1;
-  const path = afterPrefix.slice(pathStart, pathStart + pathLength);
-  const positionStart = pathStart + pathLength + 1;
-  const remaining = afterPrefix.slice(positionStart);
-  const posColonIdx = remaining.indexOf(":");
-  if (posColonIdx === -1) return null;
-  const position = Number.parseInt(remaining.slice(0, posColonIdx), 10);
-  if (Number.isNaN(position) || position < 0) return null;
-  const content = remaining.slice(posColonIdx + 1);
-  return { path, position, content };
+
+  if (redir.operator === ">&" || redir.operator === "<&") {
+    if (hasQuotedMultiValueAt(ctx, redir.target)) {
+      return { error: "bash: $@: ambiguous redirect\n" };
+    }
+    return { target: await expandWord(ctx, redir.target) };
+  }
+
+  return expandRedirectTarget(ctx, redir.target);
 }
 
 /**
- * Pre-expanded redirect targets, keyed by index into the redirections array.
- * This allows us to expand redirect targets (including side effects) before
- * executing a function body, then apply the redirections after.
+ * Return the legacy diagnostic for a redirect target containing a null byte.
  */
-export type ExpandedRedirectTargets = Map<number, string>;
-
-/**
- * Pre-expand redirect targets for function definitions.
- * This is needed because redirections on function definitions are evaluated
- * each time the function is called, and any side effects (like $((i++)))
- * must occur BEFORE the function body executes.
- */
-export async function preExpandRedirectTargets(
-  ctx: InterpreterContext,
-  redirections: RedirectionNode[],
-): Promise<{ targets: ExpandedRedirectTargets; error?: string }> {
-  const targets: ExpandedRedirectTargets = new Map();
-
-  for (let i = 0; i < redirections.length; i++) {
-    const redir = redirections[i];
-    if (redir.target.type === "HereDoc") {
-      continue;
-    }
-
-    const isFdRedirect = redir.operator === ">&" || redir.operator === "<&";
-    if (isFdRedirect) {
-      // Check for "$@" with multiple positional params - this is an ambiguous redirect
-      if (hasQuotedMultiValueAt(ctx, redir.target as WordNode)) {
-        return { targets, error: "bash: $@: ambiguous redirect\n" };
-      }
-      targets.set(i, await expandWord(ctx, redir.target as WordNode));
-    } else {
-      const expandResult = await expandRedirectTarget(
-        ctx,
-        redir.target as WordNode,
-      );
-      if ("error" in expandResult) {
-        return { targets, error: expandResult.error };
-      }
-      targets.set(i, expandResult.target);
-    }
+export function getInvalidRedirectTargetError(target: string): string | null {
+  if (!target.includes("\0")) {
+    return null;
   }
+  return `bash: ${target.replace(/\0/g, "")}: No such file or directory\n`;
+}
 
-  return { targets };
+export function getBadFileDescriptorError(fd: number): string {
+  return `bash: ${fd}: Bad file descriptor\n`;
 }
 
 /**
  * Allocate the next available file descriptor (starting at 10).
  * Returns the allocated FD number.
  */
-function allocateFd(ctx: InterpreterContext): number {
+export function allocateFd(
+  ctx: InterpreterContext,
+  isUnavailable: (fd: number) => boolean = () => false,
+): number {
   if (ctx.state.nextFd === undefined) {
     ctx.state.nextFd = 10;
   }
-  const fd = ctx.state.nextFd;
-  ctx.state.nextFd++;
-  return fd;
+  while (isUnavailable(ctx.state.nextFd)) {
+    ctx.state.nextFd++;
+  }
+  return ctx.state.nextFd++;
 }
 
 /**
@@ -155,6 +111,7 @@ function allocateFd(ctx: InterpreterContext): number {
 export async function processFdVariableRedirections(
   ctx: InterpreterContext,
   redirections: RedirectionNode[],
+  isFdUnavailable?: (fd: number) => boolean,
 ): Promise<ExecResult | null> {
   for (const redir of redirections) {
     if (!redir.fdVariable) {
@@ -169,12 +126,13 @@ export async function processFdVariableRedirections(
     // Handle close operation: {fd}>&- or {fd}<&-
     // For close operations, we look up the existing variable value (the FD number)
     // and close that FD, rather than allocating a new one.
+    let expandedDupTarget: string | undefined;
     if (
       (redir.operator === ">&" || redir.operator === "<&") &&
       redir.target.type === "Word"
     ) {
-      const target = await expandWord(ctx, redir.target as WordNode);
-      if (target === "-") {
+      expandedDupTarget = await expandWord(ctx, redir.target as WordNode);
+      if (expandedDupTarget === "-") {
         // Close operation - look up the FD from the variable and close it
         if (ctx.state.env.has(redir.fdVariable)) {
           const fdNum = Number.parseInt(
@@ -191,14 +149,15 @@ export async function processFdVariableRedirections(
     }
 
     // Allocate a new FD (for non-close operations)
-    const fd = allocateFd(ctx);
+    const fd = allocateFd(ctx, isFdUnavailable);
 
     // Set the variable to the allocated FD number
     envSet(ctx.state.env, redir.fdVariable, String(fd));
 
     // For file redirections, store the file path mapping
     if (redir.target.type === "Word") {
-      const target = await expandWord(ctx, redir.target as WordNode);
+      const target =
+        expandedDupTarget ?? (await expandWord(ctx, redir.target as WordNode));
 
       // Handle FD duplication: {fd}>&N or {fd}<&N
       if (redir.operator === ">&" || redir.operator === "<&") {
@@ -208,13 +167,19 @@ export async function processFdVariableRedirections(
           const content = ctx.state.fileDescriptors.get(sourceFd);
           if (content !== undefined) {
             ctx.state.fileDescriptors.set(fd, content);
+          } else {
+            return makeResult(
+              emptyStream(),
+              fromString(getBadFileDescriptorError(sourceFd)),
+              1,
+            );
           }
           continue;
         }
       }
 
-      // For output redirections to files, we'll handle actual writing in applyRedirections
-      // Store the target file path associated with this FD
+      // Store output descriptor metadata for callers that still use the
+      // standalone fd-variable input/output setup helper.
       if (
         redir.operator === ">" ||
         redir.operator === ">>" ||
@@ -255,662 +220,4 @@ export async function processFdVariableRedirections(
   }
 
   return null; // Success
-}
-
-/**
- * Pre-open (truncate) output redirect files before command execution.
- * This is needed for compound commands (subshell, for, case, [[) where
- * bash opens/truncates the redirect file BEFORE evaluating any words in
- * the command body (including command substitutions).
- *
- * Example: `(echo \`cat FILE\`) > FILE`
- * - Bash first truncates FILE (making it empty)
- * - Then executes the subshell, where `cat FILE` returns empty string
- *
- * Returns an error result if there's an issue (like directory or noclobber),
- * or null if pre-opening succeeded.
- */
-export async function preOpenOutputRedirects(
-  ctx: InterpreterContext,
-  redirections: RedirectionNode[],
-): Promise<ExecResult | null> {
-  for (const redir of redirections) {
-    if (redir.target.type === "HereDoc") {
-      continue;
-    }
-
-    // Only handle output truncation redirects (>, >|, &>)
-    // Append (>>, &>>) doesn't need pre-truncation
-    // >&word needs special handling - it's a file redirect only if word is not a number
-    const isGreaterAmpersand = redir.operator === ">&";
-    if (
-      redir.operator !== ">" &&
-      redir.operator !== ">|" &&
-      redir.operator !== "&>" &&
-      !isGreaterAmpersand
-    ) {
-      continue;
-    }
-
-    // Expand redirect target with glob handling (failglob, ambiguous redirect)
-    // For >&, use plain expansion first to check if it's a number
-    let target: string;
-    if (isGreaterAmpersand) {
-      target = await expandWord(ctx, redir.target as WordNode);
-      // If it's a number, -, or has explicit fd, it's an FD redirect, not a file redirect
-      if (
-        target === "-" ||
-        !Number.isNaN(Number.parseInt(target, 10)) ||
-        redir.fd != null
-      ) {
-        continue;
-      }
-      // It's a file redirect - re-expand with redirect target handling
-      // (though we already have the expanded value, use it directly)
-    } else {
-      const expandResult = await expandRedirectTarget(
-        ctx,
-        redir.target as WordNode,
-      );
-      if ("error" in expandResult) {
-        return makeResult(emptyStream(), fromString(expandResult.error), 1);
-      }
-      target = expandResult.target;
-    }
-    const filePath = ctx.fs.resolvePath(ctx.state.cwd, target);
-    const isClobber = redir.operator === ">|";
-
-    // Reject paths containing null bytes - these cause filesystem errors
-    // and are never valid in bash
-    if (filePath.includes("\0")) {
-      return makeResult(
-        emptyStream(),
-        fromString(`bash: ${target}: No such file or directory\n`),
-        1,
-      );
-    }
-
-    // Check if target is a directory or noclobber prevents overwrite
-    try {
-      const stat = await ctx.fs.stat(filePath);
-      if (stat.isDirectory) {
-        return makeResult(
-          emptyStream(),
-          fromString(`bash: ${target}: Is a directory\n`),
-          1,
-        );
-      }
-      // Check noclobber: if file exists and noclobber is set, refuse to overwrite
-      // unless using >| (clobber operator) or writing to /dev/null
-      if (
-        ctx.state.options.noclobber &&
-        !isClobber &&
-        !stat.isDirectory &&
-        target !== "/dev/null"
-      ) {
-        return makeResult(
-          emptyStream(),
-          fromString(`bash: ${target}: cannot overwrite existing file\n`),
-          1,
-        );
-      }
-    } catch {
-      // File doesn't exist, that's ok - we'll create it
-    }
-
-    // Pre-truncate the file (create empty file)
-    // This makes the file empty before any command substitutions in the
-    // compound command body are evaluated
-    // Skip special device files that don't need pre-truncation
-    if (
-      target !== "/dev/null" &&
-      target !== "/dev/stdout" &&
-      target !== "/dev/stderr" &&
-      target !== "/dev/full"
-    ) {
-      await ctx.fs.writeFile(filePath, "");
-    }
-
-    // /dev/full always returns ENOSPC when written to
-    if (target === "/dev/full") {
-      return makeResult(
-        emptyStream(),
-        fromString(`bash: /dev/full: No space left on device\n`),
-        1,
-      );
-    }
-  }
-
-  return null; // Success - no error
-}
-
-export async function applyRedirections(
-  ctx: InterpreterContext,
-  result: ExecResult,
-  redirections: RedirectionNode[],
-  preExpandedTargets?: ExpandedRedirectTargets,
-): Promise<ExecResult> {
-  let stdout: ByteStream = result.stdout;
-  let stderr: ByteStream = result.stderr;
-  let exitCode = result.exitCode;
-
-  for (let i = 0; i < redirections.length; i++) {
-    const redir = redirections[i];
-    if (redir.target.type === "HereDoc") {
-      continue;
-    }
-
-    // Use pre-expanded target if available, otherwise expand now
-    let target: string;
-    const preExpanded = preExpandedTargets?.get(i);
-    if (preExpanded !== undefined) {
-      target = preExpanded;
-    } else {
-      // For FD-to-FD redirects (>&), use plain expansion without glob handling
-      // For file redirects, use glob expansion with failglob/ambiguous redirect handling
-      const isFdRedirect = redir.operator === ">&" || redir.operator === "<&";
-      if (isFdRedirect) {
-        // Check for "$@" with multiple positional params - this is an ambiguous redirect
-        if (hasQuotedMultiValueAt(ctx, redir.target as WordNode)) {
-          stderr = concatStreams(
-            stderr,
-            fromString("bash: $@: ambiguous redirect\n"),
-          );
-          exitCode = 1;
-          stdout = emptyStream();
-          continue;
-        }
-        target = await expandWord(ctx, redir.target as WordNode);
-      } else {
-        const expandResult = await expandRedirectTarget(
-          ctx,
-          redir.target as WordNode,
-        );
-        if ("error" in expandResult) {
-          stderr = concatStreams(stderr, fromString(expandResult.error));
-          exitCode = 1;
-          // When redirect fails, discard the output that would have been redirected
-          stdout = emptyStream();
-          continue;
-        }
-        target = expandResult.target;
-      }
-    }
-
-    // Skip FD variable redirections in applyRedirections - they're already handled
-    // by processFdVariableRedirections and don't affect stdout/stderr directly
-    if (redir.fdVariable) {
-      continue;
-    }
-
-    // Reject paths containing null bytes - these cause filesystem errors
-    if (target.includes("\0")) {
-      stderr = concatStreams(
-        stderr,
-        fromString(
-          `bash: ${target.replace(/\0/g, "")}: No such file or directory\n`,
-        ),
-      );
-      exitCode = 1;
-      stdout = emptyStream();
-      continue;
-    }
-
-    switch (redir.operator) {
-      case ">":
-      case ">|": {
-        const fd = redir.fd ?? 1;
-        const isClobber = redir.operator === ">|";
-        if (fd === 1) {
-          // /dev/stdout is a no-op for stdout - output stays on stdout
-          if (target === "/dev/stdout") {
-            break;
-          }
-          // /dev/stderr redirects stdout to stderr
-          if (target === "/dev/stderr") {
-            stderr = concatStreams(stderr, stdout);
-            stdout = emptyStream();
-            break;
-          }
-          // /dev/full always returns ENOSPC when written to
-          if (target === "/dev/full") {
-            stderr = concatStreams(
-              stderr,
-              fromString(`bash: echo: write error: No space left on device\n`),
-            );
-            exitCode = 1;
-            stdout = emptyStream();
-            break;
-          }
-          const filePath = ctx.fs.resolvePath(ctx.state.cwd, target);
-          const error = await checkOutputRedirectTarget(ctx, filePath, target, {
-            checkNoclobber: true,
-            isClobber,
-          });
-          if (error) {
-            stderr = concatStreams(stderr, fromString(error));
-            exitCode = 1;
-            stdout = emptyStream();
-            break;
-          }
-          // Smart encoding: binary for byte data, UTF-8 for Unicode text
-          await ctx.fs.writeFile(filePath, stdout);
-          stdout = emptyStream();
-        } else if (fd === 2) {
-          // /dev/stderr is a no-op for stderr - output stays on stderr
-          if (target === "/dev/stderr") {
-            break;
-          }
-          // /dev/stdout redirects stderr to stdout
-          if (target === "/dev/stdout") {
-            stdout = concatStreams(stdout, stderr);
-            stderr = emptyStream();
-            break;
-          }
-          // /dev/full always returns ENOSPC when written to
-          if (target === "/dev/full") {
-            stderr = concatStreams(
-              stderr,
-              fromString(`bash: echo: write error: No space left on device\n`),
-            );
-            exitCode = 1;
-            break;
-          }
-          if (target === "/dev/null") {
-            stderr = emptyStream();
-          } else {
-            const filePath = ctx.fs.resolvePath(ctx.state.cwd, target);
-            const error = await checkOutputRedirectTarget(
-              ctx,
-              filePath,
-              target,
-              {
-                checkNoclobber: true,
-                isClobber,
-              },
-            );
-            if (error) {
-              stderr = concatStreams(stderr, fromString(error));
-              exitCode = 1;
-              break;
-            }
-            // Smart encoding: binary for byte data, UTF-8 for Unicode text
-            await ctx.fs.writeFile(filePath, stderr);
-            stderr = emptyStream();
-          }
-        }
-        break;
-      }
-
-      case ">>": {
-        const fd = redir.fd ?? 1;
-        if (fd === 1) {
-          // /dev/stdout is a no-op for stdout - output stays on stdout
-          if (target === "/dev/stdout") {
-            break;
-          }
-          // /dev/stderr redirects stdout to stderr
-          if (target === "/dev/stderr") {
-            stderr = concatStreams(stderr, stdout);
-            stdout = emptyStream();
-            break;
-          }
-          // /dev/full always returns ENOSPC when written to
-          if (target === "/dev/full") {
-            stderr = concatStreams(
-              stderr,
-              fromString(`bash: echo: write error: No space left on device\n`),
-            );
-            exitCode = 1;
-            stdout = emptyStream();
-            break;
-          }
-          const filePath = ctx.fs.resolvePath(ctx.state.cwd, target);
-          const error = await checkOutputRedirectTarget(
-            ctx,
-            filePath,
-            target,
-            {},
-          );
-          if (error) {
-            stderr = concatStreams(stderr, fromString(error));
-            exitCode = 1;
-            stdout = emptyStream();
-            break;
-          }
-          // Smart encoding: binary for byte data, UTF-8 for Unicode text
-          await ctx.fs.appendFile(filePath, stdout);
-          stdout = emptyStream();
-        } else if (fd === 2) {
-          // /dev/stderr is a no-op for stderr - output stays on stderr
-          if (target === "/dev/stderr") {
-            break;
-          }
-          // /dev/stdout redirects stderr to stdout
-          if (target === "/dev/stdout") {
-            stdout = concatStreams(stdout, stderr);
-            stderr = emptyStream();
-            break;
-          }
-          // /dev/full always returns ENOSPC when written to
-          if (target === "/dev/full") {
-            stderr = concatStreams(
-              stderr,
-              fromString(`bash: echo: write error: No space left on device\n`),
-            );
-            exitCode = 1;
-            break;
-          }
-          const filePath2 = ctx.fs.resolvePath(ctx.state.cwd, target);
-          const error2 = await checkOutputRedirectTarget(
-            ctx,
-            filePath2,
-            target,
-            {},
-          );
-          if (error2) {
-            stderr = concatStreams(stderr, fromString(error2));
-            exitCode = 1;
-            break;
-          }
-          // Smart encoding: binary for byte data, UTF-8 for Unicode text
-          await ctx.fs.appendFile(filePath2, stderr);
-          stderr = emptyStream();
-        }
-        break;
-      }
-
-      case ">&":
-      case "<&": {
-        // In bash, <& and >& are essentially the same for FD duplication
-        // 1<&2 and 1>&2 both make fd 1 point to where fd 2 points
-        const fd = redir.fd ?? 1; // Default to stdout (fd 1)
-        // Handle >&- or <&- close operation
-        // NOTE: For command-level redirections, FD close is TEMPORARY - it only
-        // affects the command during its execution. By the time applyRedirections
-        // is called, the command has already completed, so we should NOT modify
-        // the persistent FD state here. The FD will be restored after this command.
-        // Permanent FD closes are handled by `exec N>&-` in executeSimpleCommand.
-        if (target === "-") {
-          // Don't delete the FD - command-level redirections are temporary
-          break;
-        }
-        // Handle FD move operation: N>&M- (duplicate M to N, then close M)
-        if (target.endsWith("-")) {
-          const sourceFdStr = target.slice(0, -1);
-          const sourceFd = Number.parseInt(sourceFdStr, 10);
-          if (!Number.isNaN(sourceFd)) {
-            // First, duplicate: copy the FD content/info from source to target
-            const sourceInfo = ctx.state.fileDescriptors?.get(sourceFd);
-            if (sourceInfo !== undefined) {
-              if (!ctx.state.fileDescriptors) {
-                ctx.state.fileDescriptors = new Map();
-              }
-              ctx.state.fileDescriptors.set(fd, sourceInfo);
-              // Then close the source FD (only for user FDs 3+)
-              if (sourceFd >= 3) {
-                ctx.state.fileDescriptors?.delete(sourceFd);
-              }
-            } else if (sourceFd === 1 || sourceFd === 2) {
-              // Source FD is stdout or stderr which aren't in fileDescriptors
-              // Store as duplication marker
-              if (!ctx.state.fileDescriptors) {
-                ctx.state.fileDescriptors = new Map();
-              }
-              ctx.state.fileDescriptors.set(fd, `__dupout__:${sourceFd}`);
-            } else if (sourceFd === 0) {
-              // Source FD is stdin
-              if (!ctx.state.fileDescriptors) {
-                ctx.state.fileDescriptors = new Map();
-              }
-              ctx.state.fileDescriptors.set(fd, `__dupin__:${sourceFd}`);
-            } else if (sourceFd >= 3) {
-              // Source FD is a user FD (3+) that's not in fileDescriptors - bad file descriptor
-              stderr = concatStreams(
-                stderr,
-                fromString(`bash: ${sourceFd}: Bad file descriptor\n`),
-              );
-              exitCode = 1;
-            }
-          }
-          break;
-        }
-        // >&2, 1>&2, 1<&2: redirect stdout to stderr
-        if (target === "2" || target === "&2") {
-          if (fd === 1) {
-            stderr = concatStreams(stderr, stdout);
-            stdout = emptyStream();
-          }
-        }
-        // 2>&1, 2<&1: redirect stderr to stdout
-        else if (target === "1" || target === "&1") {
-          if (fd === 2) {
-            stdout = concatStreams(stdout, stderr);
-            stderr = emptyStream();
-          } else {
-            // 1>&1 is a no-op, but other fds redirect to stdout
-            stdout = concatStreams(stdout, stderr);
-            stderr = emptyStream();
-          }
-        }
-        // Handle writing to a user-allocated FD (>&$fd)
-        else {
-          const targetFd = Number.parseInt(target, 10);
-          if (!Number.isNaN(targetFd)) {
-            // Check if this is a valid user-allocated FD
-            const fdInfo = ctx.state.fileDescriptors?.get(targetFd);
-            if (fdInfo?.startsWith("__file__:")) {
-              // This FD is associated with a file - write to it
-              // The path is already resolved when the FD was allocated
-              const resolvedPath = fdInfo.slice(9); // Remove "__file__:" prefix
-              if (fd === 1) {
-                await ctx.fs.appendFile(resolvedPath, stdout);
-                stdout = emptyStream();
-              } else if (fd === 2) {
-                await ctx.fs.appendFile(resolvedPath, stderr);
-                stderr = emptyStream();
-              }
-            } else if (fdInfo?.startsWith("__rw__:")) {
-              // Read/write FD - extract path using proper format parsing
-              // Format: __rw__:pathLength:path:position:content
-              const parsed = parseRwFdContent(fdInfo);
-              if (parsed) {
-                if (fd === 1) {
-                  await ctx.fs.appendFile(parsed.path, stdout);
-                  stdout = emptyStream();
-                } else if (fd === 2) {
-                  await ctx.fs.appendFile(parsed.path, stderr);
-                  stderr = emptyStream();
-                }
-              }
-            } else if (fdInfo?.startsWith("__dupout__:")) {
-              // FD is duplicated from another FD - resolve the chain
-              // __dupout__:N means this FD writes to the same place as FD N
-              const sourceFd = Number.parseInt(fdInfo.slice(11), 10);
-              if (sourceFd === 1) {
-                // Target FD duplicates stdout - output stays on stdout (no-op for 1>&N)
-                // stdout remains as is
-              } else if (sourceFd === 2) {
-                // Target FD duplicates stderr - redirect stdout to stderr
-                if (fd === 1) {
-                  stderr = concatStreams(stderr, stdout);
-                  stdout = emptyStream();
-                }
-              } else {
-                // Check if sourceFd points to a file
-                const sourceInfo = ctx.state.fileDescriptors?.get(sourceFd);
-                if (sourceInfo?.startsWith("__file__:")) {
-                  const resolvedPath = sourceInfo.slice(9);
-                  if (fd === 1) {
-                    await ctx.fs.appendFile(resolvedPath, stdout);
-                    stdout = emptyStream();
-                  } else if (fd === 2) {
-                    await ctx.fs.appendFile(resolvedPath, stderr);
-                    stderr = emptyStream();
-                  }
-                }
-              }
-            } else if (fdInfo?.startsWith("__dupin__:")) {
-              // FD is duplicated for input - writing to it is an error
-              stderr = concatStreams(
-                stderr,
-                fromString(`bash: ${targetFd}: Bad file descriptor\n`),
-              );
-              exitCode = 1;
-              stdout = emptyStream();
-            } else if (targetFd >= 3) {
-              // User FD range (3+) but FD not found - bad file descriptor
-              // For FDs 3-9 (manually allocated) and 10+ (auto-allocated),
-              // if the FD is not in fileDescriptors, it means it was closed or never opened
-              stderr = concatStreams(
-                stderr,
-                fromString(`bash: ${targetFd}: Bad file descriptor\n`),
-              );
-              exitCode = 1;
-              stdout = emptyStream();
-            }
-          } else if (redir.operator === ">&") {
-            // In bash, N>&word where word is not a number or '-' is treated as a file redirect
-            // If no explicit fd (redir.fd == null), redirects BOTH stdout and stderr (equivalent to &>word)
-            // If explicit fd (e.g., 1>&word), redirects just that fd to the file
-            const filePath = ctx.fs.resolvePath(ctx.state.cwd, target);
-            const error = await checkOutputRedirectTarget(
-              ctx,
-              filePath,
-              target,
-              {
-                checkNoclobber: true,
-              },
-            );
-            if (error) {
-              stderr = fromString(error);
-              exitCode = 1;
-              stdout = emptyStream();
-              break;
-            }
-            if (redir.fd == null) {
-              // >&word (no explicit fd) - write both stdout and stderr to the file
-              // Need to collect bytes since we need to merge two streams into one write
-              const stdoutBytes = await collectBytes(stdout);
-              const stderrBytes = await collectBytes(stderr);
-              await ctx.fs.writeFile(filePath, stdoutBytes);
-              await ctx.fs.appendFile(filePath, stderrBytes);
-              stdout = emptyStream();
-              stderr = emptyStream();
-            } else if (fd === 1) {
-              // 1>&word - redirect stdout to file
-              await ctx.fs.writeFile(filePath, stdout);
-              stdout = emptyStream();
-            } else if (fd === 2) {
-              // 2>&word - redirect stderr to file
-              await ctx.fs.writeFile(filePath, stderr);
-              stderr = emptyStream();
-            }
-          }
-        }
-        break;
-      }
-
-      case "&>": {
-        // /dev/full always returns ENOSPC when written to
-        if (target === "/dev/full") {
-          stderr = fromString(
-            `bash: echo: write error: No space left on device\n`,
-          );
-          exitCode = 1;
-          stdout = emptyStream();
-          break;
-        }
-        const filePath = ctx.fs.resolvePath(ctx.state.cwd, target);
-        const error = await checkOutputRedirectTarget(ctx, filePath, target, {
-          checkNoclobber: true,
-        });
-        if (error) {
-          stderr = fromString(error);
-          exitCode = 1;
-          stdout = emptyStream();
-          break;
-        }
-        // Smart encoding: binary for byte data, UTF-8 for Unicode text
-        const stdoutBytes = await collectBytes(stdout);
-        const stderrBytes = await collectBytes(stderr);
-        await ctx.fs.writeFile(filePath, stdoutBytes);
-        await ctx.fs.appendFile(filePath, stderrBytes);
-        stdout = emptyStream();
-        stderr = emptyStream();
-        break;
-      }
-
-      case "&>>": {
-        // /dev/full always returns ENOSPC when written to
-        if (target === "/dev/full") {
-          stderr = fromString(
-            `bash: echo: write error: No space left on device\n`,
-          );
-          exitCode = 1;
-          stdout = emptyStream();
-          break;
-        }
-        const filePath = ctx.fs.resolvePath(ctx.state.cwd, target);
-        const error = await checkOutputRedirectTarget(
-          ctx,
-          filePath,
-          target,
-          {},
-        );
-        if (error) {
-          stderr = fromString(error);
-          exitCode = 1;
-          stdout = emptyStream();
-          break;
-        }
-        // Smart encoding: binary for byte data, UTF-8 for Unicode text
-        await ctx.fs.appendFile(filePath, stdout);
-        await ctx.fs.appendFile(filePath, stderr);
-        stdout = emptyStream();
-        stderr = emptyStream();
-        break;
-      }
-    }
-  }
-
-  // Apply persistent FD redirections (from exec)
-  // Check if fd 1 (stdout) is redirected to fd 2 (stderr) via exec 1>&2
-  const fd1Info = ctx.state.fileDescriptors?.get(1);
-  if (fd1Info) {
-    if (fd1Info === "__dupout__:2") {
-      // fd 1 is duplicated to fd 2 - stdout goes to stderr
-      stderr = concatStreams(stderr, stdout);
-      stdout = emptyStream();
-    } else if (fd1Info.startsWith("__file__:")) {
-      // fd 1 is redirected to a file
-      const filePath = fd1Info.slice(9);
-      await ctx.fs.appendFile(filePath, stdout);
-      stdout = emptyStream();
-    } else if (fd1Info.startsWith("__file_append__:")) {
-      const filePath = fd1Info.slice(16);
-      await ctx.fs.appendFile(filePath, stdout);
-      stdout = emptyStream();
-    }
-  }
-
-  // Check if fd 2 (stderr) is redirected
-  const fd2Info = ctx.state.fileDescriptors?.get(2);
-  if (fd2Info) {
-    if (fd2Info === "__dupout__:1") {
-      // fd 2 is duplicated to fd 1 - stderr goes to stdout
-      stdout = concatStreams(stdout, stderr);
-      stderr = emptyStream();
-    } else if (fd2Info.startsWith("__file__:")) {
-      const filePath = fd2Info.slice(9);
-      await ctx.fs.appendFile(filePath, stderr);
-      stderr = emptyStream();
-    } else if (fd2Info.startsWith("__file_append__:")) {
-      const filePath = fd2Info.slice(16);
-      await ctx.fs.appendFile(filePath, stderr);
-      stderr = emptyStream();
-    }
-  }
-
-  return makeResult(stdout, stderr, exitCode);
 }

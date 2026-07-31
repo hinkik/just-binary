@@ -580,7 +580,7 @@ export async function handleDeclare(
       const { name, indexExpr, value } = arrayAssignMatch;
 
       // Check if variable is readonly
-      const error = checkReadonlyError(ctx, name);
+      const error = await checkReadonlyError(ctx, name);
       if (error) return error;
 
       // Save to local scope before modifying
@@ -631,7 +631,7 @@ export async function handleDeclare(
       const content = arrayAppendMatch[2];
 
       // Check if variable is readonly
-      const error = checkReadonlyError(ctx, name);
+      const error = await checkReadonlyError(ctx, name);
       if (error) return error;
 
       // Save to local scope before modifying
@@ -698,7 +698,7 @@ export async function handleDeclare(
       let appendValue = expandTildesInValue(ctx, appendMatch[2]);
 
       // Check if variable is readonly
-      const error = checkReadonlyError(ctx, name);
+      const error = await checkReadonlyError(ctx, name);
       if (error) return error;
 
       // Save to local scope before modifying
@@ -778,7 +778,7 @@ export async function handleDeclare(
       }
 
       // Check if variable is readonly
-      const error = checkReadonlyError(ctx, name);
+      const error = await checkReadonlyError(ctx, name);
       if (error) return error;
 
       // Save to local scope before modifying
@@ -1025,7 +1025,7 @@ export async function handleReadonly(
       const content = arrayAppendMatch[2];
 
       // Check if variable is already readonly
-      const error = checkReadonlyError(ctx, name);
+      const error = await checkReadonlyError(ctx, name);
       if (error) return error;
 
       // Parse new elements
@@ -1081,7 +1081,7 @@ export async function handleReadonly(
       const appendValue = expandTildesInValue(ctx, appendMatch[2]);
 
       // Check if variable is already readonly
-      const error = checkReadonlyError(ctx, name);
+      const error = await checkReadonlyError(ctx, name);
       if (error) return error;
 
       // Append to existing value (or set if not defined)

@@ -1,0 +1,30 @@
+{
+  "14a36f4b8c50187a": {
+    "command": "FOO=bar true; echo \"[$FOO]\"",
+    "files": {},
+    "stdout": "[]\n",
+    "stderr": "",
+    "exitCode": 0
+  },
+  "17f60e3bfd217636": {
+    "command": "FOO=old; for i in 1; do FOO=new break; done; echo \"[$FOO]\"",
+    "files": {},
+    "stdout": "[old]\n",
+    "stderr": "",
+    "exitCode": 0
+  },
+  "769ad132c82d0ac9": {
+    "command": "for i in 1; do FOO=bar break; done; echo \"[$FOO]\"",
+    "files": {},
+    "stdout": "[]\n",
+    "stderr": "",
+    "exitCode": 0
+  },
+  "f6ca186d31613279": {
+    "command": "for i in 1 2; do FOO=bar continue; done; echo \"[$FOO]\"",
+    "files": {},
+    "stdout": "[]\n",
+    "stderr": "",
+    "exitCode": 0
+  }
+}

@@ -45,12 +45,27 @@ export {
   ReadWriteFs,
   type ReadWriteFsOptions,
 } from "./fs/read-write-fs/index.js";
+// Cancellation API: check ctx.signal in custom commands and throw
+// AbortExecutionError so an abort propagates instead of becoming exit 1.
+export {
+  AbortExecutionError,
+  checkAborted,
+} from "./interpreter/errors.js";
+export type { OutputSink } from "./interpreter/output-channels.js";
 export type { NetworkConfig } from "./network/index.js";
 export {
   NetworkAccessDeniedError,
   RedirectNotAllowedError,
   TooManyRedirectsError,
 } from "./network/index.js";
+export type {
+  JobInfo,
+  JobRunner,
+  JobSignal,
+  ListedJob,
+  ProcessTableOptions,
+} from "./process/process-table.js";
+export { ProcessTable } from "./process/process-table.js";
 export type {
   CommandFinished as SandboxCommandFinished,
   OutputMessage,

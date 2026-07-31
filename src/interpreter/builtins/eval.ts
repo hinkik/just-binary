@@ -15,6 +15,7 @@ import {
   ReturnError,
 } from "../errors.js";
 import { failure, ok } from "../helpers/result.js";
+import { pumpResult, writeErrorDiagnostic } from "../output-channels.js";
 import type { InterpreterContext } from "../types.js";
 
 export async function handleEval(
@@ -62,8 +63,13 @@ export async function handleEval(
   try {
     // Parse and execute in the current environment
     const ast = parse(command);
-    return await ctx.executeScript(ast);
+    const result = await ctx.executeScript(ast);
+    return await pumpResult(ctx, result);
   } catch (error) {
+    // Script execution writes directly to the active channels. Report any
+    // control-flow diagnostic before propagating or converting the error.
+    await writeErrorDiagnostic(ctx, error);
+
     // Rethrow control flow errors so they propagate to outer loops/functions
     if (
       error instanceof BreakError ||

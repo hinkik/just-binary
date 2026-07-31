@@ -26,18 +26,27 @@ import { ExitError, ReturnError } from "./errors.js";
 import { expandWord } from "./expansion.js";
 import { ok, result, throwExecutionLimit } from "./helpers/result.js";
 import { POSIX_SPECIAL_BUILTINS } from "./helpers/shell-constants.js";
-import { applyRedirections, preExpandRedirectTargets } from "./redirections.js";
+import {
+  executeAndPumpResult,
+  withChannels,
+  writeErrorDiagnostic,
+  writeErrorDiagnosticWithWriteFailure,
+  writeToChannel,
+} from "./output-channels.js";
+import { compileOutputRedirections } from "./redirect-channels.js";
+import { processFdVariableRedirections } from "./redirections.js";
 import type { InterpreterContext } from "./types.js";
 
-export function executeFunctionDef(
+export async function executeFunctionDef(
   ctx: InterpreterContext,
   node: FunctionDefNode,
-): ExecResult {
+): Promise<ExecResult> {
   // In POSIX mode, special built-ins cannot be redefined as functions
   // This is a fatal error that exits the script
   if (ctx.state.options.posix && POSIX_SPECIAL_BUILTINS.has(node.name)) {
     const stderr = `bash: line ${ctx.state.currentLine}: \`${node.name}': is a special builtin\n`;
-    throw new ExitError(2, emptyStream(), fromString(stderr));
+    await writeToChannel(ctx, 2, stderr, true);
+    throw new ExitError(2);
   }
   // Store the source file where this function is defined (for BASH_SOURCE)
   // Use currentSource from state, or the node's sourceFile, or "main" as default
@@ -61,6 +70,10 @@ async function processInputRedirections(
   let hasStdin = false;
 
   for (const redir of redirections) {
+    if (redir.fdVariable) {
+      continue;
+    }
+
     if (
       (redir.operator === "<<" || redir.operator === "<<-") &&
       redir.target.type === "HereDoc"
@@ -210,52 +223,70 @@ export async function callFunction(
     ctx.state.callDepth--;
   };
 
-  // Pre-expand redirect targets BEFORE executing the function body.
-  // This is critical because redirections like `fun() { echo $i; } > file$((i++))`
-  // must evaluate $((i++)) before the body runs, so the body sees the new value.
-  const { targets: preExpandedTargets, error: expandError } =
-    await preExpandRedirectTargets(ctx, func.redirections);
-
-  if (expandError) {
-    cleanup();
-    return result(emptyStream(), fromString(expandError), 1);
-  }
-
   try {
-    // Process redirections on the function definition to get stdin
-    // Only use redirection-based stdin if no pipeline stdin was passed
-    // We need to check if pipeline stdin is non-empty; the cleanest way is
-    // to peek by collecting — pipeline stdin into a function is typically small.
-    const pipelineBytes = await collectBytes(stdin);
-    let effectiveStdin: ByteStream;
-    if (pipelineBytes.length > 0) {
-      effectiveStdin = fromBytes(pipelineBytes);
-    } else {
-      effectiveStdin = await processInputRedirections(ctx, func.redirections);
-    }
-    const execResult = await ctx.executeCommand(func.body, effectiveStdin);
-    cleanup();
-    // Apply output redirections from the function definition using pre-expanded targets
-    // e.g., fun() { echo hi; } 1>&2 should redirect output to stderr when called
-    return applyRedirections(
+    // Function-definition redirections are evaluated at call time. Compile
+    // output redirects before entering the body so bytes flow directly to the
+    // selected sinks instead of being collected and redirected afterwards.
+    const compiled = await compileOutputRedirections(
       ctx,
-      execResult,
+      ctx.outputChannels,
       func.redirections,
-      preExpandedTargets,
     );
-  } catch (error) {
-    cleanup();
-    // Handle return statement - convert to normal exit with the specified code
-    if (error instanceof ReturnError) {
-      const returnResult = result(error.stdout, error.stderr, error.exitCode);
-      // Apply output redirections even when returning
-      return applyRedirections(
-        ctx,
-        returnResult,
-        func.redirections,
-        preExpandedTargets,
+
+    if (compiled.error) {
+      return await withChannels(ctx, compiled.channels, () =>
+        executeAndPumpResult(ctx, () =>
+          Promise.resolve(compiled.error as ExecResult),
+        ),
       );
     }
+
+    return await withChannels(ctx, compiled.channels, async () => {
+      try {
+        const fdVarError = await processFdVariableRedirections(
+          ctx,
+          compiled.legacyRedirections,
+        );
+        if (fdVarError) {
+          return await executeAndPumpResult(ctx, () =>
+            Promise.resolve(fdVarError),
+          );
+        }
+
+        // Materialize pipeline input under the function-definition redirect
+        // table so failures are reported through the function's active fd 2.
+        const pipelineBytes = await collectBytes(stdin);
+        const effectiveStdin =
+          pipelineBytes.length > 0
+            ? fromBytes(pipelineBytes)
+            : await processInputRedirections(ctx, compiled.legacyRedirections);
+
+        const execResult = await ctx.executeCommand(func.body, effectiveStdin);
+        return await executeAndPumpResult(ctx, () =>
+          Promise.resolve(execResult),
+        );
+      } catch (error) {
+        // Report control-flow diagnostics through the live table before
+        // handling or propagating the error.
+        const { writeFailure } = await writeErrorDiagnosticWithWriteFailure(
+          ctx,
+          error,
+        );
+        if (writeFailure) {
+          return writeFailure;
+        }
+        if (error instanceof ReturnError) {
+          return result(emptyStream(), emptyStream(), error.exitCode);
+        }
+        throw error;
+      }
+    });
+  } catch (error) {
+    // Redirect compilation can throw before the call-local table is installed.
+    // Errors from inside the table have already been reported there.
+    await writeErrorDiagnostic(ctx, error);
     throw error;
+  } finally {
+    cleanup();
   }
 }

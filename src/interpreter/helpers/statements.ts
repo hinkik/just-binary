@@ -7,12 +7,7 @@
 
 import type { StatementNode } from "../../ast/types.js";
 import type { ExecResult } from "../../types.js";
-import {
-  type ByteStream,
-  concatStreams,
-  emptyStream,
-  fromString,
-} from "../../utils/stream.js";
+import { emptyStream } from "../../utils/stream.js";
 import {
   ErrexitError,
   ExecutionLimitError,
@@ -20,8 +15,10 @@ import {
   isScopeExitError,
   SubshellExitError,
 } from "../errors.js";
+import { pumpResult, writeErrorDiagnostic } from "../output-channels.js";
 import type { InterpreterContext } from "../types.js";
 import { getErrorMessage } from "./errors.js";
+import { failure } from "./result.js";
 
 /**
  * Execute a list of statements and accumulate their output.
@@ -29,28 +26,22 @@ import { getErrorMessage } from "./errors.js";
  *
  * @param ctx - Interpreter context
  * @param statements - Statements to execute
- * @param initialStdout - Initial stdout to prepend (default empty)
- * @param initialStderr - Initial stderr to prepend (default empty)
- * @returns Accumulated stdout, stderr, and final exit code
+ * @returns Empty streams and the final exit code
  */
 export async function executeStatements(
   ctx: InterpreterContext,
   statements: StatementNode[],
-  initialStdout: ByteStream = emptyStream(),
-  initialStderr: ByteStream = emptyStream(),
 ): Promise<ExecResult> {
-  let stdout: ByteStream = initialStdout;
-  let stderr: ByteStream = initialStderr;
   let exitCode = 0;
 
   try {
     for (const stmt of statements) {
       const result = await ctx.executeStatement(stmt);
-      stdout = concatStreams(stdout, result.stdout);
-      stderr = concatStreams(stderr, result.stderr);
+      await pumpResult(ctx, result);
       exitCode = result.exitCode;
     }
   } catch (error) {
+    const diagnosticWritten = await writeErrorDiagnostic(ctx, error);
     if (
       isScopeExitError(error) ||
       error instanceof ErrexitError ||
@@ -58,15 +49,21 @@ export async function executeStatements(
       error instanceof ExecutionLimitError ||
       error instanceof SubshellExitError
     ) {
-      error.prependOutput(stdout, stderr);
       throw error;
     }
-    return {
-      stdout,
-      stderr: concatStreams(stderr, fromString(`${getErrorMessage(error)}\n`)),
-      exitCode: 1,
-    };
+    if (!diagnosticWritten) {
+      const message = getErrorMessage(error);
+      await pumpResult(
+        ctx,
+        failure(message.endsWith("\n") ? message : `${message}\n`),
+      );
+    }
+    return { stdout: emptyStream(), stderr: emptyStream(), exitCode: 1 };
   }
 
-  return { stdout, stderr, exitCode };
+  return {
+    stdout: emptyStream(),
+    stderr: emptyStream(),
+    exitCode,
+  };
 }

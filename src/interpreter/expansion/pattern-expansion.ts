@@ -10,6 +10,14 @@ import { Parser } from "../../parser/parser.js";
 import { envGet, envSet } from "../../utils/bytes.js";
 import { collectText } from "../../utils/stream.js";
 import { ExecutionLimitError, ExitError } from "../errors.js";
+import {
+  cloneOutputChannels,
+  createCollector,
+  overrideChannelSink,
+  pumpResult,
+  withChannels,
+  writeErrorDiagnostic,
+} from "../output-channels.js";
 import type { InterpreterContext } from "../types.js";
 import { escapeGlobChars } from "./glob-escape.js";
 
@@ -121,39 +129,53 @@ async function executeCommandSubstitutionFromString(
   ctx.state.bashPid = ctx.state.nextVirtualPid++;
   const savedEnv = new Map(ctx.state.env);
   const savedCwd = ctx.state.cwd;
+  const savedFileDescriptors = ctx.state.fileDescriptors;
+  const savedNextFd = ctx.state.nextFd;
+  ctx.state.fileDescriptors = savedFileDescriptors
+    ? new Map(savedFileDescriptors)
+    : undefined;
   const savedSuppressVerbose = ctx.state.suppressVerbose;
   ctx.state.suppressVerbose = true;
+  const stdoutCollector = createCollector();
+  const captureChannels = cloneOutputChannels(ctx.outputChannels);
+  overrideChannelSink(captureChannels, 1, stdoutCollector);
 
   try {
-    const result = await ctx.executeScript(ast);
+    const result = await withChannels(ctx, captureChannels, () =>
+      ctx.executeScript(ast),
+    );
     // Restore environment but preserve exit code
     const exitCode = result.exitCode;
     ctx.state.env = savedEnv;
     ctx.state.cwd = savedCwd;
+    ctx.state.fileDescriptors = savedFileDescriptors;
+    ctx.state.nextFd = savedNextFd;
     ctx.state.suppressVerbose = savedSuppressVerbose;
     ctx.state.lastExitCode = exitCode;
     envSet(ctx.state.env, "?", String(exitCode));
-    const stderrText = await collectText(result.stderr);
-    if (stderrText.length > 0) {
-      ctx.state.expansionStderr =
-        (ctx.state.expansionStderr || "") + stderrText;
-    }
+    await withChannels(ctx, captureChannels, () => pumpResult(ctx, result));
     ctx.state.bashPid = savedBashPid;
-    return (await collectText(result.stdout)).replace(/\n+$/, "");
+    return (await collectText(stdoutCollector.stream())).replace(/\n+$/, "");
   } catch (error) {
     ctx.state.env = savedEnv;
     ctx.state.cwd = savedCwd;
+    ctx.state.fileDescriptors = savedFileDescriptors;
+    ctx.state.nextFd = savedNextFd;
     ctx.state.bashPid = savedBashPid;
     ctx.state.suppressVerbose = savedSuppressVerbose;
     if (error instanceof ExecutionLimitError) {
+      await withChannels(ctx, captureChannels, () =>
+        writeErrorDiagnostic(ctx, error),
+      );
       throw error;
     }
     if (error instanceof ExitError) {
       ctx.state.lastExitCode = error.exitCode;
       envSet(ctx.state.env, "?", String(error.exitCode));
-      return error.stdout
-        ? (await collectText(error.stdout)).replace(/\n+$/, "")
-        : "";
+      await withChannels(ctx, captureChannels, () =>
+        writeErrorDiagnostic(ctx, error),
+      );
+      return (await collectText(stdoutCollector.stream())).replace(/\n+$/, "");
     }
     return "";
   }

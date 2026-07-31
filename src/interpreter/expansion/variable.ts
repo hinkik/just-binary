@@ -22,6 +22,7 @@ import {
 } from "../helpers/array.js";
 import { getIfsSeparator } from "../helpers/ifs.js";
 import { isNameref, resolveNameref } from "../helpers/nameref.js";
+import { writeToChannel } from "../output-channels.js";
 import type { InterpreterContext } from "../types.js";
 
 /** Decode a Uint8Array env value to string, returning fallback if undefined */
@@ -202,8 +203,10 @@ export async function getVariable(
       // Simulated bash version (from shared metadata)
       return BASH_VERSION;
     case "!":
-      // PID of most recent background job (0 if none)
-      return String(ctx.state.lastBackgroundPid);
+      // Unset until this shell has started its first background job.
+      return ctx.state.lastBackgroundPid === 0
+        ? ""
+        : String(ctx.state.lastBackgroundPid);
     case "BASHPID":
       // Current bash process ID (changes in subshells, unlike $$)
       return String(ctx.state.bashPid);
@@ -357,9 +360,11 @@ export async function getVariable(
       const lineNum = ctx.state.currentLine;
       if (elements.length === 0) {
         // Empty array with negative index - output error to stderr and return empty
-        ctx.state.expansionStderr =
-          (ctx.state.expansionStderr || "") +
-          `bash: line ${lineNum}: ${arrayName}: bad array subscript\n`;
+        await writeToChannel(
+          ctx,
+          2,
+          `bash: line ${lineNum}: ${arrayName}: bad array subscript\n`,
+        );
         return "";
       }
       // Find the maximum index
@@ -370,9 +375,11 @@ export async function getVariable(
       const actualIdx = maxIndex + 1 + index;
       if (actualIdx < 0) {
         // Out of bounds negative index - output error to stderr and return empty
-        ctx.state.expansionStderr =
-          (ctx.state.expansionStderr || "") +
-          `bash: line ${lineNum}: ${arrayName}: bad array subscript\n`;
+        await writeToChannel(
+          ctx,
+          2,
+          `bash: line ${lineNum}: ${arrayName}: bad array subscript\n`,
+        );
         return "";
       }
       // Look up by actual index, not position

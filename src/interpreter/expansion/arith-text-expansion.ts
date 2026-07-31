@@ -7,6 +7,13 @@
  */
 
 import { collectText } from "../../utils/stream.js";
+import {
+  cloneOutputChannels,
+  createCollector,
+  overrideChannelSink,
+  pumpResult,
+  withChannels,
+} from "../output-channels.js";
 import type { InterpreterContext } from "../types.js";
 import { getVariable } from "./variable.js";
 
@@ -171,15 +178,20 @@ export async function expandSubscriptForAssocArray(
         // Extract and execute the command
         const cmdStr = inner.slice(i + 2, j - 1);
         if (ctx.execFn) {
-          const cmdResult = await ctx.execFn(cmdStr);
+          const stdoutCollector = createCollector();
+          const captureChannels = cloneOutputChannels(ctx.outputChannels);
+          overrideChannelSink(captureChannels, 1, stdoutCollector);
+          const cmdResult = await withChannels(ctx, captureChannels, () =>
+            ctx.execFn(cmdStr),
+          );
           // Strip trailing newlines like command substitution does
-          result += (await collectText(cmdResult.stdout)).replace(/\n+$/, "");
-          // Forward stderr to expansion stderr
-          const stderrText = await collectText(cmdResult.stderr);
-          if (stderrText.length > 0) {
-            ctx.state.expansionStderr =
-              (ctx.state.expansionStderr || "") + stderrText;
-          }
+          await withChannels(ctx, captureChannels, () =>
+            pumpResult(ctx, cmdResult),
+          );
+          result += (await collectText(stdoutCollector.stream())).replace(
+            /\n+$/,
+            "",
+          );
         }
         i = j;
       } else if (inner[i + 1] === "{") {
@@ -219,13 +231,19 @@ export async function expandSubscriptForAssocArray(
       }
       const cmdStr = inner.slice(i + 1, j);
       if (ctx.execFn) {
-        const cmdResult = await ctx.execFn(cmdStr);
-        result += (await collectText(cmdResult.stdout)).replace(/\n+$/, "");
-        const stderrText = await collectText(cmdResult.stderr);
-        if (stderrText.length > 0) {
-          ctx.state.expansionStderr =
-            (ctx.state.expansionStderr || "") + stderrText;
-        }
+        const stdoutCollector = createCollector();
+        const captureChannels = cloneOutputChannels(ctx.outputChannels);
+        overrideChannelSink(captureChannels, 1, stdoutCollector);
+        const cmdResult = await withChannels(ctx, captureChannels, () =>
+          ctx.execFn(cmdStr),
+        );
+        await withChannels(ctx, captureChannels, () =>
+          pumpResult(ctx, cmdResult),
+        );
+        result += (await collectText(stdoutCollector.stream())).replace(
+          /\n+$/,
+          "",
+        );
       }
       i = j + 1;
     } else {

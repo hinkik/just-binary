@@ -28,13 +28,21 @@ import {
   envSet,
   trimTrailingNewlines,
 } from "../utils/bytes.js";
-import { collectBytes, collectText } from "../utils/stream.js";
+import { collectBytes } from "../utils/stream.js";
 import { evaluateArithmetic } from "./arithmetic.js";
 import {
   BadSubstitutionError,
   ExecutionLimitError,
   ExitError,
 } from "./errors.js";
+import {
+  cloneOutputChannels,
+  createCollector,
+  overrideChannelSink,
+  pumpResult,
+  withChannels,
+  writeErrorDiagnostic,
+} from "./output-channels.js";
 
 /**
  * Check if a string exceeds the maximum allowed length.
@@ -824,24 +832,34 @@ async function executeCommandSubstitutionBytes(
   ctx.state.bashPid = ctx.state.nextVirtualPid++;
   const savedEnv = new Map(ctx.state.env);
   const savedCwd = ctx.state.cwd;
+  const savedFileDescriptors = ctx.state.fileDescriptors;
+  const savedNextFd = ctx.state.nextFd;
+  ctx.state.fileDescriptors = savedFileDescriptors
+    ? new Map(savedFileDescriptors)
+    : undefined;
   const savedSuppressVerbose = ctx.state.suppressVerbose;
   ctx.state.suppressVerbose = true;
+  const stdoutCollector = createCollector();
+  const captureChannels = cloneOutputChannels(ctx.outputChannels);
+  overrideChannelSink(captureChannels, 1, stdoutCollector);
   try {
-    const result = await ctx.executeScript(part.body);
+    const result = await withChannels(ctx, captureChannels, () =>
+      ctx.executeScript(part.body),
+    );
     const exitCode = result.exitCode;
     ctx.state.env = savedEnv;
     ctx.state.cwd = savedCwd;
+    ctx.state.fileDescriptors = savedFileDescriptors;
+    ctx.state.nextFd = savedNextFd;
     ctx.state.suppressVerbose = savedSuppressVerbose;
     ctx.state.lastExitCode = exitCode;
     envSet(ctx.state.env, "?", String(exitCode));
-    const stderrText = await collectText(result.stderr);
-    if (stderrText.length > 0) {
-      ctx.state.expansionStderr =
-        (ctx.state.expansionStderr || "") + stderrText;
-    }
+    await withChannels(ctx, captureChannels, () => pumpResult(ctx, result));
     ctx.state.bashPid = savedBashPid;
     ctx.substitutionDepth = savedDepth;
-    const output = trimTrailingNewlines(await collectBytes(result.stdout));
+    const output = trimTrailingNewlines(
+      await collectBytes(stdoutCollector.stream()),
+    );
     if (output.length > ctx.limits.maxStringLength) {
       throw new ExecutionLimitError(
         `command substitution: string length limit exceeded (${ctx.limits.maxStringLength} bytes)`,
@@ -852,21 +870,28 @@ async function executeCommandSubstitutionBytes(
   } catch (error) {
     ctx.state.env = savedEnv;
     ctx.state.cwd = savedCwd;
+    ctx.state.fileDescriptors = savedFileDescriptors;
+    ctx.state.nextFd = savedNextFd;
     ctx.state.bashPid = savedBashPid;
     ctx.substitutionDepth = savedDepth;
     ctx.state.suppressVerbose = savedSuppressVerbose;
     if (error instanceof ExecutionLimitError) {
+      // Preserve the stdout capture boundary while reporting through the
+      // inherited active fd 2.
+      await withChannels(ctx, captureChannels, () =>
+        writeErrorDiagnostic(ctx, error),
+      );
       throw error;
     }
     if (error instanceof ExitError) {
       ctx.state.lastExitCode = error.exitCode;
       envSet(ctx.state.env, "?", String(error.exitCode));
-      const errStderrText = await collectText(error.stderr);
-      if (errStderrText.length > 0) {
-        ctx.state.expansionStderr =
-          (ctx.state.expansionStderr || "") + errStderrText;
-      }
-      const exitOutput = trimTrailingNewlines(await collectBytes(error.stdout));
+      await withChannels(ctx, captureChannels, () =>
+        writeErrorDiagnostic(ctx, error),
+      );
+      const exitOutput = trimTrailingNewlines(
+        await collectBytes(stdoutCollector.stream()),
+      );
       if (exitOutput.length > ctx.limits.maxStringLength) {
         throw new ExecutionLimitError(
           `command substitution: string length limit exceeded (${ctx.limits.maxStringLength} bytes)`,

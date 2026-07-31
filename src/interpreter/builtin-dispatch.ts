@@ -30,6 +30,8 @@ import {
   handleGetopts,
   handleHash,
   handleHelp,
+  handleJobs,
+  handleKill,
   handleLet,
   handleLocal,
   handleMapfile,
@@ -42,6 +44,7 @@ import {
   handleShift,
   handleSource,
   handleUnset,
+  handleWait,
 } from "./builtins/index.js";
 import { handleShopt } from "./builtins/shopt.js";
 import {
@@ -238,8 +241,20 @@ export async function dispatchBuiltin(
     return runCommand(decode(cmd), rest, [], stdin, false, false, -1);
   }
   if (commandName === "wait") {
-    // wait - wait for background jobs (stub: no-op in this context)
-    return ok();
+    return await handleWait(ctx, strArgs);
+  }
+  if (commandName === "jobs") {
+    return await handleJobs(ctx, strArgs, (name, commandArgs) =>
+      runCommand(
+        name,
+        commandArgs.map(encode),
+        commandArgs.map(() => false),
+        emptyStream(),
+      ),
+    );
+  }
+  if (commandName === "kill") {
+    return handleKill(ctx, strArgs);
   }
   if (commandName === "type") {
     return await handleTypeHelper(
@@ -386,7 +401,7 @@ export async function executeExternalCommand(
   stdin: ByteStream,
   useDefaultPath: boolean,
 ): Promise<ExecResult> {
-  const { ctx, buildExportedEnv, executeUserScript } = dispatchCtx;
+  const { buildExportedEnv, ctx, executeUserScript } = dispatchCtx;
 
   // External commands - resolve via PATH
   // For command -p, use default PATH /usr/bin:/bin instead of $PATH
@@ -474,6 +489,7 @@ export async function executeExternalCommand(
     fileDescriptors: ctx.state.fileDescriptors,
     xpgEcho: ctx.state.shoptOptions.xpg_echo,
     coverage: ctx.coverage,
+    signal: ctx.signal,
   };
 
   try {

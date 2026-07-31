@@ -20,13 +20,34 @@ export type ByteStream = ReadableStream<Uint8Array>;
 /** Default chunk size for buffered → stream conversions */
 export const CHUNK_SIZE: number = 64 * 1024;
 
+/**
+ * Marks a stream that is known to carry no bytes.
+ *
+ * Streams are single-use, so an empty result still needs a fresh object every
+ * time. But a consumer that only forwards bytes can skip acquiring a reader
+ * altogether, and producing no output is the common case: every statement
+ * returns empty streams once its output has been written to the channels.
+ * Skipping that reader churn is worth a marker on the hot path.
+ */
+const EMPTY_MARKER = Symbol("emptyStream");
+
 /** An empty stream that closes immediately. */
 export function emptyStream(): ByteStream {
-  return new ReadableStream<Uint8Array>({
+  const stream = new ReadableStream<Uint8Array>({
     start(controller) {
       controller.close();
     },
   });
+  Object.defineProperty(stream, EMPTY_MARKER, { value: true });
+  return stream;
+}
+
+/**
+ * True when `stream` came from emptyStream() and so cannot yield bytes.
+ * A false answer proves nothing — an unmarked stream may still be empty.
+ */
+export function isKnownEmptyStream(stream: ByteStream): boolean {
+  return (stream as { [EMPTY_MARKER]?: boolean })[EMPTY_MARKER] === true;
 }
 
 /** Wrap a single Uint8Array as a stream. Empty input → empty stream. */

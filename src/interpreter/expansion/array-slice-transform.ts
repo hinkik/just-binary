@@ -8,9 +8,9 @@
 
 import type { SubstringOp, WordPart } from "../../ast/types.js";
 import { envGet } from "../../utils/bytes.js";
-import { emptyStream, fromString } from "../../utils/stream.js";
 import { ArithmeticError, ExitError } from "../errors.js";
 import { getIfsSeparator } from "../helpers/ifs.js";
+import { writeToChannel } from "../output-channels.js";
 import type { InterpreterContext } from "../types.js";
 import { expandPrompt } from "./prompt.js";
 import { quoteValue } from "./quoting.js";
@@ -71,11 +71,13 @@ export async function handleArraySlicing(
 
   // Slicing associative arrays doesn't make sense - error out
   if (ctx.state.associativeArrays?.has(arrayName)) {
-    throw new ExitError(
-      1,
-      emptyStream(),
-      fromString(`bash: \${${arrayName}[@]: 0: 3}: bad substitution\n`),
+    await writeToChannel(
+      ctx,
+      2,
+      `bash: \${${arrayName}[@]: 0: 3}: bad substitution\n`,
+      true,
     );
+    throw new ExitError(1);
   }
 
   // Evaluate offset and length

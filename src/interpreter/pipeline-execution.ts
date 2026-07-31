@@ -11,10 +11,23 @@ import {
   type ByteStream,
   concatStreams,
   emptyStream,
-  fromString,
 } from "../utils/stream.js";
-import { BadSubstitutionError, ErrexitError, ExitError } from "./errors.js";
+import {
+  AbortExecutionError,
+  BadSubstitutionError,
+  ErrexitError,
+  ExitError,
+} from "./errors.js";
 import { ok } from "./helpers/result.js";
+import {
+  cloneOutputChannels,
+  createCollector,
+  overrideChannelSink,
+  pumpResult,
+  withChannels,
+  writeErrorDiagnostic,
+  writeToChannel,
+} from "./output-channels.js";
 import type { InterpreterContext } from "./types.js";
 
 /**
@@ -24,6 +37,51 @@ export type ExecuteCommandFn = (
   node: CommandNode,
   stdin: ByteStream,
 ) => Promise<ExecResult>;
+
+/**
+ * Install the Phase 2 stdout boundary without consuming the legacy stream.
+ * A collector is not a live pipe, so pumping here would drain lazy or infinite
+ * producers before the downstream command can read and cancel them.
+ */
+async function executeIntermediatePipelineStage(
+  ctx: InterpreterContext,
+  execute: () => Promise<ExecResult>,
+  captureStderr: boolean,
+): Promise<ExecResult> {
+  const stdoutCollector = createCollector();
+  const stderrCollector = captureStderr ? createCollector() : undefined;
+  const channels = cloneOutputChannels(ctx.outputChannels);
+  overrideChannelSink(channels, 1, stdoutCollector);
+  if (stderrCollector) {
+    overrideChannelSink(channels, 2, stderrCollector);
+  }
+
+  try {
+    const result = await withChannels(ctx, channels, execute);
+    return {
+      ...result,
+      stdout: concatStreams(result.stdout, stdoutCollector.stream()),
+      stderr: stderrCollector
+        ? concatStreams(result.stderr, stderrCollector.stream())
+        : result.stderr,
+    };
+  } catch (error) {
+    await withChannels(ctx, channels, () => writeErrorDiagnostic(ctx, error));
+    const stdout = stdoutCollector.stream();
+    const stderr = stderrCollector?.stream() ?? emptyStream();
+    if (error instanceof BadSubstitutionError) {
+      return { stdout, stderr, exitCode: 1 };
+    }
+    if (error instanceof ExitError) {
+      return { stdout, stderr, exitCode: error.exitCode };
+    }
+    if (error instanceof ErrexitError) {
+      return { stdout, stderr, exitCode: error.exitCode };
+    }
+    await pumpResult(ctx, { stdout, stderr, exitCode: 1 }, false);
+    throw error;
+  }
+}
 
 /**
  * Execute a pipeline node (command or sequence of piped commands).
@@ -51,6 +109,7 @@ export async function executePipeline(
     const command = node.commands[i];
     const isLast = i === node.commands.length - 1;
     const isFirst = i === 0;
+    const pipeStderrToNext = node.pipeStderr?.[i] ?? false;
 
     // In a multi-command pipeline, each command runs in a subshell context
     // where $_ starts empty (subshells don't inherit $_ from parent in same way)
@@ -79,13 +138,29 @@ export async function executePipeline(
 
     let result: ExecResult;
     try {
-      result = await executeCommand(command, stdin);
+      if (isLast) {
+        const executeLastStage = () => executeCommand(command, stdin);
+        result = runsInSubshell
+          ? await withChannels(
+              ctx,
+              cloneOutputChannels(ctx.outputChannels),
+              executeLastStage,
+            )
+          : await executeLastStage();
+      } else {
+        result = await executeIntermediatePipelineStage(
+          ctx,
+          () => executeCommand(command, stdin),
+          pipeStderrToNext,
+        );
+      }
     } catch (error) {
+      await writeErrorDiagnostic(ctx, error);
       // BadSubstitutionError should fail the command but not abort the script
       if (error instanceof BadSubstitutionError) {
         result = {
-          stdout: error.stdout,
-          stderr: error.stderr,
+          stdout: emptyStream(),
+          stderr: emptyStream(),
           exitCode: 1,
         };
       }
@@ -94,16 +169,16 @@ export async function executePipeline(
       // For single commands, let these errors propagate to terminate the script
       else if (error instanceof ExitError && node.commands.length > 1) {
         result = {
-          stdout: error.stdout,
-          stderr: error.stderr,
+          stdout: emptyStream(),
+          stderr: emptyStream(),
           exitCode: error.exitCode,
         };
       } else if (error instanceof ErrexitError && node.commands.length > 1) {
         // Errexit inside a pipeline segment should only fail that segment
         // The pipeline's exit code comes from the last command (or pipefail)
         result = {
-          stdout: error.stdout,
-          stderr: error.stderr,
+          stdout: emptyStream(),
+          stderr: emptyStream(),
           exitCode: error.exitCode,
         };
       } else {
@@ -120,6 +195,14 @@ export async function executePipeline(
       ctx.state.env = savedEnv;
     }
 
+    if (
+      ctx.signal?.aborted === true &&
+      result.exitCode === new AbortExecutionError(ctx.signal.reason).exitCode
+    ) {
+      await pumpResult(ctx, result, false);
+      throw new AbortExecutionError(ctx.signal.reason);
+    }
+
     // Track exit code for PIPESTATUS
     pipestatusExitCodes.push(result.exitCode);
 
@@ -130,7 +213,6 @@ export async function executePipeline(
 
     if (!isLast) {
       // Check if this pipe is |& (pipe stderr to next command's stdin too)
-      const pipeStderrToNext = node.pipeStderr?.[i] ?? false;
       if (pipeStderrToNext) {
         // |& pipes both stdout and stderr to next command's stdin
         stdin = concatStreams(result.stderr, result.stdout);
@@ -141,16 +223,45 @@ export async function executePipeline(
         };
       } else {
         // Regular | only pipes stdout
-        stdin = result.stdout;
+        const unpumpedStdout = result.stdout;
+        await pumpResult(ctx, result, true, [2]);
+        stdin = unpumpedStdout;
         lastResult = {
           stdout: emptyStream(),
-          stderr: result.stderr,
+          stderr: emptyStream(),
           exitCode: result.exitCode,
         };
       }
     } else {
       lastResult = result;
     }
+  }
+
+  // If pipefail is enabled, use the rightmost failing exit code
+  if (ctx.state.options.pipefail && pipefailExitCode !== 0) {
+    lastResult = {
+      ...lastResult,
+      exitCode: pipefailExitCode,
+    };
+  }
+
+  if (node.negated) {
+    lastResult = {
+      ...lastResult,
+      exitCode: lastResult.exitCode === 0 ? 1 : 0,
+    };
+  }
+
+  // This is the pipeline's outermost output boundary. Intermediate stdout
+  // remains lazy until draining the last stage pulls it through the chain.
+  // Stages themselves are still invoked sequentially.
+  const unpumpedExitCode = lastResult.exitCode;
+  lastResult = await pumpResult(ctx, lastResult);
+  if (
+    lastResult.exitCode !== unpumpedExitCode &&
+    pipestatusExitCodes.length > 0
+  ) {
+    pipestatusExitCodes[pipestatusExitCodes.length - 1] = lastResult.exitCode;
   }
 
   // Set PIPESTATUS array with exit codes from all pipeline commands
@@ -180,21 +291,6 @@ export async function executePipeline(
     );
   }
 
-  // If pipefail is enabled, use the rightmost failing exit code
-  if (ctx.state.options.pipefail && pipefailExitCode !== 0) {
-    lastResult = {
-      ...lastResult,
-      exitCode: pipefailExitCode,
-    };
-  }
-
-  if (node.negated) {
-    lastResult = {
-      ...lastResult,
-      exitCode: lastResult.exitCode === 0 ? 1 : 0,
-    };
-  }
-
   // Output timing info for timed pipelines
   if (node.timed) {
     const endTime = performance.now();
@@ -212,10 +308,7 @@ export async function executePipeline(
       timingOutput = `\nreal\t${realStr}\nuser\t0m0.000s\nsys\t0m0.000s\n`;
     }
 
-    lastResult = {
-      ...lastResult,
-      stderr: concatStreams(lastResult.stderr, fromString(timingOutput)),
-    };
+    await writeToChannel(ctx, 2, timingOutput);
   }
 
   // Handle $_ for multi-command pipelines:

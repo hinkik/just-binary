@@ -34,6 +34,7 @@
     "dist/interpreter/**/*.d.ts",
     "dist/network/**/*.d.ts",
     "dist/parser/*.d.ts",
+    "dist/process/**/*.d.ts",
     "dist/sandbox/*.d.ts",
     "dist/utils/*.d.ts",
     "README.md",

@@ -1,0 +1,37 @@
+{
+  "010be74ec9c71857": {
+    "command": "if echo first; false; then echo no; elif echo second; true; then case foo in f*) echo match; echo case-error >&2;; esac; fi",
+    "files": {},
+    "stdout": "first\nsecond\nmatch\n",
+    "stderr": "case-error\n",
+    "exitCode": 0
+  },
+  "45c0cc6edc6a341d": {
+    "command": "for i in 1 2; do echo append$i; done >> out; cat out",
+    "files": {},
+    "stdout": "append1\nappend2\n",
+    "stderr": "",
+    "exitCode": 0
+  },
+  "603e224e36e3a846": {
+    "command": "out=$(for i in 1 2; do echo $i; echo e$i >&2; done); echo \"got:$out\"",
+    "files": {},
+    "stdout": "got:1\n2\n",
+    "stderr": "e1\ne2\n",
+    "exitCode": 0
+  },
+  "8e734de07e505bbe": {
+    "command": "for i in 1 2 3; do echo $i; done | tr 1-3 a-c",
+    "files": {},
+    "stdout": "a\nb\nc\n",
+    "stderr": "",
+    "exitCode": 0
+  },
+  "9bda4dac1a5014e2": {
+    "command": "for o in 1 2; do echo o$o; for i in 1 2; do echo i$o:$i; [ \"$i\" = 1 ] && continue; break 2; done; echo after; done; echo done",
+    "files": {},
+    "stdout": "o1\ni1:1\ni1:2\ndone\n",
+    "stderr": "",
+    "exitCode": 0
+  }
+}

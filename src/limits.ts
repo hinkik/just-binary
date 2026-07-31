@@ -48,6 +48,9 @@ export interface ExecutionLimits {
 
   /** Maximum command substitution nesting depth (default: 50) */
   maxSubstitutionDepth?: number;
+
+  /** Maximum number of concurrently running background jobs (default: 128) */
+  maxConcurrentJobs?: number;
 }
 
 /**
@@ -69,6 +72,7 @@ const DEFAULT_LIMITS: Required<ExecutionLimits> = {
   maxArrayElements: 100000,
   maxHeredocSize: 10485760, // 10MB
   maxSubstitutionDepth: 50,
+  maxConcurrentJobs: 128,
 };
 
 /**
@@ -105,5 +109,7 @@ export function resolveLimits(
     maxHeredocSize: userLimits.maxHeredocSize ?? DEFAULT_LIMITS.maxHeredocSize,
     maxSubstitutionDepth:
       userLimits.maxSubstitutionDepth ?? DEFAULT_LIMITS.maxSubstitutionDepth,
+    maxConcurrentJobs:
+      userLimits.maxConcurrentJobs ?? DEFAULT_LIMITS.maxConcurrentJobs,
   };
 }
