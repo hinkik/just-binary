@@ -1015,6 +1015,7 @@ export class Interpreter {
         const fd = redir.fd ?? 0;
         if (fd === 0 && !hereDoc.stripTabs) {
           stdinBytes = await expandWordToBytes(this.ctx, hereDoc.content);
+          stdinStream = null;
         } else {
           let content = await expandWord(this.ctx, hereDoc.content);
           if (hereDoc.stripTabs) {
@@ -1030,6 +1031,7 @@ export class Interpreter {
             this.ctx.state.fileDescriptors.set(fd, content);
           } else {
             stdinBytes = encode(content);
+            stdinStream = null;
           }
         }
         continue;
@@ -1041,6 +1043,7 @@ export class Interpreter {
           redir.target as WordNode,
         );
         stdinBytes = concat(hereStringBytes, encode("\n"));
+        stdinStream = null;
         continue;
       }
 
@@ -1048,7 +1051,12 @@ export class Interpreter {
         try {
           const target = await expandWord(this.ctx, redir.target as WordNode);
           const filePath = this.ctx.fs.resolvePath(this.ctx.state.cwd, target);
-          stdinBytes = await collectBytes(await this.ctx.fs.readFile(filePath));
+          // Thread the file through as a lazy stream — readFile validates
+          // existence eagerly (the preflight), but the bytes are only pulled
+          // as the command consumes them, so `head -1 < huge` stays O(1)
+          // memory and early exit cancels the underlying source.
+          stdinStream = await this.ctx.fs.readFile(filePath);
+          stdinBytes = EMPTY;
         } catch {
           const target = await expandWord(this.ctx, redir.target as WordNode);
           for (const [name, value] of tempAssignments) {
@@ -1093,6 +1101,7 @@ export class Interpreter {
               const parsed = parseRwFdContent(fdContent);
               if (parsed) {
                 stdinBytes = encode(parsed.content.slice(parsed.position));
+                stdinStream = null;
                 stdinSourceFd = sourceFd;
               }
             } else if (
@@ -1102,6 +1111,7 @@ export class Interpreter {
               // Output-only.
             } else {
               stdinBytes = encode(fdContent);
+              stdinStream = null;
             }
           } else if (
             sourceFd >= 3 &&

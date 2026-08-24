@@ -365,19 +365,53 @@ export function handleLength(
     // Special handling for FUNCNAME and BASH_LINENO
     if (parameter === "FUNCNAME") {
       const firstElement = ctx.state.funcNameStack?.[0] || "";
-      return String([...firstElement].length);
+      return String(countCodePoints(firstElement));
     }
     if (parameter === "BASH_LINENO") {
       const firstElement = ctx.state.callLineStack?.[0];
       return String(
-        firstElement !== undefined ? [...String(firstElement)].length : 0,
+        firstElement !== undefined ? countCodePoints(String(firstElement)) : 0,
       );
     }
     const firstElement = envGet(ctx.state.env, `${parameter}_0`);
-    return String([...firstElement].length);
+    return String(countCodePoints(firstElement));
   }
-  // Use spread to count Unicode code points, not UTF-16 code units
-  return String([...value].length);
+  return String(countCodePoints(value));
+}
+
+/**
+ * Count Unicode code points (not UTF-16 code units) without materializing a
+ * per-codepoint array — `[...value]` on a large variable allocates ~10x the
+ * string size and hard-OOMs on multi-MB values.
+ */
+function countCodePoints(value: string): number {
+  let count = 0;
+  for (let i = 0; i < value.length; i++) {
+    const code = value.charCodeAt(i);
+    // Skip the low half of a surrogate pair
+    if (code >= 0xd800 && code <= 0xdbff && i + 1 < value.length) {
+      const next = value.charCodeAt(i + 1);
+      if (next >= 0xdc00 && next <= 0xdfff) i++;
+    }
+    count++;
+  }
+  return count;
+}
+
+/** UTF-16 index of the `n`-th code point (clamped to the string length). */
+function codePointIndexToUtf16(value: string, n: number): number {
+  let i = 0;
+  let count = 0;
+  while (i < value.length && count < n) {
+    const code = value.charCodeAt(i);
+    if (code >= 0xd800 && code <= 0xdbff && i + 1 < value.length) {
+      const next = value.charCodeAt(i + 1);
+      if (next >= 0xdc00 && next <= 0xdfff) i++;
+    }
+    i++;
+    count++;
+  }
+  return i;
 }
 
 /**
@@ -481,18 +515,20 @@ export async function handleSubstring(
       .join(" ");
   }
 
-  // String slicing with UTF-8 support
-  const chars = [...value];
+  // String slicing with UTF-8 support. Slice boundaries are computed by
+  // walking code points instead of spreading the string into an array
+  // (which allocates ~10x the value size).
+  const total = countCodePoints(value);
   let start = offset;
-  if (start < 0) start = Math.max(0, chars.length + start);
+  if (start < 0) start = Math.max(0, total + start);
+  let end: number | undefined;
   if (length !== undefined) {
-    if (length < 0) {
-      const endPos = chars.length + length;
-      return chars.slice(start, Math.max(start, endPos)).join("");
-    }
-    return chars.slice(start, start + length).join("");
+    end = length < 0 ? Math.max(start, total + length) : start + length;
   }
-  return chars.slice(start).join("");
+  const startIdx = codePointIndexToUtf16(value, start);
+  const endIdx =
+    end === undefined ? value.length : codePointIndexToUtf16(value, end);
+  return value.slice(startIdx, Math.max(startIdx, endIdx));
 }
 
 /**

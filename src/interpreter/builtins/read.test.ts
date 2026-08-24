@@ -150,4 +150,58 @@ describe("read builtin", () => {
       expect(result.stdout).toBe("1\nhello world\n");
     });
   });
+
+  describe("incremental consumption", () => {
+    /** Lazy stdin that counts how many chunks the shell actually pulled. */
+    function lazyStdin(total: number, makeChunk: (i: number) => string) {
+      const state = { pulled: 0 };
+      const encoder = new TextEncoder();
+      let i = 0;
+      const stream = new ReadableStream<Uint8Array>({
+        pull(controller) {
+          if (i >= total) {
+            controller.close();
+            return;
+          }
+          state.pulled++;
+          controller.enqueue(encoder.encode(makeChunk(i++)) as Uint8Array);
+        },
+      });
+      return { stream, state };
+    }
+
+    it("pulls only what a single read needs from a lazy stdin", async () => {
+      const { stream, state } = lazyStdin(1000, (i) => `line ${i}\n`);
+      const env = new Bash();
+      const result = await toText(
+        await env.exec('read first; echo "got: $first"', { stdin: stream }),
+      );
+      expect(result.stdout).toBe("got: line 0\n");
+      expect(state.pulled).toBeLessThan(5);
+    });
+
+    it("leaves the unconsumed remainder for the next consumer", async () => {
+      const env = new Bash();
+      const result = await toText(
+        await env.exec("printf 'a\\nb\\nc\\n' | { read x; read y; cat; }"),
+      );
+      expect(result.stdout).toBe("c\n");
+    });
+
+    it("keeps while-read loops linear over many lines", async () => {
+      const lines = Array.from({ length: 3000 }, (_, i) => `l${i}`).join("\n");
+      const env = new Bash({ files: { "/data.txt": `${lines}\n` } });
+      const start = performance.now();
+      const result = await toText(
+        await env.exec(
+          'n=0; while read -r l; do n=$((n+1)); done < /data.txt; echo "$n"',
+        ),
+      );
+      const elapsed = performance.now() - start;
+      expect(result.stdout).toBe("3000\n");
+      // Quadratic re-materialization made this take seconds; incremental
+      // reads keep it well under one.
+      expect(elapsed).toBeLessThan(1000);
+    });
+  });
 });

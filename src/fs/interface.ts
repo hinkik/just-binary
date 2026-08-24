@@ -22,6 +22,17 @@ export interface ReadFileOptions {
   encoding?: BufferEncoding | null;
 }
 
+/**
+ * A handle for repeated appends to one file. Obtained via
+ * IFileSystem.openFileAppender; lets backends amortize per-append setup
+ * (path resolution, or opening a real/OPFS file handle) across a whole
+ * redirection's output instead of paying it per chunk.
+ */
+export interface FileAppender {
+  append(chunk: Uint8Array): void | Promise<void>;
+  close(): void | Promise<void>;
+}
+
 export interface WriteFileOptions {
   encoding?: BufferEncoding;
 }
@@ -38,6 +49,13 @@ export interface FileEntry {
   size: number;
   mode: number;
   mtime: Date;
+  /**
+   * Spare capacity in the last chunk's backing buffer, exclusively owned by
+   * this entry. Set by in-place appends (see fs/append.ts) so repeated small
+   * appends coalesce instead of allocating one chunk per write. MUST NOT be
+   * copied when an entry's chunks array is shared (cp/link).
+   */
+  tailCapacity?: number;
 }
 
 export interface DirectoryEntry {
@@ -137,6 +155,14 @@ export interface IFileSystem {
     content: FileContent,
     options?: WriteFileOptions | BufferEncoding,
   ): Promise<void>;
+
+  /**
+   * Open a handle for repeated appends to one file (creating it if needed).
+   * Optional: callers fall back to appendFile per chunk. Implementations
+   * that resolve the target once (in-memory entry, real/OPFS file handle)
+   * make per-chunk redirected output O(chunk) instead of O(file).
+   */
+  openFileAppender?(path: string): Promise<FileAppender>;
 
   exists(path: string): Promise<boolean>;
 

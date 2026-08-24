@@ -22,6 +22,11 @@ import type { InterpreterContext } from "./types.js";
 export interface OutputSink {
   /** Implementations must serialize writes (fd 1 and fd 2 may alias one sink after 2>&1). */
   write(chunk: Uint8Array): void | Promise<void>;
+  /**
+   * Force any buffered data to its destination. Called when the redirection
+   * scope that installed the sink closes. Must be idempotent.
+   */
+  flush?(): void | Promise<void>;
 }
 
 /** One fd's binding. An absent sink with a descriptor records a closed fd. */
@@ -234,11 +239,31 @@ export async function withChannels<T>(
 ): Promise<T> {
   const previousChannels = ctx.outputChannels;
   ctx.outputChannels = channels;
+  let result: T;
   try {
-    return await fn();
-  } finally {
+    result = await fn();
+  } catch (error) {
     ctx.outputChannels = previousChannels;
+    // Scope is closing on an error: release sink resources best-effort but
+    // let the original error win.
+    for (const binding of channels.bindings.values()) {
+      try {
+        await binding.sink?.flush?.();
+      } catch {
+        // fn's error takes precedence.
+      }
+    }
+    throw error;
   }
+  ctx.outputChannels = previousChannels;
+  // The redirection scope is closing: settle file sinks (close appender
+  // handles). A failure here is a write error and surfaces to the caller.
+  for (const binding of channels.bindings.values()) {
+    if (binding.sink?.flush) {
+      await binding.sink.flush();
+    }
+  }
+  return result;
 }
 
 export async function pumpStream(

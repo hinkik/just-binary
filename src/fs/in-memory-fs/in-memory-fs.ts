@@ -1,4 +1,5 @@
 import { type ByteStream, fromChunks } from "../../utils/stream.js";
+import { appendChunksToEntry } from "../append.js";
 import {
   contentToChunks,
   contentToChunksSync,
@@ -10,6 +11,7 @@ import type {
   CpOptions,
   DirectoryEntry,
   DirentEntry,
+  FileAppender,
   FileContent,
   FileEntry,
   FileInit,
@@ -255,13 +257,7 @@ export class InMemoryFs implements IFileSystem {
     );
 
     if (existing?.type === "file") {
-      this.data.set(normalized, {
-        type: "file",
-        chunks: [...existing.chunks, ...newChunks],
-        size: existing.size + newSize,
-        mode: existing.mode,
-        mtime: new Date(),
-      });
+      appendChunksToEntry(existing, newChunks, newSize);
     } else {
       this.ensureParentDirs(normalized);
       this.data.set(normalized, {
@@ -272,6 +268,39 @@ export class InMemoryFs implements IFileSystem {
         mtime: new Date(),
       });
     }
+  }
+
+  async openFileAppender(path: string): Promise<FileAppender> {
+    validatePath(path, "append");
+    const normalized = this.normalizePath(path);
+    const existing = this.data.get(normalized);
+    if (existing && existing.type !== "file") {
+      throw new Error(
+        `EISDIR: illegal operation on a directory, write '${path}'`,
+      );
+    }
+    let entry: FileEntry;
+    if (existing?.type === "file") {
+      entry = existing;
+    } else {
+      this.ensureParentDirs(normalized);
+      entry = {
+        type: "file",
+        chunks: [],
+        size: 0,
+        mode: 0o644,
+        mtime: new Date(),
+      };
+      this.data.set(normalized, entry);
+    }
+    // Holds the entry directly — like a POSIX fd, appends keep going to this
+    // "inode" even if the path is unlinked or replaced while open.
+    return {
+      append: (chunk: Uint8Array) => {
+        appendChunksToEntry(entry, [chunk], chunk.length);
+      },
+      close: () => {},
+    };
   }
 
   async exists(path: string): Promise<boolean> {

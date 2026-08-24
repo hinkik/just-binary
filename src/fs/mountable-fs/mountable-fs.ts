@@ -3,6 +3,7 @@ import { InMemoryFs } from "../in-memory-fs/in-memory-fs.js";
 import type {
   BufferEncoding,
   CpOptions,
+  FileAppender,
   FileContent,
   FsStat,
   IFileSystem,
@@ -305,6 +306,18 @@ export class MountableFs implements IFileSystem {
   ): Promise<void> {
     const { fs, relativePath } = this.routePath(path);
     return fs.appendFile(relativePath, content, options);
+  }
+
+  async openFileAppender(path: string): Promise<FileAppender> {
+    const { fs, relativePath } = this.routePath(path);
+    if (fs.openFileAppender) {
+      return fs.openFileAppender(relativePath);
+    }
+    // Mounted fs has no appender support — emulate with per-chunk appends.
+    return {
+      append: (chunk: Uint8Array) => fs.appendFile(relativePath, chunk),
+      close: () => {},
+    };
   }
 
   async exists(path: string): Promise<boolean> {

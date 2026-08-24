@@ -182,12 +182,7 @@ export async function dispatchBuiltin(
     return handleSource(ctx, strArgs);
   }
   if (commandName === "read") {
-    return await handleRead(
-      ctx,
-      strArgs,
-      await collectBytes(stdin),
-      stdinSourceFd,
-    );
+    return await handleRead(ctx, strArgs, stdin, stdinSourceFd);
   }
   if (commandName === "mapfile" || commandName === "readarray") {
     return await handleMapfile(ctx, strArgs, await collectBytes(stdin));

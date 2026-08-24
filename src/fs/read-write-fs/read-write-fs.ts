@@ -17,6 +17,7 @@ import type {
   BufferEncoding,
   CpOptions,
   DirentEntry,
+  FileAppender,
   FileContent,
   FsStat,
   IFileSystem,
@@ -222,6 +223,21 @@ export class ReadWriteFs implements IFileSystem {
       offset += c.length;
     }
     await fs.promises.appendFile(realPath, buffer);
+  }
+
+  async openFileAppender(path: string): Promise<FileAppender> {
+    const realPath = this.toRealPath(path);
+    const dir = nodePath.dirname(realPath);
+    await fs.promises.mkdir(dir, { recursive: true });
+    const handle = await fs.promises.open(realPath, "a");
+    return {
+      append: async (chunk: Uint8Array) => {
+        await handle.write(chunk);
+      },
+      close: async () => {
+        await handle.close();
+      },
+    };
   }
 
   async exists(path: string): Promise<boolean> {

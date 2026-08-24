@@ -59,6 +59,37 @@ describe("streamLines", () => {
     expect(state.cancelled).toBe(true);
     expect(state.pulled).toBeLessThan(100);
   });
+
+  it("assembles a line spanning many chunks exactly once", async () => {
+    // 50 chunks with no newline, then the terminator — the carry must not
+    // be recopied per chunk (that was quadratic on single-line inputs).
+    const { stream } = lazySource(51, (i) => (i < 50 ? `part${i};` : "\n"));
+    const lines: string[] = [];
+    for await (const line of streamLines(stream)) {
+      lines.push(decode(line));
+    }
+    expect(lines).toEqual([
+      Array.from({ length: 50 }, (_, i) => `part${i};`).join(""),
+    ]);
+  });
+
+  it("yields chunk-boundary lines and a trailing partial line", async () => {
+    const { stream } = lazySource(3, (i) => ["a\nb", "\n", "tail"][i]);
+    const lines: string[] = [];
+    for await (const line of streamLines(stream)) {
+      lines.push(decode(line));
+    }
+    expect(lines).toEqual(["a", "b", "tail"]);
+  });
+
+  it("handles empty lines and CR bytes verbatim", async () => {
+    const { stream } = lazySource(1, () => "a\n\nb\r\nc");
+    const lines: string[] = [];
+    for await (const line of streamLines(stream)) {
+      lines.push(decode(line));
+    }
+    expect(lines).toEqual(["a", "", "b\r", "c"]);
+  });
 });
 
 describe("searchStream with a lazy source", () => {

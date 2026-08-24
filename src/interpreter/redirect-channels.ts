@@ -1,4 +1,5 @@
 import type { RedirectionNode, WordNode } from "../ast/types.js";
+import type { FileAppender } from "../fs/interface.js";
 import type { ExecResult } from "../types.js";
 import { envGet, envSet } from "../utils/bytes.js";
 import { failure } from "./helpers/result.js";
@@ -74,13 +75,48 @@ function withExpandedTarget(
   return { ...redir, target: expandedWord };
 }
 
+/**
+ * File sink for output redirections. Writes every chunk through a single
+ * FileAppender when the filesystem provides one — resolving the target once
+ * per redirection instead of once per chunk keeps per-chunk cost O(chunk)
+ * (and lets real/OPFS backends hold one open handle). Falls back to
+ * appendFile per chunk otherwise. Each write lands in the file immediately
+ * (bash semantics); flush() only closes the appender when the redirection
+ * scope ends, and a later write transparently reopens it.
+ */
 function queuedFileSink(ctx: InterpreterContext, filePath: string): OutputSink {
   let writeChain = Promise.resolve();
+  let appender: FileAppender | null | undefined;
+
+  const doWrite = async (chunk: Uint8Array): Promise<void> => {
+    if (appender === undefined) {
+      appender = ctx.fs.openFileAppender
+        ? await ctx.fs.openFileAppender(filePath)
+        : null;
+    }
+    if (appender) {
+      await appender.append(chunk);
+    } else {
+      await ctx.fs.appendFile(filePath, chunk);
+    }
+  };
+
   return {
     write(chunk) {
-      const write = writeChain.then(() => ctx.fs.appendFile(filePath, chunk));
+      const write = writeChain.then(() => doWrite(chunk));
       writeChain = write.catch(() => undefined);
       return write;
+    },
+    flush() {
+      const done = writeChain.then(async () => {
+        if (appender) {
+          const open = appender;
+          appender = undefined;
+          await open.close();
+        }
+      });
+      writeChain = done.catch(() => undefined);
+      return done;
     },
   };
 }

@@ -8,6 +8,7 @@
 import * as fs from "node:fs";
 import * as nodePath from "node:path";
 import { type ByteStream, fromChunks } from "../../utils/stream.js";
+import { appendChunksToEntry } from "../append.js";
 import {
   contentToChunks,
   contentToChunksSync,
@@ -18,6 +19,7 @@ import type {
   BufferEncoding,
   CpOptions,
   DirentEntry,
+  FileAppender,
   FileContent,
   FsStat,
   IFileSystem,
@@ -34,6 +36,8 @@ interface MemoryFileEntry {
   size: number;
   mode: number;
   mtime: Date;
+  /** See FileEntry.tailCapacity (fs/interface.ts). */
+  tailCapacity?: number;
 }
 
 interface MemoryDirEntry {
@@ -566,7 +570,26 @@ export class OverlayFs implements IFileSystem {
       encoding,
     );
 
-    // Try to read existing content as chunks
+    // Fast path: the file already lives in the memory layer — append in
+    // place instead of re-reading and rebuilding the chunk array (which
+    // would make N appends O(N^2)).
+    const memEntry = this.memory.get(normalized);
+    if (memEntry?.type === "file") {
+      appendChunksToEntry(memEntry, newChunks, newSize);
+      return;
+    }
+
+    // Slow path (first append): promote existing content (possibly from the
+    // real fs) into the memory layer, then append.
+    const entry = await this.promoteForAppend(normalized);
+    appendChunksToEntry(entry, newChunks, newSize);
+  }
+
+  /**
+   * Copy a path's current content (memory or real fs; empty if absent) into
+   * a memory-layer file entry so appends can mutate it in place.
+   */
+  private async promoteForAppend(normalized: string): Promise<MemoryFileEntry> {
     let existingChunks: Uint8Array[] = [];
     let existingSize = 0;
     try {
@@ -577,14 +600,35 @@ export class OverlayFs implements IFileSystem {
     }
 
     this.ensureParentDirs(normalized);
-    this.memory.set(normalized, {
+    const entry: MemoryFileEntry = {
       type: "file",
-      chunks: [...existingChunks, ...newChunks],
-      size: existingSize + newSize,
+      chunks: [...existingChunks],
+      size: existingSize,
       mode: 0o644,
       mtime: new Date(),
-    });
+    };
+    this.memory.set(normalized, entry);
     this.deleted.delete(normalized);
+    return entry;
+  }
+
+  async openFileAppender(path: string): Promise<FileAppender> {
+    validatePath(path, "append");
+    this.assertWritable(`append '${path}'`);
+    const normalized = this.normalizePath(path);
+
+    const memEntry = this.memory.get(normalized);
+    const entry =
+      memEntry?.type === "file"
+        ? memEntry
+        : await this.promoteForAppend(normalized);
+
+    return {
+      append: (chunk: Uint8Array) => {
+        appendChunksToEntry(entry, [chunk], chunk.length);
+      },
+      close: () => {},
+    };
   }
 
   async exists(path: string): Promise<boolean> {
