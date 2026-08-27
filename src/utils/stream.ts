@@ -13,7 +13,7 @@
  * MUST tolerate any chunk size including 0 (caller intent: keep going).
  */
 
-import { concat as concatBytes, EMPTY, encode } from "./bytes.js";
+import { EMPTY, encode } from "./bytes.js";
 
 export type ByteStream = ReadableStream<Uint8Array>;
 
@@ -248,25 +248,54 @@ export async function* streamChunks(
 export async function* streamLines(
   s: ByteStream,
 ): AsyncIterableIterator<Uint8Array> {
-  let leftover: Uint8Array = EMPTY;
+  // Pending tail of a line that spans chunks, held as UNJOINED pieces. Joining
+  // the accumulated prefix to every arriving chunk (the obvious formulation)
+  // re-copies the whole prefix per chunk, which is O(n^2) for a single long
+  // line -- the shape of an HTML email body, where one line can be many MB.
+  // Here each byte is copied at most once, when the line finally completes.
+  let pending: Uint8Array[] = [];
+  let pendingLen = 0;
   for await (const chunk of streamChunks(s)) {
-    let buf: Uint8Array = chunk;
-    if (leftover.length > 0) {
-      buf = concatBytes(leftover, chunk);
-      leftover = EMPTY;
-    }
     let start = 0;
-    for (let i = 0; i < buf.length; i++) {
-      if (buf[i] === 0x0a) {
-        yield buf.subarray(start, i) as Uint8Array;
+    for (let i = 0; i < chunk.length; i++) {
+      if (chunk[i] === 0x0a) {
+        const piece = chunk.subarray(start, i) as Uint8Array;
+        if (pendingLen > 0) {
+          const line = new Uint8Array(pendingLen + piece.length);
+          let at = 0;
+          for (const p of pending) {
+            line.set(p, at);
+            at += p.length;
+          }
+          line.set(piece, at);
+          pending = [];
+          pendingLen = 0;
+          yield line;
+        } else {
+          yield piece;
+        }
         start = i + 1;
       }
     }
-    if (start < buf.length) {
-      leftover = buf.subarray(start) as Uint8Array;
+    if (start < chunk.length) {
+      const tail = chunk.subarray(start) as Uint8Array;
+      pending.push(tail);
+      pendingLen += tail.length;
     }
   }
-  if (leftover.length > 0) yield leftover;
+  if (pendingLen > 0) {
+    if (pending.length === 1) {
+      yield pending[0];
+    } else {
+      const line = new Uint8Array(pendingLen);
+      let at = 0;
+      for (const p of pending) {
+        line.set(p, at);
+        at += p.length;
+      }
+      yield line;
+    }
+  }
 }
 
 /** Drain a stream to /dev/null (consume and discard). */
