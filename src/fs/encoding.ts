@@ -71,6 +71,41 @@ function encodedToBytes(
  * Split a single Uint8Array into chunks of up to CHUNK_SIZE bytes.
  * Each chunk references a subarray of the original buffer (no extra copies).
  */
+/**
+ * Detach a Uint8Array from an oversized backing ArrayBuffer.
+ *
+ * `subarray()` returns a VIEW: a 20-byte slice of a 64 MB buffer keeps all
+ * 64 MB alive. Stored file chunks outlive the command that produced them (the
+ * fs is session-lived), so a small file derived from a large one -- e.g.
+ * `head -n 1 big.html > sig.html` -- would pin the whole original for the rest
+ * of the session, invisibly: the file reports 20 bytes and the retention does
+ * not appear in heapUsed. Copy such slivers so the parent can be collected.
+ * Views that already cover (nearly) all of their buffer are kept as-is, so the
+ * normal whole-file path stays copy-free.
+ */
+function detachSliver(bytes: Uint8Array): Uint8Array {
+  const slack = bytes.buffer.byteLength - bytes.byteLength;
+  if (slack === 0 || slack <= CHUNK_SIZE) return bytes;
+  return bytes.slice() as Uint8Array;
+}
+
+/**
+ * Drop oversized backing buffers when the stored bytes are only a small slice
+ * of them. Streamed chunks are views: `head -n 1 big.html > sig.html` stores a
+ * few bytes that keep the whole multi-MB original alive for the life of the
+ * (session-scoped) fs. Copying is worth it only when the file is much smaller
+ * than what it pins -- a full-size write keeps its views and stays copy-free.
+ */
+function compactIfSlivers(chunks: Uint8Array[], total: number): Uint8Array[] {
+  let maxBacking = 0;
+  for (const c of chunks) {
+    if (c.buffer.byteLength > maxBacking) maxBacking = c.buffer.byteLength;
+  }
+  if (maxBacking - total <= CHUNK_SIZE || total * 2 >= maxBacking)
+    return chunks;
+  return chunks.map((c) => c.slice() as Uint8Array);
+}
+
 function splitIntoChunks(bytes: Uint8Array): Uint8Array[] {
   if (bytes.length === 0) return [];
   if (bytes.length <= CHUNK_SIZE) return [bytes];
@@ -91,7 +126,7 @@ export function contentToChunksSync(
   content: string | Uint8Array,
   encoding?: BufferEncoding,
 ): { chunks: Uint8Array[]; size: number } {
-  const bytes = encodedToBytes(content, encoding);
+  const bytes = detachSliver(encodedToBytes(content, encoding));
   const chunks = splitIntoChunks(bytes);
   return { chunks, size: bytes.length };
 }
@@ -119,7 +154,7 @@ export async function contentToChunks(
         }
       }
     }
-    return { chunks, size: total };
+    return { chunks: compactIfSlivers(chunks, total), size: total };
   }
   return contentToChunksSync(content, encoding);
 }

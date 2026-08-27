@@ -59,6 +59,66 @@ describe("streamLines", () => {
     expect(state.cancelled).toBe(true);
     expect(state.pulled).toBeLessThan(100);
   });
+
+  // A line that spans many chunks is the shape of an HTML email body, whose
+  // base64 inline images are not line-broken. Joining the carried prefix onto
+  // every arriving chunk re-copies it each time (quadratic); the pending tail
+  // is instead held unjoined and concatenated once, so these cases pin the
+  // reassembly that rewrite has to get right.
+  it("reassembles one line spanning many chunks", async () => {
+    const { stream } = lazySource(200, () => "x".repeat(50));
+    const lines: string[] = [];
+    for await (const line of streamLines(stream)) lines.push(decode(line));
+    expect(lines).toEqual(["x".repeat(200 * 50)]);
+  });
+
+  it("reassembles a multi-chunk line followed by more lines", async () => {
+    const chunks = ["aaa", "bbb", "ccc\nshort\n", "ddd", "eee\n"];
+    const { stream } = lazySource(chunks.length, (i) => chunks[i]);
+    const lines: string[] = [];
+    for await (const line of streamLines(stream)) lines.push(decode(line));
+    expect(lines).toEqual(["aaabbbccc", "short", "dddeee"]);
+  });
+
+  it("handles newlines landing exactly on chunk boundaries", async () => {
+    const chunks = ["one\n", "two\n", "\n", "three\n"];
+    const { stream } = lazySource(chunks.length, (i) => chunks[i]);
+    const lines: string[] = [];
+    for await (const line of streamLines(stream)) lines.push(decode(line));
+    expect(lines).toEqual(["one", "two", "", "three"]);
+  });
+
+  it("yields a trailing line with no newline", async () => {
+    const chunks = ["a\nb", "cd"];
+    const { stream } = lazySource(chunks.length, (i) => chunks[i]);
+    const lines: string[] = [];
+    for await (const line of streamLines(stream)) lines.push(decode(line));
+    expect(lines).toEqual(["a", "bcd"]);
+  });
+
+  it("emits nothing for an empty source", async () => {
+    const { stream } = lazySource(0, () => "");
+    const lines: string[] = [];
+    for await (const line of streamLines(stream)) lines.push(decode(line));
+    expect(lines).toEqual([]);
+  });
+
+  // Guards the complexity, not just the output: carrying the partial line as
+  // unjoined pieces makes this linear, while joining the prefix onto each
+  // arriving chunk copies ~9 GB for the 16 MB line below and takes tens of
+  // seconds. The bound is ~1000x the fixed cost, so it only trips on a
+  // reintroduced quadratic, not on a slow machine.
+  it("stays linear for a 16 MB line split across 2000 chunks", async () => {
+    const CHUNKS = 2000;
+    const PER_CHUNK = 8192;
+    const { stream } = lazySource(CHUNKS, () => "y".repeat(PER_CHUNK));
+    const start = performance.now();
+    let total = 0;
+    for await (const line of streamLines(stream)) total += line.length;
+    const elapsed = performance.now() - start;
+    expect(total).toBe(CHUNKS * PER_CHUNK);
+    expect(elapsed).toBeLessThan(3000);
+  });
 });
 
 describe("searchStream with a lazy source", () => {

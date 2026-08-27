@@ -104,6 +104,12 @@ export async function executePipeline(
   // (except the last command when lastpipe is enabled)
   const isMultiCommandPipeline = node.commands.length > 1;
   const savedLastArg = ctx.state.lastArg;
+  // Non-first pipeline commands must not fall back to the enclosing group's
+  // stdin, but that clearing must not leak past the pipeline: an enclosing
+  // `while read ...` loop still needs the remaining input for its next
+  // iteration. Without this, a pipeline in the loop body ends the loop after
+  // one iteration.
+  const savedGroupStdin = ctx.state.groupStdin;
 
   for (let i = 0; i < node.commands.length; i++) {
     const command = node.commands[i];
@@ -317,6 +323,11 @@ export async function executePipeline(
   //   (since all commands ran in subshells that don't affect parent's $_)
   if (isMultiCommandPipeline && !ctx.state.shoptOptions.lastpipe) {
     ctx.state.lastArg = savedLastArg;
+  }
+
+  // Restore the enclosing group's stdin (see savedGroupStdin above).
+  if (isMultiCommandPipeline) {
+    ctx.state.groupStdin = savedGroupStdin;
   }
   // With lastpipe, the last command already updated $_ in the main shell context
 
