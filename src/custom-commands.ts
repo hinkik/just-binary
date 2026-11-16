@@ -6,7 +6,9 @@
 
 import type { Command, CommandContext, ExecResult } from "./types.js";
 import { createStringEnvAdapter, decodeArgs } from "./utils/bytes.js";
-import { fromString } from "./utils/stream.js";
+// An embedder may call a command's execute() directly and hand the result
+// to platform APIs, so string results become platform streams.
+import { fromString } from "./utils/public-stream.js";
 
 /**
  * An ExecResult with string stdout/stderr, for ergonomic custom commands.
