@@ -9,6 +9,12 @@
  */
 
 import { RE2JS, RE2JSSyntaxException } from "re2js";
+import { type NativePlan, planNative } from "./native-plan.js";
+
+/** Run both engines on every call and throw when they disagree. */
+const VERIFY_ENGINES: boolean =
+  typeof process !== "undefined" &&
+  process.env?.JUST_BASH_VERIFY_FAST_PATHS === "1";
 
 /**
  * Type for replacement callback functions.
@@ -121,9 +127,147 @@ function extractLiteralAlternation(
   return literals;
 }
 
+/** A surrogate code unit: the input holds a character outside the BMP. */
+const ASTRAL = /[\uD800-\uDFFF]/;
+
+/** What a find-based loop needs from a match in progress. */
+interface MatchSession {
+  find(start?: number): boolean;
+  start(group?: number): number;
+  end(group?: number): number;
+  group(index: number): string | null;
+}
+
 /**
- * A wrapper around RE2JS that provides a RegExp-compatible interface.
- * Uses RE2 for linear-time matching, providing ReDoS protection.
+ * The native engine behind the interface of an RE2JS matcher. The regex is
+ * global, so exec() searches from lastIndex; that is set on every find, never
+ * relied on between calls, so one regex can serve nested uses.
+ */
+class NativeSession implements MatchSession {
+  private match: RegExpExecArray | null = null;
+
+  constructor(
+    private readonly regex: RegExp,
+    private readonly input: string,
+  ) {}
+
+  find(start = 0): boolean {
+    const input = this.input;
+    // A unicode-mode search that starts between the halves of a surrogate
+    // pair backs up to the pair's start and would find the same match again.
+    if (
+      start > 0 &&
+      start < input.length &&
+      (input.charCodeAt(start) & 0xfc00) === 0xdc00 &&
+      (input.charCodeAt(start - 1) & 0xfc00) === 0xd800
+    ) {
+      start++;
+    }
+    this.regex.lastIndex = start;
+    this.match = this.regex.exec(input);
+    return this.match !== null;
+  }
+
+  start(): number {
+    return (this.match as RegExpExecArray).index;
+  }
+
+  end(): number {
+    const match = this.match as RegExpExecArray;
+    return match.index + match[0].length;
+  }
+
+  group(index: number): string | null {
+    return (this.match as RegExpExecArray)[index] ?? null;
+  }
+}
+
+/** Everything derived from a pattern and its flags; shared between uses. */
+interface CompiledPattern {
+  re2: RE2JS;
+  literals: string[] | null;
+  plan: NativePlan | null;
+  native: RegExp | null;
+}
+
+/**
+ * Compiled patterns by flags and source. Commands construct the same regex
+ * over and over — sed once per line, a `case` once per iteration — and
+ * compiling for RE2 costs far more than a match.
+ */
+const compiledPatterns = new Map<string, CompiledPattern>();
+const COMPILED_PATTERNS_LIMIT = 512;
+
+function compilePattern(pattern: string, flags: string): CompiledPattern {
+  const ignoreCase = flags.includes("i");
+  const engineFlags = `${ignoreCase ? "i" : ""}${flags.includes("m") ? "m" : ""}${flags.includes("s") ? "s" : ""}`;
+  const key = `${engineFlags}/${pattern}`;
+  const cached = compiledPatterns.get(key);
+  if (cached !== undefined) return cached;
+
+  let literals = extractLiteralAlternation(pattern, ignoreCase);
+  if (literals !== null && ignoreCase) {
+    literals = literals.map((l) => l.toLowerCase());
+  }
+
+  let re2: RE2JS;
+  try {
+    const translatedPattern = translatePattern(pattern);
+    const re2Flags = convertFlags(flags);
+    re2 = RE2JS.compile(translatedPattern, re2Flags);
+  } catch (e) {
+    if (e instanceof RE2JSSyntaxException) {
+      // Provide helpful error messages for unsupported RE2 features
+      const msg = e.message || "";
+      let explanation = "";
+
+      if (
+        msg.includes("(?=") ||
+        msg.includes("(?!") ||
+        msg.includes("(?<") ||
+        msg.includes("(?<!") ||
+        pattern.includes("(?=") ||
+        pattern.includes("(?!") ||
+        pattern.includes("(?<=") ||
+        pattern.includes("(?<!")
+      ) {
+        explanation =
+          " Lookahead (?=, ?!) and lookbehind (?<=, ?<!) assertions are not supported in this environment because the regex engine uses RE2 for ReDoS protection. RE2 guarantees linear-time matching but cannot support these features.";
+      } else if (msg.includes("backreference") || /\\[1-9]/.test(pattern)) {
+        explanation =
+          " Backreferences (\\1, \\2, etc.) are not supported in this environment because the regex engine uses RE2 for ReDoS protection. RE2 guarantees linear-time matching but cannot support backreferences.";
+      }
+
+      throw new SyntaxError(
+        `Invalid regular expression: /${pattern}/: ${msg}${explanation}`,
+      );
+    }
+    throw e;
+  }
+
+  // RE2 accepted the pattern, so errors are already reported as before; the
+  // native engine is only ever an equivalent, faster way to run it.
+  const plan = planNative(pattern, flags);
+  const compiled: CompiledPattern = {
+    re2,
+    literals,
+    plan,
+    native: plan === null ? null : new RegExp(plan.source, plan.flags),
+  };
+  if (compiledPatterns.size >= COMPILED_PATTERNS_LIMIT) {
+    const oldest = compiledPatterns.keys().next().value;
+    if (oldest !== undefined) compiledPatterns.delete(oldest);
+  }
+  compiledPatterns.set(key, compiled);
+  return compiled;
+}
+
+/**
+ * A user-provided pattern behind a RegExp-compatible interface.
+ *
+ * RE2 defines what the pattern matches and guarantees linear time. Patterns
+ * that planNative() shows to be equivalent and cheap on the native engine
+ * run there instead, for inputs short enough to keep backtracking bounded.
  */
 export class UserRegex implements RegexLike {
   private readonly _re2: RE2JS;
@@ -134,6 +278,11 @@ export class UserRegex implements RegexLike {
   private readonly _multiline: boolean;
   /** Literal branches for the test() fast path, lowercased if ignoreCase */
   private readonly _literals: string[] | null;
+  private readonly _native: RegExp | null;
+  private readonly _nativeMaxInput: number;
+  private readonly _nativeMatchesEmpty: boolean;
+  /** Set while verification re-runs an operation on RE2. */
+  private _re2Only = false;
   private _lastIndex = 0;
   // Cache native RegExp for compatibility - created lazily
   private _nativeRegex: RegExp | null = null;
@@ -144,45 +293,54 @@ export class UserRegex implements RegexLike {
     this._global = flags.includes("g");
     this._ignoreCase = flags.includes("i");
     this._multiline = flags.includes("m");
-    const literals = extractLiteralAlternation(pattern, this._ignoreCase);
-    this._literals =
-      literals !== null && this._ignoreCase
-        ? literals.map((l) => l.toLowerCase())
-        : literals;
+    const compiled = compilePattern(pattern, flags);
+    this._re2 = compiled.re2;
+    this._literals = compiled.literals;
+    this._native = compiled.native;
+    this._nativeMaxInput = compiled.plan?.maxInputLength ?? 0;
+    this._nativeMatchesEmpty = compiled.plan?.matchesEmpty ?? false;
+  }
 
+  private usesNative(input: string): boolean {
+    return (
+      this._native !== null &&
+      input.length <= this._nativeMaxInput &&
+      !this._re2Only &&
+      !(this._nativeMatchesEmpty && ASTRAL.test(input))
+    );
+  }
+
+  private session(input: string): MatchSession {
+    return this.usesNative(input)
+      ? new NativeSession(this._native as RegExp, input)
+      : this._re2.matcher(input);
+  }
+
+  /**
+   * In verification mode, run `operation` on both engines and require the
+   * same result and lastIndex. Otherwise just run it.
+   */
+  private checked<T>(input: string, operation: () => T): T {
+    if (!VERIFY_ENGINES || this._re2Only) return operation();
+    const lastIndex = this._lastIndex;
+    const nativeResult = operation();
+    const nativeLastIndex = this._lastIndex;
+    this._lastIndex = lastIndex;
+    this._re2Only = true;
+    let re2Result: T;
     try {
-      const translatedPattern = translatePattern(pattern);
-      const re2Flags = convertFlags(flags);
-      this._re2 = RE2JS.compile(translatedPattern, re2Flags);
-    } catch (e) {
-      if (e instanceof RE2JSSyntaxException) {
-        // Provide helpful error messages for unsupported RE2 features
-        const msg = e.message || "";
-        let explanation = "";
-
-        if (
-          msg.includes("(?=") ||
-          msg.includes("(?!") ||
-          msg.includes("(?<") ||
-          msg.includes("(?<!") ||
-          pattern.includes("(?=") ||
-          pattern.includes("(?!") ||
-          pattern.includes("(?<=") ||
-          pattern.includes("(?<!")
-        ) {
-          explanation =
-            " Lookahead (?=, ?!) and lookbehind (?<=, ?<!) assertions are not supported in this environment because the regex engine uses RE2 for ReDoS protection. RE2 guarantees linear-time matching but cannot support these features.";
-        } else if (msg.includes("backreference") || /\\[1-9]/.test(pattern)) {
-          explanation =
-            " Backreferences (\\1, \\2, etc.) are not supported in this environment because the regex engine uses RE2 for ReDoS protection. RE2 guarantees linear-time matching but cannot support backreferences.";
-        }
-
-        throw new SyntaxError(
-          `Invalid regular expression: /${pattern}/: ${msg}${explanation}`,
-        );
-      }
-      throw e;
+      re2Result = operation();
+    } finally {
+      this._re2Only = false;
     }
+    const a = describeResult(nativeResult);
+    const b = describeResult(re2Result);
+    if (a !== b || nativeLastIndex !== this._lastIndex) {
+      throw reportDisagreement(
+        `regex engines disagree on /${this._pattern}/${this._flags} for ${JSON.stringify(input)}: native ${a} (lastIndex ${nativeLastIndex}), RE2 ${b} (lastIndex ${this._lastIndex})`,
+      );
+    }
+    return nativeResult;
   }
 
   /**
@@ -209,8 +367,14 @@ export class UserRegex implements RegexLike {
       }
       return false;
     }
-    const matcher = this._re2.matcher(input);
-    return matcher.find();
+    return this.checked(input, () => {
+      if (this.usesNative(input)) {
+        const native = this._native as RegExp;
+        native.lastIndex = 0;
+        return native.test(input);
+      }
+      return this._re2.matcher(input).find();
+    });
   }
 
   /**
@@ -218,7 +382,15 @@ export class UserRegex implements RegexLike {
    * Returns match array with capture groups, or null if no match.
    */
   exec(input: string): RegExpExecArray | null {
-    const matcher = this._re2.matcher(input);
+    return this.checked(input, () => this.execUnchecked(input));
+  }
+
+  private execUnchecked(input: string): RegExpExecArray | null {
+    // A lastIndex past the end is an error on RE2; keep it one.
+    const matcher =
+      this._global && this._lastIndex > input.length
+        ? this._re2.matcher(input)
+        : this.session(input);
 
     // For global regex, start from lastIndex
     const startPos = this._global ? this._lastIndex : 0;
@@ -287,10 +459,13 @@ export class UserRegex implements RegexLike {
       // Non-global: return first match with groups (same as exec)
       return this.exec(input);
     }
+    return this.checked(input, () => this.matchAllTexts(input));
+  }
 
+  private matchAllTexts(input: string): RegExpMatchArray | null {
     // Global: return all matches without groups
     const matches: string[] = [];
-    const matcher = this._re2.matcher(input);
+    const matcher = this.session(input);
     let pos = 0;
 
     while (matcher.find(pos)) {
@@ -319,17 +494,72 @@ export class UserRegex implements RegexLike {
     }
 
     if (typeof replacement === "string") {
-      const matcher = this._re2.matcher(input);
-      // Use perlMode=true for JavaScript-style replacement ($1, $2, etc.)
-      if (this._global) {
-        return matcher.replaceAll(replacement, true);
+      if (this.usesNative(input) && !replacement.includes("$")) {
+        // Without `$` the replacement is literal text.
+        return this.checked(input, () =>
+          this._re2Only
+            ? this.replaceStringOnRe2(input, replacement)
+            : this.replaceWith(input, () => replacement),
+        );
       }
-      return matcher.replaceFirst(replacement, true);
+      return this.replaceStringOnRe2(input, replacement);
     }
 
+    if (VERIFY_ENGINES && this.usesNative(input)) {
+      return this.replaceVerified(input, replacement);
+    }
+    return this.replaceWith(input, replacement);
+  }
+
+  private replaceStringOnRe2(input: string, replacement: string): string {
+    const matcher = this._re2.matcher(input);
+    // Use perlMode=true for JavaScript-style replacement ($1, $2, etc.)
+    if (this._global) {
+      return matcher.replaceAll(replacement, true);
+    }
+    return matcher.replaceFirst(replacement, true);
+  }
+
+  /**
+   * Callback replacement under verification: the callback may have effects,
+   * so it runs once, on the native pass; the RE2 pass replays its answers
+   * and checks that it would have been called with the same arguments.
+   */
+  private replaceVerified(input: string, replacement: ReplaceCallback): string {
+    const calls: Array<{ args: string; result: string }> = [];
+    const nativeResult = this.replaceWith(input, (...args) => {
+      const result = replacement(...args);
+      calls.push({ args: describeResult(args), result });
+      return result;
+    });
+    let next = 0;
+    this._re2Only = true;
+    let re2Result: string;
+    try {
+      re2Result = this.replaceWith(input, (...args) => {
+        const call = calls[next++];
+        if (call === undefined || call.args !== describeResult(args)) {
+          throw reportDisagreement(
+            `regex engines disagree on /${this._pattern}/${this._flags} for ${JSON.stringify(input)}: match ${next} differs`,
+          );
+        }
+        return call.result;
+      });
+    } finally {
+      this._re2Only = false;
+    }
+    if (re2Result !== nativeResult || next !== calls.length) {
+      throw reportDisagreement(
+        `regex engines disagree on /${this._pattern}/${this._flags} for ${JSON.stringify(input)}: replace gives ${JSON.stringify(nativeResult)} natively, ${JSON.stringify(re2Result)} on RE2`,
+      );
+    }
+    return nativeResult;
+  }
+
+  private replaceWith(input: string, replacement: ReplaceCallback): string {
     // Callback replacement - we need to do this manually
     const result: string[] = [];
-    const matcher = this._re2.matcher(input);
+    const matcher = this.session(input);
     let lastEnd = 0;
     let pos = 0;
     const groupCount = this._re2.groupCount();
@@ -388,15 +618,52 @@ export class UserRegex implements RegexLike {
    * but JS split truncates to exactly limit elements. We implement JS behavior.
    */
   split(input: string, limit?: number): string[] {
-    if (limit === undefined || limit < 0) {
-      return this._re2.split(input, -1);
-    }
     if (limit === 0) {
       return [];
     }
+    const literals = this._literals;
+    const pieces = this.checked(input, () => {
+      if (this._re2Only) return this._re2.split(input, -1);
+      // Splitting on one fixed, non-empty string needs no engine at all.
+      if (
+        literals !== null &&
+        literals.length === 1 &&
+        literals[0] !== "" &&
+        !this._ignoreCase
+      ) {
+        return input.split(literals[0]);
+      }
+      return this.usesNative(input)
+        ? this.splitNatively(input)
+        : this._re2.split(input, -1);
+    });
+    if (limit === undefined || limit < 0) {
+      return pieces;
+    }
     // RE2JS returns remainder in last element; JS just takes first N elements
-    const result = this._re2.split(input, -1);
-    return result.slice(0, limit);
+    return pieces.slice(0, limit);
+  }
+
+  /** RE2JS's split(input, -1), over the native engine. */
+  private splitNatively(input: string): string[] {
+    const matcher = this.session(input);
+    const result: string[] = [];
+    let last = 0;
+    let pos = 0;
+    while (pos <= input.length && matcher.find(pos)) {
+      const start = matcher.start(0);
+      const end = matcher.end(0);
+      // The search resumes after the match, one further if it was empty.
+      pos = start === end ? end + 1 : end;
+      if (last === 0 && end === 0) {
+        // Zero-width match at the beginning, skip
+        continue;
+      }
+      result.push(input.substring(last, start));
+      last = end;
+    }
+    result.push(input.substring(last));
+    return result;
   }
 
   /**
@@ -404,11 +671,13 @@ export class UserRegex implements RegexLike {
    * Returns the index of the first match, or -1 if not found.
    */
   search(input: string): number {
-    const matcher = this._re2.matcher(input);
-    if (matcher.find()) {
-      return matcher.start(0);
-    }
-    return -1;
+    return this.checked(input, () => {
+      const matcher = this.session(input);
+      if (matcher.find()) {
+        return matcher.start(0);
+      }
+      return -1;
+    });
   }
 
   /**
@@ -420,7 +689,15 @@ export class UserRegex implements RegexLike {
     }
 
     this._lastIndex = 0;
-    const matcher = this._re2.matcher(input);
+    if (VERIFY_ENGINES && this.usesNative(input)) {
+      yield* this.checked(input, () => Array.from(this.matchAllWith(input)));
+      return;
+    }
+    yield* this.matchAllWith(input);
+  }
+
+  private *matchAllWith(input: string): IterableIterator<RegExpMatchArray> {
+    const matcher = this.session(input);
     const groupCount = this._re2.groupCount();
     const namedGroups = this._re2.namedGroups();
     let pos = 0;
@@ -531,6 +808,35 @@ export class UserRegex implements RegexLike {
   set lastIndex(value: number) {
     this._lastIndex = value;
   }
+}
+
+/**
+ * A verification failure. Commands catch regex errors and carry on, so the
+ * message also goes to stderr where a test run cannot miss it.
+ */
+function reportDisagreement(message: string): Error {
+  console.error(message);
+  return new Error(message);
+}
+
+/** A result in a form two engines' answers can be compared in. */
+function describeResult(value: unknown): string {
+  return JSON.stringify(value, (_key, item) => {
+    if (Array.isArray(item)) {
+      const match = item as unknown[] & {
+        index?: number;
+        groups?: Record<string, string>;
+      };
+      if (match.index !== undefined) {
+        return {
+          items: Array.from(match),
+          index: match.index,
+          groups: match.groups ? { ...match.groups } : undefined,
+        };
+      }
+    }
+    return item;
+  });
 }
 
 /**

@@ -11,7 +11,13 @@ import type { SimpleCommandNode, WordNode } from "../ast/types.js";
 import { parseArithmeticExpression } from "../parser/arithmetic-parser.js";
 import { Parser } from "../parser/parser.js";
 import type { ExecResult } from "../types.js";
-import { decode, EMPTY, envGet, envSet } from "../utils/bytes.js";
+import {
+  decode,
+  EMPTY,
+  envGet,
+  envKeysWithPrefix,
+  envSet,
+} from "../utils/bytes.js";
 import { evaluateArithmetic } from "./arithmetic.js";
 import {
   applyCaseTransform,
@@ -20,12 +26,19 @@ import {
 } from "./builtins/index.js";
 import { ArithmeticError, ExitError } from "./errors.js";
 import {
+  expandWordTextSync,
+  VERIFY_FAST_PATHS,
+  verifyFastPath,
+} from "./expansion/fast-words.js";
+import {
   expandWord,
   expandWordToBytes,
   expandWordWithGlob,
   getArrayElements,
+  isArray,
 } from "./expansion.js";
 import {
+  getArrayMaxIndex,
   parseKeyedElementFromWord,
   wordToLiteralString,
 } from "./helpers/array.js";
@@ -97,10 +110,30 @@ export async function processAssignments(
     // Expand once. Doing both expandWord + expandWordToBytes re-executes
     // any command substitutions in the value, which double-consumes
     // groupStdin streams. Expand to bytes once and decode for the string.
-    const valueBytes = assignment.value
-      ? await expandWordToBytes(ctx, assignment.value)
-      : EMPTY;
-    const value = assignment.value ? decode(valueBytes) : "";
+    // When the value has an exact text form it is stored as text, which
+    // encodes to the same bytes; valueBytes stays undefined then.
+    let valueBytes: Uint8Array | undefined;
+    let value = "";
+    const valueWord = assignment.value;
+    if (valueWord) {
+      const fastValue = VERIFY_FAST_PATHS
+        ? await verifyFastPath(
+            ctx,
+            "assignment value",
+            () => expandWordTextSync(ctx, valueWord),
+            async () => decode(await expandWordToBytes(ctx, valueWord)),
+            (a, b) => a === b,
+          )
+        : expandWordTextSync(ctx, valueWord);
+      if (fastValue !== undefined) {
+        value = fastValue;
+      } else {
+        valueBytes = await expandWordToBytes(ctx, valueWord);
+        value = decode(valueBytes);
+      }
+    } else {
+      valueBytes = EMPTY;
+    }
     if (value.length > ctx.limits.maxStringLength) {
       throwExecutionLimit(
         `word expansion: string length limit exceeded (${ctx.limits.maxStringLength} bytes)`,
@@ -239,8 +272,8 @@ async function processArrayAssignment(
   // Helper to clear existing array elements
   const clearExistingElements = () => {
     const prefix = `${name}_`;
-    for (const key of ctx.state.env.keys()) {
-      if (key.startsWith(prefix) && !key.includes("__")) {
+    for (const key of envKeysWithPrefix(ctx.state.env, prefix)) {
+      if (!key.includes("__")) {
         ctx.state.env.delete(key);
       }
     }
@@ -502,11 +535,26 @@ async function processSimpleArrayAssignment(
 
   let startIndex = 0;
   if (append) {
-    const elements = getArrayElements(ctx, name);
-    if (elements.length > 0) {
-      const maxIndex = Math.max(
-        ...elements.map(([idx]) => (typeof idx === "number" ? idx : 0)),
-      );
+    // The next index after the highest one. Reading it from the index list
+    // keeps a loop of appends linear; the element list is only needed for
+    // the arrays that are not stored as plain indexed keys.
+    let maxIndex: number | undefined;
+    if (
+      ctx.state.associativeArrays?.has(name) ||
+      name === "FUNCNAME" ||
+      name === "BASH_LINENO" ||
+      name === "BASH_SOURCE"
+    ) {
+      const elements = getArrayElements(ctx, name);
+      if (elements.length > 0) {
+        maxIndex = Math.max(
+          ...elements.map(([idx]) => (typeof idx === "number" ? idx : 0)),
+        );
+      }
+    } else {
+      maxIndex = getArrayMaxIndex(ctx, name);
+    }
+    if (maxIndex !== undefined) {
       startIndex = maxIndex + 1;
     } else {
       const scalarValue = ctx.state.env.get(name);
@@ -792,7 +840,6 @@ async function processScalarAssignment(
       finalValue = "0";
     }
   } else {
-    const { isArray } = await import("./expansion.js");
     const isArr = isArray(ctx, targetName);
     if (isArr) canUseRawBytes = false;
     const appendKey = isArr ? `${targetName}_0` : targetName;
@@ -810,7 +857,6 @@ async function processScalarAssignment(
   if (namerefArrayRef) {
     actualEnvKey = await computeNamerefArrayEnvKey(ctx, namerefArrayRef);
   } else {
-    const { isArray } = await import("./expansion.js");
     if (isArray(ctx, targetName)) {
       actualEnvKey = `${targetName}_0`;
       canUseRawBytes = false;

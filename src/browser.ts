@@ -81,6 +81,12 @@ export { decode, EMPTY, encode } from "./utils/bytes.js";
 // Stream utilities — the public surface from utils/stream.ts. Without
 // these, browser consumers cannot read the ByteStream returned by
 // stdout/stderr/stdin/fs.readFile.
+export {
+  emptyStream,
+  fromBytes,
+  fromChunks,
+  fromString,
+} from "./utils/public-stream.js";
 export type { ByteStream } from "./utils/stream.js";
 export {
   CHUNK_SIZE,
@@ -88,10 +94,6 @@ export {
   collectText,
   concatStreams,
   drain,
-  emptyStream,
-  fromBytes,
-  fromChunks,
-  fromString,
   mapChunks,
   streamChunks,
   streamLines,

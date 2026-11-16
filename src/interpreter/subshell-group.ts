@@ -15,7 +15,7 @@ import type {
 import { Parser } from "../parser/parser.js";
 import type { ParseException } from "../parser/types.js";
 import type { ExecResult } from "../types.js";
-import { envSet } from "../utils/bytes.js";
+import { cloneEnv, envSet } from "../utils/bytes.js";
 import {
   type ByteStream,
   collectBytes,
@@ -69,7 +69,7 @@ export async function executeSubshell(
   // A subshell gets its own descriptor table, but the installed sinks are
   // shared so writes remain live. Redirections are scoped to this clone.
   const subshellChannels = cloneOutputChannels(ctx.outputChannels);
-  const savedEnv = new Map(ctx.state.env);
+  const savedEnv = cloneEnv(ctx.state.env);
   const savedCwd = ctx.state.cwd;
   const savedFileDescriptors = ctx.state.fileDescriptors;
   const savedNextFd = ctx.state.nextFd;
@@ -420,7 +420,7 @@ export async function executeUserScript(
   }
 
   // Save current state for restoration after script execution
-  const savedEnv = new Map(ctx.state.env);
+  const savedEnv = cloneEnv(ctx.state.env);
   const savedCwd = ctx.state.cwd;
   const savedOptions = { ...ctx.state.options };
   const savedLoopDepth = ctx.state.loopDepth;

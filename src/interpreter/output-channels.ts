@@ -289,11 +289,40 @@ export async function pumpStream(
   }
 }
 
-export async function pumpResult(
+/**
+ * Deliver a result's stdout/stderr to the active channels.
+ *
+ * Most statements have already written their output to the channels and
+ * return known-empty streams. That case completes synchronously, so a caller
+ * on a hot path can test the return value for a promise and skip the await.
+ */
+export function pumpResult(
   ctx: InterpreterContext,
   result: ExecResult,
   checkSignal = true,
-  outputFds: readonly (1 | 2)[] = [1, 2],
+  outputFds: readonly (1 | 2)[] = BOTH_OUTPUT_FDS,
+): ExecResult | Promise<ExecResult> {
+  if (isKnownEmptyStream(result.stdout) && isKnownEmptyStream(result.stderr)) {
+    const signal = ctx.signal;
+    if (
+      checkSignal &&
+      signal?.aborted === true &&
+      result.exitCode !== new AbortExecutionError(signal.reason).exitCode
+    ) {
+      checkAborted(signal);
+    }
+    return result;
+  }
+  return pumpResultStreams(ctx, result, checkSignal, outputFds);
+}
+
+const BOTH_OUTPUT_FDS: readonly (1 | 2)[] = [1, 2];
+
+async function pumpResultStreams(
+  ctx: InterpreterContext,
+  result: ExecResult,
+  checkSignal: boolean,
+  outputFds: readonly (1 | 2)[],
 ): Promise<ExecResult> {
   const childHandledAbort =
     ctx.signal?.aborted === true &&

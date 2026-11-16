@@ -20,6 +20,7 @@ import { parseArithmeticExpression } from "../parser/arithmetic-parser.js";
 import { Parser } from "../parser/parser.js";
 import { GlobExpander } from "../shell/glob.js";
 import {
+  cloneEnv,
   concat,
   decode,
   EMPTY,
@@ -29,7 +30,10 @@ import {
   trimTrailingNewlines,
 } from "../utils/bytes.js";
 import { collectBytes } from "../utils/stream.js";
-import { evaluateArithmetic } from "./arithmetic.js";
+import {
+  evaluateArithmetic,
+  evaluateArithmeticExpansionSync,
+} from "./arithmetic.js";
 import {
   BadSubstitutionError,
   ExecutionLimitError,
@@ -68,6 +72,11 @@ import {
 } from "./expansion/arith-text-expansion.js";
 import { expandBraceRange } from "./expansion/brace-range.js";
 import { getFileReadShorthand } from "./expansion/command-substitution.js";
+import {
+  expandWordTextSync,
+  VERIFY_FAST_PATHS,
+  verifyFastPath,
+} from "./expansion/fast-words.js";
 // Import from extracted modules
 import {
   escapeGlobChars,
@@ -214,7 +223,31 @@ export async function expandWord(
   ctx: InterpreterContext,
   word: WordNode,
 ): Promise<string> {
-  return expandWordAsync(ctx, word);
+  const fast = VERIFY_FAST_PATHS
+    ? await verifyFastPath(
+        ctx,
+        "word",
+        () => expandWordSync(ctx, word),
+        () => expandWordAsync(ctx, word),
+        (a, b) => a === b,
+      )
+    : expandWordSync(ctx, word);
+  return fast ?? expandWordAsync(ctx, word);
+}
+
+/**
+ * expandWord without suspending, for the word shapes that allow it.
+ * Returns undefined when the word needs expandWord.
+ */
+export function expandWordSync(
+  ctx: InterpreterContext,
+  word: WordNode,
+): string | undefined {
+  const text = expandWordTextSync(ctx, word);
+  if (text !== undefined) {
+    checkStringLength(text, ctx.limits.maxStringLength, "word expansion");
+  }
+  return text;
 }
 
 /**
@@ -830,7 +863,7 @@ async function executeCommandSubstitutionBytes(
 
   const savedBashPid = ctx.state.bashPid;
   ctx.state.bashPid = ctx.state.nextVirtualPid++;
-  const savedEnv = new Map(ctx.state.env);
+  const savedEnv = cloneEnv(ctx.state.env);
   const savedCwd = ctx.state.cwd;
   const savedFileDescriptors = ctx.state.fileDescriptors;
   const savedNextFd = ctx.state.nextFd;
@@ -942,6 +975,10 @@ async function expandPartString(
     }
 
     case "ArithmeticExpansion": {
+      const fast = evaluateArithmeticExpansionSync(ctx, part.expression);
+      if (fast !== undefined) {
+        return String(fast);
+      }
       // If original text is available and contains $var patterns (not ${...}),
       // we need to do text substitution before parsing to maintain operator precedence.
       // E.g., $(( $x * 3 )) where x='1 + 2' should expand to $(( 1 + 2 * 3 )) = 7

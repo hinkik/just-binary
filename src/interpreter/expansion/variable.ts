@@ -12,7 +12,7 @@
 import { parseArithmeticExpression } from "../../parser/arithmetic-parser.js";
 import { Parser } from "../../parser/parser.js";
 import { BASH_VERSION, getProcessInfo } from "../../shell-metadata.js";
-import { decode } from "../../utils/bytes.js";
+import { decode, envGet, envGetOptional } from "../../utils/bytes.js";
 import { evaluateArithmetic } from "../arithmetic.js";
 import { BadSubstitutionError, NounsetError } from "../errors.js";
 import {
@@ -121,12 +121,20 @@ export function isArray(ctx: InterpreterContext, name: string): boolean {
  * @param name - The variable name
  * @param checkNounset - Whether to check for nounset (default true)
  */
-export async function getVariable(
+/**
+ * The value of a variable whose lookup needs no evaluation: special
+ * parameters, positional parameters, scalars, namerefs to those, and arrays
+ * read without a subscript.
+ *
+ * Returns undefined when the name carries a subscript (directly or through a
+ * nameref): resolving one may evaluate arithmetic, which is asynchronous, so
+ * the caller must use getVariable.
+ */
+export function getVariableSync(
   ctx: InterpreterContext,
   name: string,
   checkNounset = true,
-  _insideDoubleQuotes = false,
-): Promise<string> {
+): string | undefined {
   // Special variables are always defined (never trigger nounset)
   switch (name) {
     case "?":
@@ -134,9 +142,9 @@ export async function getVariable(
     case "$":
       return String(getProcessInfo().pid);
     case "#":
-      return ev(ctx.state.env.get("#"), "0");
+      return envGet(ctx.state.env, "#", "0");
     case "@":
-      return ev(ctx.state.env.get("@"));
+      return envGet(ctx.state.env, "@");
     case "_":
       // $_ is the last argument of the previous command
       return decode(ctx.state.lastArg);
@@ -164,22 +172,22 @@ export async function getVariable(
       // $* uses first character of IFS as separator when inside double quotes
       // When IFS is empty string, no separator is used
       // When IFS is unset, space is used (default behavior)
-      const numParams = Number.parseInt(ev(ctx.state.env.get("#"), "0"), 10);
+      const numParams = Number.parseInt(envGet(ctx.state.env, "#", "0"), 10);
       if (numParams === 0) return "";
       const params: string[] = [];
       for (let i = 1; i <= numParams; i++) {
-        params.push(ev(ctx.state.env.get(String(i))));
+        params.push(envGet(ctx.state.env, String(i)));
       }
       return params.join(getIfsSeparator(ctx.state.env));
     }
     case "0":
-      return ev(ctx.state.env.get("0"), "bash");
+      return envGet(ctx.state.env, "0", "bash");
     case "PWD":
       // Check if PWD is in env (might have been unset)
-      return ctx.state.env.has("PWD") ? ev(ctx.state.env.get("PWD")) : "";
+      return envGet(ctx.state.env, "PWD");
     case "OLDPWD":
       // Check if OLDPWD is in env (might have been unset)
-      return ctx.state.env.has("OLDPWD") ? ev(ctx.state.env.get("OLDPWD")) : "";
+      return envGet(ctx.state.env, "OLDPWD");
     case "PPID": {
       // Parent process ID (from shared metadata)
       const { ppid } = getProcessInfo();
@@ -249,6 +257,115 @@ export async function getVariable(
       }
       return "";
     }
+  }
+
+  if (name.includes("[")) {
+    return undefined;
+  }
+  return getPlainVariable(ctx, name, checkNounset);
+}
+
+/**
+ * Lookup for a name without a subscript: positional parameter, nameref,
+ * scalar, or array decaying to its first element. Returns undefined when a
+ * nameref leads to a subscripted name.
+ */
+function getPlainVariable(
+  ctx: InterpreterContext,
+  name: string,
+  checkNounset: boolean,
+): string | undefined {
+  // Positional parameters ($1, $2, etc.) - check nounset
+  if (/^[1-9][0-9]*$/.test(name)) {
+    const value = envGetOptional(ctx.state.env, name);
+    if (value === undefined && checkNounset && ctx.state.options.nounset) {
+      throw new NounsetError(name);
+    }
+    return value ?? "";
+  }
+
+  // Check if this is a nameref - resolve and get target's value
+  if (isNameref(ctx, name)) {
+    const resolved = resolveNameref(ctx, name);
+    if (resolved === undefined) {
+      // Circular nameref - error in bash, but we return empty string
+      return "";
+    }
+    if (resolved !== name) {
+      // Recursively get the target variable's value
+      // (this handles if target is also a nameref, array, etc.)
+      return getVariableSync(ctx, resolved, checkNounset);
+    }
+    // Nameref points to empty/invalid target
+    const value = envGetOptional(ctx.state.env, name);
+    const valueStr = value ?? "";
+    // Empty nameref (no target) should trigger nounset error
+    if (
+      (value === undefined || valueStr === "") &&
+      checkNounset &&
+      ctx.state.options.nounset
+    ) {
+      throw new NounsetError(name);
+    }
+    return valueStr;
+  }
+
+  // Regular variables - check nounset
+  const value = envGetOptional(ctx.state.env, name);
+  if (value !== undefined) {
+    // Track tempenv access for local-unset scoping behavior
+    // If this variable has a tempenv binding and we're reading it,
+    // mark it as "accessed" so that local-unset will reveal the tempenv value
+    if (ctx.state.tempEnvBindings?.some((b) => b.has(name))) {
+      ctx.state.accessedTempEnvVars =
+        ctx.state.accessedTempEnvVars || new Set();
+      ctx.state.accessedTempEnvVars.add(name);
+    }
+    // Scalar value exists - return it
+    return value;
+  }
+
+  // Check if plain variable name refers to an array (no scalar exists)
+  // In bash, $a where a is an array returns ${a[0]} (first element)
+  if (isArray(ctx, name)) {
+    // Return the first element (index 0)
+    const firstValue = envGetOptional(ctx.state.env, `${name}_0`);
+    if (firstValue !== undefined) {
+      return firstValue;
+    }
+    // Array exists but no element at index 0 - return empty string
+    return "";
+  }
+
+  // No value found - check nounset
+  if (checkNounset && ctx.state.options.nounset) {
+    throw new NounsetError(name);
+  }
+  return "";
+}
+
+export async function getVariable(
+  ctx: InterpreterContext,
+  name: string,
+  checkNounset = true,
+  _insideDoubleQuotes = false,
+): Promise<string> {
+  const direct = getVariableSync(ctx, name, checkNounset);
+  if (direct !== undefined) {
+    return direct;
+  }
+  if (!name.includes("[")) {
+    // A nameref whose target carries a subscript.
+    const resolved = resolveNameref(ctx, name);
+    if (resolved !== undefined && resolved !== name) {
+      return await getVariable(
+        ctx,
+        resolved,
+        checkNounset,
+        _insideDoubleQuotes,
+      );
+    }
+    return "";
   }
 
   // Check for empty subscript: varName[] is invalid
@@ -404,78 +521,8 @@ export async function getVariable(
     return "";
   }
 
-  // Positional parameters ($1, $2, etc.) - check nounset
-  if (/^[1-9][0-9]*$/.test(name)) {
-    const value = ctx.state.env.get(name);
-    if (value === undefined && checkNounset && ctx.state.options.nounset) {
-      throw new NounsetError(name);
-    }
-    return ev(value);
-  }
-
-  // Check if this is a nameref - resolve and get target's value
-  if (isNameref(ctx, name)) {
-    const resolved = resolveNameref(ctx, name);
-    if (resolved === undefined) {
-      // Circular nameref - error in bash, but we return empty string
-      return "";
-    }
-    if (resolved !== name) {
-      // Recursively get the target variable's value
-      // (this handles if target is also a nameref, array, etc.)
-      return await getVariable(
-        ctx,
-        resolved,
-        checkNounset,
-        _insideDoubleQuotes,
-      );
-    }
-    // Nameref points to empty/invalid target
-    const value = ctx.state.env.get(name);
-    const valueStr = ev(value);
-    // Empty nameref (no target) should trigger nounset error
-    if (
-      (value === undefined || valueStr === "") &&
-      checkNounset &&
-      ctx.state.options.nounset
-    ) {
-      throw new NounsetError(name);
-    }
-    return valueStr;
-  }
-
-  // Regular variables - check nounset
-  const value = ctx.state.env.get(name);
-  if (value !== undefined) {
-    // Track tempenv access for local-unset scoping behavior
-    // If this variable has a tempenv binding and we're reading it,
-    // mark it as "accessed" so that local-unset will reveal the tempenv value
-    if (ctx.state.tempEnvBindings?.some((b) => b.has(name))) {
-      ctx.state.accessedTempEnvVars =
-        ctx.state.accessedTempEnvVars || new Set();
-      ctx.state.accessedTempEnvVars.add(name);
-    }
-    // Scalar value exists - return it
-    return decode(value);
-  }
-
-  // Check if plain variable name refers to an array (no scalar exists)
-  // In bash, $a where a is an array returns ${a[0]} (first element)
-  if (isArray(ctx, name)) {
-    // Return the first element (index 0)
-    const firstValue = ctx.state.env.get(`${name}_0`);
-    if (firstValue !== undefined) {
-      return decode(firstValue);
-    }
-    // Array exists but no element at index 0 - return empty string
-    return "";
-  }
-
-  // No value found - check nounset
-  if (checkNounset && ctx.state.options.nounset) {
-    throw new NounsetError(name);
-  }
-  return "";
+  // The name has a "[" but is not a well-formed subscript.
+  return getPlainVariable(ctx, name, checkNounset) ?? "";
 }
 
 /**

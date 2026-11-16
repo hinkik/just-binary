@@ -20,15 +20,22 @@
  *   fully supported - variable expansion happens at parse time, not runtime.
  */
 
-import type { ArithExpr } from "../ast/types.js";
+import type { ArithExpr, ArithmeticExpressionNode } from "../ast/types.js";
 import {
   parseArithExpr,
   parseArithNumber,
 } from "../parser/arithmetic-parser.js";
 import { Parser } from "../parser/parser.js";
-import { decode, envGet, envSet } from "../utils/bytes.js";
+import {
+  decode,
+  envGet,
+  envGetOptional,
+  envHasKeyWithPrefix,
+  envSet,
+} from "../utils/bytes.js";
 import { collectText } from "../utils/stream.js";
 import { ArithmeticError, NounsetError } from "./errors.js";
+import { getVariableSync } from "./expansion/variable.js";
 import { getArrayElements, getVariable } from "./expansion.js";
 import {
   cloneOutputChannels,
@@ -278,7 +285,7 @@ async function evaluateArithValue(
       false,
     );
   }
-  return await evaluateArithmetic(ctx, expr);
+  return await evaluateArithmeticAsync(ctx, expr);
 }
 
 /**
@@ -336,7 +343,7 @@ async function resolveArithVariable(
   }
 
   // Evaluate the parsed expression
-  return await evaluateArithmetic(ctx, expr);
+  return await evaluateArithmeticAsync(ctx, expr);
 }
 
 /**
@@ -429,7 +436,299 @@ async function expandBracedContent(
   }
 }
 
+// ============================================================================
+// Synchronous fast path
+// ============================================================================
+// Loop counters and comparisons — `i++`, `i < n`, `x = y + 1` — are integer
+// expressions over plain scalar variables. Evaluating those through the
+// general evaluator costs a promise per node. The fast path below evaluates
+// them directly and gives up (returning undefined) on anything else: array
+// elements, command substitutions, special parameters, or a variable whose
+// value is not a plain integer and so needs recursive evaluation.
+//
+// Giving up can happen after an assignment inside the expression already ran,
+// so every write is logged and undone before the general evaluator starts
+// over. An ArithmeticError (division by zero) is not giving up: the general
+// evaluator would have performed the same writes and thrown the same error.
+
+const GIVE_UP: unique symbol = Symbol("arithmetic fast path gives up");
+
+const PLAIN_INTEGER = /^-?\d+$/;
+
+/** Whether a tree consists only of node types the fast path evaluates. */
+const fastShapeCache = new WeakMap<ArithExpr, boolean>();
+
+function hasFastShape(expr: ArithExpr): boolean {
+  let known = fastShapeCache.get(expr);
+  if (known === undefined) {
+    known = computeFastShape(expr);
+    fastShapeCache.set(expr, known);
+  }
+  return known;
+}
+
+function computeFastShape(expr: ArithExpr): boolean {
+  switch (expr.type) {
+    case "ArithNumber":
+      return !Number.isNaN(expr.value);
+    case "ArithVariable":
+      return true;
+    case "ArithNested":
+    case "ArithGroup":
+      return computeFastShape(expr.expression);
+    case "ArithBinary":
+      return computeFastShape(expr.left) && computeFastShape(expr.right);
+    case "ArithUnary":
+      if (expr.operator === "++" || expr.operator === "--") {
+        // `++$x` increments the variable named by x's value.
+        return (
+          expr.operand.type === "ArithVariable" &&
+          expr.operand.hasDollarPrefix !== true
+        );
+      }
+      return computeFastShape(expr.operand);
+    case "ArithTernary":
+      return (
+        computeFastShape(expr.condition) &&
+        computeFastShape(expr.consequent) &&
+        computeFastShape(expr.alternate)
+      );
+    case "ArithAssignment":
+      return (
+        expr.subscript === undefined &&
+        expr.stringKey === undefined &&
+        computeFastShape(expr.value)
+      );
+    default:
+      return false;
+  }
+}
+
+/** Writes made by the fast evaluation in progress: key, previous value. */
+let fastWrites: Array<string | Uint8Array | undefined> | null = null;
+
+function fastSet(ctx: InterpreterContext, key: string, value: string): void {
+  const env = ctx.state.env;
+  if (fastWrites === null) fastWrites = [];
+  fastWrites.push(key, env.get(key));
+  envSet(env, key, value);
+}
+
+/** A decimal literal that reads the same as text and as a value. */
+const CANONICAL_DECIMAL = /^(?:0|[1-9]\d*)$/;
+
+function fastRead(
+  ctx: InterpreterContext,
+  name: string,
+  hasDollarPrefix: boolean,
+): number {
+  const env = ctx.state.env;
+  // Same lookup order as getArithVariable.
+  let text = envGetOptional(env, name);
+  if (text === undefined) {
+    text = envGetOptional(env, `${name}_0`);
+    if (text === undefined) {
+      text = getVariableSync(ctx, name);
+      if (text === undefined) throw GIVE_UP;
+    }
+  }
+  if (hasDollarPrefix) {
+    // `$x` inside $(( )) is substituted as text before parsing, so `$x * 3`
+    // with x='1 + 2' is 7. Reading the variable gives the same answer only
+    // when its text is a self-contained literal.
+    if (!CANONICAL_DECIMAL.test(text)) throw GIVE_UP;
+    return Number.parseInt(text, 10);
+  }
+  if (text === "") return 0;
+  if (!PLAIN_INTEGER.test(text)) throw GIVE_UP;
+  return Number.parseInt(text, 10);
+}
+
+function evaluateFast(ctx: InterpreterContext, expr: ArithExpr): number {
+  switch (expr.type) {
+    case "ArithNumber":
+      return expr.value;
+    case "ArithVariable":
+      return fastRead(ctx, expr.name, expr.hasDollarPrefix === true);
+    case "ArithNested":
+    case "ArithGroup":
+      return evaluateFast(ctx, expr.expression);
+    case "ArithBinary": {
+      if (expr.operator === "||") {
+        if (evaluateFast(ctx, expr.left)) return 1;
+        return evaluateFast(ctx, expr.right) ? 1 : 0;
+      }
+      if (expr.operator === "&&") {
+        if (!evaluateFast(ctx, expr.left)) return 0;
+        return evaluateFast(ctx, expr.right) ? 1 : 0;
+      }
+      const left = evaluateFast(ctx, expr.left);
+      const right = evaluateFast(ctx, expr.right);
+      return applyBinaryOp(left, right, expr.operator);
+    }
+    case "ArithUnary": {
+      const operand = evaluateFast(ctx, expr.operand);
+      if (expr.operator === "++" || expr.operator === "--") {
+        if (expr.operand.type !== "ArithVariable") throw GIVE_UP;
+        const name = expr.operand.name;
+        const text = getVariableSync(ctx, name);
+        if (text === undefined) throw GIVE_UP;
+        const current = Number.parseInt(text, 10) || 0;
+        const newValue = expr.operator === "++" ? current + 1 : current - 1;
+        fastSet(ctx, name, String(newValue));
+        return expr.prefix ? newValue : current;
+      }
+      return applyUnaryOp(operand, expr.operator);
+    }
+    case "ArithTernary":
+      return evaluateFast(ctx, expr.condition)
+        ? evaluateFast(ctx, expr.consequent)
+        : evaluateFast(ctx, expr.alternate);
+    case "ArithAssignment": {
+      const name = expr.variable;
+      const current =
+        Number.parseInt(envGet(ctx.state.env, name, "0"), 10) || 0;
+      const value = evaluateFast(ctx, expr.value);
+      const newValue = applyAssignmentOp(current, value, expr.operator);
+      fastSet(ctx, name, String(newValue));
+      return newValue;
+    }
+    default:
+      throw GIVE_UP;
+  }
+}
+
+/** While above zero, every fast path gives up; see withFastPathsSuppressed. */
+let fastPathsSuppressed = 0;
+
+/** Whether fast paths are currently switched off. */
+export function fastPathsAreSuppressed(): boolean {
+  return fastPathsSuppressed > 0;
+}
+
+/**
+ * Run `general` with every interpreter fast path switched off, so that
+ * verification compares a fast path against the slow path all the way down
+ * rather than against code that itself takes a fast path.
+ */
+export async function withFastPathsSuppressed<T>(
+  general: () => Promise<T>,
+): Promise<T> {
+  fastPathsSuppressed++;
+  try {
+    return await general();
+  } finally {
+    fastPathsSuppressed--;
+  }
+}
+
+/** Whether evaluating the tree can assign to a variable. */
+const writesCache = new WeakMap<ArithExpr, boolean>();
+
+function writesVariables(expr: ArithExpr): boolean {
+  let known = writesCache.get(expr);
+  if (known === undefined) {
+    known = computeWrites(expr);
+    writesCache.set(expr, known);
+  }
+  return known;
+}
+
+function computeWrites(expr: ArithExpr): boolean {
+  switch (expr.type) {
+    case "ArithAssignment":
+      return true;
+    case "ArithUnary":
+      return (
+        expr.operator === "++" ||
+        expr.operator === "--" ||
+        computeWrites(expr.operand)
+      );
+    case "ArithNested":
+    case "ArithGroup":
+      return computeWrites(expr.expression);
+    case "ArithBinary":
+      return computeWrites(expr.left) || computeWrites(expr.right);
+    case "ArithTernary":
+      return (
+        computeWrites(expr.condition) ||
+        computeWrites(expr.consequent) ||
+        computeWrites(expr.alternate)
+      );
+    default:
+      return false;
+  }
+}
+
+/** A `$name` that $((...)) substitutes as text before evaluating. */
+const DOLLAR_VARIABLE = /\$[a-zA-Z_0-9]/;
+
+/**
+ * evaluateArithmeticSync for the body of `$((...))`.
+ *
+ * In `$((...))` every `$name` is replaced by its value as text before the
+ * expression is parsed, so `$x = 4` assigns to the variable x names. The
+ * tree does not record which assignment targets were written with `$`, so
+ * an expression that both mentions `$name` and assigns is left to the
+ * general evaluator.
+ */
+export function evaluateArithmeticExpansionSync(
+  ctx: InterpreterContext,
+  node: ArithmeticExpressionNode,
+): number | undefined {
+  const text = node.originalText;
+  if (
+    (text === undefined || DOLLAR_VARIABLE.test(text)) &&
+    writesVariables(node.expression)
+  ) {
+    return undefined;
+  }
+  return evaluateArithmeticSync(ctx, node.expression);
+}
+
+/**
+ * Evaluate an arithmetic expression without suspending, when that is
+ * possible. Returns undefined — with the environment as it was — when the
+ * expression needs the general evaluator; call evaluateArithmetic then.
+ */
+export function evaluateArithmeticSync(
+  ctx: InterpreterContext,
+  expr: ArithExpr,
+): number | undefined {
+  if (fastPathsSuppressed > 0 || !hasFastShape(expr)) return undefined;
+  const outerWrites = fastWrites;
+  fastWrites = null;
+  try {
+    return evaluateFast(ctx, expr);
+  } catch (error) {
+    if (error !== GIVE_UP) throw error;
+    const writes = fastWrites as typeof outerWrites;
+    if (writes !== null) {
+      const env = ctx.state.env;
+      for (let i = writes.length - 2; i >= 0; i -= 2) {
+        const key = writes[i] as string;
+        const previous = writes[i + 1] as Uint8Array | undefined;
+        if (previous === undefined) env.delete(key);
+        else env.set(key, previous);
+      }
+    }
+    return undefined;
+  } finally {
+    fastWrites = outerWrites;
+  }
+}
+
 export async function evaluateArithmetic(
+  ctx: InterpreterContext,
+  expr: ArithExpr,
+  isExpansionContext = false,
+): Promise<number> {
+  const fast = evaluateArithmeticSync(ctx, expr);
+  if (fast !== undefined) return fast;
+  return evaluateArithmeticAsync(ctx, expr, isExpansionContext);
+}
+
+async function evaluateArithmeticAsync(
   ctx: InterpreterContext,
   expr: ArithExpr,
   isExpansionContext = false,
@@ -457,11 +756,11 @@ export async function evaluateArithmetic(
       // If not a simple number, evaluate as arithmetic expression
       const parser = new Parser();
       const { expr: parsed } = parseArithExpr(parser, trimmed, 0);
-      return await evaluateArithmetic(ctx, parsed);
+      return await evaluateArithmeticAsync(ctx, parsed);
     }
 
     case "ArithNested":
-      return await evaluateArithmetic(ctx, expr.expression);
+      return await evaluateArithmeticAsync(ctx, expr.expression);
 
     case "ArithCommandSubst": {
       // Execute the command and parse the result as a number
@@ -540,7 +839,7 @@ export async function evaluateArithmetic(
 
       // Case 4: Indexed array - A[expr]
       if (expr.index) {
-        let index = await evaluateArithmetic(
+        let index = await evaluateArithmeticAsync(
           ctx,
           expr.index,
           isExpansionContext,
@@ -587,9 +886,9 @@ export async function evaluateArithmetic(
         }
         // Check nounset
         if (ctx.state.options.nounset) {
-          const hasAnyElement = Array.from(ctx.state.env.keys()).some(
-            (key) => key === expr.array || key.startsWith(`${expr.array}_`),
-          );
+          const hasAnyElement =
+            ctx.state.env.has(expr.array) ||
+            envHasKeyWithPrefix(ctx.state.env, `${expr.array}_`);
           if (!hasAnyElement) {
             throw new NounsetError(`${expr.array}[${index}]`);
           }
@@ -635,30 +934,42 @@ export async function evaluateArithmetic(
     case "ArithBinary": {
       // Short-circuit evaluation for logical operators
       if (expr.operator === "||") {
-        const left = await evaluateArithmetic(
+        const left = await evaluateArithmeticAsync(
           ctx,
           expr.left,
           isExpansionContext,
         );
         if (left) return 1;
-        return (await evaluateArithmetic(ctx, expr.right, isExpansionContext))
+        return (await evaluateArithmeticAsync(
+          ctx,
+          expr.right,
+          isExpansionContext,
+        ))
           ? 1
           : 0;
       }
       if (expr.operator === "&&") {
-        const left = await evaluateArithmetic(
+        const left = await evaluateArithmeticAsync(
           ctx,
           expr.left,
           isExpansionContext,
         );
         if (!left) return 0;
-        return (await evaluateArithmetic(ctx, expr.right, isExpansionContext))
+        return (await evaluateArithmeticAsync(
+          ctx,
+          expr.right,
+          isExpansionContext,
+        ))
           ? 1
           : 0;
       }
 
-      const left = await evaluateArithmetic(ctx, expr.left, isExpansionContext);
-      const right = await evaluateArithmetic(
+      const left = await evaluateArithmeticAsync(
+        ctx,
+        expr.left,
+        isExpansionContext,
+      );
+      const right = await evaluateArithmeticAsync(
         ctx,
         expr.right,
         isExpansionContext,
@@ -667,7 +978,7 @@ export async function evaluateArithmetic(
     }
 
     case "ArithUnary": {
-      const operand = await evaluateArithmetic(
+      const operand = await evaluateArithmeticAsync(
         ctx,
         expr.operand,
         isExpansionContext,
@@ -706,7 +1017,7 @@ export async function evaluateArithmetic(
             const expandedKey = await getVariable(ctx, expr.operand.index.name);
             envKey = `${arrayName}_${expandedKey}`;
           } else if (expr.operand.index) {
-            const index = await evaluateArithmetic(
+            const index = await evaluateArithmeticAsync(
               ctx,
               expr.operand.index,
               isExpansionContext,
@@ -757,7 +1068,7 @@ export async function evaluateArithmetic(
               : expr.operand.nameExpr.name;
           }
           if (varName && /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(varName)) {
-            const index = await evaluateArithmetic(
+            const index = await evaluateArithmeticAsync(
               ctx,
               expr.operand.subscript,
               isExpansionContext,
@@ -776,14 +1087,22 @@ export async function evaluateArithmetic(
     }
 
     case "ArithTernary": {
-      const condition = await evaluateArithmetic(
+      const condition = await evaluateArithmeticAsync(
         ctx,
         expr.condition,
         isExpansionContext,
       );
       return condition
-        ? await evaluateArithmetic(ctx, expr.consequent, isExpansionContext)
-        : await evaluateArithmetic(ctx, expr.alternate, isExpansionContext);
+        ? await evaluateArithmeticAsync(
+            ctx,
+            expr.consequent,
+            isExpansionContext,
+          )
+        : await evaluateArithmeticAsync(
+            ctx,
+            expr.alternate,
+            isExpansionContext,
+          );
     }
 
     case "ArithAssignment": {
@@ -817,7 +1136,7 @@ export async function evaluateArithmetic(
           envKey = `${name}_${expandedKey || "\\"}`;
         } else if (isAssoc) {
           // For non-variable subscripts on associative arrays, evaluate and convert to string
-          const index = await evaluateArithmetic(
+          const index = await evaluateArithmeticAsync(
             ctx,
             expr.subscript,
             isExpansionContext,
@@ -825,7 +1144,7 @@ export async function evaluateArithmetic(
           envKey = `${name}_${index}`;
         } else {
           // For indexed arrays, evaluate the subscript as arithmetic
-          let index = await evaluateArithmetic(
+          let index = await evaluateArithmeticAsync(
             ctx,
             expr.subscript,
             isExpansionContext,
@@ -846,7 +1165,7 @@ export async function evaluateArithmetic(
 
       const current =
         Number.parseInt(envGet(ctx.state.env, envKey, "0"), 10) || 0;
-      const value = await evaluateArithmetic(
+      const value = await evaluateArithmeticAsync(
         ctx,
         expr.value,
         isExpansionContext,
@@ -857,7 +1176,11 @@ export async function evaluateArithmetic(
     }
 
     case "ArithGroup":
-      return await evaluateArithmetic(ctx, expr.expression, isExpansionContext);
+      return await evaluateArithmeticAsync(
+        ctx,
+        expr.expression,
+        isExpansionContext,
+      );
 
     case "ArithConcat": {
       // Concatenate all parts to form a dynamic variable name or number
@@ -901,7 +1224,7 @@ export async function evaluateArithmetic(
       // Build the env key - include subscript for array assignment
       let envKey = varName;
       if (expr.subscript) {
-        const index = await evaluateArithmetic(
+        const index = await evaluateArithmeticAsync(
           ctx,
           expr.subscript,
           isExpansionContext,
@@ -910,7 +1233,7 @@ export async function evaluateArithmetic(
       }
       const current =
         Number.parseInt(envGet(ctx.state.env, envKey, "0"), 10) || 0;
-      const value = await evaluateArithmetic(
+      const value = await evaluateArithmeticAsync(
         ctx,
         expr.value,
         isExpansionContext,
@@ -939,7 +1262,7 @@ export async function evaluateArithmetic(
       if (!varName || !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(varName)) {
         return 0; // Invalid variable name
       }
-      const index = await evaluateArithmetic(
+      const index = await evaluateArithmeticAsync(
         ctx,
         expr.subscript,
         isExpansionContext,
@@ -973,7 +1296,9 @@ async function evalConcatPartToStringAsync(
     case "ArithSingleQuote":
       // For single quotes in concatenation context, evaluate through main evaluator
       // which will handle the expansion vs command context distinction
-      return String(await evaluateArithmetic(ctx, expr, isExpansionContext));
+      return String(
+        await evaluateArithmeticAsync(ctx, expr, isExpansionContext),
+      );
     case "ArithVariable":
       // If no $ prefix, use the literal name for building dynamic var names
       // If has $ prefix, expand to the variable's value
@@ -1012,6 +1337,8 @@ async function evalConcatPartToStringAsync(
       return result;
     }
     default:
-      return String(await evaluateArithmetic(ctx, expr, isExpansionContext));
+      return String(
+        await evaluateArithmeticAsync(ctx, expr, isExpansionContext),
+      );
   }
 }

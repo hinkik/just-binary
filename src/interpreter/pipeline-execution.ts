@@ -6,7 +6,13 @@
 
 import type { CommandNode, PipelineNode } from "../ast/types.js";
 import type { ExecResult } from "../types.js";
-import { encode, envSet } from "../utils/bytes.js";
+import {
+  cloneEnv,
+  EnvMap,
+  encode,
+  envKeysWithPrefix,
+  envSet,
+} from "../utils/bytes.js";
 import {
   type ByteStream,
   concatStreams,
@@ -83,6 +89,14 @@ async function executeIntermediatePipelineStage(
   }
 }
 
+const PIPESTATUS_KEYS = ["PIPESTATUS_0", "PIPESTATUS_1", "PIPESTATUS_2"];
+
+function pipestatusKey(index: number): string {
+  return index < PIPESTATUS_KEYS.length
+    ? PIPESTATUS_KEYS[index]
+    : `PIPESTATUS_${index}`;
+}
+
 /**
  * Execute a pipeline node (command or sequence of piped commands).
  */
@@ -134,7 +148,7 @@ export async function executePipeline(
 
     // Save environment for commands running in subshell context
     // This prevents variable assignments (e.g., ${cmd=echo}) from leaking to parent
-    const savedEnv = runsInSubshell ? new Map(ctx.state.env) : null;
+    const savedEnv = runsInSubshell ? cloneEnv(ctx.state.env) : null;
 
     let result: ExecResult;
     try {
@@ -274,15 +288,28 @@ export async function executePipeline(
     (node.commands.length === 1 && node.commands[0].type === "SimpleCommand");
 
   if (shouldSetPipestatus) {
-    // Clear any previous PIPESTATUS entries
-    for (const key of ctx.state.env.keys()) {
-      if (key.startsWith("PIPESTATUS_")) {
-        ctx.state.env.delete(key);
+    // Clear any previous PIPESTATUS entries — unless they are exactly the
+    // keys about to be written, which is the case from one simple command to
+    // the next. Overwriting in place then avoids a delete and re-insert per
+    // command, which makes the variable table rehash over and over once it
+    // holds a large array.
+    const env = ctx.state.env;
+    const count = pipestatusExitCodes.length;
+    let sameKeys =
+      env instanceof EnvMap &&
+      env.countKeysWithPrefix("PIPESTATUS_") === count + 1 &&
+      env.has("PIPESTATUS__length");
+    for (let i = 0; sameKeys && i < count; i++) {
+      sameKeys = env.has(pipestatusKey(i));
+    }
+    if (!sameKeys) {
+      for (const key of envKeysWithPrefix(env, "PIPESTATUS_")) {
+        env.delete(key);
       }
     }
     // Set new PIPESTATUS entries
-    for (let i = 0; i < pipestatusExitCodes.length; i++) {
-      envSet(ctx.state.env, `PIPESTATUS_${i}`, String(pipestatusExitCodes[i]));
+    for (let i = 0; i < count; i++) {
+      envSet(env, pipestatusKey(i), String(pipestatusExitCodes[i]));
     }
     envSet(
       ctx.state.env,

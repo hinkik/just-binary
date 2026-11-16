@@ -77,7 +77,7 @@ function compareVersions(a: string, b: string): number {
       if (numA !== numB) return numA - numB;
     } else {
       // At least one is non-numeric - compare as strings
-      if (partA !== partB) return partA.localeCompare(partB);
+      if (partA !== partB) return collator.compare(partA, partB);
     }
   }
   return 0;
@@ -173,60 +173,80 @@ interface CompareOptions {
 }
 
 /**
- * Compare two values, handling various sort modes
+ * A value made ready for comparison under one set of options: its folded
+ * text and, for the numeric modes, its number. A sort compares each line
+ * many times, so this work is done once per line rather than per comparison.
  */
-function compareValues(a: string, b: string, opts: CompareOptions): number {
-  let valA = a;
-  let valB = b;
+interface PreparedValue {
+  text: string;
+  number: number;
+}
+
+function prepareValue(value: string, opts: CompareOptions): PreparedValue {
+  let text = value;
 
   // Apply dictionary order first (removes non-alphanumeric)
   if (opts.dictionaryOrder) {
-    valA = toDictionaryOrder(valA);
-    valB = toDictionaryOrder(valB);
+    text = toDictionaryOrder(text);
   }
 
   // Apply case folding
   if (opts.ignoreCase) {
-    valA = valA.toLowerCase();
-    valB = valB.toLowerCase();
+    text = text.toLowerCase();
   }
 
-  // Month sort
+  let number = 0;
   if (opts.monthSort) {
-    const monthA = parseMonth(valA);
-    const monthB = parseMonth(valB);
-    return monthA - monthB;
+    number = parseMonth(text);
+  } else if (opts.humanNumeric) {
+    // Human numeric sort (1K, 2M, etc.)
+    number = parseHumanSize(text);
+  } else if (!opts.versionSort && opts.numeric) {
+    number = parseFloat(text) || 0;
   }
+  return { text, number };
+}
 
-  // Human numeric sort (1K, 2M, etc.)
-  if (opts.humanNumeric) {
-    const sizeA = parseHumanSize(valA);
-    const sizeB = parseHumanSize(valB);
-    return sizeA - sizeB;
-  }
+// Same ordering as String.prototype.localeCompare with no arguments, without
+// setting up a collator on every call.
+const collator = new Intl.Collator();
 
-  // Version sort
-  if (opts.versionSort) {
-    return compareVersions(valA, valB);
-  }
-
-  // Numeric sort
-  if (opts.numeric) {
-    const numA = parseFloat(valA) || 0;
-    const numB = parseFloat(valB) || 0;
-    return numA - numB;
-  }
-
-  // String comparison
-  return valA.localeCompare(valB);
+function compareText(a: string, b: string): number {
+  return a === b ? 0 : collator.compare(a, b);
 }
 
 /**
- * Create a comparison function for sorting
+ * Compare two prepared values, handling various sort modes
  */
-export function createComparator(
+function comparePrepared(
+  a: PreparedValue,
+  b: PreparedValue,
+  opts: CompareOptions,
+): number {
+  if (opts.monthSort || opts.humanNumeric) {
+    return a.number - b.number;
+  }
+  if (opts.versionSort) {
+    return compareVersions(a.text, b.text);
+  }
+  if (opts.numeric) {
+    return a.number - b.number;
+  }
+  return compareText(a.text, b.text);
+}
+
+/**
+ * How to order lines under a set of options: `prepare` derives a line's
+ * comparison keys once, `compare` orders two lines given their keys.
+ */
+interface LineOrdering<K> {
+  prepare(line: string): K;
+  compare(keyA: K, lineA: string, keyB: K, lineB: string): number;
+}
+
+function createOrdering(
   options: SortOptions,
-): (a: string, b: string) => number {
+): LineOrdering<PreparedValue> | LineOrdering<PreparedValue[]> {
   const {
     keys,
     fieldDelimiter,
@@ -241,77 +261,100 @@ export function createComparator(
     stable: globalStable,
   } = options;
 
-  return (a: string, b: string): number => {
-    let lineA = a;
-    let lineB = b;
-
-    // Apply ignore leading blanks globally
-    if (globalIgnoreLeadingBlanks) {
-      lineA = lineA.trimStart();
-      lineB = lineB.trimStart();
-    }
-
-    // If no keys specified, compare whole lines
-    if (keys.length === 0) {
-      const opts: CompareOptions = {
-        numeric: globalNumeric,
-        ignoreCase: globalIgnoreCase,
-        humanNumeric: globalHumanNumeric,
-        versionSort: globalVersionSort,
-        dictionaryOrder: globalDictionaryOrder,
-        monthSort: globalMonthSort,
-      };
-
-      const result = compareValues(lineA, lineB, opts);
-
-      if (result !== 0) {
-        return globalReverse ? -result : result;
-      }
-
-      // Tiebreaker: use original lines unless stable sort
-      if (!globalStable) {
-        const tiebreaker = a.localeCompare(b);
-        return globalReverse ? -tiebreaker : tiebreaker;
-      }
-      return 0;
-    }
-
-    // Compare by each key in order
-    for (const key of keys) {
-      let valA = extractKeyValue(lineA, key, fieldDelimiter);
-      let valB = extractKeyValue(lineB, key, fieldDelimiter);
-
-      // Apply per-key ignore leading blanks
-      if (key.ignoreLeading) {
-        valA = valA.trimStart();
-        valB = valB.trimStart();
-      }
-
-      // Use per-key modifiers or fall back to global options
-      const opts: CompareOptions = {
-        numeric: key.numeric ?? globalNumeric,
-        ignoreCase: key.ignoreCase ?? globalIgnoreCase,
-        humanNumeric: key.humanNumeric ?? globalHumanNumeric,
-        versionSort: key.versionSort ?? globalVersionSort,
-        dictionaryOrder: key.dictionaryOrder ?? globalDictionaryOrder,
-        monthSort: key.monthSort ?? globalMonthSort,
-      };
-      const useReverse = key.reverse ?? globalReverse;
-
-      const result = compareValues(valA, valB, opts);
-
-      if (result !== 0) {
-        return useReverse ? -result : result;
-      }
-    }
-
-    // All keys equal, compare whole lines as tiebreaker unless stable
-    if (!globalStable) {
-      const tiebreaker = a.localeCompare(b);
-      return globalReverse ? -tiebreaker : tiebreaker;
-    }
-    return 0;
+  // Tiebreaker: use original lines unless stable sort
+  const tiebreak = (a: string, b: string): number => {
+    if (globalStable) return 0;
+    const tiebreaker = compareText(a, b);
+    return globalReverse ? -tiebreaker : tiebreaker;
   };
+
+  if (keys.length === 0) {
+    // No keys specified: compare whole lines
+    const opts: CompareOptions = {
+      numeric: globalNumeric,
+      ignoreCase: globalIgnoreCase,
+      humanNumeric: globalHumanNumeric,
+      versionSort: globalVersionSort,
+      dictionaryOrder: globalDictionaryOrder,
+      monthSort: globalMonthSort,
+    };
+    const ordering: LineOrdering<PreparedValue> = {
+      prepare: (line) =>
+        // Apply ignore leading blanks globally
+        prepareValue(globalIgnoreLeadingBlanks ? line.trimStart() : line, opts),
+      compare: (keyA, lineA, keyB, lineB) => {
+        const result = comparePrepared(keyA, keyB, opts);
+        if (result !== 0) {
+          return globalReverse ? -result : result;
+        }
+        return tiebreak(lineA, lineB);
+      },
+    };
+    return ordering;
+  }
+
+  // Per-key modifiers fall back to the global options
+  const keyOptions: CompareOptions[] = keys.map((key) => ({
+    numeric: key.numeric ?? globalNumeric,
+    ignoreCase: key.ignoreCase ?? globalIgnoreCase,
+    humanNumeric: key.humanNumeric ?? globalHumanNumeric,
+    versionSort: key.versionSort ?? globalVersionSort,
+    dictionaryOrder: key.dictionaryOrder ?? globalDictionaryOrder,
+    monthSort: key.monthSort ?? globalMonthSort,
+  }));
+  const keyReverse = keys.map((key) => key.reverse ?? globalReverse);
+
+  const ordering: LineOrdering<PreparedValue[]> = {
+    prepare: (line) => {
+      // Apply ignore leading blanks globally
+      const source = globalIgnoreLeadingBlanks ? line.trimStart() : line;
+      return keys.map((key, i) => {
+        let value = extractKeyValue(source, key, fieldDelimiter);
+        // Apply per-key ignore leading blanks
+        if (key.ignoreLeading) {
+          value = value.trimStart();
+        }
+        return prepareValue(value, keyOptions[i]);
+      });
+    },
+    compare: (valuesA, lineA, valuesB, lineB) => {
+      // Compare by each key in order
+      for (let i = 0; i < keys.length; i++) {
+        const result = comparePrepared(valuesA[i], valuesB[i], keyOptions[i]);
+        if (result !== 0) {
+          return keyReverse[i] ? -result : result;
+        }
+      }
+      // All keys equal, compare whole lines as tiebreaker unless stable
+      return tiebreak(lineA, lineB);
+    },
+  };
+  return ordering;
+}
+
+/**
+ * Create a comparison function for sorting
+ */
+export function createComparator(
+  options: SortOptions,
+): (a: string, b: string) => number {
+  const ordering = createOrdering(options) as LineOrdering<unknown>;
+  return (a, b) =>
+    ordering.compare(ordering.prepare(a), a, ordering.prepare(b), b);
+}
+
+/**
+ * Sort lines in the order createComparator(options) defines. Each line's
+ * keys are derived once, not once per comparison.
+ */
+export function sortLines(lines: string[], options: SortOptions): string[] {
+  const ordering = createOrdering(options) as LineOrdering<unknown>;
+  const entries = lines.map((line) => ({
+    line,
+    key: ordering.prepare(line),
+  }));
+  entries.sort((a, b) => ordering.compare(a.key, a.line, b.key, b.line));
+  return entries.map((entry) => entry.line);
 }
 
 /**

@@ -177,6 +177,35 @@ export const trCommand: Command = {
       }
     }
 
+    // Plain translation between ASCII characters maps single bytes to single
+    // bytes and leaves every other byte alone, so it needs no decoding: bytes
+    // of a multi-byte UTF-8 sequence are all above 0x7f and pass through.
+    let byteTable: Uint8Array | null = null;
+    if (translationMap !== null && !squeezeMode) {
+      const table = new Uint8Array(256);
+      for (let i = 0; i < 256; i++) table[i] = i;
+      let ascii = true;
+      for (const [from, to] of translationMap) {
+        if (
+          to === undefined ||
+          from.length !== 1 ||
+          to.length !== 1 ||
+          from.charCodeAt(0) > 0x7f ||
+          to.charCodeAt(0) > 0x7f
+        ) {
+          ascii = false;
+          break;
+        }
+      }
+      if (ascii) {
+        // Later entries for a repeated character win, as in the map.
+        for (const [from, to] of translationMap) {
+          table[from.charCodeAt(0)] = to.charCodeAt(0);
+        }
+        byteTable = table;
+      }
+    }
+
     // Stream-transform stdin chunks. UTF-8 boundary handling via the
     // decoder's stream mode.
     const decoder = new TextDecoder();
@@ -256,6 +285,14 @@ export const trCommand: Command = {
             }
             const chunk = r.value;
             if (!chunk || chunk.length === 0) continue;
+            if (byteTable !== null) {
+              const out = new Uint8Array(chunk.length);
+              for (let i = 0; i < chunk.length; i++) {
+                out[i] = byteTable[chunk[i]];
+              }
+              controller.enqueue(out);
+              return;
+            }
             const text = decoder.decode(chunk, { stream: true });
             const transformed = transformText(text);
             if (transformed.length > 0) {

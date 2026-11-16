@@ -17,7 +17,7 @@ import {
   type ByteStream,
   fromString,
   streamChunks,
-  streamLines,
+  streamTextLineBatches,
 } from "../../utils/stream.js";
 import type { SearchOptions } from "./matcher.js";
 
@@ -82,10 +82,11 @@ export async function streamHasMatch(
     return scannable.some((l) => haystack.includes(l));
   }
 
-  const decoder = new TextDecoder();
-  for await (const lineBytes of streamLines(input)) {
-    regex.lastIndex = 0;
-    if (regex.test(decoder.decode(lineBytes))) return true;
+  for await (const lines of streamTextLineBatches(input)) {
+    for (const line of lines) {
+      regex.lastIndex = 0;
+      if (regex.test(line)) return true;
+    }
   }
   return false;
 }
@@ -123,7 +124,6 @@ export function searchStream(
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
-      const decoder = new TextDecoder();
       let lineNum = 0;
       let totalMatchCount = 0;
       let matchedAny = false;
@@ -151,129 +151,151 @@ export function searchStream(
         return `${fileTag}${lineTag}${line}\n`;
       };
 
+      // Output is gathered per batch of input lines and enqueued as one
+      // chunk, not one chunk per matching line.
+      let pending: string[] = [];
       const emit = (s: string) => {
-        if (s.length > 0) controller.enqueue(ENCODER.encode(s) as Uint8Array);
+        if (s.length > 0) pending.push(s);
+      };
+      const flush = () => {
+        if (pending.length > 0) {
+          controller.enqueue(ENCODER.encode(pending.join("")) as Uint8Array);
+          pending = [];
+        }
       };
 
       try {
-        for await (const lineBytes of streamLines(input)) {
-          lineNum++;
-          const line = decoder.decode(lineBytes);
+        scan: for await (const lines of streamTextLineBatches(input)) {
+          for (const line of lines) {
+            lineNum++;
 
-          regex.lastIndex = 0;
-          let isMatch: boolean;
-          if (countMatches || (onlyMatching && !invertMatch)) {
-            // We need to count individual matches; isMatch is "any match"
-            isMatch = regex.test(line);
             regex.lastIndex = 0;
-          } else {
-            isMatch = regex.test(line);
-          }
-          if (invertMatch) isMatch = !isMatch;
-
-          if (isMatch) {
-            matchedAny = true;
-
-            // For -c / --count-matches we don't emit content, just count.
-            if (countOnly) {
-              totalMatchCount++;
-              if (maxCount > 0 && totalMatchCount >= maxCount) break;
-              continue;
-            }
-            if (countMatches) {
-              // Count individual matches on this line
+            let isMatch: boolean;
+            if (countMatches || (onlyMatching && !invertMatch)) {
+              // We need to count individual matches; isMatch is "any match"
+              isMatch = regex.test(line);
               regex.lastIndex = 0;
-              for (let m = regex.exec(line); m !== null; m = regex.exec(line)) {
-                totalMatchCount++;
-                if (m[0].length === 0) regex.lastIndex++;
-              }
-              continue;
-            }
-
-            // Emit a separator only if there was a gap between this match's
-            // (or its before-context's) first line and the previously emitted
-            // line. With overlapping context windows there is no gap.
-            const firstLineToEmit = before.length > 0 ? before[0].n : lineNum;
-            if (
-              (beforeContext > 0 || afterContext > 0) &&
-              lastEmittedLine > 0 &&
-              firstLineToEmit > lastEmittedLine + 1
-            ) {
-              emit(`${contextSeparator}\n`);
-            }
-            // Emit before-context
-            for (const b of before) {
-              emit(b.text);
-              lastEmittedLine = b.n;
-            }
-            before.length = 0;
-
-            if (onlyMatching) {
-              // Emit each match separately
-              regex.lastIndex = 0;
-              for (let m = regex.exec(line); m !== null; m = regex.exec(line)) {
-                const matchText =
-                  kResetGroup !== undefined && m[kResetGroup] !== undefined
-                    ? m[kResetGroup]
-                    : m[0];
-                const out =
-                  replace !== null ? applyReplacement(replace, m) : matchText;
-                emit(formatLine(out, lineNum, true));
-                totalMatchCount++;
-                if (m[0].length === 0) regex.lastIndex++;
-              }
             } else {
-              let lineOut = line;
-              if (replace !== null) {
-                regex.lastIndex = 0;
-                const parts: string[] = [];
-                let lastIdx = 0;
-                let m = regex.exec(line);
-                while (m !== null) {
-                  parts.push(line.slice(lastIdx, m.index));
-                  parts.push(applyReplacement(replace, m));
-                  lastIdx = m.index + m[0].length;
-                  if (m[0].length === 0) regex.lastIndex++;
-                  m = regex.exec(line);
-                }
-                parts.push(line.slice(lastIdx));
-                lineOut = parts.join("");
-              }
-              emit(formatLine(lineOut, lineNum, true));
-              lastEmittedLine = lineNum;
-              totalMatchCount++;
+              isMatch = regex.test(line);
             }
+            if (invertMatch) isMatch = !isMatch;
 
-            afterRemaining = afterContext;
-            // Don't break immediately on maxCount — we still owe the
-            // after-context lines for this match.
-          } else if (afterRemaining > 0) {
-            emit(formatLine(line, lineNum, false));
-            lastEmittedLine = lineNum;
-            afterRemaining--;
-            if (
-              afterRemaining === 0 &&
-              maxCount > 0 &&
-              totalMatchCount >= maxCount
-            ) {
-              break;
+            if (isMatch) {
+              matchedAny = true;
+
+              // For -c / --count-matches we don't emit content, just count.
+              if (countOnly) {
+                totalMatchCount++;
+                if (maxCount > 0 && totalMatchCount >= maxCount) break scan;
+                continue;
+              }
+              if (countMatches) {
+                // Count individual matches on this line
+                regex.lastIndex = 0;
+                for (
+                  let m = regex.exec(line);
+                  m !== null;
+                  m = regex.exec(line)
+                ) {
+                  totalMatchCount++;
+                  if (m[0].length === 0) regex.lastIndex++;
+                }
+                continue;
+              }
+
+              // Emit a separator only if there was a gap between this match's
+              // (or its before-context's) first line and the previously emitted
+              // line. With overlapping context windows there is no gap.
+              const firstLineToEmit = before.length > 0 ? before[0].n : lineNum;
+              if (
+                (beforeContext > 0 || afterContext > 0) &&
+                lastEmittedLine > 0 &&
+                firstLineToEmit > lastEmittedLine + 1
+              ) {
+                emit(`${contextSeparator}\n`);
+              }
+              // Emit before-context
+              for (const b of before) {
+                emit(b.text);
+                lastEmittedLine = b.n;
+              }
+              before.length = 0;
+
+              if (onlyMatching) {
+                // Emit each match separately
+                regex.lastIndex = 0;
+                for (
+                  let m = regex.exec(line);
+                  m !== null;
+                  m = regex.exec(line)
+                ) {
+                  const matchText =
+                    kResetGroup !== undefined && m[kResetGroup] !== undefined
+                      ? m[kResetGroup]
+                      : m[0];
+                  const out =
+                    replace !== null ? applyReplacement(replace, m) : matchText;
+                  emit(formatLine(out, lineNum, true));
+                  totalMatchCount++;
+                  if (m[0].length === 0) regex.lastIndex++;
+                }
+              } else {
+                let lineOut = line;
+                if (replace !== null) {
+                  regex.lastIndex = 0;
+                  const parts: string[] = [];
+                  let lastIdx = 0;
+                  let m = regex.exec(line);
+                  while (m !== null) {
+                    parts.push(line.slice(lastIdx, m.index));
+                    parts.push(applyReplacement(replace, m));
+                    lastIdx = m.index + m[0].length;
+                    if (m[0].length === 0) regex.lastIndex++;
+                    m = regex.exec(line);
+                  }
+                  parts.push(line.slice(lastIdx));
+                  lineOut = parts.join("");
+                }
+                emit(formatLine(lineOut, lineNum, true));
+                lastEmittedLine = lineNum;
+                totalMatchCount++;
+              }
+
+              afterRemaining = afterContext;
+              // Don't break immediately on maxCount — we still owe the
+              // after-context lines for this match.
+            } else if (afterRemaining > 0) {
+              emit(formatLine(line, lineNum, false));
+              lastEmittedLine = lineNum;
+              afterRemaining--;
+              if (
+                afterRemaining === 0 &&
+                maxCount > 0 &&
+                totalMatchCount >= maxCount
+              ) {
+                break scan;
+              }
+            } else if (passthru) {
+              emit(formatLine(line, lineNum, false));
+              lastEmittedLine = lineNum;
+            } else if (beforeContext > 0) {
+              before.push({
+                n: lineNum,
+                text: formatLine(line, lineNum, false),
+              });
+              while (before.length > beforeContext) before.shift();
             }
-          } else if (passthru) {
-            emit(formatLine(line, lineNum, false));
-            lastEmittedLine = lineNum;
-          } else if (beforeContext > 0) {
-            before.push({ n: lineNum, text: formatLine(line, lineNum, false) });
-            while (before.length > beforeContext) before.shift();
+            // If we hit maxCount and after-context is exhausted (or never
+            // requested), stop processing further input.
+            if (
+              maxCount > 0 &&
+              totalMatchCount >= maxCount &&
+              afterRemaining === 0
+            ) {
+              break scan;
+            }
           }
-          // If we hit maxCount and after-context is exhausted (or never
-          // requested), stop processing further input.
-          if (
-            maxCount > 0 &&
-            totalMatchCount >= maxCount &&
-            afterRemaining === 0
-          ) {
-            break;
-          }
+          flush();
         }
 
         // Count mode: emit the final count
@@ -289,6 +311,7 @@ export function searchStream(
           emit(`${countStr}\n`);
         }
 
+        flush();
         controller.close();
         matchedResolve(matchedAny);
         countResolve(totalMatchCount);

@@ -9,6 +9,7 @@
  */
 
 import type { FunctionDefNode } from "./ast/types.js";
+import { internalCommands } from "./commands/internal-commands.js";
 import {
   type CommandName,
   createLazyCommands,
@@ -69,8 +70,13 @@ import type {
   TraceCallback,
 } from "./types.js";
 import { combineAbortSignals } from "./utils/abort.js";
-import { EMPTY, encode, envSet } from "./utils/bytes.js";
-import { type ByteStream, emptyStream, fromString } from "./utils/stream.js";
+import { cloneEnv, EMPTY, EnvMap, encode, envSet } from "./utils/bytes.js";
+import {
+  type ByteStream,
+  emptyStream,
+  fromString,
+  toNativeStream,
+} from "./utils/stream.js";
 
 export type { ExecutionLimits } from "./limits.js";
 
@@ -299,7 +305,7 @@ export class Bash {
     this.useDefaultLayout = !options.cwd && !options.files;
     const cwd = options.cwd || (this.useDefaultLayout ? "/home/user" : "/");
     // Use Map for env to prevent prototype pollution attacks
-    const env = new Map<string, Uint8Array>();
+    const env: Map<string, Uint8Array> = new EnvMap();
     const defaultVars: [string, string][] = [
       ["HOME", this.useDefaultLayout ? "/home/user" : "/"],
       ["PATH", "/usr/bin:/bin"],
@@ -435,12 +441,14 @@ export class Bash {
     }
 
     for (const cmd of createLazyCommands(options.commands)) {
+      internalCommands.add(cmd);
       this.registerCommand(cmd);
     }
 
     // Register network commands only when network is configured
     if (options.network) {
       for (const cmd of createNetworkCommands()) {
+        internalCommands.add(cmd);
         this.registerCommand(cmd);
       }
     }
@@ -449,6 +457,7 @@ export class Bash {
     // Python introduces additional security surface (arbitrary code execution)
     if (options.python) {
       for (const cmd of createPythonCommands()) {
+        internalCommands.add(cmd);
         this.registerCommand(cmd);
       }
     }
@@ -509,8 +518,10 @@ export class Bash {
       }
       return {
         ...result,
-        stdout: stdoutCollector.stream(),
-        stderr: stderrCollector.stream(),
+        // The result leaves the library: callers may pass these to platform
+        // APIs, which accept only platform streams.
+        stdout: toNativeStream(stdoutCollector.stream()),
+        stderr: toNativeStream(stderrCollector.stream()),
       };
     } finally {
       stdoutCollector.seal();
@@ -529,9 +540,11 @@ export class Bash {
     this.state.commandCount++;
     if (this.state.commandCount > this.limits.maxCommandCount) {
       return {
-        stdout: emptyStream(),
-        stderr: fromString(
-          `bash: maximum command count (${this.limits.maxCommandCount}) exceeded (possible infinite loop). Increase with executionLimits.maxCommandCount option.\n`,
+        stdout: toNativeStream(emptyStream()),
+        stderr: toNativeStream(
+          fromString(
+            `bash: maximum command count (${this.limits.maxCommandCount}) exceeded (possible infinite loop). Increase with executionLimits.maxCommandCount option.\n`,
+          ),
         ),
         exitCode: 1,
         env: mapToRecordWithExtras(this.state.env, options?.env),
@@ -540,8 +553,8 @@ export class Bash {
 
     if (!commandLine.trim()) {
       return {
-        stdout: emptyStream(),
-        stderr: emptyStream(),
+        stdout: toNativeStream(emptyStream()),
+        stderr: toNativeStream(emptyStream()),
         exitCode: 0,
         env: mapToRecordWithExtras(this.state.env, options?.env),
       };
@@ -549,8 +562,8 @@ export class Bash {
 
     if (options?.signal?.aborted) {
       return {
-        stdout: emptyStream(),
-        stderr: emptyStream(),
+        stdout: toNativeStream(emptyStream()),
+        stderr: toNativeStream(emptyStream()),
         exitCode: new AbortExecutionError(options.signal.reason).exitCode,
         env: mapToRecordWithExtras(this.state.env, options?.env),
       };
@@ -618,7 +631,7 @@ export class Bash {
     }
 
     // Create a copy of env Map for this execution
-    const execEnv = new Map(this.state.env);
+    const execEnv = cloneEnv(this.state.env);
     // Merge in options.env
     if (options?.env) {
       for (const [key, value] of Object.entries(options.env)) {

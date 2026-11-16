@@ -4,7 +4,12 @@
 
 import type { ExecResult } from "../../types.js";
 import { decode, EMPTY, encode, envSet } from "../../utils/bytes.js";
-import { collectBytes, emptyStream, fromBytes } from "../../utils/stream.js";
+import {
+  collectBytes,
+  emptyStream,
+  fromTextLazy,
+  takeBufferedText,
+} from "../../utils/stream.js";
 import { clearArray } from "../helpers/array.js";
 import {
   getIfs,
@@ -278,7 +283,10 @@ export async function handleRead(
       effectiveStdin = "";
     }
   } else if (!effectiveStdin && ctx.state.groupStdin !== undefined) {
-    effectiveStdin = decode(await collectBytes(ctx.state.groupStdin));
+    // A previous `read` in this loop left the unread remainder as text.
+    effectiveStdin =
+      takeBufferedText(ctx.state.groupStdin) ??
+      decode(await collectBytes(ctx.state.groupStdin));
   }
 
   // Handle -d '' (empty delimiter) - reads until NUL byte
@@ -312,8 +320,11 @@ export async function handleRead(
         }
       }
     } else if (ctx.state.groupStdin !== undefined && !stdin) {
-      ctx.state.groupStdin = fromBytes(
-        encode(effectiveStdin.substring(bytesConsumed)),
+      // Kept as text so the next `read` takes its line without re-encoding
+      // and re-decoding everything that is left: a `while read` loop stays
+      // linear in the size of its input.
+      ctx.state.groupStdin = fromTextLazy(
+        effectiveStdin.substring(bytesConsumed),
       );
     }
   };
