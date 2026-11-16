@@ -1,6 +1,6 @@
 import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { decodeArgs } from "../../utils/bytes.js";
-import { streamLines } from "../../utils/stream.js";
+import { streamTextLineBatches } from "../../utils/stream.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
 
 const cutHelp = {
@@ -137,7 +137,6 @@ export const cutCommand: Command = {
     }
 
     const ranges = parseRange(fieldSpec || charSpec || "1");
-    const decoder = new TextDecoder();
     const encoder = new TextEncoder();
     const processLine = (line: string): string | null => {
       if (charSpec) {
@@ -158,13 +157,14 @@ export const cutCommand: Command = {
       return selected.join(delimiter);
     };
 
-    // Pull-based: only consume the next line when downstream wants more.
-    let lineIter: AsyncIterator<Uint8Array> | null = null;
+    // Pull-based: only consume the next chunk of lines when downstream wants
+    // more, and emit each chunk's output as one piece.
+    let lineIter: AsyncIterator<string[]> | null = null;
     const stream: import("../../utils/stream.js").ByteStream =
       new ReadableStream<Uint8Array>({
         async pull(controller) {
           if (lineIter === null) {
-            lineIter = streamLines(input)[Symbol.asyncIterator]();
+            lineIter = streamTextLineBatches(input)[Symbol.asyncIterator]();
           }
           while (true) {
             const { done, value } = await lineIter.next();
@@ -172,10 +172,15 @@ export const cutCommand: Command = {
               controller.close();
               return;
             }
-            const line = decoder.decode(value);
-            const out = processLine(line);
-            if (out !== null) {
-              controller.enqueue(encoder.encode(`${out}\n`) as Uint8Array);
+            let out = "";
+            for (const line of value) {
+              const selected = processLine(line);
+              if (selected !== null) {
+                out += `${selected}\n`;
+              }
+            }
+            if (out.length > 0) {
+              controller.enqueue(encoder.encode(out) as Uint8Array);
               return;
             }
           }

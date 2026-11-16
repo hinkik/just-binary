@@ -5,7 +5,7 @@ import {
   type ByteStream,
   emptyStream,
   fromString,
-  streamLines,
+  streamTextLineBatches,
 } from "../../utils/stream.js";
 import { hasHelpFlag, showHelp } from "../help.js";
 
@@ -69,7 +69,6 @@ export const uniqCommand: Command = {
     // Stream lines. Track current line + run count, emit groups as they
     // close. Memory is bounded by the longest run of identical adjacent
     // lines (typically a single line).
-    const decoder = new TextDecoder();
     const encoder = new TextEncoder();
     const formatOut = (line: string, c: number): string => {
       if (duplicatesOnly && c <= 1) return "";
@@ -80,8 +79,8 @@ export const uniqCommand: Command = {
     const keyOf = (s: string) => (ignoreCase ? s.toLowerCase() : s);
 
     // Pull-based: a single async generator iterates lines and yields output
-    // lazily. Cancellation propagates back into the streamLines reader.
-    let lineIter: AsyncIterator<Uint8Array> | null = null;
+    // lazily. Cancellation propagates back into the line reader.
+    let lineIter: AsyncIterator<string[]> | null = null;
     let currentLine: string | null = null;
     let currentKey = "";
     let currentCount = 0;
@@ -89,7 +88,7 @@ export const uniqCommand: Command = {
     const stream: ByteStream = new ReadableStream<Uint8Array>({
       async pull(controller) {
         if (lineIter === null) {
-          lineIter = streamLines(input)[Symbol.asyncIterator]();
+          lineIter = streamTextLineBatches(input)[Symbol.asyncIterator]();
         }
         while (true) {
           const { done, value } = await lineIter.next();
@@ -105,24 +104,27 @@ export const uniqCommand: Command = {
             controller.close();
             return;
           }
-          const line = decoder.decode(value);
-          const key = keyOf(line);
-          if (currentLine === null) {
+          // One output chunk per batch of input lines.
+          let batchOut = "";
+          for (const line of value) {
+            const key = keyOf(line);
+            if (currentLine === null) {
+              currentLine = line;
+              currentKey = key;
+              currentCount = 1;
+              continue;
+            }
+            if (key === currentKey) {
+              currentCount++;
+              continue;
+            }
+            batchOut += formatOut(currentLine, currentCount);
             currentLine = line;
             currentKey = key;
             currentCount = 1;
-            continue;
           }
-          if (key === currentKey) {
-            currentCount++;
-            continue;
-          }
-          const out = formatOut(currentLine, currentCount);
-          currentLine = line;
-          currentKey = key;
-          currentCount = 1;
-          if (out.length > 0) {
-            controller.enqueue(encoder.encode(out) as Uint8Array);
+          if (batchOut.length > 0) {
+            controller.enqueue(encoder.encode(batchOut) as Uint8Array);
             return;
           }
         }

@@ -550,6 +550,40 @@ export async function* streamLines(
   if (leftover.length > 0) yield leftover;
 }
 
+/**
+ * The lines of a stream as text, a batch per input chunk.
+ *
+ * Yields the same lines as decoding each line of streamLines() on its own —
+ * split on LF, a trailing partial line included, a UTF-8 byte order mark at
+ * the start of a line dropped — but hands them over a chunk at a time. A
+ * consumer loops over each batch synchronously instead of suspending once
+ * per line, which is what makes line-oriented commands slow on large input.
+ */
+export async function* streamTextLineBatches(
+  s: ByteStream,
+): AsyncIterableIterator<string[]> {
+  const decoder = new TextDecoder("utf-8", { ignoreBOM: true });
+  const toLines = (bytes: Uint8Array): string[] => {
+    const lines = decoder.decode(bytes).split("\n");
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].charCodeAt(0) === 0xfeff) lines[i] = lines[i].slice(1);
+    }
+    return lines;
+  };
+  let leftover: Uint8Array = EMPTY;
+  for await (const chunk of streamChunks(s)) {
+    const buf = leftover.length > 0 ? concatBytes(leftover, chunk) : chunk;
+    const lastNewline = buf.lastIndexOf(0x0a);
+    if (lastNewline === -1) {
+      leftover = buf;
+      continue;
+    }
+    leftover = buf.subarray(lastNewline + 1) as Uint8Array;
+    yield toLines(buf.subarray(0, lastNewline) as Uint8Array);
+  }
+  if (leftover.length > 0) yield toLines(leftover);
+}
+
 /** Drain a stream to /dev/null (consume and discard). */
 export async function drain(s: ByteStream): Promise<void> {
   const reader = s.getReader();

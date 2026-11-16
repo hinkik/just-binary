@@ -2,7 +2,7 @@ import type { Command, CommandContext, ExecResult } from "../../types.js";
 import { decode, decodeArgs } from "../../utils/bytes.js";
 import { readAndConcat } from "../../utils/file-reader.js";
 import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
-import { createComparator, filterUnique } from "./comparator.js";
+import { createComparator, filterUnique, sortLines } from "./comparator.js";
 import { parseKeySpec } from "./parser.js";
 import type { SortOptions } from "./types.js";
 
@@ -184,8 +184,7 @@ export const sortCommand: Command = {
       return { stdout: emptyStream(), stderr: emptyStream(), exitCode: 0 };
     }
 
-    // Sort lines using the comparator
-    lines.sort(comparator);
+    lines = sortLines(lines, options);
 
     // Remove duplicates if -u
     if (options.unique) {
