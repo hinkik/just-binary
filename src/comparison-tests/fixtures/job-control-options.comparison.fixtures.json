@@ -39,14 +39,16 @@
     "files": {},
     "stdout": "[1]+  Running                 sleep 9 &\nagain=<>\n",
     "stderr": "",
-    "exitCode": 143
+    "exitCode": 143,
+    "locked": true
   },
   "68e413d75dac9d5c": {
     "command": "sleep 9 & p=$!; jobs -l | sed -E 's/^(\\[[0-9]+\\][+-]?)[[:space:]]+[0-9]+[[:space:]]+/\\1 PID /'; jobs -r; printf 'stopped=<'; jobs -s; printf '>\\n'; kill $p; wait $p 2>/dev/null",
     "files": {},
     "stdout": "[1]+ PID Running                 sleep 9 &\n[1]+  Running                 sleep 9 &\nstopped=<>\n",
     "stderr": "",
-    "exitCode": 143
+    "exitCode": 143,
+    "locked": true
   },
   "8eeed9dc8e66f322": {
     "command": "sleep 9 & p=$!; jobs -x printf 'pid-set:%s\\n' %1 | sed -E 's/[0-9]+/yes/'; kill $p; wait $p 2>/dev/null",
