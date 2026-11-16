@@ -90,7 +90,15 @@ import {
   ReturnError,
 } from "./errors.js";
 import {
+  expandArgumentSync,
+  type FastArgument,
+  sameBytes,
+  VERIFY_FAST_PATHS,
+  verifyFastPath,
+} from "./expansion/fast-words.js";
+import {
   expandWord,
+  expandWordSync,
   expandWordToBytes,
   expandWordWithGlob,
 } from "./expansion.js";
@@ -884,7 +892,10 @@ export class Interpreter {
       isWordLiteralMatch(node.name, ["exec"]) &&
       (node.args.length === 0 ||
         (node.args.length === 1 && isWordLiteralMatch(node.args[0], ["--"])));
-    const commandName = await expandWord(this.ctx, node.name);
+    const nameWord = node.name;
+    const commandName =
+      (VERIFY_FAST_PATHS ? undefined : expandWordSync(this.ctx, nameWord)) ??
+      (await expandWord(this.ctx, nameWord));
 
     const args: Uint8Array[] = [];
     const quotedArgs: boolean[] = [];
@@ -931,7 +942,19 @@ export class Interpreter {
       }
     } else {
       for (const arg of node.args) {
-        if (wordCanUseBytesPath(this.ctx, arg)) {
+        const fast = VERIFY_FAST_PATHS
+          ? await verifyFastPath(
+              this.ctx,
+              "argument",
+              () => expandArgumentSync(this.ctx, arg),
+              () => this.expandArgumentGeneral(arg),
+              (a, b) => a.quoted === b.quoted && sameBytes(a.bytes, b.bytes),
+            )
+          : expandArgumentSync(this.ctx, arg);
+        if (fast !== undefined) {
+          args.push(fast.bytes);
+          quotedArgs.push(fast.quoted);
+        } else if (wordCanUseBytesPath(this.ctx, arg)) {
           args.push(await expandWordToBytes(this.ctx, arg));
           quotedArgs.push(true);
         } else {
@@ -1449,6 +1472,20 @@ export class Interpreter {
     }
 
     return cmdResult;
+  }
+
+  /** What the general path makes of one argument word; for verification. */
+  private async expandArgumentGeneral(word: WordNode): Promise<FastArgument> {
+    if (wordCanUseBytesPath(this.ctx, word)) {
+      return { bytes: await expandWordToBytes(this.ctx, word), quoted: true };
+    }
+    const expanded = await expandWordWithGlob(this.ctx, word);
+    if (expanded.values.length !== 1) {
+      throw new Error(
+        `fast path produced one word where the general path produced ${expanded.values.length}`,
+      );
+    }
+    return { bytes: encode(expanded.values[0]), quoted: expanded.quoted };
   }
 
   private async runCommand(

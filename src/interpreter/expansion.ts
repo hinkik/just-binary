@@ -69,6 +69,11 @@ import {
 } from "./expansion/arith-text-expansion.js";
 import { expandBraceRange } from "./expansion/brace-range.js";
 import { getFileReadShorthand } from "./expansion/command-substitution.js";
+import {
+  expandWordTextSync,
+  VERIFY_FAST_PATHS,
+  verifyFastPath,
+} from "./expansion/fast-words.js";
 // Import from extracted modules
 import {
   escapeGlobChars,
@@ -215,7 +220,31 @@ export async function expandWord(
   ctx: InterpreterContext,
   word: WordNode,
 ): Promise<string> {
-  return expandWordAsync(ctx, word);
+  const fast = VERIFY_FAST_PATHS
+    ? await verifyFastPath(
+        ctx,
+        "word",
+        () => expandWordSync(ctx, word),
+        () => expandWordAsync(ctx, word),
+        (a, b) => a === b,
+      )
+    : expandWordSync(ctx, word);
+  return fast ?? expandWordAsync(ctx, word);
+}
+
+/**
+ * expandWord without suspending, for the word shapes that allow it.
+ * Returns undefined when the word needs expandWord.
+ */
+export function expandWordSync(
+  ctx: InterpreterContext,
+  word: WordNode,
+): string | undefined {
+  const text = expandWordTextSync(ctx, word);
+  if (text !== undefined) {
+    checkStringLength(text, ctx.limits.maxStringLength, "word expansion");
+  }
+  return text;
 }
 
 /**

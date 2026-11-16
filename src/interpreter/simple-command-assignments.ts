@@ -20,6 +20,11 @@ import {
 } from "./builtins/index.js";
 import { ArithmeticError, ExitError } from "./errors.js";
 import {
+  expandWordTextSync,
+  VERIFY_FAST_PATHS,
+  verifyFastPath,
+} from "./expansion/fast-words.js";
+import {
   expandWord,
   expandWordToBytes,
   expandWordWithGlob,
@@ -98,10 +103,30 @@ export async function processAssignments(
     // Expand once. Doing both expandWord + expandWordToBytes re-executes
     // any command substitutions in the value, which double-consumes
     // groupStdin streams. Expand to bytes once and decode for the string.
-    const valueBytes = assignment.value
-      ? await expandWordToBytes(ctx, assignment.value)
-      : EMPTY;
-    const value = assignment.value ? decode(valueBytes) : "";
+    // When the value has an exact text form it is stored as text, which
+    // encodes to the same bytes; valueBytes stays undefined then.
+    let valueBytes: Uint8Array | undefined;
+    let value = "";
+    const valueWord = assignment.value;
+    if (valueWord) {
+      const fastValue = VERIFY_FAST_PATHS
+        ? await verifyFastPath(
+            ctx,
+            "assignment value",
+            () => expandWordTextSync(ctx, valueWord),
+            async () => decode(await expandWordToBytes(ctx, valueWord)),
+            (a, b) => a === b,
+          )
+        : expandWordTextSync(ctx, valueWord);
+      if (fastValue !== undefined) {
+        value = fastValue;
+      } else {
+        valueBytes = await expandWordToBytes(ctx, valueWord);
+        value = decode(valueBytes);
+      }
+    } else {
+      valueBytes = EMPTY;
+    }
     if (value.length > ctx.limits.maxStringLength) {
       throwExecutionLimit(
         `word expansion: string length limit exceeded (${ctx.limits.maxStringLength} bytes)`,

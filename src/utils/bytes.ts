@@ -80,6 +80,11 @@ export function decodeArgs(args: Uint8Array[]): string[] {
 interface EnvEntry {
   text: string | undefined;
   bytes: Uint8Array | undefined;
+  /**
+   * False when the text was decoded from bytes that are not valid UTF-8, so
+   * re-encoding it would not give those bytes back.
+   */
+  exact: boolean;
 }
 
 /**
@@ -102,7 +107,11 @@ export class EnvMap extends Map<string, Uint8Array> {
       this.entries_ = new Map();
       if (source) {
         for (const [key, value] of source) {
-          this.entries_.set(key, { text: undefined, bytes: value });
+          this.entries_.set(key, {
+            text: undefined,
+            bytes: value,
+            exact: true,
+          });
         }
       }
     }
@@ -117,14 +126,33 @@ export class EnvMap extends Map<string, Uint8Array> {
     const entry = this.entries_.get(key);
     if (entry === undefined) return undefined;
     if (entry.text === undefined) {
-      entry.text = decoder.decode(entry.bytes);
+      const text = decoder.decode(entry.bytes);
+      entry.text = text;
+      // Invalid UTF-8 always decodes to U+FFFD somewhere.
+      entry.exact = !text.includes("\uFFFD");
     }
     return entry.text;
   }
 
+  /**
+   * The text of a value when it stands for the stored bytes exactly.
+   * Returns undefined when the key is unset, and null when the value holds
+   * bytes that are not valid UTF-8 (read those with get()).
+   */
+  getExactText(key: string): string | undefined | null {
+    const text = this.getText(key);
+    if (text === undefined) return undefined;
+    return (this.entries_.get(key) as EnvEntry).exact ? text : null;
+  }
+
   setText(key: string, value: string): this {
-    this.entries_.set(key, { text: value, bytes: undefined });
+    this.entries_.set(key, { text: value, bytes: undefined, exact: true });
     return this;
+  }
+
+  /** Replace this map's contents with another's. Values are shared. */
+  restoreFrom(source: EnvMap): void {
+    this.entries_ = new Map(source.entries_);
   }
 
   override get(key: string): Uint8Array | undefined {
@@ -137,7 +165,7 @@ export class EnvMap extends Map<string, Uint8Array> {
   }
 
   override set(key: string, value: Uint8Array): this {
-    this.entries_.set(key, { text: undefined, bytes: value });
+    this.entries_.set(key, { text: undefined, bytes: value, exact: true });
     return this;
   }
 
