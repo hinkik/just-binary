@@ -283,6 +283,44 @@ describe("control flow execution", () => {
   });
 
   describe("while loops", () => {
+    // A pipeline in the body used to end the loop after one iteration: the
+    // pipeline cleared the enclosing group's stdin (so a non-first pipeline
+    // command would not read from it) and never restored it, so the next
+    // `read` saw EOF. Exit stayed 0, making it silent data loss for the
+    // common `while read l; do echo "$l" | cmd; done` shape.
+    it("keeps reading when the body contains a pipeline (piped input)", async () => {
+      const env = new Bash();
+      const result = await toText(
+        await env.exec(
+          `printf 'L0\nL1\nL2\n' | while read -r l; do echo "got $l" | cat; done`,
+        ),
+      );
+      expect(result.stdout).toBe("got L0\ngot L1\ngot L2\n");
+      expect(result.exitCode).toBe(0);
+    });
+
+    it("keeps reading when the body contains a pipeline (redirected input)", async () => {
+      const env = new Bash({ files: { "/d.txt": "L0\nL1\nL2\n" } });
+      const result = await toText(
+        await env.exec(
+          `while read -r l; do echo "got $l" | cat; done < /d.txt`,
+        ),
+      );
+      expect(result.stdout).toBe("got L0\ngot L1\ngot L2\n");
+      expect(result.exitCode).toBe(0);
+    });
+
+    it("keeps reading when the body pipes into a multi-stage pipeline", async () => {
+      const env = new Bash({ files: { "/d.txt": "b\na\nc\n" } });
+      const result = await toText(
+        await env.exec(
+          `while read -r l; do echo "$l" | sort | tr -d '\\n'; done < /d.txt`,
+        ),
+      );
+      expect(result.stdout).toBe("bac");
+      expect(result.exitCode).toBe(0);
+    });
+
     it("should execute while body while condition is true", async () => {
       const env = new Bash();
       const result = await toText(

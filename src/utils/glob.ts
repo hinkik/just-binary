@@ -6,7 +6,20 @@
 
 import { createUserRegex, type RegexLike } from "../regex/index.js";
 
-// Cache compiled regexes for glob patterns (key: pattern + flags)
+/**
+ * Compiled-regex cache for glob patterns (key: pattern + flags).
+ *
+ * Bounded, because the key space is caller data: patterns reach here from
+ * `find -name` and grep's include/exclude, so a caller that builds a pattern
+ * per item ("find -name <id>-?") mints a new entry each time. This module is
+ * process-scoped, so an unbounded map here outlives every shell and grows for
+ * the life of the host process. Compiled entries are a few KB apiece.
+ *
+ * Least-recently-used is evicted on overflow: reuse dominates real workloads
+ * (a handful of patterns applied to many names), and a cache miss only costs
+ * recompilation, never correctness.
+ */
+const MAX_GLOB_REGEX_CACHE = 1000;
 const globRegexCache = new Map<string, RegexLike>();
 
 export interface MatchGlobOptions {
@@ -53,14 +66,36 @@ export function matchGlob(
 
   // Build cache key
   const cacheKey = opts.ignoreCase ? `i:${cleanPattern}` : cleanPattern;
-  let re = globRegexCache.get(cacheKey);
-
-  if (!re) {
-    re = globToRegex(cleanPattern, opts.ignoreCase);
-    globRegexCache.set(cacheKey, re);
-  }
+  const re = getCachedGlobRegex(cacheKey, cleanPattern, opts.ignoreCase);
 
   return re.test(name);
+}
+
+/**
+ * Look up (or compile) the regex for a cache key, keeping the cache bounded.
+ *
+ * A hit re-inserts the entry so Map iteration order stays least-recent-first,
+ * which makes the eviction below LRU rather than insertion-order.
+ */
+function getCachedGlobRegex(
+  cacheKey: string,
+  pattern: string,
+  ignoreCase?: boolean,
+): RegexLike {
+  const cached = globRegexCache.get(cacheKey);
+  if (cached !== undefined) {
+    globRegexCache.delete(cacheKey);
+    globRegexCache.set(cacheKey, cached);
+    return cached;
+  }
+
+  const re = globToRegex(pattern, ignoreCase);
+  globRegexCache.set(cacheKey, re);
+  if (globRegexCache.size > MAX_GLOB_REGEX_CACHE) {
+    const oldest = globRegexCache.keys().next();
+    if (!oldest.done) globRegexCache.delete(oldest.value);
+  }
+  return re;
 }
 
 /**
