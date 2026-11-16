@@ -78,14 +78,37 @@ class MemoryStream {
   private index = 0;
   /** Offset into the current chunk when it is being handed out in pieces. */
   private offset = 0;
+  /**
+   * Text this stream carries that has not been encoded yet. A reader that
+   * wants text (the `read` builtin taking one line at a time) can take it as
+   * it is; the bytes are produced only if something reads bytes.
+   */
+  private text: string | null = null;
   isLocked = false;
 
-  constructor(chunks: readonly Uint8Array[]) {
+  constructor(chunks: readonly Uint8Array[], text: string | null = null) {
     this.chunks = chunks;
+    this.text = text;
+  }
+
+  private encodeText(): void {
+    const text = this.text;
+    if (text !== null) {
+      this.text = null;
+      this.chunks = text.length === 0 ? NO_CHUNKS : [encode(text)];
+    }
+  }
+
+  /** The not-yet-encoded text, taken whole; null when there is none. */
+  takeText(): string | null {
+    const text = this.text;
+    if (text !== null) this.discard();
+    return text;
   }
 
   /** Next non-empty piece of at most CHUNK_SIZE bytes, or null at the end. */
   next(): Uint8Array | null {
+    if (this.text !== null) this.encodeText();
     const chunks = this.chunks;
     while (this.index < chunks.length) {
       const chunk = chunks[this.index];
@@ -114,6 +137,7 @@ class MemoryStream {
 
   /** Everything not yet read, as whole chunks; the stream is left drained. */
   takeRemaining(): Uint8Array[] {
+    if (this.text !== null) this.encodeText();
     const out: Uint8Array[] = [];
     const chunks = this.chunks;
     for (let i = this.index; i < chunks.length; i++) {
@@ -128,6 +152,7 @@ class MemoryStream {
   }
 
   get isDrained(): boolean {
+    if (this.text !== null) return this.text.length === 0;
     for (let i = this.index; i < this.chunks.length; i++) {
       if (this.chunks[i].length - (i === this.index ? this.offset : 0) > 0) {
         return false;
@@ -137,6 +162,7 @@ class MemoryStream {
   }
 
   discard(): void {
+    this.text = null;
     this.chunks = NO_CHUNKS;
     this.index = 0;
     this.offset = 0;
@@ -282,6 +308,27 @@ export function fromChunks(chunks: Uint8Array[]): ByteStream {
 export function fromString(s: string): ByteStream {
   if (s.length === 0) return emptyStream();
   return fromBytes(encode(s));
+}
+
+/**
+ * A stream of a string's UTF-8 bytes that encodes only when bytes are read.
+ * A consumer that wants the text back can take it with takeBufferedText and
+ * skip the encode and decode altogether.
+ */
+export function fromTextLazy(s: string): ByteStream {
+  if (s.length === 0) return emptyStream();
+  return new MemoryStream(NO_CHUNKS, s) as unknown as ByteStream;
+}
+
+/**
+ * The whole content of a stream made by fromTextLazy, when none of it has
+ * been read as bytes and the stream is unlocked; the stream is left drained.
+ * Null for any other stream.
+ */
+export function takeBufferedText(stream: ByteStream): string | null {
+  const memory = asMemoryStream(stream);
+  if (memory === null || memory.isLocked) return null;
+  return memory.takeText();
 }
 
 /**
