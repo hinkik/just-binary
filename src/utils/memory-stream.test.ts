@@ -126,3 +126,23 @@ describe("streams handed to embedders", () => {
     expect(await new Response(stream).text()).toBe("filedata");
   });
 });
+
+describe("commands made with defineCommand", () => {
+  it("return platform streams when executed directly", async () => {
+    const { defineCommand } = await import("../custom-commands.js");
+    const { InMemoryFs } = await import("../fs/in-memory-fs/index.js");
+    const hello = defineCommand("hello", async () => ({
+      stdout: "hi\n",
+      stderr: "",
+      exitCode: 0,
+    }));
+    const result = await hello.execute([], {
+      fs: new InMemoryFs(),
+      cwd: "/",
+      env: new Map(),
+      stdin: new ReadableStream(),
+    } as never);
+    expect(await new Response(result.stdout).text()).toBe("hi\n");
+    expect(await new Response(result.stderr).text()).toBe("");
+  });
+});
