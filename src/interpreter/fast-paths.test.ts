@@ -95,3 +95,17 @@ describe("word fast path", () => {
     ).toBe("3001 y 2999 0  2\n");
   });
 });
+
+describe("arithmetic fast path with $-named targets", () => {
+  it("assigns to the variable a $name names", async () => {
+    expect(
+      await run(
+        'x=y; echo $(( $x = 4 )) "x=$x y=$y"; x=y; y=1; echo $(( $x += 4 )) "x=$x y=$y"',
+      ),
+    ).toBe("4 x=y y=4\n5 x=y y=5\n");
+    expect(await run('x=y; v=$(( $x = 4 )); echo "v=$v x=$x y=$y"')).toBe(
+      "v=4 x=y y=4\n",
+    );
+    expect(await run("x=7; echo $(( ++$x )) x=$x")).toBe("7 x=7\n");
+  });
+});

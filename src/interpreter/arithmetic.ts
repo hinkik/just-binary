@@ -20,7 +20,7 @@
  *   fully supported - variable expansion happens at parse time, not runtime.
  */
 
-import type { ArithExpr } from "../ast/types.js";
+import type { ArithExpr, ArithmeticExpressionNode } from "../ast/types.js";
 import {
   parseArithExpr,
   parseArithNumber,
@@ -480,7 +480,11 @@ function computeFastShape(expr: ArithExpr): boolean {
       return computeFastShape(expr.left) && computeFastShape(expr.right);
     case "ArithUnary":
       if (expr.operator === "++" || expr.operator === "--") {
-        return expr.operand.type === "ArithVariable";
+        // `++$x` increments the variable named by x's value.
+        return (
+          expr.operand.type === "ArithVariable" &&
+          expr.operand.hasDollarPrefix !== true
+        );
       }
       return computeFastShape(expr.operand);
     case "ArithTernary":
@@ -594,6 +598,94 @@ function evaluateFast(ctx: InterpreterContext, expr: ArithExpr): number {
   }
 }
 
+/** While above zero, every fast path gives up; see withFastPathsSuppressed. */
+let fastPathsSuppressed = 0;
+
+/** Whether fast paths are currently switched off. */
+export function fastPathsAreSuppressed(): boolean {
+  return fastPathsSuppressed > 0;
+}
+
+/**
+ * Run `general` with every interpreter fast path switched off, so that
+ * verification compares a fast path against the slow path all the way down
+ * rather than against code that itself takes a fast path.
+ */
+export async function withFastPathsSuppressed<T>(
+  general: () => Promise<T>,
+): Promise<T> {
+  fastPathsSuppressed++;
+  try {
+    return await general();
+  } finally {
+    fastPathsSuppressed--;
+  }
+}
+
+/** Whether evaluating the tree can assign to a variable. */
+const writesCache = new WeakMap<ArithExpr, boolean>();
+
+function writesVariables(expr: ArithExpr): boolean {
+  let known = writesCache.get(expr);
+  if (known === undefined) {
+    known = computeWrites(expr);
+    writesCache.set(expr, known);
+  }
+  return known;
+}
+
+function computeWrites(expr: ArithExpr): boolean {
+  switch (expr.type) {
+    case "ArithAssignment":
+      return true;
+    case "ArithUnary":
+      return (
+        expr.operator === "++" ||
+        expr.operator === "--" ||
+        computeWrites(expr.operand)
+      );
+    case "ArithNested":
+    case "ArithGroup":
+      return computeWrites(expr.expression);
+    case "ArithBinary":
+      return computeWrites(expr.left) || computeWrites(expr.right);
+    case "ArithTernary":
+      return (
+        computeWrites(expr.condition) ||
+        computeWrites(expr.consequent) ||
+        computeWrites(expr.alternate)
+      );
+    default:
+      return false;
+  }
+}
+
+/** A `$name` that $((...)) substitutes as text before evaluating. */
+const DOLLAR_VARIABLE = /\$[a-zA-Z_0-9]/;
+
+/**
+ * evaluateArithmeticSync for the body of `$((...))`.
+ *
+ * In `$((...))` every `$name` is replaced by its value as text before the
+ * expression is parsed, so `$x = 4` assigns to the variable x names. The
+ * tree does not record which assignment targets were written with `$`, so
+ * an expression that both mentions `$name` and assigns is left to the
+ * general evaluator.
+ */
+export function evaluateArithmeticExpansionSync(
+  ctx: InterpreterContext,
+  node: ArithmeticExpressionNode,
+): number | undefined {
+  const text = node.originalText;
+  if (
+    (text === undefined || DOLLAR_VARIABLE.test(text)) &&
+    writesVariables(node.expression)
+  ) {
+    return undefined;
+  }
+  return evaluateArithmeticSync(ctx, node.expression);
+}
+
 /**
  * Evaluate an arithmetic expression without suspending, when that is
  * possible. Returns undefined — with the environment as it was — when the
@@ -603,7 +695,7 @@ export function evaluateArithmeticSync(
   ctx: InterpreterContext,
   expr: ArithExpr,
 ): number | undefined {
-  if (!hasFastShape(expr)) return undefined;
+  if (fastPathsSuppressed > 0 || !hasFastShape(expr)) return undefined;
   const outerWrites = fastWrites;
   fastWrites = null;
   try {

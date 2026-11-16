@@ -127,6 +127,9 @@ function extractLiteralAlternation(
   return literals;
 }
 
+/** A surrogate code unit: the input holds a character outside the BMP. */
+const ASTRAL = /[\uD800-\uDFFF]/;
+
 /** What a find-based loop needs from a match in progress. */
 interface MatchSession {
   find(start?: number): boolean;
@@ -277,6 +280,7 @@ export class UserRegex implements RegexLike {
   private readonly _literals: string[] | null;
   private readonly _native: RegExp | null;
   private readonly _nativeMaxInput: number;
+  private readonly _nativeMatchesEmpty: boolean;
   /** Set while verification re-runs an operation on RE2. */
   private _re2Only = false;
   private _lastIndex = 0;
@@ -294,13 +298,15 @@ export class UserRegex implements RegexLike {
     this._literals = compiled.literals;
     this._native = compiled.native;
     this._nativeMaxInput = compiled.plan?.maxInputLength ?? 0;
+    this._nativeMatchesEmpty = compiled.plan?.matchesEmpty ?? false;
   }
 
   private usesNative(input: string): boolean {
     return (
       this._native !== null &&
       input.length <= this._nativeMaxInput &&
-      !this._re2Only
+      !this._re2Only &&
+      !(this._nativeMatchesEmpty && ASTRAL.test(input))
     );
   }
 

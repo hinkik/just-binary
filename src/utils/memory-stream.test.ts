@@ -116,3 +116,13 @@ describe("streamTextLineBatches", () => {
     expect(await lines([bytes("﻿a\n﻿b\n")])).toEqual(["a", "b"]);
   });
 });
+
+describe("streams handed to embedders", () => {
+  it("are platform streams for file contents", async () => {
+    const { Bash } = await import("../Bash.js");
+    const bash = new Bash();
+    await bash.writeFile("/f", "filedata");
+    const stream = await bash.fs.readFile("/f");
+    expect(await new Response(stream).text()).toBe("filedata");
+  });
+});

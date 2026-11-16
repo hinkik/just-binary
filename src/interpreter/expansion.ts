@@ -30,7 +30,10 @@ import {
   trimTrailingNewlines,
 } from "../utils/bytes.js";
 import { collectBytes } from "../utils/stream.js";
-import { evaluateArithmetic, evaluateArithmeticSync } from "./arithmetic.js";
+import {
+  evaluateArithmetic,
+  evaluateArithmeticExpansionSync,
+} from "./arithmetic.js";
 import {
   BadSubstitutionError,
   ExecutionLimitError,
@@ -972,7 +975,7 @@ async function expandPartString(
     }
 
     case "ArithmeticExpansion": {
-      const fast = evaluateArithmeticSync(ctx, part.expression.expression);
+      const fast = evaluateArithmeticExpansionSync(ctx, part.expression);
       if (fast !== undefined) {
         return String(fast);
       }

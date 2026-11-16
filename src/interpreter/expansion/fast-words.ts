@@ -15,7 +15,11 @@
 
 import type { WordNode, WordPart } from "../../ast/types.js";
 import { EnvMap, encode } from "../../utils/bytes.js";
-import { evaluateArithmeticSync } from "../arithmetic.js";
+import {
+  evaluateArithmeticExpansionSync,
+  fastPathsAreSuppressed,
+  withFastPathsSuppressed,
+} from "../arithmetic.js";
 import { getIfs } from "../helpers/ifs.js";
 import { isNameref } from "../helpers/nameref.js";
 import type { InterpreterContext } from "../types.js";
@@ -176,10 +180,7 @@ function runPlan(ctx: InterpreterContext, plan: WordPlan): string | undefined {
       if (value === undefined) return undefined;
       out += value;
     } else {
-      const value = evaluateArithmeticSync(
-        ctx,
-        step.part.expression.expression,
-      );
+      const value = evaluateArithmeticExpansionSync(ctx, step.part.expression);
       if (value === undefined) return undefined;
       out += String(value);
     }
@@ -195,6 +196,7 @@ export function expandWordTextSync(
   ctx: InterpreterContext,
   word: WordNode,
 ): string | undefined {
+  if (fastPathsAreSuppressed()) return undefined;
   const plan = planFor(word);
   if (plan === null) return undefined;
   if (plan.constantText !== undefined) return plan.constantText;
@@ -215,6 +217,7 @@ export function expandArgumentSync(
   ctx: InterpreterContext,
   word: WordNode,
 ): FastArgument | undefined {
+  if (fastPathsAreSuppressed()) return undefined;
   const plan = planFor(word);
   if (plan === null) return undefined;
   if (plan.constantBytes !== undefined) {
@@ -250,10 +253,7 @@ export function expandArgumentSync(
       // The result is a decimal integer. Decide whether IFS could split it
       // before evaluating: giving up afterwards would evaluate it twice.
       if (!step.quoted && /[0-9-]/.test(ifs)) return undefined;
-      const number = evaluateArithmeticSync(
-        ctx,
-        step.part.expression.expression,
-      );
+      const number = evaluateArithmeticExpansionSync(ctx, step.part.expression);
       if (number === undefined) return undefined;
       out += String(number);
       continue;
@@ -313,7 +313,7 @@ export async function verifyFastPath<T>(
   }
   const afterFast = env.clone();
   env.restoreFrom(before);
-  const generalResult = await general();
+  const generalResult = await withFastPathsSuppressed(general);
   if (!same(fastResult, generalResult)) {
     throw new Error(
       `fast path result differs: ${what}: ${JSON.stringify(fastResult)} vs ${JSON.stringify(generalResult)}`,

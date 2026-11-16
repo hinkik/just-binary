@@ -187,6 +187,7 @@ export const trCommand: Command = {
       let ascii = true;
       for (const [from, to] of translationMap) {
         if (
+          to === undefined ||
           from.length !== 1 ||
           to.length !== 1 ||
           from.charCodeAt(0) > 0x7f ||

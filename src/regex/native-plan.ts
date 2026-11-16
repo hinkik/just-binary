@@ -40,6 +40,13 @@ export interface NativePlan {
   maxInputLength: number;
   /** Number of capture groups. */
   groupCount: number;
+  /**
+   * The pattern can match the empty string. Global iteration then steps over
+   * empty matches, which the native engine does a whole surrogate pair at a
+   * time and RE2 one UTF-16 unit at a time, so inputs with astral characters
+   * must use RE2.
+   */
+  matchesEmpty: boolean;
 }
 
 class Refused extends Error {}
@@ -724,6 +731,76 @@ function assess(node: Node, follow: CharSet, cost: Cost): void {
   }
 }
 
+/**
+ * The most characters the bounded parts of a pattern can consume, counting
+ * unbounded repetitions as nothing (their cost is charged separately).
+ */
+function maxFiniteLength(node: Node): number {
+  switch (node.type) {
+    case "char":
+      return 1;
+    case "assertion":
+      return 0;
+    case "concat": {
+      let total = 0;
+      for (const item of node.items) total += maxFiniteLength(item);
+      return total;
+    }
+    case "alternation": {
+      let longest = 0;
+      for (const item of node.items) {
+        longest = Math.max(longest, maxFiniteLength(item));
+      }
+      return longest;
+    }
+    case "group":
+      return maxFiniteLength(node.body);
+    case "repeat":
+      return node.max > BOUNDED_REPEAT_LIMIT
+        ? 0
+        : node.max * maxFiniteLength(node.body);
+  }
+}
+
+/**
+ * The longest input whose worst case stays within STEP_BUDGET.
+ *
+ * One match attempt explores at most `factor` combinations of choices. Each
+ * combination walks the bounded part of the pattern (up to `finiteLength`
+ * characters, but never more than the input) and, when there are unbounded
+ * repetitions, n characters per repetition that can trade characters with
+ * what follows plus n for re-scanning the ones that cannot. A search that is
+ * not anchored makes an attempt at each of the n start positions.
+ */
+function maxAffordableLength(
+  cost: Cost,
+  finiteLength: number,
+  anchored: boolean,
+): number {
+  const loops = cost.ambiguous + cost.deterministic;
+  const loopExponent = cost.ambiguous + (cost.deterministic > 0 ? 1 : 0);
+  const total = (n: number): number => {
+    const walk =
+      Math.min(Math.max(finiteLength, 1), n) +
+      (loops > 0 ? n ** loopExponent : 0);
+    return cost.factor * walk * (anchored ? 1 : n);
+  };
+  // Anchored with nothing unbounded: the cost does not grow with the input.
+  if (anchored && loops === 0) {
+    return total(Number.MAX_SAFE_INTEGER) <= STEP_BUDGET
+      ? Number.POSITIVE_INFINITY
+      : 0;
+  }
+  let low = 0;
+  let high = STEP_BUDGET;
+  while (low < high) {
+    const middle = Math.ceil((low + high) / 2);
+    if (total(middle) <= STEP_BUDGET) low = middle;
+    else high = middle - 1;
+  }
+  return low;
+}
+
 /** Whether every match must start at the beginning of the input. */
 function isAnchoredAtStart(node: Node): boolean {
   switch (node.type) {
@@ -758,18 +835,11 @@ export function planNative(pattern: string, flags: string): NativePlan | null {
     assess(tree, emptySet(), cost);
     if (cost.factor > MAX_CHOICE_FACTOR) return null;
 
-    // One attempt costs about n^ambiguous, times n more when a repetition
-    // that cannot give characters back still has to be re-scanned. A search
-    // that is not anchored makes an attempt at each of n positions.
-    const loops = cost.ambiguous + cost.deterministic;
-    const exponent =
-      cost.ambiguous +
-      (cost.deterministic > 0 ? 1 : 0) +
-      (loops > 0 && !isAnchoredAtStart(tree) ? 1 : 0);
-    const maxInputLength =
-      exponent === 0
-        ? Number.POSITIVE_INFINITY
-        : Math.floor((STEP_BUDGET / cost.factor) ** (1 / exponent));
+    const maxInputLength = maxAffordableLength(
+      cost,
+      maxFiniteLength(tree),
+      isAnchoredAtStart(tree),
+    );
     if (maxInputLength < 16) return null;
 
     const source = emit(tree);
@@ -781,6 +851,7 @@ export function planNative(pattern: string, flags: string): NativePlan | null {
       flags: nativeFlags,
       maxInputLength,
       groupCount: parser.groupCount,
+      matchesEmpty: isNullable(tree),
     };
   } catch (error) {
     if (error instanceof Refused || error instanceof SyntaxError) return null;

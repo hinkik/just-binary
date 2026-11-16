@@ -1,4 +1,7 @@
-import { type ByteStream, fromChunks } from "../../utils/stream.js";
+// File contents leave the library through readFile (bash.fs, ctx.fs in an
+// embedder's command), so they are platform streams, not in-memory ones.
+import { fromChunks } from "../../utils/public-stream.js";
+import type { ByteStream } from "../../utils/stream.js";
 import {
   contentToChunks,
   contentToChunksSync,

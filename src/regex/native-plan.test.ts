@@ -46,23 +46,60 @@ describe("planNative", () => {
     expect(planNative("a.c\\s\\d$", "")).toEqual({
       source: "a[^\\u{a}]c[\\u{9}-\\u{a}\\u{c}-\\u{d}\\u{20}][0-9]$",
       flags: "gu",
-      maxInputLength: Number.POSITIVE_INFINITY,
+      maxInputLength: 2000000,
       groupCount: 0,
+      matchesEmpty: false,
     });
     expect(planNative("^x$", "m")?.source).toBe("(?<![^\\n])x(?![^\\n])");
   });
 
   it("bounds the input length by how much a pattern can backtrack", () => {
-    // No repetition: any length.
-    expect(planNative("user(12|45)[0-9]\\b", "")?.maxInputLength).toBe(
+    // Anchored with nothing unbounded: any length.
+    expect(planNative("^abc", "")?.maxInputLength).toBe(
       Number.POSITIVE_INFINITY,
     );
+    // Unanchored: an attempt at every start position.
+    expect(planNative("user(12|45)[0-9]\\b", "")?.maxInputLength).toBe(1428571);
     // One repetition that can trade characters, searched from every start.
-    expect(planNative("foo.*bar", "")?.maxInputLength).toBe(3162);
+    expect(planNative("foo.*bar", "")?.maxInputLength).toBe(3159);
     // Anchored, and each repetition ends where the next part begins.
-    expect(planNative("^[a-z]+=[0-9]+$", "")?.maxInputLength).toBe(1e7);
+    expect(planNative("^[a-z]+=[0-9]+$", "")?.maxInputLength).toBe(9999999);
     // Three repetitions over the same characters.
     expect(planNative("a*a*a*b", "")?.maxInputLength).toBe(56);
+  });
+});
+
+describe("bounded repetitions", () => {
+  it("are charged for the work each choice does", () => {
+    // Choices among bounded repeats multiply, and each one rescans the
+    // repeats after it; these took seconds natively on long lines.
+    for (const pattern of [
+      "a{0,63}a{0,63}a{0,63}b",
+      `a{0,63}a{0,63}${"a{64}".repeat(15)}b`,
+      `${"a?".repeat(12)}a{12}b`,
+    ]) {
+      const plan = planNative(pattern, "");
+      expect({ pattern, small: (plan?.maxInputLength ?? 0) < 100 }).toEqual({
+        pattern,
+        small: true,
+      });
+      // Up to the cap the native engine stays fast; longer input uses RE2.
+      const regex = createUserRegex(pattern, "");
+      const started = performance.now();
+      regex.test("a".repeat(plan?.maxInputLength ?? 0));
+      // Generous for a loaded test machine; the defect took tens of seconds.
+      expect(performance.now() - started).toBeLessThan(3000);
+    }
+  });
+});
+
+describe("empty matches beside characters outside the BMP", () => {
+  it("step one UTF-16 unit at a time, as on RE2", () => {
+    const regex = createUserRegex("x*", "g");
+    expect(regex.replace("a😀b", "-")).toBe("-a-\ud83d-\ude00-b-");
+    expect(regex.split("a😀b")).toEqual(["a", "\ud83d", "\ude00", "b", ""]);
+    // Without such characters the native engine gives the same answer.
+    expect(regex.replace("ab", "-")).toBe("-a-b-");
   });
 });
 
@@ -118,7 +155,8 @@ describe("UserRegex engines agree", () => {
     return out;
   };
 
-  it("on generated patterns and inputs", () => {
+  // Thousands of patterns on both engines; allow for a loaded machine.
+  it("on generated patterns and inputs", { timeout: 60_000 }, () => {
     let nativeRuns = 0;
     for (let round = 0; round < 3000; round++) {
       const source = pattern(2);

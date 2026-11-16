@@ -570,18 +570,37 @@ export async function* streamTextLineBatches(
     }
     return lines;
   };
-  let leftover: Uint8Array = EMPTY;
+  // The unfinished last line, kept as unjoined pieces: joining it onto every
+  // arriving chunk would re-copy it each time, which is quadratic for one
+  // very long line. Each byte is copied at most once, when its line ends.
+  let pending: Uint8Array[] = [];
+  let pendingLength = 0;
+  const join = (last: Uint8Array): Uint8Array => {
+    if (pendingLength === 0) return last;
+    const out = new Uint8Array(pendingLength + last.length);
+    let at = 0;
+    for (const piece of pending) {
+      out.set(piece, at);
+      at += piece.length;
+    }
+    out.set(last, at);
+    return out;
+  };
   for await (const chunk of streamChunks(s)) {
-    const buf = leftover.length > 0 ? concatBytes(leftover, chunk) : chunk;
-    const lastNewline = buf.lastIndexOf(0x0a);
+    const lastNewline = chunk.lastIndexOf(0x0a);
     if (lastNewline === -1) {
-      leftover = buf;
+      pending.push(chunk);
+      pendingLength += chunk.length;
       continue;
     }
-    leftover = buf.subarray(lastNewline + 1) as Uint8Array;
-    yield toLines(buf.subarray(0, lastNewline) as Uint8Array);
+    // A batch always ends at a newline, so no UTF-8 sequence is cut in two.
+    const complete = join(chunk.subarray(0, lastNewline) as Uint8Array);
+    const rest = chunk.subarray(lastNewline + 1) as Uint8Array;
+    pending = rest.length > 0 ? [rest] : [];
+    pendingLength = rest.length;
+    yield toLines(complete);
   }
-  if (leftover.length > 0) yield toLines(leftover);
+  if (pendingLength > 0) yield toLines(join(EMPTY));
 }
 
 /** Drain a stream to /dev/null (consume and discard). */
