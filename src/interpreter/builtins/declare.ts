@@ -17,7 +17,14 @@
 import { parseArithmeticExpression } from "../../parser/arithmetic-parser.js";
 import { Parser } from "../../parser/parser.js";
 import type { ExecResult } from "../../types.js";
-import { decode, EMPTY, encode, envGet, envSet } from "../../utils/bytes.js";
+import {
+  decode,
+  EMPTY,
+  encode,
+  envGet,
+  envKeysWithPrefix,
+  envSet,
+} from "../../utils/bytes.js";
 import { evaluateArithmetic } from "../arithmetic.js";
 import { clearArray, getArrayIndices } from "../helpers/array.js";
 import {
@@ -935,10 +942,10 @@ export async function handleDeclare(
       }
 
       // Check if any array elements exist (numeric or string keys)
-      const hasArrayElements = Array.from(ctx.state.env.keys()).some(
-        (key) =>
-          key.startsWith(`${name}_`) && !key.startsWith(`${name}__length`),
-      );
+      const hasArrayElements = envKeysWithPrefix(
+        ctx.state.env,
+        `${name}_`,
+      ).some((key) => !key.startsWith(`${name}__length`));
       if (!ctx.state.env.has(name) && !hasArrayElements) {
         // If declaring as array, initialize empty array
         if (declareArray || declareAssoc) {

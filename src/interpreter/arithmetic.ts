@@ -26,7 +26,13 @@ import {
   parseArithNumber,
 } from "../parser/arithmetic-parser.js";
 import { Parser } from "../parser/parser.js";
-import { decode, envGet, envGetOptional, envSet } from "../utils/bytes.js";
+import {
+  decode,
+  envGet,
+  envGetOptional,
+  envHasKeyWithPrefix,
+  envSet,
+} from "../utils/bytes.js";
 import { collectText } from "../utils/stream.js";
 import { ArithmeticError, NounsetError } from "./errors.js";
 import { getVariableSync } from "./expansion/variable.js";
@@ -788,9 +794,9 @@ async function evaluateArithmeticAsync(
         }
         // Check nounset
         if (ctx.state.options.nounset) {
-          const hasAnyElement = Array.from(ctx.state.env.keys()).some(
-            (key) => key === expr.array || key.startsWith(`${expr.array}_`),
-          );
+          const hasAnyElement =
+            ctx.state.env.has(expr.array) ||
+            envHasKeyWithPrefix(ctx.state.env, `${expr.array}_`);
           if (!hasAnyElement) {
             throw new NounsetError(`${expr.array}[${index}]`);
           }

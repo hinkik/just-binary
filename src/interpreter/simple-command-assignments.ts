@@ -11,7 +11,13 @@ import type { SimpleCommandNode, WordNode } from "../ast/types.js";
 import { parseArithmeticExpression } from "../parser/arithmetic-parser.js";
 import { Parser } from "../parser/parser.js";
 import type { ExecResult } from "../types.js";
-import { decode, EMPTY, envGet, envSet } from "../utils/bytes.js";
+import {
+  decode,
+  EMPTY,
+  envGet,
+  envKeysWithPrefix,
+  envSet,
+} from "../utils/bytes.js";
 import { evaluateArithmetic } from "./arithmetic.js";
 import {
   applyCaseTransform,
@@ -32,6 +38,7 @@ import {
   isArray,
 } from "./expansion.js";
 import {
+  getArrayMaxIndex,
   parseKeyedElementFromWord,
   wordToLiteralString,
 } from "./helpers/array.js";
@@ -265,8 +272,8 @@ async function processArrayAssignment(
   // Helper to clear existing array elements
   const clearExistingElements = () => {
     const prefix = `${name}_`;
-    for (const key of ctx.state.env.keys()) {
-      if (key.startsWith(prefix) && !key.includes("__")) {
+    for (const key of envKeysWithPrefix(ctx.state.env, prefix)) {
+      if (!key.includes("__")) {
         ctx.state.env.delete(key);
       }
     }
@@ -528,11 +535,26 @@ async function processSimpleArrayAssignment(
 
   let startIndex = 0;
   if (append) {
-    const elements = getArrayElements(ctx, name);
-    if (elements.length > 0) {
-      const maxIndex = Math.max(
-        ...elements.map(([idx]) => (typeof idx === "number" ? idx : 0)),
-      );
+    // The next index after the highest one. Reading it from the index list
+    // keeps a loop of appends linear; the element list is only needed for
+    // the arrays that are not stored as plain indexed keys.
+    let maxIndex: number | undefined;
+    if (
+      ctx.state.associativeArrays?.has(name) ||
+      name === "FUNCNAME" ||
+      name === "BASH_LINENO" ||
+      name === "BASH_SOURCE"
+    ) {
+      const elements = getArrayElements(ctx, name);
+      if (elements.length > 0) {
+        maxIndex = Math.max(
+          ...elements.map(([idx]) => (typeof idx === "number" ? idx : 0)),
+        );
+      }
+    } else {
+      maxIndex = getArrayMaxIndex(ctx, name);
+    }
+    if (maxIndex !== undefined) {
       startIndex = maxIndex + 1;
     } else {
       const scalarValue = ctx.state.env.get(name);

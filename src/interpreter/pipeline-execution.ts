@@ -6,7 +6,7 @@
 
 import type { CommandNode, PipelineNode } from "../ast/types.js";
 import type { ExecResult } from "../types.js";
-import { cloneEnv, encode, envSet } from "../utils/bytes.js";
+import { cloneEnv, encode, envKeysWithPrefix, envSet } from "../utils/bytes.js";
 import {
   type ByteStream,
   concatStreams,
@@ -275,10 +275,8 @@ export async function executePipeline(
 
   if (shouldSetPipestatus) {
     // Clear any previous PIPESTATUS entries
-    for (const key of ctx.state.env.keys()) {
-      if (key.startsWith("PIPESTATUS_")) {
-        ctx.state.env.delete(key);
-      }
+    for (const key of envKeysWithPrefix(ctx.state.env, "PIPESTATUS_")) {
+      ctx.state.env.delete(key);
     }
     // Set new PIPESTATUS entries
     for (let i = 0; i < pipestatusExitCodes.length; i++) {

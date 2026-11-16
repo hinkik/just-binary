@@ -3,6 +3,7 @@
  */
 
 import type { WordNode } from "../../ast/types.js";
+import { envIntegerSuffixes, envKeysWithPrefix } from "../../utils/bytes.js";
 import type { InterpreterContext } from "../types.js";
 
 /**
@@ -13,32 +14,28 @@ export function getArrayIndices(
   ctx: InterpreterContext,
   arrayName: string,
 ): number[] {
-  const prefix = `${arrayName}_`;
-  const indices: number[] = [];
+  // Numeric indices only (not __length or other metadata), ascending.
+  return envIntegerSuffixes(ctx.state.env, `${arrayName}_`).slice();
+}
 
-  for (const key of ctx.state.env.keys()) {
-    if (key.startsWith(prefix)) {
-      const indexStr = key.slice(prefix.length);
-      const index = Number.parseInt(indexStr, 10);
-      // Only include numeric indices (not __length or other metadata)
-      if (!Number.isNaN(index) && String(index) === indexStr) {
-        indices.push(index);
-      }
-    }
-  }
-
-  return indices.sort((a, b) => a - b);
+/**
+ * The highest index of an indexed array, or undefined when it has no
+ * elements. Unlike getArrayIndices this does not copy the index list.
+ */
+export function getArrayMaxIndex(
+  ctx: InterpreterContext,
+  arrayName: string,
+): number | undefined {
+  const indices = envIntegerSuffixes(ctx.state.env, `${arrayName}_`);
+  return indices.length === 0 ? undefined : indices[indices.length - 1];
 }
 
 /**
  * Clear all elements of an array from the environment.
  */
 export function clearArray(ctx: InterpreterContext, arrayName: string): void {
-  const prefix = `${arrayName}_`;
-  for (const key of ctx.state.env.keys()) {
-    if (key.startsWith(prefix)) {
-      ctx.state.env.delete(key);
-    }
+  for (const key of envKeysWithPrefix(ctx.state.env, `${arrayName}_`)) {
+    ctx.state.env.delete(key);
   }
 }
 
@@ -54,20 +51,18 @@ export function getAssocArrayKeys(
   const metadataSuffix = `${arrayName}__length`;
   const keys: string[] = [];
 
-  for (const envKey of ctx.state.env.keys()) {
+  for (const envKey of envKeysWithPrefix(ctx.state.env, prefix)) {
     // Skip the metadata entry (name__length)
     if (envKey === metadataSuffix) {
       continue;
     }
-    if (envKey.startsWith(prefix)) {
-      const key = envKey.slice(prefix.length);
-      // Skip if the key itself starts with underscore (would be part of metadata pattern)
-      // This handles edge cases like name__foo where foo could be confused with metadata
-      if (key.startsWith("_length")) {
-        continue;
-      }
-      keys.push(key);
+    const key = envKey.slice(prefix.length);
+    // Skip if the key itself starts with underscore (would be part of metadata pattern)
+    // This handles edge cases like name__foo where foo could be confused with metadata
+    if (key.startsWith("_length")) {
+      continue;
     }
+    keys.push(key);
   }
 
   return keys.sort();

@@ -5,7 +5,7 @@
  * When a nameref is accessed, it transparently dereferences to the target variable.
  */
 
-import { envGet } from "../../utils/bytes.js";
+import { envGet, envKeysWithPrefix } from "../../utils/bytes.js";
 import type { InterpreterContext } from "../types.js";
 
 /**
@@ -70,16 +70,16 @@ export function targetExists(ctx: InterpreterContext, target: string): boolean {
   if (arrayMatch) {
     const arrayName = arrayMatch[1];
     // Check if array exists (has any elements or is declared as assoc)
-    const hasElements = Array.from(ctx.state.env.keys()).some(
-      (k) => k.startsWith(`${arrayName}_`) && !k.includes("__"),
+    const hasElements = envKeysWithPrefix(ctx.state.env, `${arrayName}_`).some(
+      (k) => !k.includes("__"),
     );
     const isAssoc = ctx.state.associativeArrays?.has(arrayName) ?? false;
     return hasElements || isAssoc;
   }
 
   // Check if it's an array (stored as target_0, target_1, etc.)
-  const hasArrayElements = Array.from(ctx.state.env.keys()).some(
-    (k) => k.startsWith(`${target}_`) && !k.includes("__"),
+  const hasArrayElements = envKeysWithPrefix(ctx.state.env, `${target}_`).some(
+    (k) => !k.includes("__"),
   );
   if (hasArrayElements) {
     return true;

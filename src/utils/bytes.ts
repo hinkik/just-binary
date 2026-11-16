@@ -96,8 +96,30 @@ interface EnvEntry {
  * command. getText/setText read and write the text form directly; get/set keep
  * the byte contract for callers (and embedders' commands) that want bytes.
  */
+/** The keys sharing one `name_` prefix, i.e. the storage of one array. */
+interface PrefixGroup {
+  keys: Set<string>;
+  /**
+   * The integer suffixes among the keys, ascending — an indexed array's
+   * indices. Null when not computed or invalidated by an out-of-order change.
+   */
+  indices: number[] | null;
+}
+
+/** The integer a key suffix denotes, or undefined when it is not one. */
+function integerSuffix(suffix: string): number | undefined {
+  const index = Number.parseInt(suffix, 10);
+  return !Number.isNaN(index) && String(index) === suffix ? index : undefined;
+}
+
 export class EnvMap extends Map<string, Uint8Array> {
   private entries_: Map<string, EnvEntry>;
+  /**
+   * Keys grouped by each `name_` prefix they start with. Arrays are stored
+   * as `name_index` keys, so enumerating or appending to one would otherwise
+   * scan every variable. Built on first use and dropped by clone().
+   */
+  private prefixes_: Map<string, PrefixGroup> | null = null;
 
   constructor(source?: Iterable<readonly [string, Uint8Array]> | null) {
     super();
@@ -146,6 +168,9 @@ export class EnvMap extends Map<string, Uint8Array> {
   }
 
   setText(key: string, value: string): this {
+    if (this.prefixes_ !== null && !this.entries_.has(key)) {
+      this.indexKey(key);
+    }
     this.entries_.set(key, { text: value, bytes: undefined, exact: true });
     return this;
   }
@@ -153,6 +178,104 @@ export class EnvMap extends Map<string, Uint8Array> {
   /** Replace this map's contents with another's. Values are shared. */
   restoreFrom(source: EnvMap): void {
     this.entries_ = new Map(source.entries_);
+    this.prefixes_ = null;
+  }
+
+  private prefixGroups(): Map<string, PrefixGroup> {
+    let prefixes = this.prefixes_;
+    if (prefixes === null) {
+      prefixes = new Map();
+      this.prefixes_ = prefixes;
+      for (const key of this.entries_.keys()) {
+        this.indexKey(key);
+      }
+    }
+    return prefixes;
+  }
+
+  private indexKey(key: string): void {
+    const prefixes = this.prefixes_ as Map<string, PrefixGroup>;
+    for (let at = key.indexOf("_"); at !== -1; at = key.indexOf("_", at + 1)) {
+      const prefix = key.slice(0, at + 1);
+      let group = prefixes.get(prefix);
+      if (group === undefined) {
+        group = { keys: new Set(), indices: [] };
+        prefixes.set(prefix, group);
+      }
+      group.keys.add(key);
+      const indices = group.indices;
+      if (indices !== null) {
+        const index = integerSuffix(key.slice(at + 1));
+        if (index !== undefined) {
+          if (indices.length === 0 || index > indices[indices.length - 1]) {
+            indices.push(index);
+          } else {
+            group.indices = null;
+          }
+        }
+      }
+    }
+  }
+
+  private unindexKey(key: string): void {
+    const prefixes = this.prefixes_ as Map<string, PrefixGroup>;
+    for (let at = key.indexOf("_"); at !== -1; at = key.indexOf("_", at + 1)) {
+      const prefix = key.slice(0, at + 1);
+      const group = prefixes.get(prefix);
+      if (group === undefined) continue;
+      group.keys.delete(key);
+      if (group.keys.size === 0) {
+        prefixes.delete(prefix);
+        continue;
+      }
+      const indices = group.indices;
+      if (indices !== null) {
+        const index = integerSuffix(key.slice(at + 1));
+        if (index !== undefined) {
+          if (indices[indices.length - 1] === index) {
+            indices.pop();
+          } else {
+            group.indices = null;
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * The keys that start with `prefix`, which must end in "_" (the form
+   * array storage uses). The result is a copy, safe to hold while the map
+   * changes.
+   */
+  keysWithPrefix(prefix: string): string[] {
+    const group = this.prefixGroups().get(prefix);
+    return group === undefined ? [] : Array.from(group.keys);
+  }
+
+  /** Whether any key starts with `prefix` (which must end in "_"). */
+  hasKeyWithPrefix(prefix: string): boolean {
+    return this.prefixGroups().has(prefix);
+  }
+
+  /**
+   * The integer suffixes of the keys starting with `prefix`, ascending: the
+   * indices of the indexed array stored under it. Do not modify the result.
+   */
+  integerSuffixes(prefix: string): readonly number[] {
+    const group = this.prefixGroups().get(prefix);
+    if (group === undefined) return NO_INDICES;
+    let indices = group.indices;
+    if (indices === null) {
+      indices = [];
+      const from = prefix.length;
+      for (const key of group.keys) {
+        const index = integerSuffix(key.slice(from));
+        if (index !== undefined) indices.push(index);
+      }
+      indices.sort((a, b) => a - b);
+      group.indices = indices;
+    }
+    return indices;
   }
 
   override get(key: string): Uint8Array | undefined {
@@ -165,6 +288,9 @@ export class EnvMap extends Map<string, Uint8Array> {
   }
 
   override set(key: string, value: Uint8Array): this {
+    if (this.prefixes_ !== null && !this.entries_.has(key)) {
+      this.indexKey(key);
+    }
     this.entries_.set(key, { text: undefined, bytes: value, exact: true });
     return this;
   }
@@ -174,11 +300,16 @@ export class EnvMap extends Map<string, Uint8Array> {
   }
 
   override delete(key: string): boolean {
-    return this.entries_.delete(key);
+    const deleted = this.entries_.delete(key);
+    if (deleted && this.prefixes_ !== null) {
+      this.unindexKey(key);
+    }
+    return deleted;
   }
 
   override clear(): void {
     this.entries_.clear();
+    this.prefixes_ = null;
   }
 
   override get size(): number {
@@ -217,6 +348,59 @@ export class EnvMap extends Map<string, Uint8Array> {
   override [Symbol.iterator](): MapIterator<[string, Uint8Array]> {
     return this.entries();
   }
+}
+
+const NO_INDICES: readonly number[] = [];
+
+/** The keys of `env` that start with `prefix`, which must end in "_". */
+export function envKeysWithPrefix(
+  env: Map<string, Uint8Array>,
+  prefix: string,
+): string[] {
+  if (env instanceof EnvMap) {
+    return env.keysWithPrefix(prefix);
+  }
+  const keys: string[] = [];
+  for (const key of env.keys()) {
+    if (key.startsWith(prefix)) keys.push(key);
+  }
+  return keys;
+}
+
+/** Whether any key of `env` starts with `prefix`, which must end in "_". */
+export function envHasKeyWithPrefix(
+  env: Map<string, Uint8Array>,
+  prefix: string,
+): boolean {
+  if (env instanceof EnvMap) {
+    return env.hasKeyWithPrefix(prefix);
+  }
+  for (const key of env.keys()) {
+    if (key.startsWith(prefix)) return true;
+  }
+  return false;
+}
+
+/**
+ * The integer suffixes of the keys starting with `prefix`, ascending. For an
+ * indexed array stored as `name_0`, `name_1`, … these are its indices. Do not
+ * modify the result.
+ */
+export function envIntegerSuffixes(
+  env: Map<string, Uint8Array>,
+  prefix: string,
+): readonly number[] {
+  if (env instanceof EnvMap) {
+    return env.integerSuffixes(prefix);
+  }
+  const indices: number[] = [];
+  for (const key of env.keys()) {
+    if (key.startsWith(prefix)) {
+      const index = integerSuffix(key.slice(prefix.length));
+      if (index !== undefined) indices.push(index);
+    }
+  }
+  return indices.sort((a, b) => a - b);
 }
 
 /** An independent copy of an env map, keeping its text cache when it has one. */

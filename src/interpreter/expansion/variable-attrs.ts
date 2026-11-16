@@ -4,6 +4,7 @@
  * Functions for getting variable attributes (${var@a} transformation).
  */
 
+import { envKeysWithPrefix } from "../../utils/bytes.js";
 import { isNameref } from "../helpers/nameref.js";
 import { isReadonly } from "../helpers/readonly.js";
 import type { InterpreterContext } from "../types.js";
@@ -34,9 +35,8 @@ export function getVariableAttributes(
   // Check for indexed array (has numeric elements via name_0, name_1, etc. or __length marker)
   const isIndexedArray =
     ctx.state.env.has(`${name}__length`) ||
-    Array.from(ctx.state.env.keys()).some(
-      (k) =>
-        k.startsWith(`${name}_`) && /^[0-9]+$/.test(k.slice(name.length + 1)),
+    envKeysWithPrefix(ctx.state.env, `${name}_`).some((k) =>
+      /^[0-9]+$/.test(k.slice(name.length + 1)),
     );
 
   // Check for associative array
