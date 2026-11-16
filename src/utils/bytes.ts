@@ -19,8 +19,28 @@ const decoder = new TextDecoder();
 /** Empty byte array — reuse instead of allocating new Uint8Array(0) */
 export const EMPTY: Uint8Array = new Uint8Array(0);
 
+/**
+ * Strings up to this length are encoded by hand when they are ASCII.
+ * TextEncoder.encode has a fixed cost of several hundred nanoseconds per call
+ * in Node, which dwarfs the work for the short strings the interpreter
+ * encodes constantly (words, variable values, small outputs).
+ */
+const SHORT_ASCII_LIMIT = 64;
+
 /** Encode a string to UTF-8 bytes */
 export function encode(s: string): Uint8Array {
+  const length = s.length;
+  if (length === 0) return EMPTY;
+  if (length <= SHORT_ASCII_LIMIT) {
+    const out = new Uint8Array(length);
+    let i = 0;
+    for (; i < length; i++) {
+      const code = s.charCodeAt(i);
+      if (code > 0x7f) break;
+      out[i] = code;
+    }
+    if (i === length) return out;
+  }
   // TextEncoder.encode returns Uint8Array<ArrayBufferLike> in TS 5.7+
   return encoder.encode(s) as Uint8Array;
 }
@@ -51,14 +71,157 @@ export function decodeArgs(args: Uint8Array[]): string[] {
 // Convenience wrappers for working with Map<string, Uint8Array> environments.
 // Variable *names* are always strings; only *values* are Uint8Array.
 
+/**
+ * One stored value. Shell values are text nearly always, so the string is the
+ * working form; bytes are kept when a value was stored as bytes (it may not be
+ * valid UTF-8) and are otherwise derived on first request. Entries are never
+ * mutated to a different value, so copies of an EnvMap can share them.
+ */
+interface EnvEntry {
+  text: string | undefined;
+  bytes: Uint8Array | undefined;
+}
+
+/**
+ * The shell's variable store: a Map<string, Uint8Array> that also keeps each
+ * value's decoded text.
+ *
+ * Reading and writing a variable through the plain Map interface costs a UTF-8
+ * encode or decode every time, and the interpreter does that several times per
+ * command. getText/setText read and write the text form directly; get/set keep
+ * the byte contract for callers (and embedders' commands) that want bytes.
+ */
+export class EnvMap extends Map<string, Uint8Array> {
+  private entries_: Map<string, EnvEntry>;
+
+  constructor(source?: Iterable<readonly [string, Uint8Array]> | null) {
+    super();
+    if (source instanceof EnvMap) {
+      this.entries_ = new Map(source.entries_);
+    } else {
+      this.entries_ = new Map();
+      if (source) {
+        for (const [key, value] of source) {
+          this.entries_.set(key, { text: undefined, bytes: value });
+        }
+      }
+    }
+  }
+
+  /** An independent copy. Values are shared, not re-encoded. */
+  clone(): EnvMap {
+    return new EnvMap(this);
+  }
+
+  getText(key: string): string | undefined {
+    const entry = this.entries_.get(key);
+    if (entry === undefined) return undefined;
+    if (entry.text === undefined) {
+      entry.text = decoder.decode(entry.bytes);
+    }
+    return entry.text;
+  }
+
+  setText(key: string, value: string): this {
+    this.entries_.set(key, { text: value, bytes: undefined });
+    return this;
+  }
+
+  override get(key: string): Uint8Array | undefined {
+    const entry = this.entries_.get(key);
+    if (entry === undefined) return undefined;
+    if (entry.bytes === undefined) {
+      entry.bytes = encode(entry.text as string);
+    }
+    return entry.bytes;
+  }
+
+  override set(key: string, value: Uint8Array): this {
+    this.entries_.set(key, { text: undefined, bytes: value });
+    return this;
+  }
+
+  override has(key: string): boolean {
+    return this.entries_.has(key);
+  }
+
+  override delete(key: string): boolean {
+    return this.entries_.delete(key);
+  }
+
+  override clear(): void {
+    this.entries_.clear();
+  }
+
+  override get size(): number {
+    return this.entries_.size;
+  }
+
+  override keys(): MapIterator<string> {
+    return this.entries_.keys();
+  }
+
+  override *values(): MapIterator<Uint8Array> {
+    for (const key of this.entries_.keys()) {
+      yield this.get(key) as Uint8Array;
+    }
+  }
+
+  override *entries(): MapIterator<[string, Uint8Array]> {
+    for (const key of this.entries_.keys()) {
+      yield [key, this.get(key) as Uint8Array];
+    }
+  }
+
+  override forEach(
+    callbackfn: (
+      value: Uint8Array,
+      key: string,
+      map: Map<string, Uint8Array>,
+    ) => void,
+    thisArg?: unknown,
+  ): void {
+    for (const key of this.entries_.keys()) {
+      callbackfn.call(thisArg, this.get(key) as Uint8Array, key, this);
+    }
+  }
+
+  override [Symbol.iterator](): MapIterator<[string, Uint8Array]> {
+    return this.entries();
+  }
+}
+
+/** An independent copy of an env map, keeping its text cache when it has one. */
+export function cloneEnv(
+  env: Map<string, Uint8Array>,
+): Map<string, Uint8Array> {
+  return env instanceof EnvMap ? env.clone() : new Map(env);
+}
+
 /** Get an env value as a decoded string, or return the fallback (default "") */
 export function envGet(
   env: Map<string, Uint8Array>,
   key: string,
   fallback = "",
 ): string {
+  if (env instanceof EnvMap) {
+    const text = env.getText(key);
+    return text !== undefined ? text : fallback;
+  }
   const v = env.get(key);
   return v !== undefined ? decoder.decode(v) : fallback;
+}
+
+/** Get an env value as a decoded string, or undefined when it is not set. */
+export function envGetOptional(
+  env: Map<string, Uint8Array>,
+  key: string,
+): string | undefined {
+  if (env instanceof EnvMap) {
+    return env.getText(key);
+  }
+  const v = env.get(key);
+  return v !== undefined ? decoder.decode(v) : undefined;
 }
 
 /** Set an env value from a string (encodes to UTF-8) */
@@ -67,7 +230,11 @@ export function envSet(
   key: string,
   value: string,
 ): void {
-  env.set(key, encoder.encode(value) as Uint8Array);
+  if (env instanceof EnvMap) {
+    env.setText(key, value);
+    return;
+  }
+  env.set(key, encode(value));
 }
 
 /**
@@ -81,11 +248,10 @@ export function createStringEnvAdapter(
 ): Map<string, string> {
   return {
     get(key: string): string | undefined {
-      const v = backing.get(key);
-      return v !== undefined ? decoder.decode(v) : undefined;
+      return envGetOptional(backing, key);
     },
     set(key: string, value: string): Map<string, string> {
-      backing.set(key, encoder.encode(value) as Uint8Array);
+      envSet(backing, key, value);
       return this;
     },
     has(key: string): boolean {

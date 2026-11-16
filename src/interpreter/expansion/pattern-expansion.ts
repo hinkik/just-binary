@@ -7,7 +7,7 @@
 
 import type { ScriptNode } from "../../ast/types.js";
 import { Parser } from "../../parser/parser.js";
-import { envGet, envSet } from "../../utils/bytes.js";
+import { cloneEnv, envGet, envSet } from "../../utils/bytes.js";
 import { collectText } from "../../utils/stream.js";
 import { ExecutionLimitError, ExitError } from "../errors.js";
 import {
@@ -127,7 +127,7 @@ async function executeCommandSubstitutionFromString(
   // Execute in subshell-like context
   const savedBashPid = ctx.state.bashPid;
   ctx.state.bashPid = ctx.state.nextVirtualPid++;
-  const savedEnv = new Map(ctx.state.env);
+  const savedEnv = cloneEnv(ctx.state.env);
   const savedCwd = ctx.state.cwd;
   const savedFileDescriptors = ctx.state.fileDescriptors;
   const savedNextFd = ctx.state.nextFd;

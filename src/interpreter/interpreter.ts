@@ -37,6 +37,7 @@ import type {
 } from "../types.js";
 import { combineAbortSignals } from "../utils/abort.js";
 import {
+  cloneEnv,
   concat,
   decode,
   decodeArgs,
@@ -473,9 +474,7 @@ export class Interpreter {
       const parentState = this.ctx.state;
       const jobState: InterpreterState = {
         ...parentState,
-        env: new Map(
-          [...parentState.env].map(([name, value]) => [name, value.slice()]),
-        ),
+        env: cloneEnv(parentState.env),
         functions: new Map(parentState.functions),
         localScopes: parentState.localScopes.map(
           (scope) =>

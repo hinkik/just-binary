@@ -6,7 +6,7 @@
 
 import type { CommandNode, PipelineNode } from "../ast/types.js";
 import type { ExecResult } from "../types.js";
-import { encode, envSet } from "../utils/bytes.js";
+import { cloneEnv, encode, envSet } from "../utils/bytes.js";
 import {
   type ByteStream,
   concatStreams,
@@ -134,7 +134,7 @@ export async function executePipeline(
 
     // Save environment for commands running in subshell context
     // This prevents variable assignments (e.g., ${cmd=echo}) from leaking to parent
-    const savedEnv = runsInSubshell ? new Map(ctx.state.env) : null;
+    const savedEnv = runsInSubshell ? cloneEnv(ctx.state.env) : null;
 
     let result: ExecResult;
     try {

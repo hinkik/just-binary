@@ -20,6 +20,7 @@ import { parseArithmeticExpression } from "../parser/arithmetic-parser.js";
 import { Parser } from "../parser/parser.js";
 import { GlobExpander } from "../shell/glob.js";
 import {
+  cloneEnv,
   concat,
   decode,
   EMPTY,
@@ -830,7 +831,7 @@ async function executeCommandSubstitutionBytes(
 
   const savedBashPid = ctx.state.bashPid;
   ctx.state.bashPid = ctx.state.nextVirtualPid++;
-  const savedEnv = new Map(ctx.state.env);
+  const savedEnv = cloneEnv(ctx.state.env);
   const savedCwd = ctx.state.cwd;
   const savedFileDescriptors = ctx.state.fileDescriptors;
   const savedNextFd = ctx.state.nextFd;

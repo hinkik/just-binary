@@ -70,7 +70,7 @@ import type {
   TraceCallback,
 } from "./types.js";
 import { combineAbortSignals } from "./utils/abort.js";
-import { EMPTY, encode, envSet } from "./utils/bytes.js";
+import { cloneEnv, EMPTY, EnvMap, encode, envSet } from "./utils/bytes.js";
 import {
   type ByteStream,
   emptyStream,
@@ -305,7 +305,7 @@ export class Bash {
     this.useDefaultLayout = !options.cwd && !options.files;
     const cwd = options.cwd || (this.useDefaultLayout ? "/home/user" : "/");
     // Use Map for env to prevent prototype pollution attacks
-    const env = new Map<string, Uint8Array>();
+    const env: Map<string, Uint8Array> = new EnvMap();
     const defaultVars: [string, string][] = [
       ["HOME", this.useDefaultLayout ? "/home/user" : "/"],
       ["PATH", "/usr/bin:/bin"],
@@ -631,7 +631,7 @@ export class Bash {
     }
 
     // Create a copy of env Map for this execution
-    const execEnv = new Map(this.state.env);
+    const execEnv = cloneEnv(this.state.env);
     // Merge in options.env
     if (options?.env) {
       for (const [key, value] of Object.entries(options.env)) {
