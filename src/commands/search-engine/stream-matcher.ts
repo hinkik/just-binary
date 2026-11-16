@@ -165,7 +165,7 @@ export function searchStream(
       };
 
       try {
-        input: for await (const lines of streamTextLineBatches(input)) {
+        scan: for await (const lines of streamTextLineBatches(input)) {
           for (const line of lines) {
             lineNum++;
 
@@ -186,7 +186,7 @@ export function searchStream(
               // For -c / --count-matches we don't emit content, just count.
               if (countOnly) {
                 totalMatchCount++;
-                if (maxCount > 0 && totalMatchCount >= maxCount) break input;
+                if (maxCount > 0 && totalMatchCount >= maxCount) break scan;
                 continue;
               }
               if (countMatches) {
@@ -273,7 +273,7 @@ export function searchStream(
                 maxCount > 0 &&
                 totalMatchCount >= maxCount
               ) {
-                break input;
+                break scan;
               }
             } else if (passthru) {
               emit(formatLine(line, lineNum, false));
@@ -292,7 +292,7 @@ export function searchStream(
               totalMatchCount >= maxCount &&
               afterRemaining === 0
             ) {
-              break input;
+              break scan;
             }
           }
           flush();
