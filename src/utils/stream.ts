@@ -286,7 +286,7 @@ export function isInMemoryStream(stream: ByteStream): boolean {
  * stream is left drained), or null when `stream` is a platform stream or is
  * locked and so must be read through a reader.
  */
-export function takeBufferedChunks(stream: ByteStream): Uint8Array[] | null {
+function takeBufferedChunks(stream: ByteStream): Uint8Array[] | null {
   const memory = asMemoryStream(stream);
   if (memory === null || memory.isLocked) return null;
   return memory.takeRemaining();
