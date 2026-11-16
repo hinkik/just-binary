@@ -105,6 +105,7 @@
     "files": {},
     "stdout": "status:127\n",
     "stderr": "bash: wait: pid PID is not a child of this shell\n",
-    "exitCode": 0
+    "exitCode": 0,
+    "locked": true
   }
 }
