@@ -12,6 +12,7 @@
  */
 
 import type {
+  ArithExpr,
   CaseNode,
   CStyleForNode,
   ForNode,
@@ -31,7 +32,7 @@ import {
   fromBytes,
   fromString,
 } from "../utils/stream.js";
-import { evaluateArithmetic } from "./arithmetic.js";
+import { evaluateArithmetic, evaluateArithmeticSync } from "./arithmetic.js";
 import { matchPattern } from "./conditionals.js";
 import {
   AbortExecutionError,
@@ -200,7 +201,8 @@ export async function executeFor(
         try {
           for (const stmt of node.body) {
             const stmtResult = await ctx.executeStatement(stmt);
-            await pumpResult(ctx, stmtResult);
+            const pumped = pumpResult(ctx, stmtResult);
+            if (pumped instanceof Promise) await pumped;
             exitCode = stmtResult.exitCode;
           }
         } catch (error) {
@@ -245,6 +247,8 @@ export async function executeCStyleFor(
     if (node.init) {
       await evaluateArithmetic(ctx, node.init.expression);
     }
+    const condition = node.condition?.expression;
+    const update = node.update?.expression;
 
     ctx.state.loopDepth++;
     try {
@@ -264,17 +268,17 @@ export async function executeCStyleFor(
           if (loopLine !== undefined) {
             ctx.state.currentLine = loopLine;
           }
-          const condResult = await evaluateArithmetic(
-            ctx,
-            node.condition.expression,
-          );
+          const condResult =
+            evaluateArithmeticSync(ctx, condition as ArithExpr) ??
+            (await evaluateArithmetic(ctx, condition as ArithExpr));
           if (condResult === 0) break;
         }
 
         try {
           for (const stmt of node.body) {
             const stmtResult = await ctx.executeStatement(stmt);
-            await pumpResult(ctx, stmtResult);
+            const pumped = pumpResult(ctx, stmtResult);
+            if (pumped instanceof Promise) await pumped;
             exitCode = stmtResult.exitCode;
           }
         } catch (error) {
@@ -298,8 +302,11 @@ export async function executeCStyleFor(
           throw loopResult.error;
         }
 
-        if (node.update) {
-          await evaluateArithmetic(ctx, node.update.expression);
+        if (
+          update !== undefined &&
+          evaluateArithmeticSync(ctx, update) === undefined
+        ) {
+          await evaluateArithmetic(ctx, update);
         }
       }
     } finally {
@@ -476,7 +483,8 @@ export async function executeUntil(
         try {
           for (const stmt of node.body) {
             const stmtResult = await ctx.executeStatement(stmt);
-            await pumpResult(ctx, stmtResult);
+            const pumped = pumpResult(ctx, stmtResult);
+            if (pumped instanceof Promise) await pumped;
             exitCode = stmtResult.exitCode;
           }
         } catch (error) {

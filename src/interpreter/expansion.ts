@@ -30,7 +30,7 @@ import {
   trimTrailingNewlines,
 } from "../utils/bytes.js";
 import { collectBytes } from "../utils/stream.js";
-import { evaluateArithmetic } from "./arithmetic.js";
+import { evaluateArithmetic, evaluateArithmeticSync } from "./arithmetic.js";
 import {
   BadSubstitutionError,
   ExecutionLimitError,
@@ -943,6 +943,10 @@ async function expandPartString(
     }
 
     case "ArithmeticExpansion": {
+      const fast = evaluateArithmeticSync(ctx, part.expression.expression);
+      if (fast !== undefined) {
+        return String(fast);
+      }
       // If original text is available and contains $var patterns (not ${...}),
       // we need to do text substitution before parsing to maintain operator precedence.
       // E.g., $(( $x * 3 )) where x='1 + 2' should expand to $(( 1 + 2 * 3 )) = 7

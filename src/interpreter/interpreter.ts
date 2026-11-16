@@ -53,7 +53,7 @@ import {
   fromBytes,
 } from "../utils/stream.js";
 import { expandAlias as expandAliasHelper } from "./alias-expansion.js";
-import { evaluateArithmetic } from "./arithmetic.js";
+import { evaluateArithmetic, evaluateArithmeticSync } from "./arithmetic.js";
 import {
   expandLocalArrayAssignment as expandLocalArrayAssignmentHelper,
   expandScalarAssignmentArg as expandScalarAssignmentArgHelper,
@@ -1526,6 +1526,23 @@ export class Interpreter {
   ): Promise<ExecResult> {
     if (node.line !== undefined) {
       this.ctx.state.currentLine = node.line;
+    }
+
+    if (node.redirections.length === 0) {
+      // Nothing to redirect, and plain integer arithmetic needs no suspension.
+      try {
+        const fast = evaluateArithmeticSync(
+          this.ctx,
+          node.expression.expression,
+        );
+        if (fast !== undefined) {
+          return testResult(fast !== 0);
+        }
+      } catch (error) {
+        return failure(
+          `bash: arithmetic expression: ${(error as Error).message}\n`,
+        );
+      }
     }
 
     const currentChannels = this.ctx.outputChannels;
