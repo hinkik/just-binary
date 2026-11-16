@@ -24,6 +24,7 @@ import {
   expandWordToBytes,
   expandWordWithGlob,
   getArrayElements,
+  isArray,
 } from "./expansion.js";
 import {
   parseKeyedElementFromWord,
@@ -792,7 +793,6 @@ async function processScalarAssignment(
       finalValue = "0";
     }
   } else {
-    const { isArray } = await import("./expansion.js");
     const isArr = isArray(ctx, targetName);
     if (isArr) canUseRawBytes = false;
     const appendKey = isArr ? `${targetName}_0` : targetName;
@@ -810,7 +810,6 @@ async function processScalarAssignment(
   if (namerefArrayRef) {
     actualEnvKey = await computeNamerefArrayEnvKey(ctx, namerefArrayRef);
   } else {
-    const { isArray } = await import("./expansion.js");
     if (isArray(ctx, targetName)) {
       actualEnvKey = `${targetName}_0`;
       canUseRawBytes = false;

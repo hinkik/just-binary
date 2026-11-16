@@ -6,6 +6,7 @@
  */
 
 import { isBrowserExcludedCommand } from "../commands/browser-excluded.js";
+import { internalCommands } from "../commands/internal-commands.js";
 import type { CommandContext, ExecResult } from "../types.js";
 import { decode, decodeArgs, encode } from "../utils/bytes.js";
 import {
@@ -14,6 +15,9 @@ import {
   concatStreams,
   emptyStream,
   fromBytes,
+  isInMemoryStream,
+  isKnownEmptyStream,
+  toNativeStream,
 } from "../utils/stream.js";
 import {
   handleBreak,
@@ -455,19 +459,26 @@ export async function executeExternalCommand(
   // chunk and prepend it back if it isn't empty. This preserves lazy
   // streaming for `cat huge | head -c N` etc.
   let effectiveStdin: ByteStream;
-  const reader = stdin.getReader();
-  const first = await reader.read();
-  reader.releaseLock();
-  if (first.done || !first.value || first.value.length === 0) {
-    // Stream had no data — fall back to groupStdin / empty.
-    if (ctx.state.groupStdin) {
-      effectiveStdin = ctx.state.groupStdin;
-    } else {
-      effectiveStdin = emptyStream();
-    }
+  if (isKnownEmptyStream(stdin)) {
+    effectiveStdin = ctx.state.groupStdin ?? emptyStream();
+  } else if (isInMemoryStream(stdin)) {
+    // Not drained, so it has data: no need to peek.
+    effectiveStdin = stdin;
   } else {
-    // Splice the peeked chunk back in front of the rest of the stream.
-    effectiveStdin = concatStreams(fromBytes(first.value), stdin);
+    const reader = stdin.getReader();
+    const first = await reader.read();
+    reader.releaseLock();
+    if (first.done || !first.value || first.value.length === 0) {
+      // Stream had no data — fall back to groupStdin / empty.
+      if (ctx.state.groupStdin) {
+        effectiveStdin = ctx.state.groupStdin;
+      } else {
+        effectiveStdin = emptyStream();
+      }
+    } else {
+      // Splice the peeked chunk back in front of the rest of the stream.
+      effectiveStdin = concatStreams(fromBytes(first.value), stdin);
+    }
   }
 
   // Build exported environment for commands that need it (printenv, env, etc.)
@@ -479,7 +490,10 @@ export async function executeExternalCommand(
     cwd: ctx.state.cwd,
     env: ctx.state.env,
     exportedEnv,
-    stdin: effectiveStdin,
+    // Commands registered by the embedder may pass stdin to platform APIs.
+    stdin: internalCommands.has(cmd)
+      ? effectiveStdin
+      : toNativeStream(effectiveStdin),
     limits: ctx.limits,
     exec: ctx.execFn,
     fetch: ctx.fetch,

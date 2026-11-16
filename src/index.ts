@@ -96,6 +96,12 @@ export type {
   IFileSystem,
 } from "./types.js";
 export { decode, EMPTY, encode } from "./utils/bytes.js";
+export {
+  emptyStream,
+  fromBytes,
+  fromChunks,
+  fromString,
+} from "./utils/public-stream.js";
 export type { ByteStream } from "./utils/stream.js";
 export {
   CHUNK_SIZE,
@@ -103,10 +109,6 @@ export {
   collectText,
   concatStreams,
   drain,
-  emptyStream,
-  fromBytes,
-  fromChunks,
-  fromString,
   mapChunks,
   streamChunks,
   streamLines,
