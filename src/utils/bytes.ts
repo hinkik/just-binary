@@ -252,6 +252,11 @@ export class EnvMap extends Map<string, Uint8Array> {
     return group === undefined ? [] : Array.from(group.keys);
   }
 
+  /** How many keys start with `prefix` (which must end in "_"). */
+  countKeysWithPrefix(prefix: string): number {
+    return this.prefixGroups().get(prefix)?.keys.size ?? 0;
+  }
+
   /** Whether any key starts with `prefix` (which must end in "_"). */
   hasKeyWithPrefix(prefix: string): boolean {
     return this.prefixGroups().has(prefix);
