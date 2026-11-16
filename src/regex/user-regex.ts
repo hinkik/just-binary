@@ -315,7 +315,7 @@ export class UserRegex implements RegexLike {
    * same result and lastIndex. Otherwise just run it.
    */
   private checked<T>(input: string, operation: () => T): T {
-    if (!VERIFY_ENGINES || !this.usesNative(input)) return operation();
+    if (!VERIFY_ENGINES || this._re2Only) return operation();
     const lastIndex = this._lastIndex;
     const nativeResult = operation();
     const nativeLastIndex = this._lastIndex;
@@ -615,11 +615,22 @@ export class UserRegex implements RegexLike {
     if (limit === 0) {
       return [];
     }
-    const pieces = this.checked(input, () =>
-      this.usesNative(input)
+    const literals = this._literals;
+    const pieces = this.checked(input, () => {
+      if (this._re2Only) return this._re2.split(input, -1);
+      // Splitting on one fixed, non-empty string needs no engine at all.
+      if (
+        literals !== null &&
+        literals.length === 1 &&
+        literals[0] !== "" &&
+        !this._ignoreCase
+      ) {
+        return input.split(literals[0]);
+      }
+      return this.usesNative(input)
         ? this.splitNatively(input)
-        : this._re2.split(input, -1),
-    );
+        : this._re2.split(input, -1);
+    });
     if (limit === undefined || limit < 0) {
       return pieces;
     }

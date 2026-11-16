@@ -63,8 +63,65 @@ function validatePath(path: string, operation: string): void {
   }
 }
 
+/**
+ * The filesystem's entries by normalized path, with each directory's child
+ * names kept alongside. Listing a directory then costs its own size, not a
+ * scan of every path in the filesystem.
+ */
+class PathTable extends Map<string, FsEntry> {
+  private readonly children = new Map<string, Set<string>>();
+
+  /** The parent directory and name of a path; null for the root. */
+  private static split(path: string): [string, string] | null {
+    if (path === "/") return null;
+    const slash = path.lastIndexOf("/");
+    if (slash === -1) return null;
+    return [slash === 0 ? "/" : path.slice(0, slash), path.slice(slash + 1)];
+  }
+
+  override set(path: string, entry: FsEntry): this {
+    if (!super.has(path)) {
+      const parts = PathTable.split(path);
+      if (parts !== null && parts[1] !== "") {
+        let names = this.children.get(parts[0]);
+        if (names === undefined) {
+          names = new Set();
+          this.children.set(parts[0], names);
+        }
+        names.add(parts[1]);
+      }
+    }
+    return super.set(path, entry);
+  }
+
+  override delete(path: string): boolean {
+    const deleted = super.delete(path);
+    if (deleted) {
+      const parts = PathTable.split(path);
+      if (parts !== null) {
+        const names = this.children.get(parts[0]);
+        if (names !== undefined) {
+          names.delete(parts[1]);
+          if (names.size === 0) this.children.delete(parts[0]);
+        }
+      }
+    }
+    return deleted;
+  }
+
+  override clear(): void {
+    super.clear();
+    this.children.clear();
+  }
+
+  /** Names of the entries directly inside `directory`. */
+  childNames(directory: string): Iterable<string> {
+    return this.children.get(directory) ?? [];
+  }
+}
+
 export class InMemoryFs implements IFileSystem {
-  private data: Map<string, FsEntry> = new Map();
+  private data: PathTable = new PathTable();
 
   constructor(initialFiles?: InitialFiles) {
     this.data.set("/", { type: "directory", mode: 0o755, mtime: new Date() });
@@ -499,19 +556,15 @@ export class InMemoryFs implements IFileSystem {
     const prefix = normalized === "/" ? "/" : `${normalized}/`;
     const entriesMap = new Map<string, DirentEntry>();
 
-    for (const [p, fsEntry] of this.data.entries()) {
-      if (p === normalized) continue;
-      if (p.startsWith(prefix)) {
-        const rest = p.slice(prefix.length);
-        const name = rest.split("/")[0];
-        if (name && !rest.includes("/", name.length) && !entriesMap.has(name)) {
-          entriesMap.set(name, {
-            name,
-            isFile: fsEntry.type === "file",
-            isDirectory: fsEntry.type === "directory",
-            isSymbolicLink: fsEntry.type === "symlink",
-          });
-        }
+    for (const name of this.data.childNames(normalized)) {
+      const fsEntry = this.data.get(prefix + name);
+      if (fsEntry && !entriesMap.has(name)) {
+        entriesMap.set(name, {
+          name,
+          isFile: fsEntry.type === "file",
+          isDirectory: fsEntry.type === "directory",
+          isSymbolicLink: fsEntry.type === "symlink",
+        });
       }
     }
 
