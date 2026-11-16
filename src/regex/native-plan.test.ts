@@ -99,7 +99,7 @@ describe("UserRegex engines agree", () => {
     const parts = 1 + random(4);
     for (let i = 0; i < parts; i++) {
       if (depth > 0 && random(4) === 0) {
-        const open = pick(["(", "(?:", "(?<n" + depth + i + ">"]);
+        const open = pick(["(", "(?:", `(?<n${depth}${i}>`]);
         out += `${open}${pattern(depth - 1)}${random(3) === 0 ? `|${pattern(depth - 1)}` : ""})${pick(quantifiers)}`;
       } else {
         out += pick(atoms) + pick(quantifiers);
